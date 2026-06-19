@@ -302,24 +302,37 @@ function inLast26(d) {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
+// Key Accountmanager: eigen rol buiten de standaard BM-funnel. Geen norm op
+// intakes/aanbiedingen/matchgesprekken/contractvoorstellen (komt niet via die
+// route binnen) — wel een vaste norm van 4 bezoeken/week en een doel van 8
+// starters/jaar per persoon. normFix-waarden zijn per week gedefinieerd en
+// worden door normPerPeriod() automatisch geschaald naar de gekozen view.
+const KAM_NORM_FIX = { intakes: 0, bezoeken: 4, aanbiedingen: 0, matchgesprekken: 0, contractvoorstellen: 0 };
 const BMS = [
   { naam: 'Jelle van Schijndel', doel: 18, kleur: '#1a56db' },
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
   { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424' },
   { naam: 'Robin Farnis',        doel: 14, kleur: '#d97706' }, // start 1 juli 2026
+  { naam: 'Luc Kools',           doel:  8, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
+  { naam: 'Yoël Bronckers',      doel:  8, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
 ];
-const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0); // 58
+const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
 
-// Management: bijdrage buiten de BM-funnel om, gezamenlijk doel 16 starters
-const MGMT = [
-  { naam: 'Luc Kools',      kleur: '#0891b2' },
-  { naam: 'Yoël Bronckers', kleur: '#7c3aed' },
-];
-const MGMT_DOEL = 16; // gezamenlijk
-const TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL; // 74
+// Management: voorheen apart bijgehouden buiten de BM-funnel; Luc Kools en
+// Yoël Bronckers hebben nu een volwaardige medewerkerskaart (rol: Key
+// Accountmanager) en tellen via BMS/TEAM_DOEL mee. MGMT blijft staan als hook
+// voor eventuele toekomstige management-only namen, momenteel leeg.
+const MGMT = [];
+const MGMT_DOEL = 0;
+const TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL;
 
-// Luc Schiffers altijd uitsluiten; Luc Kools en Yoël apart bijgehouden via MGMT
+// Luc Schiffers altijd uitsluiten van teambrede ratio's/aggregaten.
+// Key Accountmanagers (Luc Kools, Yoël Bronckers) ook uitsluiten van
+// teambrede ratio-/funnelberekeningen: hun funnel is fundamenteel anders
+// (geen intakes/aanbiedingen/matchgesprekken) en zou de teamnormen voor
+// de overige medewerkers vertekenen. Ze krijgen wel hun eigen volledige
+// medewerkerskaart — alleen de team-aggregaten sluiten ze uit.
 const EXCL  = new Set(['Luc Kools', 'Yoël Bronckers', 'Luc Schiffers']);
 // EXCL_RATIO: voor ratio-berekeningen ook management uitsluiten (vertekening voorkomen)
 const EXCL_RATIO = EXCL;
@@ -426,10 +439,10 @@ function periodsPassedInYear(year, period) {
   return period==='week' ? CUR.week : weekToMonth(CUR.week);
 }
 
-function normPerPeriod(doel_jaar, ratios, period) {
+function normPerPeriod(doel_jaar, ratios, period, override) {
   const f = period==='week' ? 1/52 : 1/12;
   const s = doel_jaar * f;
-  return {
+  const norm = {
     starters:             +s.toFixed(3),
     intakes:              +(ratios.intakes              * s).toFixed(1),
     bezoeken:             +(ratios.bezoeken             * s).toFixed(1),
@@ -437,6 +450,13 @@ function normPerPeriod(doel_jaar, ratios, period) {
     matchgesprekken:      +(ratios.matchgesprekken      * s).toFixed(1),
     contractvoorstellen:  +(ratios.contractvoorstellen  * s).toFixed(1),
   };
+  // Vaste norm-overrides (bv. Key Accountmanager: 4 bezoeken/week, geen norm
+  // op de overige KPI's) zijn per week gedefinieerd; schalen naar de view.
+  if (override) {
+    const scale = period==='week' ? 1 : 52/12;
+    for (const k of Object.keys(override)) norm[k] = +(override[k] * scale).toFixed(2);
+  }
+  return norm;
 }
 
 function yearlyTotals(naam) {
@@ -525,7 +545,7 @@ function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 function renderBM(bm) {
   const year   = getYear();
   const ratios = INDIVIDUAL_RATIOS[bm.naam];
-  const norm   = normPerPeriod(bm.doel, ratios, view);
+  const norm   = normPerPeriod(bm.doel, ratios, view, bm.normFix);
   const rows   = filterData(bm.naam, year);
   const agg    = aggregateByPeriod(rows, view);
   const ytd    = ytdTotals(rows);
@@ -563,6 +583,7 @@ function renderBM(bm) {
     <div class="person-header">
       <div class="person-name">📋 ${bm.naam}</div>
       <div class="person-meta">
+        ${bm.rol ? `<span class="meta-pill">🏷️ ${escHtml(bm.rol)}</span>` : ''}
         <span class="meta-pill">🎯 Doel: ${bm.doel} starters/jaar</span>
         <span class="meta-pill">📅 Norm per ${pLabel}: ${fmt(norm.starters,2)} starters</span>
         <span class="meta-pill">📈 YTD ${year}: ${fmt(ytd.starters,1)} starters</span>
@@ -721,7 +742,9 @@ function renderTeam() {
     </tr>`;
   }).join('');
 
-  const bmRatioRows = BMS.map(bm => {
+  // Key Accountmanagers uitgesloten: hun funnel is fundamenteel anders (geen
+  // intakes/aanbiedingen/matchgesprekken) en zou deze ratio-vergelijking vertekenen.
+  const bmRatioRows = BMS.filter(bm => !EXCL_RATIO.has(bm.naam)).map(bm => {
     const rt = INDIVIDUAL_RATIOS[bm.naam];
     return `<tr>
       <td>${bm.naam}</td>
@@ -751,7 +774,7 @@ function renderTeam() {
     <div class="person-header">
       <div class="person-name">🏆 Teamnorm &amp; Nieuwe Collega's</div>
       <div class="person-meta">
-        <span class="meta-pill">🎯 BM-doel: ${TEAM_DOEL} · Management: ${MGMT_DOEL} · Totaal: ${TOTAAL_DOEL} starters/jaar</span>
+        <span class="meta-pill">🎯 Teamdoel: ${TOTAAL_DOEL} starters/jaar</span>
         <span class="meta-pill">📐 Ratio's o.b.v. laatste 26 weken</span>
       </div>
     </div>
@@ -1260,6 +1283,7 @@ function renderCoaching() {
 
   // Per BM: compute all signals
   const bmData = BMS.map(bm => {
+    const isKAM = bm.rol === 'Key Accountmanager';
     const r26   = INDIVIDUAL_RATIOS[bm.naam];
     const rowsYTD = filterData(bm.naam, year);
     const ytd   = ytdTotals(rowsYTD);
@@ -1291,7 +1315,7 @@ function renderCoaching() {
     for (const k of KPIS) ytdPerWk[k] = +(ytd[k] / wksYTD).toFixed(1);
 
     // Norm per week
-    const norm = normPerPeriod(bm.doel, r26, 'week');
+    const norm = normPerPeriod(bm.doel, r26, 'week', bm.normFix);
 
     // Recent trend (last 4 wks vs YTD avg)
     const trend = {};
@@ -1329,15 +1353,15 @@ function renderCoaching() {
       });
     }
 
-    // 2. Intakes volume
-    if (ytdPerWk.intakes < norm.intakes * 0.75) {
+    // 2. Intakes volume (n.v.t. voor Key Accountmanager: geen norm op intakes)
+    if (!isKAM && ytdPerWk.intakes < norm.intakes * 0.75) {
       points.push({
         prio: 'red',
         icon: '👥',
         title: 'Intake-volume te laag',
         reason: `Gem. ${ytdPerWk.intakes}/week YTD vs. norm ${norm.intakes}/week. Meer gesprekken met kandidaten nodig als basis voor de funnel.`
       });
-    } else if (ytdPerWk.intakes < norm.intakes * 0.9) {
+    } else if (!isKAM && ytdPerWk.intakes < norm.intakes * 0.9) {
       points.push({
         prio: 'orange',
         icon: '👥',
@@ -1363,15 +1387,15 @@ function renderCoaching() {
       });
     }
 
-    // 4. Aanbiedingen
-    if (r26.totals.aanbiedingen === 0 && r26.weeksUsed > 4) {
+    // 4. Aanbiedingen (n.v.t. voor Key Accountmanager: geen norm op aanbiedingen)
+    if (!isKAM && r26.totals.aanbiedingen === 0 && r26.weeksUsed > 4) {
       points.push({
         prio: 'red',
         icon: '📄',
         title: 'Geen aanbiedingen geregistreerd',
         reason: `Nul CV-aanbiedingen in de laatste 26 weken. Controleer of registratie ontbreekt of dat er een blokkade is in het aanbiedingsproces.`
       });
-    } else if (ytdPerWk.aanbiedingen < norm.aanbiedingen * 0.75) {
+    } else if (!isKAM && ytdPerWk.aanbiedingen < norm.aanbiedingen * 0.75) {
       points.push({
         prio: 'red',
         icon: '📄',
@@ -1380,15 +1404,15 @@ function renderCoaching() {
       });
     }
 
-    // 5. Aanbieding → Match conversie vs team
-    if (a2m > 0 && a2m < ta2m * 0.6) {
+    // 5. Aanbieding → Match conversie vs team (n.v.t. voor Key Accountmanager)
+    if (!isKAM && a2m > 0 && a2m < ta2m * 0.6) {
       points.push({
         prio: 'red',
         icon: '🎯',
         title: `Lage conversie aanbied. → matchgesprek (${a2m}% vs. team ${ta2m}%)`,
         reason: `Van elke 100 aanbiedingen leidt slechts ${a2m}% tot een uitnodiging. Focus op kwaliteit en aansluiting van CV's bij de vacature.`
       });
-    } else if (a2m > 0 && a2m < ta2m * 0.85) {
+    } else if (!isKAM && a2m > 0 && a2m < ta2m * 0.85) {
       points.push({
         prio: 'orange',
         icon: '🎯',
@@ -1397,15 +1421,15 @@ function renderCoaching() {
       });
     }
 
-    // 6. Match → Starter conversie
-    if (m2s > 0 && m2s < tm2s * 0.6) {
+    // 6. Match → Starter conversie (n.v.t. voor Key Accountmanager)
+    if (!isKAM && m2s > 0 && m2s < tm2s * 0.6) {
       points.push({
         prio: 'red',
         icon: '🏁',
         title: `Lage closing rate matchgesprekken (${m2s}% vs. team ${tm2s}%)`,
         reason: `Na een matchgesprek volgt slechts ${m2s}% een starter. Voorbereiding kandidaat én afstemming met opdrachtgever verbeteren.`
       });
-    } else if (m2s > 0 && m2s < tm2s * 0.85) {
+    } else if (!isKAM && m2s > 0 && m2s < tm2s * 0.85) {
       points.push({
         prio: 'orange',
         icon: '🏁',
@@ -1439,7 +1463,7 @@ function renderCoaching() {
       ...points.filter(p=>p.prio==='green'),
     ].slice(0, 5);
 
-    return { bm, ytd, expectedStarters, starterGap, starterPctOfDoel, i2a, a2m, m2s, ti2a, ta2m, tm2s, ytdPerWk, norm, trend, points: sorted, r26 };
+    return { bm, isKAM, ytd, expectedStarters, starterGap, starterPctOfDoel, i2a, a2m, m2s, ti2a, ta2m, tm2s, ytdPerWk, norm, trend, points: sorted, r26 };
   });
 
   // Status emoji
@@ -1464,6 +1488,12 @@ function renderCoaching() {
           <span class="mk">Starters YTD</span>
           <span class="mv">${fmt(d.ytd.starters,1)} / ${d.expectedStarters} verwacht</span>
         </div>
+        ${d.isKAM ? `
+        <div class="coach-metric">
+          <span class="mk">Bezoeken/week (YTD)</span>
+          <span class="mv" style="color:${pct(d.ytdPerWk.bezoeken,d.norm.bezoeken)<80?'var(--warn)':'var(--success)'}">${d.ytdPerWk.bezoeken} <span style="color:var(--muted);font-weight:400">/ norm ${d.norm.bezoeken}</span></span>
+        </div>
+        ` : `
         <div class="coach-metric">
           <span class="mk">Intakes/week (YTD)</span>
           <span class="mv" style="color:${pct(d.ytdPerWk.intakes,d.norm.intakes)<80?'var(--warn)':'var(--success)'}">${d.ytdPerWk.intakes} <span style="color:var(--muted);font-weight:400">/ norm ${d.norm.intakes}</span></span>
@@ -1476,6 +1506,7 @@ function renderCoaching() {
           <span class="mk">Match→Starter</span>
           <span class="mv">${d.m2s > 0 ? d.m2s+'%' : '—'} <span style="color:var(--muted);font-weight:400">/ team ${d.tm2s}%</span></span>
         </div>
+        `}
         <div style="margin-top:10px">
           ${d.points.slice(0,2).map(p=>`<div style="font-size:.78rem;padding:4px 0;border-left:3px solid ${p.prio==='red'?'var(--danger)':p.prio==='orange'?'var(--warn)':'var(--success)'};padding-left:8px;margin-bottom:4px">${p.icon} ${p.title}</div>`).join('')}
         </div>
@@ -1493,6 +1524,15 @@ function renderCoaching() {
       </h3>
 
       <div style="margin-bottom:14px">
+        ${d.isKAM ? `
+        <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Bezoeken & starters (geen standaard funnel)</div>
+        <div class="info-box blue" style="margin-bottom:0">
+          ℹ️ ${d.bm.naam.split(' ')[0]} opereert als Key Accountmanager buiten de standaard BM-funnel.
+          Starters komen primair via netwerk, commerciële relaties en directe accountmanagement —
+          niet via de intake→aanbieding→match keten. Daarom geen funnelanalyse; norm is
+          ${fmt(d.norm.bezoeken,1)} bezoeken/week en ${d.bm.doel} starters/jaar.
+        </div>
+        ` : `
         <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Funnelanalyse (laatste 26 weken)</div>
         <div class="funnel-row">
           <span class="funnel-box">Intake</span>
@@ -1509,6 +1549,7 @@ function renderCoaching() {
           <span class="funnel-arrow">→</span>
           <span class="funnel-box">Starter</span>
         </div>
+        `}
       </div>
 
       <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Coachpunten deze week</div>
@@ -1543,76 +1584,7 @@ function renderCoaching() {
 
     <div class="section-title">Gedetailleerde coachpunten per BM</div>
     ${details}
-
-    ${renderMgmtSection(year)}
   </div>`;
-}
-
-function renderMgmtSection(year) {
-  // Management bijdrage: Luc + Yoël, gezamenlijk doel 16 starters
-  const mgmtRows = MGMT.map(m => {
-    const rows = filterData(m.naam, year);
-    const ytd  = ytdTotals(rows);
-    return { ...m, ytd };
-  });
-  const mgmtTotalStarters = mgmtRows.reduce((s,m) => s + m.ytd.starters, 0);
-  const passed = periodsPassedInYear(year, 'week');
-  const expectedMgmt = +(MGMT_DOEL * passed / 52).toFixed(1);
-  const mgmtGap  = +(mgmtTotalStarters - expectedMgmt).toFixed(1);
-  const mgmtPct  = pct(mgmtTotalStarters, expectedMgmt || 1);
-  const statusMgmt = mgmtGap >= 0 ? '🟢' : mgmtGap >= -2 ? '🟡' : '🔴';
-
-  const personRows = mgmtRows.map(m => `
-    <div class="coach-metric">
-      <span class="mk" style="font-weight:600">${m.naam}</span>
-      <span class="mv">${fmt(m.ytd.starters,1)} starters YTD
-        ${m.ytd.intakes > 0 ? `· ${fmt(m.ytd.intakes,0)} intakes` : ''}
-        ${m.ytd.bezoeken > 0 ? `· ${fmt(m.ytd.bezoeken,0)} bezoeken` : ''}
-        ${m.ytd.aanbiedingen > 0 ? `· ${fmt(m.ytd.aanbiedingen,0)} aanbiedingen` : ''}
-      </span>
-    </div>`).join('');
-
-  return `
-    <div class="section-title">Management bijdrage (Luc &amp; Yoël)</div>
-    <div class="detail-section" style="border-left:4px solid #0891b2">
-      <h3>${statusMgmt} Gezamenlijk doel: ${MGMT_DOEL} starters/jaar
-        <span style="font-size:.82rem;font-weight:600;color:var(--muted);margin-left:8px">
-          ${fmt(mgmtTotalStarters,1)} YTD · verwacht ${expectedMgmt} bij week ${passed}
-        </span>
-      </h3>
-
-      <div class="info-box blue" style="margin-bottom:12px">
-        ℹ️ Luc en Yoël opereren buiten de standaard BM-funnel. Hun starters komen primair via
-        hun netwerk, commerciële relaties en directe accountmanagement — niet via de intake→aanbieding→match keten.
-        Daarom wordt hier alleen de startersvoortgang gevolgd, zonder funnelanalyse.
-      </div>
-
-      ${personRows}
-
-      <div style="margin-top:14px">
-        <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Gezamenlijke voortgang</div>
-        <div class="progress-bar-bg" style="height:12px">
-          <div class="progress-bar-fill" style="width:${mgmtPct}%;background:${barColor(mgmtPct)}"></div>
-        </div>
-        <div class="progress-sub">
-          <span>${mgmtPct}% van verwacht schema</span>
-          <span>Einddoel: ${MGMT_DOEL} starters</span>
-        </div>
-      </div>
-
-      <div class="week-actions" style="margin-top:14px">
-        <h4>📌 Gespreksagenda management</h4>
-        <ul>
-          ${mgmtGap < -1.5
-            ? `<li>Achterstand van ${Math.abs(mgmtGap)} starters t.o.v. schema — bespreek welke concrete deals in de pipeline zitten en wanneer deze verwacht worden.</li>
-               <li>Welke acties (bezoeken, aanbiedingen, netwerk) kunnen worden opgevoerd om het doel nog te halen?</li>`
-            : mgmtGap < 0
-            ? `<li>Lichte achterstand (${Math.abs(mgmtGap)} starters) — pipeline doorlopen en verwachte instroom inventariseren.</li>`
-            : `<li>Op koers of voor op schema — momentum vasthouden. Bespreek welke kansen er nog in de pipeline zitten voor de rest van het jaar.</li>`
-          }
-        </ul>
-      </div>
-    </div>`;
 }
 
 // ── Prognose Panel ────────────────────────────────────────────────────────────
