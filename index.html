@@ -23,10 +23,19 @@
   .toggle-group button.active { background:rgba(255,255,255,.3); }
   select { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:7px 12px; border-radius:8px; font-size:.85rem; cursor:pointer; }
   select option { color:#111; background:#fff; }
-  .tabs { display:flex; gap:4px; padding:16px 32px 0; overflow-x:auto; }
-  .tab { padding:9px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:.88rem; cursor:pointer; background:#dde3ef; color:var(--muted); border:none; transition:all .2s; white-space:nowrap; }
-  .tab.active { background:var(--card); color:var(--primary); box-shadow:0 -2px 0 var(--primary) inset; }
-  main { padding:0 32px 40px; }
+  .app-layout { display:flex; align-items:flex-start; }
+  .sidebar { width:230px; flex-shrink:0; background:var(--card); border-right:1px solid var(--border); padding:18px 10px; min-height:calc(100vh - 90px); position:sticky; top:0; }
+  .sidebar-cat { margin-bottom:4px; }
+  .sidebar-cat-btn { width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; background:none; border:none; padding:10px 12px; font-weight:700; font-size:.83rem; color:var(--text); cursor:pointer; border-radius:8px; transition:background .15s; }
+  .sidebar-cat-btn:hover { background:var(--bg); }
+  .sidebar-cat-btn.active-cat { background:var(--primary-light); color:var(--primary); }
+  .sidebar-caret { font-size:.65rem; color:var(--muted); transition:transform .2s; flex-shrink:0; }
+  .sidebar-caret.open { transform:rotate(90deg); }
+  .sidebar-sub { display:flex; flex-direction:column; gap:1px; padding-left:10px; margin:2px 0 8px; }
+  .sidebar-item { display:block; width:100%; text-align:left; background:none; border:none; padding:8px 12px; font-size:.82rem; color:var(--muted); cursor:pointer; border-radius:6px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background .15s; }
+  .sidebar-item:hover { background:var(--bg); }
+  .sidebar-item.active { background:var(--primary); color:#fff; }
+  main { padding:0 32px 40px; flex:1; min-width:0; }
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:14px; margin:20px 0; }
   .kpi-card { background:var(--card); border-radius:var(--radius); padding:18px 20px; border:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,.06); }
   .kpi-card .label { font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; }
@@ -144,8 +153,8 @@
   .pipe-modal { background:#fff; border-radius:14px; padding:26px 28px; width:360px; box-shadow:0 12px 40px rgba(0,0,0,.22); }
   .pipe-modal h4 { font-size:1rem; font-weight:800; margin-bottom:4px; }
   .pipe-modal .pipe-modal-sub { font-size:.8rem; color:var(--muted); margin-bottom:16px; }
-  .pipe-modal input, .pipe-modal textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:.88rem; font-family:inherit; margin-bottom:10px; outline:none; display:block; resize:vertical; }
-  .pipe-modal input:focus, .pipe-modal textarea:focus { border-color:var(--primary); box-shadow:0 0 0 3px #dbeafe; }
+  .pipe-modal input, .pipe-modal textarea, .pipe-modal select { width:100%; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:.88rem; font-family:inherit; margin-bottom:10px; outline:none; display:block; resize:vertical; background:#fff; }
+  .pipe-modal input:focus, .pipe-modal textarea:focus, .pipe-modal select:focus { border-color:var(--primary); box-shadow:0 0 0 3px #dbeafe; }
   .pipe-modal-btns { display:flex; gap:8px; justify-content:flex-end; margin-top:4px; }
   .pipe-modal-btns button { padding:9px 20px; border-radius:8px; font-size:.88rem; font-weight:700; cursor:pointer; border:none; }
   .pipe-modal-cancel { background:#f3f4f6; color:var(--muted); }
@@ -194,8 +203,8 @@
   </div>
 </div>
 
-<div id="app-root" style="display:none;">
-  <div class="tabs" id="tabs"></div>
+<div id="app-root" class="app-layout" style="display:none;">
+  <aside class="sidebar" id="sidebar"></aside>
   <main id="main"></main>
 </div>
 
@@ -294,7 +303,7 @@ function recomputeRatios() {
 recomputeRatios();
 
 // ── Pipeline constanten (vóór render() zodat ze geen TDZ-error geven) ─────────
-const PIPE_STAGES = ['Intake', 'CR uitwerken / RLDV', 'Aanbieden', 'Matchgesprekken', 'Contractvoorstel'];
+const PIPE_STAGES = ['Intake', 'Bezoeken', 'Aanbieden', 'Matchgesprekken', 'Contractvoorstel'];
 const PIPE_STAGE_COLORS = [
   { bg:'#dbeafe', text:'#1e40af' },
   { bg:'#fef3c7', text:'#92400e' },
@@ -387,17 +396,49 @@ function makeChart(id, labels, datasets, type='line') {
   });
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Sidebar-menu ──────────────────────────────────────────────────────────────
+let medewerkersOpen = true;
+
 function renderTabs() {
   // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
   if (CURRENT_USER && CURRENT_USER.rol === 'bm') {
-    document.getElementById('tabs').innerHTML = `<button class="tab active">📋 ${CURRENT_USER.bm_naam}</button>`;
+    document.getElementById('sidebar').innerHTML =
+      `<div class="sidebar-cat"><div class="sidebar-cat-btn active-cat" style="cursor:default;">📋 ${escHtml(CURRENT_USER.bm_naam)}</div></div>`;
     return;
   }
-  const items = [...BMS, { naam: 'Teamnorm' }, { naam: '🎯 Coaching' }, { naam: '📈 Prognose' }];
-  document.getElementById('tabs').innerHTML = items.map((b,i) =>
-    `<button class="tab ${i===currentTab?'active':''}" onclick="selectTab(${i})">${b.naam}</button>`
+
+  const teamIdx     = BMS.length;
+  const coachingIdx = BMS.length + 1;
+  const prognoseIdx = BMS.length + 2;
+  const inMedewerkers = currentTab < BMS.length;
+  if (inMedewerkers) medewerkersOpen = true;
+
+  const medewerkersItems = BMS.map((b,i) =>
+    `<button class="sidebar-item ${i===currentTab?'active':''}" onclick="selectTab(${i})">${escHtml(b.naam)}</button>`
   ).join('');
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}" onclick="toggleMedewerkers()">
+        <span>👥 Assets / Medewerkers</span>
+        <span class="sidebar-caret ${medewerkersOpen?'open':''}">▶</span>
+      </button>
+      <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
+    </div>
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab===teamIdx?'active-cat':''}" onclick="selectTab(${teamIdx})"><span>📊 Team</span></button>
+    </div>
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab===coachingIdx?'active-cat':''}" onclick="selectTab(${coachingIdx})"><span>🎯 Coaching</span></button>
+    </div>
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab===prognoseIdx?'active-cat':''}" onclick="selectTab(${prognoseIdx})"><span>📈 Prognose</span></button>
+    </div>`;
+}
+
+function toggleMedewerkers() {
+  medewerkersOpen = !medewerkersOpen;
+  renderTabs();
 }
 function canEdit(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.bm_naam === bmNaam);
@@ -1449,7 +1490,7 @@ async function pipeFetchAll() {
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb });
+    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek });
   });
   PIPE_CACHE = next;
 }
@@ -1488,6 +1529,7 @@ function renderPipeline(bm) {
     const cells = PIPE_STAGES.map((stage, si) => {
       const col       = PIPE_STAGE_COLORS[si];
       const isAanb    = stage === 'Aanbieden';
+      const isMatch   = stage === 'Matchgesprekken';
       const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
       const cellCount = cellCards.length;
 
@@ -1500,11 +1542,26 @@ function renderPipeline(bm) {
                  onclick="event.stopPropagation()" ondragstart="event.stopPropagation()"/>
              </div>`
           : '';
+        const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
+        const gesprekHtml = isMatch
+          ? `<div class="card-aanb-row">
+               <select class="card-aanb-input" style="width:auto;flex:1;font-weight:600;"
+                 onchange="pipeUpdateGesprek('${bmE}','${c.id}',this.value)"
+                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                 <option value="">Gesprek —</option>
+                 ${gesprekOpts}
+               </select>
+             </div>`
+          : '';
+        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : ''].filter(Boolean);
+        const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" draggable="true"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
           ondragend="pipeDragEnd(event)">
           <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns"><button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button></span></div>
+          ${metaHtml}
           ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
+          ${gesprekHtml}
           ${aanbHtml}
         </div>`;
       }).join('');
@@ -1570,12 +1627,19 @@ function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
 // ── Add / bewerk card modal (zelfde modal, cardId bepaalt de modus) ──────────
 var _pipeModalCtx = { bmNaam: null, stage: null, week: null, jaar: null, cardId: null };
 
+function _pipeToggleIntakeFields(stage) {
+  document.getElementById('pipe-modal-intake-fields').style.display = (stage === 'Intake') ? 'block' : 'none';
+}
 function pipeOpenModal(bmNaam, stage, week, jaar) {
   _pipeModalCtx = { bmNaam, stage, week, jaar, cardId: null };
   document.getElementById('pipe-modal-title').textContent = '➕ Kandidaat toevoegen';
   document.getElementById('pipe-modal-stage-label').textContent = stage + ' · Week ' + week + ' (' + jaar + ')';
   document.getElementById('pipe-modal-naam').value = '';
   document.getElementById('pipe-modal-notitie').value = '';
+  document.getElementById('pipe-modal-functie').value = '';
+  document.getElementById('pipe-modal-si').value = '';
+  document.getElementById('pipe-modal-regio').value = '';
+  _pipeToggleIntakeFields(stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Toevoegen';
   document.getElementById('pipe-modal').classList.add('open');
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
@@ -1588,6 +1652,10 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-stage-label').textContent = card.stage + ' · Week ' + card.week + ' (' + card.jaar + ')';
   document.getElementById('pipe-modal-naam').value = card.naam || '';
   document.getElementById('pipe-modal-notitie').value = card.notitie || '';
+  document.getElementById('pipe-modal-functie').value = card.functie || '';
+  document.getElementById('pipe-modal-si').value = card.salarisindicatie || '';
+  document.getElementById('pipe-modal-regio').value = card.regio || '';
+  _pipeToggleIntakeFields(card.stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Opslaan';
   document.getElementById('pipe-modal').classList.add('open');
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
@@ -1598,18 +1666,25 @@ async function pipeConfirmAdd() {
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
   const notitie = document.getElementById('pipe-modal-notitie').value.trim();
   const { bmNaam, stage, week, jaar, cardId } = _pipeModalCtx;
+  const isIntake = stage === 'Intake';
+  const functie  = isIntake ? document.getElementById('pipe-modal-functie').value.trim() : undefined;
+  const si       = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
+  const regio    = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
 
   if (cardId) {
     // Bewerken van een bestaande kandidaat
+    const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
+    if (isIntake) { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; }
     if (supa) {
-      const { error } = await supa.from('pipeline_cards')
-        .update({ naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
-        .eq('id', cardId);
+      const { error } = await supa.from('pipeline_cards').update(updatePayload).eq('id', cardId);
       if (error) { alert('Kandidaat wijzigen mislukt: ' + error.message); return; }
     }
     const cards = pipeLoad(bmNaam);
     const card  = cards.find(c => c.id === cardId);
-    if (card) { card.naam = naam; card.notitie = notitie; }
+    if (card) {
+      card.naam = naam; card.notitie = notitie;
+      if (isIntake) { card.functie = functie; card.salarisindicatie = si; card.regio = regio; }
+    }
     pipeSave(bmNaam, cards);
     pipeCloseModal();
     render();
@@ -1618,15 +1693,17 @@ async function pipeConfirmAdd() {
 
   // Nieuwe kandidaat toevoegen
   const datum = new Date().toLocaleDateString('nl-NL');
+  const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
+  if (isIntake) { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; }
   let newCard;
   if (supa) {
     const { data, error } = await supa.from('pipeline_cards')
-      .insert({ bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id })
+      .insert(insertPayload)
       .select().single();
     if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -1654,6 +1731,19 @@ function pipeUpdateAanb(bmNaam, cardId, value) {
     .then(({error}) => { if (error) console.error('Aanbod bijwerken mislukt:', error); });
 }
 
+// ── Update gesprek-ronde (1e/2e/3e) ────────────────────────────────────────────
+function pipeUpdateGesprek(bmNaam, cardId, value) {
+  const cards = pipeLoad(bmNaam);
+  const card  = cards.find(c => c.id === cardId);
+  if (!card) return;
+  card.gesprek = value ? parseInt(value, 10) : null;
+  pipeSave(bmNaam, cards);
+  if (supa) supa.from('pipeline_cards')
+    .update({ gesprek: card.gesprek, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
+    .eq('id', cardId)
+    .then(({error}) => { if (error) console.error('Gesprek bijwerken mislukt:', error); });
+}
+
 // ── Delete card ───────────────────────────────────────────────────────────────
 function pipeDelete(bmNaam, cardId) {
   pipeSave(bmNaam, pipeLoad(bmNaam).filter(c => c.id !== cardId));
@@ -1670,6 +1760,18 @@ function pipeDelete(bmNaam, cardId) {
     <h4 id="pipe-modal-title">➕ Kandidaat toevoegen</h4>
     <p class="pipe-modal-sub" id="pipe-modal-stage-label">Fase: —</p>
     <input type="text" id="pipe-modal-naam" placeholder="Naam kandidaat" autocomplete="off"/>
+    <div id="pipe-modal-intake-fields" style="display:none;">
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="pipe-modal-functie" placeholder="Functie" autocomplete="off" style="flex:1;"/>
+        <input type="text" id="pipe-modal-si" placeholder="SI (salarisindicatie)" autocomplete="off" style="flex:1;"/>
+      </div>
+      <select id="pipe-modal-regio" style="margin-bottom:10px;">
+        <option value="">Regio (kies)</option>
+        <option value="Noord">Noord</option>
+        <option value="Midden">Midden</option>
+        <option value="Zuid">Zuid</option>
+      </select>
+    </div>
     <textarea id="pipe-modal-notitie" placeholder="Notitie (optioneel)" rows="2"></textarea>
     <div class="pipe-modal-btns">
       <button class="pipe-modal-cancel" onclick="pipeCloseModal()">Annuleren</button>
