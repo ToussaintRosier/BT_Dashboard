@@ -1737,12 +1737,13 @@ async function importProjectenExcel(inputEl) {
 }
 
 // ── Starters-goedkeuring (kandidaten in fase 'Starter') ──────────────────────
-// Blijft staan tot beoordeeld (akkoord/niet akkoord), onafhankelijk van de week.
+// Blijft staan totdat beoordeeld; zodra akkoord/niet akkoord verdwijnt de kaart
+// direct uit deze lijst (akkoord → Projecten overzicht, niet akkoord → verwijderd).
 function getStarterCards() {
   const out = [];
   for (const bm of BMS) {
     const cards = pipeLoad(bm.naam);
-    for (const c of cards) if (c.stage === 'Starter' && !c.verwijderd_op) out.push({ ...c, bmNaam: bm.naam });
+    for (const c of cards) if (c.stage === 'Starter' && !c.verwijderd_op && (c.goedkeuring || 'open') === 'open') out.push({ ...c, bmNaam: bm.naam });
   }
   return out;
 }
@@ -1770,32 +1771,32 @@ async function deleteProjectRange(source, id, bmNaam) {
   render();
 }
 
+// Akkoord: kaart krijgt direct een start_datum (vandaag, indien nog niet gezet) en
+// verschijnt zo meteen in het Projecten overzicht / de projectenlijn; datums zijn
+// daar nog aan te passen. Niet akkoord: kaart wordt definitief en blijvend verwijderd
+// (geen historie te bewaren, want hij heeft nooit meegeteld als actief project).
 async function pipeSetGoedkeuring(bmNaam, cardId, status) {
+  const cards = pipeLoad(bmNaam);
+  const card  = cards.find(c => c.id === cardId);
+
+  if (status === 'niet_akkoord') {
+    if (!confirm('Deze kandidaat afwijzen?\n\nDe kaart wordt definitief verwijderd uit de pipeline en kan niet worden teruggehaald.')) return;
+    pipeSave(bmNaam, cards.filter(c => c.id !== cardId));
+    render();
+    if (supa) {
+      const { error } = await supa.from('pipeline_cards').delete().eq('id', cardId);
+      if (error) { alert('Verwijderen mislukt: ' + error.message); }
+    }
+    return;
+  }
+
+  const startDatum = card?.start_datum || toISODate(new Date());
   if (supa) {
-    const { error } = await supa.from('pipeline_cards').update({ goedkeuring: status, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() }).eq('id', cardId);
+    const { error } = await supa.from('pipeline_cards').update({ goedkeuring: status, start_datum: startDatum, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() }).eq('id', cardId);
     if (error) { alert('Bijwerken mislukt: ' + error.message); return; }
   }
-  const cards = pipeLoad(bmNaam);
-  const card  = cards.find(c => c.id === cardId);
-  if (card) card.goedkeuring = status;
+  if (card) { card.goedkeuring = status; card.start_datum = startDatum; }
   pipeSave(bmNaam, cards);
-  render();
-}
-
-async function pipeSaveStarterDates(bmNaam, cardId) {
-  const safeId = String(cardId).replace(/[^a-zA-Z0-9]/g, '');
-  const start  = document.getElementById(`sd-start-${safeId}`)?.value || null;
-  const eind   = document.getElementById(`sd-eind-${safeId}`)?.value || null;
-  const statusEl = document.getElementById(`sd-status-${safeId}`);
-  if (supa) {
-    const { error } = await supa.from('pipeline_cards').update({ start_datum: start, eind_datum_verwacht: eind, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() }).eq('id', cardId);
-    if (error) { if (statusEl) statusEl.textContent = '❌ ' + error.message; return; }
-  }
-  const cards = pipeLoad(bmNaam);
-  const card  = cards.find(c => c.id === cardId);
-  if (card) { card.start_datum = start; card.eind_datum_verwacht = eind; }
-  pipeSave(bmNaam, cards);
-  if (statusEl) statusEl.textContent = '✅ Opgeslagen';
   render();
 }
 
@@ -1971,19 +1972,12 @@ function renderPrognose() {
     <!-- Starters goedkeuring -->
     <div class="section-title">Starters-goedkeuring (fase Starter)</div>
     <div class="chart-card">
+      <div class="sub" style="margin-bottom:6px">✅ Akkoord = direct opnemen in Projecten overzicht (start vandaag, datums daar aan te passen) &nbsp;·&nbsp; ❌ Niet akkoord = kandidaat definitief verwijderen &nbsp;·&nbsp; na beoordelen verdwijnt de kandidaat uit deze lijst.</div>
       ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : starterCards.map(c => {
-        const safeId = String(c.id).replace(/[^a-zA-Z0-9]/g, '');
-        const status = c.goedkeuring || 'open';
         return `<div class="proj-overview-row">
           <div style="flex:1; min-width:160px"><strong>${c.naam}</strong> <span class="sub">(${c.bmNaam}${c.opdrachtgever ? ' · ' + escHtml(c.opdrachtgever) : ''}${c.gedeeld ? ' · gedeeld (0,5)' : ''})</span></div>
-          <button class="goedkeur-btn ${status==='akkoord'?'akkoord':''}" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
-          <button class="goedkeur-btn ${status==='niet_akkoord'?'niet-akkoord':''}" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>
-          ${status === 'akkoord' ? `
-            <input type="date" class="proj-date-input" id="sd-start-${safeId}" value="${c.start_datum || ''}" title="Begindatum">
-            <input type="date" class="proj-date-input" id="sd-eind-${safeId}" value="${c.eind_datum_verwacht || ''}" title="Vermoedelijke einddatum (leeg = oneindig)">
-            <button class="proj-save-btn" onclick="pipeSaveStarterDates('${c.bmNaam}','${c.id}')">💾 Opslaan</button>
-            <span class="sub" id="sd-status-${safeId}"></span>
-          ` : ''}
+          <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
+          <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>
         </div>`;
       }).join('')}
     </div>
