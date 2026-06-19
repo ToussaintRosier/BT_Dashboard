@@ -2049,7 +2049,7 @@ async function pipeFetchAll() {
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op });
+    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op });
   });
   PIPE_CACHE = next;
 }
@@ -2210,7 +2210,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-bezoek-reden').value = '';
   document.getElementById('pipe-modal-opdrachtgever').value = '';
   document.getElementById('pipe-modal-salaris').value = '';
-  document.getElementById('pipe-modal-gedeeld').checked = false;
+  document.getElementById('pipe-modal-gedeeld').value = '1';
   _pipeToggleStageFields(stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Toevoegen';
   document.getElementById('pipe-modal').classList.add('open');
@@ -2230,7 +2230,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-bezoek-reden').value = card.bezoek_reden || '';
   document.getElementById('pipe-modal-opdrachtgever').value = card.opdrachtgever || '';
   document.getElementById('pipe-modal-salaris').value = card.salaris || '';
-  document.getElementById('pipe-modal-gedeeld').checked = !!card.gedeeld;
+  document.getElementById('pipe-modal-gedeeld').value = card.gedeeld ? '0.5' : '1';
   _pipeToggleStageFields(card.stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Opslaan';
   document.getElementById('pipe-modal').classList.add('open');
@@ -2252,7 +2252,7 @@ async function pipeConfirmAdd() {
   const bezoekReden     = isBezoek ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
   const opdrachtgever   = (isContract || isStarter) ? document.getElementById('pipe-modal-opdrachtgever').value.trim() : undefined;
   const salaris         = isContract ? document.getElementById('pipe-modal-salaris').value.trim() : undefined;
-  const gedeeld         = (isContract || isStarter) ? document.getElementById('pipe-modal-gedeeld').checked : undefined;
+  const gedeeld         = (isContract || isStarter) ? (document.getElementById('pipe-modal-gedeeld').value === '0.5') : undefined;
 
   // Verplichte velden bij Intake: naam (al gecontroleerd), functie, salarisindicatie, regio.
   if (isIntake) {
@@ -2414,9 +2414,11 @@ function pipeDelete(bmNaam, cardId) {
       <input type="text" id="pipe-modal-salaris" placeholder="Salaris *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
     </div>
     <div id="pipe-modal-gedeeld-field" style="display:none;">
-      <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);margin-bottom:10px;">
-        <input type="checkbox" id="pipe-modal-gedeeld"/> Gedeelde plaatsing met collega (telt als 0,5)
-      </label>
+      <label style="display:block;font-size:.78rem;color:var(--muted);margin-bottom:4px;">Telt voor</label>
+      <select id="pipe-modal-gedeeld" style="width:100%;margin-bottom:10px;">
+        <option value="1">1 (volledige plaatsing)</option>
+        <option value="0.5">0,5 (gedeeld met collega)</option>
+      </select>
     </div>
     <textarea id="pipe-modal-notitie" placeholder="Notitie (optioneel)" rows="2"></textarea>
     <div class="pipe-modal-btns">
