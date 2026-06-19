@@ -326,12 +326,12 @@ const EXCL_RATIO = EXCL;
 // P75 historisch veiligheidsmargin: aanbiedingen/intake norm
 const AANB_PER_INTAKE_P75   = 6.3;  // datagedreven P75 (excl. outliers)
 const AANB_PER_INTAKE_2X    = null; // wordt dynamisch berekend als 2× teamratio
-const KPIS  = ['intakes','bezoeken','aanbiedingen','matchgesprekken','starters'];
-const KPI_LABELS = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen', matchgesprekken:'Matchgesprekken', starters:'Starters' };
-const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424' };
-// Expliciete koppeling KPI -> pipeline-fase (niet meer positioneel, want PIPE_STAGES
-// heeft inmiddels een extra fase 'Contractvoorstel' die niet in de KPI-telling meetelt).
-const KPI_STAGE_MAP = { intakes:'Intake', bezoeken:'Bezoeken', aanbiedingen:'Aanbieden', matchgesprekken:'Matchgesprekken', starters:'Starter' };
+const KPIS  = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
+const KPI_LABELS = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen', matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
+const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424', contractvoorstellen:'#9d174d' };
+// Expliciete koppeling KPI -> pipeline-fase (positioneel sinds PIPE_STAGES inmiddels
+// 6 fases heeft; 'contractvoorstellen' telt nu ook volwaardig mee als KPI).
+const KPI_STAGE_MAP = { intakes:'Intake', bezoeken:'Bezoeken', aanbiedingen:'Aanbieden', matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstel', starters:'Starter' };
 function kpiColor(k, bm) { return k==='starters' ? (bm?.kleur || '#F4CB3C') : KPI_FIXED_COLORS[k]; }
 function toggleKpiDataset(el) {
   const chart = charts[el.dataset.chart];
@@ -346,17 +346,18 @@ function toggleKpiDataset(el) {
 // ── Ratios (laatste 26 weken) ─────────────────────────────────────────────────
 function computeRatios(naam) {
   const src = RAW.filter(d => (naam ? d.naam === naam : !EXCL.has(d.naam)) && inLast26(d));
-  const tot = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, starters:0 };
-  for (const d of src) for (const k of KPIS) tot[k] += d[k];
+  const tot = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
+  for (const d of src) for (const k of KPIS) tot[k] += (d[k] || 0);
   const s = tot.starters || 1;
   return {
     totals: tot,
-    intakes:         +(tot.intakes/s).toFixed(2),
-    bezoeken:        +(tot.bezoeken/s).toFixed(2),
-    aanbiedingen:    +(tot.aanbiedingen/s).toFixed(2),
-    matchgesprekken: +(tot.matchgesprekken/s).toFixed(2),
-    totalStarters:   tot.starters,
-    weeksUsed:       src.length,
+    intakes:              +(tot.intakes/s).toFixed(2),
+    bezoeken:             +(tot.bezoeken/s).toFixed(2),
+    aanbiedingen:         +(tot.aanbiedingen/s).toFixed(2),
+    matchgesprekken:      +(tot.matchgesprekken/s).toFixed(2),
+    contractvoorstellen:  +(tot.contractvoorstellen/s).toFixed(2),
+    totalStarters:        tot.starters,
+    weeksUsed:            src.length,
   };
 }
 
@@ -407,15 +408,15 @@ function aggregateByPeriod(rows, period) {
   const map = {};
   for (const d of rows) {
     const key = period==='week' ? d.week : weekToMonth(d.week);
-    if (!map[key]) map[key] = { period:key, intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, starters:0 };
-    for (const k of KPIS) map[key][k] += d[k];
+    if (!map[key]) map[key] = { period:key, intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
+    for (const k of KPIS) map[key][k] += (d[k] || 0);
   }
   return Object.values(map).sort((a,b) => a.period - b.period);
 }
 
 function ytdTotals(rows) {
-  const t = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, starters:0 };
-  for (const d of rows) for (const k of KPIS) t[k] += d[k];
+  const t = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
+  for (const d of rows) for (const k of KPIS) t[k] += (d[k] || 0);
   return t;
 }
 
@@ -428,11 +429,12 @@ function normPerPeriod(doel_jaar, ratios, period) {
   const f = period==='week' ? 1/52 : 1/12;
   const s = doel_jaar * f;
   return {
-    starters:        +s.toFixed(3),
-    intakes:         +(ratios.intakes         * s).toFixed(1),
-    bezoeken:        +(ratios.bezoeken        * s).toFixed(1),
-    aanbiedingen:    +(ratios.aanbiedingen    * s).toFixed(1),
-    matchgesprekken: +(ratios.matchgesprekken * s).toFixed(1),
+    starters:             +s.toFixed(3),
+    intakes:              +(ratios.intakes              * s).toFixed(1),
+    bezoeken:             +(ratios.bezoeken             * s).toFixed(1),
+    aanbiedingen:         +(ratios.aanbiedingen         * s).toFixed(1),
+    matchgesprekken:      +(ratios.matchgesprekken      * s).toFixed(1),
+    contractvoorstellen:  +(ratios.contractvoorstellen  * s).toFixed(1),
   };
 }
 
@@ -551,6 +553,7 @@ function renderBM(bm) {
     <td>${h.jaar}</td>
     <td>${fmt(h.intakes,0)}</td><td>${fmt(h.bezoeken,0)}</td>
     <td>${fmt(h.aanbiedingen,0)}</td><td>${fmt(h.matchgesprekken,0)}</td>
+    <td>${fmt(h.contractvoorstellen,0)}</td>
     <td><strong>${fmt(h.starters,1)}</strong></td>
     <td style="color:var(--muted);font-size:.78rem">${h.weken} wkn</td>
   </tr>`).join('');
@@ -651,7 +654,7 @@ function renderBM(bm) {
 
     <div class="section-title">Historisch overzicht per jaar</div>
     <div class="table-card"><table>
-      <thead><tr><th>Jaar</th><th>Intakes</th><th>Bezoeken</th><th>Aanbiedingen</th><th>Match</th><th>Starters</th><th>Weken</th></tr></thead>
+      <thead><tr><th>Jaar</th><th>Intakes</th><th>Bezoeken</th><th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Weken</th></tr></thead>
       <tbody>${histRows}</tbody>
     </table></div>
   `;
@@ -712,6 +715,7 @@ function renderTeam() {
       <td>${+(r.bezoeken*s).toFixed(1)}</td>
       <td>${+(r.aanbiedingen*s).toFixed(1)}</td>
       <td>${+(r.matchgesprekken*s).toFixed(1)}</td>
+      <td>${+(r.contractvoorstellen*s).toFixed(1)}</td>
       <td style="font-weight:700;color:var(--primary)">${+s.toFixed(2)}</td>
     </tr>`;
   }).join('');
@@ -722,6 +726,7 @@ function renderTeam() {
       <td>${bm.naam}</td>
       <td>${fmt(rt.intakes,2)}</td><td>${fmt(rt.bezoeken,2)}</td>
       <td>${fmt(rt.aanbiedingen,2)}</td><td>${fmt(rt.matchgesprekken,2)}</td>
+      <td>${fmt(rt.contractvoorstellen,2)}</td>
       <td><strong>${fmt(rt.totalStarters,1)}</strong></td>
       <td style="color:var(--muted);font-size:.78rem">${rt.weeksUsed} wkn</td>
     </tr>`;
@@ -735,6 +740,7 @@ function renderTeam() {
       <td>${yr}</td>
       <td>${fmt(t.intakes,0)}</td><td>${fmt(t.bezoeken,0)}</td>
       <td>${fmt(t.aanbiedingen,0)}</td><td>${fmt(t.matchgesprekken,0)}</td>
+      <td>${fmt(t.contractvoorstellen,0)}</td>
       <td><strong>${fmt(t.starters,1)}</strong></td>
       <td style="color:var(--muted)">${new Set(yr_rows.map(d=>d.naam)).size}</td>
     </tr>`;
@@ -809,7 +815,7 @@ function renderTeam() {
     <div class="table-card"><table>
       <thead><tr>
         <th>Jaardoel</th><th>Intakes/wk</th><th>Bezoeken/wk</th>
-        <th>Aanbied./wk</th><th>Match/wk</th><th>Starters/wk</th>
+        <th>Aanbied./wk</th><th>Match/wk</th><th>Contractvoorstel/wk</th><th>Starters/wk</th>
       </tr></thead>
       <tbody>${doelRijen}</tbody>
     </table></div>
@@ -819,7 +825,7 @@ function renderTeam() {
     <div class="table-card"><table>
       <thead><tr>
         <th>BM</th><th>Intakes/starter</th><th>Bezoeken/starter</th>
-        <th>Aanbied./starter</th><th>Match/starter</th><th>Starters</th><th>Weekrecords</th>
+        <th>Aanbied./starter</th><th>Match/starter</th><th>Contractvoorstel/starter</th><th>Starters</th><th>Weekrecords</th>
       </tr></thead>
       <tbody>${bmRatioRows}</tbody>
     </table></div>
@@ -829,7 +835,7 @@ function renderTeam() {
     <div class="table-card"><table>
       <thead><tr>
         <th>Jaar</th><th>Intakes</th><th>Bezoeken</th>
-        <th>Aanbiedingen</th><th>Match</th><th>Starters</th><th>Mensen</th>
+        <th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Mensen</th>
       </tr></thead>
       <tbody>${histRows}</tbody>
     </table></div>
@@ -885,14 +891,15 @@ let WEEKLY_EDIT_UNLOCKED = new Set();
 
 // Telt voor elke KPI hoeveel pipeline-kaartjes in de bijbehorende fase staan,
 // voor een specifieke week/jaar. Koppeling via KPI_STAGE_MAP (niet meer positioneel).
-// Starters die 'gedeeld' zijn met een collega tellen voor 0,5 in plaats van 1.
+// Starters en Contractvoorstellen die 'gedeeld' zijn met een collega tellen voor
+// 0,5 in plaats van 1.
 function getPipeCountsForWeek(bmNaam, week, jaar) {
   const cards  = pipeLoad(bmNaam);
   const counts = {};
   KPIS.forEach(k => {
     const stage = KPI_STAGE_MAP[k];
     const inStage = cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar);
-    counts[k] = k === 'starters'
+    counts[k] = (k === 'starters' || k === 'contractvoorstellen')
       ? inStage.reduce((sum, c) => sum + (c.gedeeld ? 0.5 : 1), 0)
       // aanbiedingen = som van het 'aanb'-veld per kandidaat-blokje, niet het
       // aantal kandidaten/blokjes zelf in de fase 'Aanbieden'.
@@ -929,7 +936,7 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
     return `
     <div>
       <label style="display:block;font-size:.72rem;color:var(--muted);margin-bottom:3px;">${KPI_LABELS[k]}</label>
-      <input type="number" min="0" ${k==='starters'?'step="0.5"':''} id="inv-${k}-${safeId}" value="${conceptVal}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid ${frozen?'#bbf7d0':'var(--border)'};border-radius:6px;padding:5px 7px;font-size:.85rem;font-weight:${frozen?'700':'400'};${frozen?'background:#f0fdf4;color:#15803d;':''}">
+      <input type="number" min="0" ${(k==='starters'||k==='contractvoorstellen')?'step="0.5"':''} id="inv-${k}-${safeId}" value="${conceptVal}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid ${frozen?'#bbf7d0':'var(--border)'};border-radius:6px;padding:5px 7px;font-size:.85rem;font-weight:${frozen?'700':'400'};${frozen?'background:#f0fdf4;color:#15803d;':''}">
     </div>`;
   }).join('');
 
@@ -1135,7 +1142,7 @@ async function loadKpiWeekly() {
     RAW = data.map(r => ({
       naam: r.bm_naam, jaar: r.jaar, week: r.week,
       intakes: r.intakes||0, bezoeken: r.bezoeken||0, aanbiedingen: r.aanbiedingen||0,
-      matchgesprekken: r.matchgesprekken||0, starters: r.starters||0,
+      matchgesprekken: r.matchgesprekken||0, contractvoorstellen: r.contractvoorstellen||0, starters: r.starters||0,
     }));
   }
 }
