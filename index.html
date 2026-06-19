@@ -2023,7 +2023,7 @@ async function pipeFetchAll() {
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op });
+    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op });
   });
   PIPE_CACHE = next;
 }
@@ -2086,7 +2086,7 @@ function renderPipeline(bm) {
                </select>
              </div>`
           : '';
-        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
+        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" draggable="true"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
@@ -2182,6 +2182,8 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-si').value = '';
   document.getElementById('pipe-modal-regio').value = '';
   document.getElementById('pipe-modal-bezoek-reden').value = '';
+  document.getElementById('pipe-modal-bezoek-contactpersoon').value = '';
+  document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = '';
   document.getElementById('pipe-modal-opdrachtgever').value = '';
   document.getElementById('pipe-modal-salaris').value = '';
   document.getElementById('pipe-modal-gedeeld').value = '1';
@@ -2202,6 +2204,8 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-si').value = card.salarisindicatie || '';
   document.getElementById('pipe-modal-regio').value = card.regio || '';
   document.getElementById('pipe-modal-bezoek-reden').value = card.bezoek_reden || '';
+  document.getElementById('pipe-modal-bezoek-contactpersoon').value = card.bezoek_contactpersoon || '';
+  document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = card.bezoek_contactpersoon_functie || '';
   document.getElementById('pipe-modal-opdrachtgever').value = card.opdrachtgever || '';
   document.getElementById('pipe-modal-salaris').value = card.salaris || '';
   document.getElementById('pipe-modal-gedeeld').value = card.gedeeld ? '0.5' : '1';
@@ -2224,6 +2228,8 @@ async function pipeConfirmAdd() {
   const si              = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
   const regio           = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
   const bezoekReden     = isBezoek ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
+  const bezoekContact   = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon').value.trim() : undefined;
+  const bezoekContactFunctie = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value.trim() : undefined;
   const opdrachtgever   = (isContract || isStarter) ? document.getElementById('pipe-modal-opdrachtgever').value.trim() : undefined;
   const salaris         = isContract ? document.getElementById('pipe-modal-salaris').value.trim() : undefined;
   const gedeeld         = (isContract || isStarter) ? (document.getElementById('pipe-modal-gedeeld').value === '0.5') : undefined;
@@ -2241,11 +2247,19 @@ async function pipeConfirmAdd() {
       return;
     }
   }
-  // Verplicht bij Bezoeken: reden van bezoek (naam = naam opdrachtgever, al gecontroleerd).
-  if (isBezoek && !bezoekReden) {
-    alert('Verplicht bij Bezoeken: Reden van bezoek');
-    document.getElementById('pipe-modal-bezoek-reden').focus();
-    return;
+  // Verplicht bij Bezoeken: reden van bezoek + contactpersoon + functie contactpersoon
+  // (naam = naam opdrachtgever, al gecontroleerd).
+  if (isBezoek) {
+    const missingField = !bezoekReden ? 'pipe-modal-bezoek-reden' : !bezoekContact ? 'pipe-modal-bezoek-contactpersoon' : !bezoekContactFunctie ? 'pipe-modal-bezoek-contactpersoon-functie' : null;
+    if (missingField) {
+      const missingLabels = [];
+      if (!bezoekReden) missingLabels.push('Reden van bezoek');
+      if (!bezoekContact) missingLabels.push('Contactpersoon');
+      if (!bezoekContactFunctie) missingLabels.push('Functie contactpersoon');
+      alert('Verplicht bij Bezoeken: ' + missingLabels.join(', '));
+      document.getElementById(missingField).focus();
+      return;
+    }
   }
   // Verplicht bij Contractvoorstel: naam opdrachtgever + salaris (naam kandidaat al gecontroleerd).
   if (isContract) {
@@ -2270,7 +2284,7 @@ async function pipeConfirmAdd() {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
     if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; }
-    if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; }
+    if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
     if (supa) {
@@ -2282,7 +2296,7 @@ async function pipeConfirmAdd() {
     if (card) {
       card.naam = naam; card.notitie = notitie;
       if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; }
-      if (isBezoek)    { card.bezoek_reden = bezoekReden; }
+      if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
     }
@@ -2296,7 +2310,7 @@ async function pipeConfirmAdd() {
   const datum = new Date().toLocaleDateString('nl-NL');
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
   if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; }
-  if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; }
+  if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
   let newCard;
@@ -2305,9 +2319,9 @@ async function pipeConfirmAdd() {
       .insert(insertPayload)
       .select().single();
     if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -2379,6 +2393,10 @@ function pipeDelete(bmNaam, cardId) {
     </div>
     <div id="pipe-modal-bezoek-fields" style="display:none;">
       <input type="text" id="pipe-modal-bezoek-reden" placeholder="Reden van bezoek *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="pipe-modal-bezoek-contactpersoon" placeholder="Contactpersoon *" autocomplete="off" style="flex:1;margin-bottom:6px;"/>
+        <input type="text" id="pipe-modal-bezoek-contactpersoon-functie" placeholder="Functie contactpersoon *" autocomplete="off" style="flex:1;margin-bottom:6px;"/>
+      </div>
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Bezoeken</p>
     </div>
     <div id="pipe-modal-opdrachtgever-field" style="display:none;">
