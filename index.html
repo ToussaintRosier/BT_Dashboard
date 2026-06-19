@@ -302,25 +302,13 @@ function inLast26(d) {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
-// BMS_ALL = volledige medewerkersroster. BMS = alleen de medewerkers die nu al
-// 'actief' zijn (gefilterd op startDatum, indien aanwezig) — zo telt een nog
-// niet-gestarte medewerker (bv. Robin Farnes, start 1 juli 2026) pas mee
-// (eigen tab + in alle team-totalen) zodra die datum is bereikt; tot die tijd
-// bestaat er voor hem geen tab en dus ook geen data.
-// 'special: bezoeken' = medewerker met een andere rol, los van de standaard
-// BM-funnel (intakes/aanbiedingen/matchgesprekken/starters): krijgt alleen een
-// vereenvoudigde "bezoeken"-pipeline + norm-grafiek (zie renderBezoekRapportage).
-const BMS_ALL = [
+const BMS = [
   { naam: 'Jelle van Schijndel', doel: 18, kleur: '#1a56db' },
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
   { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424' },
-  { naam: 'Luc Kools',           doel:  0, kleur: '#ca8a04', special: 'bezoeken' },
-  { naam: 'Robin Farnes',        doel: 18, kleur: '#0d9488', startDatum: '2026-07-01' },
 ];
-const BMS = BMS_ALL.filter(b => !b.startDatum || TODAY >= new Date(b.startDatum));
-function isBezoekOnlyBm(naam) { return BMS_ALL.some(b => b.naam === naam && b.special === 'bezoeken'); }
-const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0); // 58 (excl. Luc Kools (0) en Robin Farnes vóór 1 juli 2026)
+const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0); // 58
 
 // Management: bijdrage buiten de BM-funnel om, gezamenlijk doel 16 starters
 const MGMT = [
@@ -393,11 +381,6 @@ const PIPE_STAGE_COLORS = [
   { bg:'#fce7f3', text:'#9d174d' },
   { bg:'#fef9c3', text:'#854d0e' },
 ];
-// Naam-gekeyde lookup (i.p.v. positioneel) — nodig zodra renderPipeline met een
-// beperkte 'stages'-subset wordt aangeroepen (bv. alleen ['Bezoeken'] voor Luc
-// Kools), anders zou een positionele index de verkeerde kleur teruggeven.
-const PIPE_STAGE_COLOR_MAP = {};
-PIPE_STAGES.forEach((s, i) => PIPE_STAGE_COLOR_MAP[s] = PIPE_STAGE_COLORS[i]);
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let view = 'week', currentTab = 0, charts = {};
@@ -537,7 +520,6 @@ function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 
 // ── BM Panel ──────────────────────────────────────────────────────────────────
 function renderBM(bm) {
-  if (bm.special === 'bezoeken') return renderBezoekRapportage(bm);
   const year   = getYear();
   const ratios = INDIVIDUAL_RATIOS[bm.naam];
   const norm   = normPerPeriod(bm.doel, ratios, view);
@@ -690,54 +672,6 @@ function renderBM(bm) {
   }, 50);
 }
 
-// ── Bezoekrapportage (Luc Kools — losstaande rol, geen standaard BM-funnel) ────
-// Vereenvoudigde pagina met alleen een 1-koloms 'Bezoeken'-pipeline (opdrachtgever-
-// bezoeken, met contactpersoon/doel/vervolgactie + verslag) en een norm-grafiek
-// (4 bezoeken/week), over dezelfde 4-weekse range als de standaard pipelines.
-function renderBezoekRapportage(bm) {
-  const weeks   = getPipeWeeks();
-  const cards   = pipeLoad(bm.naam);
-  const norm    = 4;
-  const periods = weeks.map(w => 'W' + w.week);
-  const actuals = weeks.map(w => cards.filter(c => c.stage === 'Bezoeken' && c.week === w.week && c.jaar === w.year).length);
-  const curWeek = weeks.find(w => w.offset === 0);
-  const curCount = curWeek ? cards.filter(c => c.stage === 'Bezoeken' && c.week === curWeek.week && c.jaar === curWeek.year).length : 0;
-  const curPct   = pct(curCount, norm);
-
-  document.getElementById('main').innerHTML = `<div>
-    <div class="person-header">
-      <div class="person-name">📋 ${bm.naam}</div>
-      <div class="person-meta">
-        <span class="meta-pill">🎯 Norm: ${norm} bezoeken/week</span>
-        <span class="meta-pill">📅 Deze week: ${curCount} bezoeken</span>
-      </div>
-    </div>
-    <div id="bm-subtab-content">
-      ${renderPipeline(bm, ['Bezoeken'])}
-
-      <div class="section-title">Voortgang deze week</div>
-      <div class="progress-block">
-        <div class="progress-header">
-          <span class="progress-name">Bezoeken</span>
-          <span class="progress-nums">${curCount} van ${norm}</span>
-        </div>
-        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${curPct}%;background:${barColor(curPct)}"></div></div>
-        <div class="progress-sub"><span>${curPct}%</span><span>Norm: ${norm} bezoeken/week</span></div>
-      </div>
-
-      <div class="section-title">Bezoeken per week vs. norm</div>
-      <div class="chart-card"><div class="chart-wrap"><canvas id="chartBezoeken"></canvas></div></div>
-    </div>
-  </div>`;
-
-  setTimeout(() => {
-    makeChart('chartBezoeken', periods, [
-      { label:'Bezoeken', data:actuals, borderColor:bm.kleur, backgroundColor:bm.kleur+'22', fill:true, tension:.3, pointRadius:3 },
-      { label:'Norm',     data:actuals.map(()=>norm), borderColor:'#E87400', borderDash:[5,4], pointRadius:0 },
-    ]);
-  }, 50);
-}
-
 // ── Team Panel ────────────────────────────────────────────────────────────────
 function renderTeam() {
   const year   = getYear();
@@ -782,7 +716,7 @@ function renderTeam() {
     </tr>`;
   }).join('');
 
-  const bmRatioRows = BMS.filter(bm => !bm.special).map(bm => {
+  const bmRatioRows = BMS.map(bm => {
     const rt = INDIVIDUAL_RATIOS[bm.naam];
     return `<tr>
       <td>${bm.naam}</td>
@@ -960,10 +894,6 @@ function getPipeCountsForWeek(bmNaam, week, jaar) {
     const inStage = cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar);
     counts[k] = k === 'starters'
       ? inStage.reduce((sum, c) => sum + (c.gedeeld ? 0.5 : 1), 0)
-      // aanbiedingen telt het aantal aanbiedingen (kaartveld 'aanb'), niet het
-      // aantal kandidaten/blokjes in de fase 'Aanbieden'.
-      : k === 'aanbiedingen'
-      ? inStage.reduce((sum, c) => sum + (c.aanb || 0), 0)
       : inStage.length;
   });
   return counts;
@@ -1316,8 +1246,8 @@ function renderCoaching() {
   const year   = getYear();
   const CUR_WK = CUR.week;
 
-  // Per BM: compute all signals (excl. medewerkers met afwijkende rol, bv. Luc Kools)
-  const bmData = BMS.filter(bm => !bm.special).map(bm => {
+  // Per BM: compute all signals
+  const bmData = BMS.map(bm => {
     const r26   = INDIVIDUAL_RATIOS[bm.naam];
     const rowsYTD = filterData(bm.naam, year);
     const ytd   = ytdTotals(rowsYTD);
@@ -2130,15 +2060,14 @@ function escHtml(s) {
 }
 function escApos(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
-function renderPipeline(bm, stages = PIPE_STAGES) {
+function renderPipeline(bm) {
   const cards  = pipeLoad(bm.naam);
   const weeks  = getPipeWeeks();
   const bmE    = escApos(bm.naam);
-  const isLucBezoek = isBezoekOnlyBm(bm.naam);
 
   // Column headers
-  const hdrs = stages.map((stage) => {
-    const col = PIPE_STAGE_COLOR_MAP[stage];
+  const hdrs = PIPE_STAGES.map((stage, si) => {
+    const col = PIPE_STAGE_COLORS[si];
     const cnt = cards.filter(c => c.stage === stage).length;
     return `<div class="pipe-col-hdr" style="background:${col.bg};color:${col.text}">
       ${stage}<span class="pipe-count-sm">${cnt}</span>
@@ -2152,8 +2081,8 @@ function renderPipeline(bm, stages = PIPE_STAGES) {
     const wkTag   = isCur ? 'huidig' : wk.offset === 1 ? 'volgend' : wk.offset === -1 ? 'vorige' : '-2 wkn';
     const wkTotal = cards.filter(c => c.week === wk.week && c.jaar === wk.year).length;
 
-    const cells = stages.map((stage) => {
-      const col       = PIPE_STAGE_COLOR_MAP[stage];
+    const cells = PIPE_STAGES.map((stage, si) => {
+      const col       = PIPE_STAGE_COLORS[si];
       const isAanb    = stage === 'Aanbieden';
       const isMatch   = stage === 'Matchgesprekken';
       const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
@@ -2179,7 +2108,7 @@ function renderPipeline(bm, stages = PIPE_STAGES) {
                </select>
              </div>`
           : '';
-        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.gedeeld ? 'Gedeeld (0,5)' : '', c.contactpersoon ? ('Contactpersoon: ' + c.contactpersoon) : '', c.doel_gesprek ? ('Doel: ' + c.doel_gesprek) : '', c.vervolgactie ? ('Vervolgactie: ' + c.vervolgactie) : ''].filter(Boolean);
+        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" draggable="true"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
@@ -2215,9 +2144,7 @@ function renderPipeline(bm, stages = PIPE_STAGES) {
     </div>`;
   }).join('');
 
-  const titel = isLucBezoek ? '🗂️ Bezoeken pipeline' : '🗂️ Kandidaten pipeline';
-  const subtitel = isLucBezoek ? `${cards.length} bezoeken actief` : `${cards.length} kandidaten actief`;
-  return `<div class="section-title">${titel} <span style="font-size:.78rem;font-weight:400;color:var(--muted);margin-left:8px">${subtitel}</span></div>
+  return `<div class="section-title">🗂️ Kandidaten pipeline <span style="font-size:.78rem;font-weight:400;color:var(--muted);margin-left:8px">${cards.length} kandidaten actief</span></div>
   <div class="info-box blue" style="margin-bottom:10px">💡 Sleep kaartjes naar een andere fase of week. Opgeslagen in je browser.</div>
   <div class="pipe-grid-wrap"><div class="pipe-grid">
     <div class="pipe-grid-corner"></div>${hdrs}${rows}
@@ -2256,25 +2183,20 @@ function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
 var _pipeModalCtx = { bmNaam: null, stage: null, week: null, jaar: null, cardId: null };
 
 function _pipeToggleStageFields(stage) {
-  const isIntake    = stage === 'Intake';
-  const isBezoek    = stage === 'Bezoeken';
-  const isLucBezoek = isBezoek && isBezoekOnlyBm(_pipeModalCtx.bmNaam);
-  const isContract  = stage === 'Contractvoorstel';
-  const isStarter   = stage === 'Starter';
+  const isIntake   = stage === 'Intake';
+  const isBezoek   = stage === 'Bezoeken';
+  const isContract = stage === 'Contractvoorstel';
+  const isStarter  = stage === 'Starter';
   document.getElementById('pipe-modal-intake-fields').style.display       = isIntake ? 'block' : 'none';
-  document.getElementById('pipe-modal-bezoek-fields').style.display      = (isBezoek && !isLucBezoek) ? 'block' : 'none';
-  document.getElementById('pipe-modal-bezoek-luc-fields').style.display  = isLucBezoek ? 'block' : 'none';
+  document.getElementById('pipe-modal-bezoek-fields').style.display      = isBezoek ? 'block' : 'none';
   document.getElementById('pipe-modal-opdrachtgever-field').style.display = (isContract || isStarter) ? 'block' : 'none';
   document.getElementById('pipe-modal-salaris-field').style.display      = isContract ? 'block' : 'none';
   document.getElementById('pipe-modal-gedeeld-field').style.display      = (isContract || isStarter) ? 'block' : 'none';
   document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'Naam opdrachtgever *' : 'Naam kandidaat *';
-  document.getElementById('pipe-modal-notitie').rows = isLucBezoek ? 6 : 2;
-  document.getElementById('pipe-modal-notitie').placeholder = isLucBezoek ? 'Verslag van het bezoek (optioneel)' : 'Notitie (optioneel)';
 }
 function pipeOpenModal(bmNaam, stage, week, jaar) {
   _pipeModalCtx = { bmNaam, stage, week, jaar, cardId: null };
-  const isLucBezoek = stage === 'Bezoeken' && isBezoekOnlyBm(bmNaam);
-  document.getElementById('pipe-modal-title').textContent = isLucBezoek ? '➕ Bezoek toevoegen' : '➕ Kandidaat toevoegen';
+  document.getElementById('pipe-modal-title').textContent = '➕ Kandidaat toevoegen';
   document.getElementById('pipe-modal-stage-label').textContent = stage + ' · Week ' + week + ' (' + jaar + ')';
   document.getElementById('pipe-modal-naam').value = '';
   document.getElementById('pipe-modal-notitie').value = '';
@@ -2285,9 +2207,6 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-opdrachtgever').value = '';
   document.getElementById('pipe-modal-salaris').value = '';
   document.getElementById('pipe-modal-gedeeld').checked = false;
-  document.getElementById('pipe-modal-contactpersoon').value = '';
-  document.getElementById('pipe-modal-doel-gesprek').value = '';
-  document.getElementById('pipe-modal-vervolgactie').value = '';
   _pipeToggleStageFields(stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Toevoegen';
   document.getElementById('pipe-modal').classList.add('open');
@@ -2297,8 +2216,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   const card = pipeLoad(bmNaam).find(c => c.id === cardId);
   if (!card) return;
   _pipeModalCtx = { bmNaam, stage: card.stage, week: card.week, jaar: card.jaar, cardId };
-  const isLucBezoek = card.stage === 'Bezoeken' && isBezoekOnlyBm(bmNaam);
-  document.getElementById('pipe-modal-title').textContent = isLucBezoek ? '✏️ Bezoek wijzigen' : '✏️ Kandidaat wijzigen';
+  document.getElementById('pipe-modal-title').textContent = '✏️ Kandidaat wijzigen';
   document.getElementById('pipe-modal-stage-label').textContent = card.stage + ' · Week ' + card.week + ' (' + card.jaar + ')';
   document.getElementById('pipe-modal-naam').value = card.naam || '';
   document.getElementById('pipe-modal-notitie').value = card.notitie || '';
@@ -2309,9 +2227,6 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-opdrachtgever').value = card.opdrachtgever || '';
   document.getElementById('pipe-modal-salaris').value = card.salaris || '';
   document.getElementById('pipe-modal-gedeeld').checked = !!card.gedeeld;
-  document.getElementById('pipe-modal-contactpersoon').value = card.contactpersoon || '';
-  document.getElementById('pipe-modal-doel-gesprek').value = card.doel_gesprek || '';
-  document.getElementById('pipe-modal-vervolgactie').value = card.vervolgactie || '';
   _pipeToggleStageFields(card.stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Opslaan';
   document.getElementById('pipe-modal').classList.add('open');
@@ -2323,18 +2238,14 @@ async function pipeConfirmAdd() {
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
   const notitie = document.getElementById('pipe-modal-notitie').value.trim();
   const { bmNaam, stage, week, jaar, cardId } = _pipeModalCtx;
-  const isIntake    = stage === 'Intake';
-  const isBezoek    = stage === 'Bezoeken';
-  const isLucBezoek = isBezoek && isBezoekOnlyBm(bmNaam);
-  const isContract  = stage === 'Contractvoorstel';
-  const isStarter   = stage === 'Starter';
+  const isIntake   = stage === 'Intake';
+  const isBezoek   = stage === 'Bezoeken';
+  const isContract = stage === 'Contractvoorstel';
+  const isStarter  = stage === 'Starter';
   const functie        = isIntake ? document.getElementById('pipe-modal-functie').value.trim() : undefined;
   const si              = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
   const regio           = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
-  const bezoekReden     = (isBezoek && !isLucBezoek) ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
-  const contactpersoon  = isLucBezoek ? document.getElementById('pipe-modal-contactpersoon').value.trim() : undefined;
-  const doelGesprek     = isLucBezoek ? document.getElementById('pipe-modal-doel-gesprek').value.trim() : undefined;
-  const vervolgactie    = isLucBezoek ? document.getElementById('pipe-modal-vervolgactie').value.trim() : undefined;
+  const bezoekReden     = isBezoek ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
   const opdrachtgever   = (isContract || isStarter) ? document.getElementById('pipe-modal-opdrachtgever').value.trim() : undefined;
   const salaris         = isContract ? document.getElementById('pipe-modal-salaris').value.trim() : undefined;
   const gedeeld         = (isContract || isStarter) ? document.getElementById('pipe-modal-gedeeld').checked : undefined;
@@ -2353,24 +2264,10 @@ async function pipeConfirmAdd() {
     }
   }
   // Verplicht bij Bezoeken: reden van bezoek (naam = naam opdrachtgever, al gecontroleerd).
-  if (isBezoek && !isLucBezoek && !bezoekReden) {
+  if (isBezoek && !bezoekReden) {
     alert('Verplicht bij Bezoeken: Reden van bezoek');
     document.getElementById('pipe-modal-bezoek-reden').focus();
     return;
-  }
-  // Verplicht bij Luc Kools' bezoekrapportage: contactpersoon, doel gesprek, vervolgactie
-  // (naam = naam opdrachtgever, al gecontroleerd).
-  if (isLucBezoek) {
-    const missingField = !contactpersoon ? 'pipe-modal-contactpersoon' : !doelGesprek ? 'pipe-modal-doel-gesprek' : !vervolgactie ? 'pipe-modal-vervolgactie' : null;
-    if (missingField) {
-      const missingLabels = [];
-      if (!contactpersoon) missingLabels.push('Naam contactpersoon');
-      if (!doelGesprek)    missingLabels.push('Doel van het gesprek');
-      if (!vervolgactie)   missingLabels.push('Vervolgactie');
-      alert('Verplicht bij Bezoeken: ' + missingLabels.join(', '));
-      document.getElementById(missingField).focus();
-      return;
-    }
   }
   // Verplicht bij Contractvoorstel: naam opdrachtgever + salaris (naam kandidaat al gecontroleerd).
   if (isContract) {
@@ -2395,8 +2292,7 @@ async function pipeConfirmAdd() {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
     if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; }
-    if (isBezoek && !isLucBezoek) { updatePayload.bezoek_reden = bezoekReden; }
-    if (isLucBezoek) { updatePayload.contactpersoon = contactpersoon; updatePayload.doel_gesprek = doelGesprek; updatePayload.vervolgactie = vervolgactie; }
+    if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
     if (supa) {
@@ -2408,8 +2304,7 @@ async function pipeConfirmAdd() {
     if (card) {
       card.naam = naam; card.notitie = notitie;
       if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; }
-      if (isBezoek && !isLucBezoek) { card.bezoek_reden = bezoekReden; }
-      if (isLucBezoek) { card.contactpersoon = contactpersoon; card.doel_gesprek = doelGesprek; card.vervolgactie = vervolgactie; }
+      if (isBezoek)    { card.bezoek_reden = bezoekReden; }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
     }
@@ -2423,8 +2318,7 @@ async function pipeConfirmAdd() {
   const datum = new Date().toLocaleDateString('nl-NL');
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
   if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; }
-  if (isBezoek && !isLucBezoek) { insertPayload.bezoek_reden = bezoekReden; }
-  if (isLucBezoek) { insertPayload.contactpersoon = contactpersoon; insertPayload.doel_gesprek = doelGesprek; insertPayload.vervolgactie = vervolgactie; }
+  if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
   let newCard;
@@ -2433,9 +2327,9 @@ async function pipeConfirmAdd() {
       .insert(insertPayload)
       .select().single();
     if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, contactpersoon: data.contactpersoon, doel_gesprek: data.doel_gesprek, vervolgactie: data.vervolgactie };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, contactpersoon, doel_gesprek: doelGesprek, vervolgactie };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -2507,12 +2401,6 @@ function pipeDelete(bmNaam, cardId) {
     </div>
     <div id="pipe-modal-bezoek-fields" style="display:none;">
       <input type="text" id="pipe-modal-bezoek-reden" placeholder="Reden van bezoek *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
-      <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Bezoeken</p>
-    </div>
-    <div id="pipe-modal-bezoek-luc-fields" style="display:none;">
-      <input type="text" id="pipe-modal-contactpersoon" placeholder="Naam contactpersoon *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
-      <input type="text" id="pipe-modal-doel-gesprek" placeholder="Doel van het gesprek *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
-      <input type="text" id="pipe-modal-vervolgactie" placeholder="Vervolgactie *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Bezoeken</p>
     </div>
     <div id="pipe-modal-opdrachtgever-field" style="display:none;">
