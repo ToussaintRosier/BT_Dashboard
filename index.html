@@ -302,13 +302,25 @@ function inLast26(d) {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const BMS = [
+// BMS_ALL = volledige medewerkersroster. BMS = alleen de medewerkers die nu al
+// 'actief' zijn (gefilterd op startDatum, indien aanwezig) — zo telt een nog
+// niet-gestarte medewerker (bv. Robin Farnes, start 1 juli 2026) pas mee
+// (eigen tab + in alle team-totalen) zodra die datum is bereikt; tot die tijd
+// bestaat er voor hem geen tab en dus ook geen data.
+// 'special: bezoeken' = medewerker met een andere rol, los van de standaard
+// BM-funnel (intakes/aanbiedingen/matchgesprekken/starters): krijgt alleen een
+// vereenvoudigde "bezoeken"-pipeline + norm-grafiek (zie renderBezoekRapportage).
+const BMS_ALL = [
   { naam: 'Jelle van Schijndel', doel: 18, kleur: '#1a56db' },
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
   { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424' },
+  { naam: 'Luc Kools',           doel:  0, kleur: '#ca8a04', special: 'bezoeken' },
+  { naam: 'Robin Farnes',        doel: 18, kleur: '#0d9488', startDatum: '2026-07-01' },
 ];
-const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0); // 58
+const BMS = BMS_ALL.filter(b => !b.startDatum || TODAY >= new Date(b.startDatum));
+function isBezoekOnlyBm(naam) { return BMS_ALL.some(b => b.naam === naam && b.special === 'bezoeken'); }
+const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0); // 58 (excl. Luc Kools (0) en Robin Farnes vóór 1 juli 2026)
 
 // Management: bijdrage buiten de BM-funnel om, gezamenlijk doel 16 starters
 const MGMT = [
@@ -329,6 +341,9 @@ const AANB_PER_INTAKE_2X    = null; // wordt dynamisch berekend als 2× teamrati
 const KPIS  = ['intakes','bezoeken','aanbiedingen','matchgesprekken','starters'];
 const KPI_LABELS = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen', matchgesprekken:'Matchgesprekken', starters:'Starters' };
 const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424' };
+// Expliciete koppeling KPI -> pipeline-fase (niet meer positioneel, want PIPE_STAGES
+// heeft inmiddels een extra fase 'Contractvoorstel' die niet in de KPI-telling meetelt).
+const KPI_STAGE_MAP = { intakes:'Intake', bezoeken:'Bezoeken', aanbiedingen:'Aanbieden', matchgesprekken:'Matchgesprekken', starters:'Starter' };
 function kpiColor(k, bm) { return k==='starters' ? (bm?.kleur || '#F4CB3C') : KPI_FIXED_COLORS[k]; }
 function toggleKpiDataset(el) {
   const chart = charts[el.dataset.chart];
@@ -367,14 +382,22 @@ function recomputeRatios() {
 recomputeRatios();
 
 // ── Pipeline constanten (vóór render() zodat ze geen TDZ-error geven) ─────────
-const PIPE_STAGES = ['Intake', 'Bezoeken', 'Aanbieden', 'Matchgesprekken', 'Contractvoorstel'];
+// 'Contractvoorstel' = nieuwe fase (kandidaat + opdrachtgever + salaris, telt niet mee
+// voor de manager). 'Starter' = oude 'Contractvoorstel' (manager-goedkeuring/projectenlijn).
+const PIPE_STAGES = ['Intake', 'Bezoeken', 'Aanbieden', 'Matchgesprekken', 'Contractvoorstel', 'Starter'];
 const PIPE_STAGE_COLORS = [
   { bg:'#dbeafe', text:'#1e40af' },
   { bg:'#fef3c7', text:'#92400e' },
   { bg:'#dcfce7', text:'#166534' },
   { bg:'#ede9fe', text:'#5b21b6' },
   { bg:'#fce7f3', text:'#9d174d' },
+  { bg:'#fef9c3', text:'#854d0e' },
 ];
+// Naam-gekeyde lookup (i.p.v. positioneel) — nodig zodra renderPipeline met een
+// beperkte 'stages'-subset wordt aangeroepen (bv. alleen ['Bezoeken'] voor Luc
+// Kools), anders zou een positionele index de verkeerde kleur teruggeven.
+const PIPE_STAGE_COLOR_MAP = {};
+PIPE_STAGES.forEach((s, i) => PIPE_STAGE_COLOR_MAP[s] = PIPE_STAGE_COLORS[i]);
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let view = 'week', currentTab = 0, charts = {};
@@ -514,6 +537,7 @@ function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 
 // ── BM Panel ──────────────────────────────────────────────────────────────────
 function renderBM(bm) {
+  if (bm.special === 'bezoeken') return renderBezoekRapportage(bm);
   const year   = getYear();
   const ratios = INDIVIDUAL_RATIOS[bm.naam];
   const norm   = normPerPeriod(bm.doel, ratios, view);
@@ -666,6 +690,54 @@ function renderBM(bm) {
   }, 50);
 }
 
+// ── Bezoekrapportage (Luc Kools — losstaande rol, geen standaard BM-funnel) ────
+// Vereenvoudigde pagina met alleen een 1-koloms 'Bezoeken'-pipeline (opdrachtgever-
+// bezoeken, met contactpersoon/doel/vervolgactie + verslag) en een norm-grafiek
+// (4 bezoeken/week), over dezelfde 4-weekse range als de standaard pipelines.
+function renderBezoekRapportage(bm) {
+  const weeks   = getPipeWeeks();
+  const cards   = pipeLoad(bm.naam);
+  const norm    = 4;
+  const periods = weeks.map(w => 'W' + w.week);
+  const actuals = weeks.map(w => cards.filter(c => c.stage === 'Bezoeken' && c.week === w.week && c.jaar === w.year).length);
+  const curWeek = weeks.find(w => w.offset === 0);
+  const curCount = curWeek ? cards.filter(c => c.stage === 'Bezoeken' && c.week === curWeek.week && c.jaar === curWeek.year).length : 0;
+  const curPct   = pct(curCount, norm);
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">📋 ${bm.naam}</div>
+      <div class="person-meta">
+        <span class="meta-pill">🎯 Norm: ${norm} bezoeken/week</span>
+        <span class="meta-pill">📅 Deze week: ${curCount} bezoeken</span>
+      </div>
+    </div>
+    <div id="bm-subtab-content">
+      ${renderPipeline(bm, ['Bezoeken'])}
+
+      <div class="section-title">Voortgang deze week</div>
+      <div class="progress-block">
+        <div class="progress-header">
+          <span class="progress-name">Bezoeken</span>
+          <span class="progress-nums">${curCount} van ${norm}</span>
+        </div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${curPct}%;background:${barColor(curPct)}"></div></div>
+        <div class="progress-sub"><span>${curPct}%</span><span>Norm: ${norm} bezoeken/week</span></div>
+      </div>
+
+      <div class="section-title">Bezoeken per week vs. norm</div>
+      <div class="chart-card"><div class="chart-wrap"><canvas id="chartBezoeken"></canvas></div></div>
+    </div>
+  </div>`;
+
+  setTimeout(() => {
+    makeChart('chartBezoeken', periods, [
+      { label:'Bezoeken', data:actuals, borderColor:bm.kleur, backgroundColor:bm.kleur+'22', fill:true, tension:.3, pointRadius:3 },
+      { label:'Norm',     data:actuals.map(()=>norm), borderColor:'#E87400', borderDash:[5,4], pointRadius:0 },
+    ]);
+  }, 50);
+}
+
 // ── Team Panel ────────────────────────────────────────────────────────────────
 function renderTeam() {
   const year   = getYear();
@@ -710,7 +782,7 @@ function renderTeam() {
     </tr>`;
   }).join('');
 
-  const bmRatioRows = BMS.map(bm => {
+  const bmRatioRows = BMS.filter(bm => !bm.special).map(bm => {
     const rt = INDIVIDUAL_RATIOS[bm.naam];
     return `<tr>
       <td>${bm.naam}</td>
@@ -878,13 +950,21 @@ function render() {
 let WEEKLY_EDIT_UNLOCKED = new Set();
 
 // Telt voor elke KPI hoeveel pipeline-kaartjes in de bijbehorende fase staan,
-// voor een specifieke week/jaar. 1:1 mapping op volgorde: KPIS[i] <-> PIPE_STAGES[i].
+// voor een specifieke week/jaar. Koppeling via KPI_STAGE_MAP (niet meer positioneel).
+// Starters die 'gedeeld' zijn met een collega tellen voor 0,5 in plaats van 1.
 function getPipeCountsForWeek(bmNaam, week, jaar) {
   const cards  = pipeLoad(bmNaam);
   const counts = {};
-  KPIS.forEach((k, i) => {
-    const stage = PIPE_STAGES[i];
-    counts[k] = cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar).length;
+  KPIS.forEach(k => {
+    const stage = KPI_STAGE_MAP[k];
+    const inStage = cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar);
+    counts[k] = k === 'starters'
+      ? inStage.reduce((sum, c) => sum + (c.gedeeld ? 0.5 : 1), 0)
+      // aanbiedingen telt het aantal aanbiedingen (kaartveld 'aanb'), niet het
+      // aantal kandidaten/blokjes in de fase 'Aanbieden'.
+      : k === 'aanbiedingen'
+      ? inStage.reduce((sum, c) => sum + (c.aanb || 0), 0)
+      : inStage.length;
   });
   return counts;
 }
@@ -915,7 +995,7 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
     return `
     <div>
       <label style="display:block;font-size:.72rem;color:var(--muted);margin-bottom:3px;">${KPI_LABELS[k]}</label>
-      <input type="number" min="0" id="inv-${k}-${safeId}" value="${conceptVal}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid ${frozen?'#bbf7d0':'var(--border)'};border-radius:6px;padding:5px 7px;font-size:.85rem;font-weight:${frozen?'700':'400'};${frozen?'background:#f0fdf4;color:#15803d;':''}">
+      <input type="number" min="0" ${k==='starters'?'step="0.5"':''} id="inv-${k}-${safeId}" value="${conceptVal}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid ${frozen?'#bbf7d0':'var(--border)'};border-radius:6px;padding:5px 7px;font-size:.85rem;font-weight:${frozen?'700':'400'};${frozen?'background:#f0fdf4;color:#15803d;':''}">
     </div>`;
   }).join('');
 
@@ -959,7 +1039,7 @@ async function saveWeeklyEntry(bmNaam, week, year) {
   const safeId   = bmNaam.replace(/\s+/g,'_') + '_' + year + '_' + week;
   const statusEl = document.getElementById(`inv-status-${safeId}`);
   const vals = {};
-  for (const k of KPIS) vals[k] = parseInt(document.getElementById(`inv-${k}-${safeId}`)?.value, 10) || 0;
+  for (const k of KPIS) vals[k] = parseFloat(document.getElementById(`inv-${k}-${safeId}`)?.value) || 0;
 
   // Verplichte controle: het geaccordeerde aantal moet exact overeenkomen met
   // de telling van pipeline-kaarten voor deze week. Bij afwijking: opslaan blokkeren.
@@ -1236,8 +1316,8 @@ function renderCoaching() {
   const year   = getYear();
   const CUR_WK = CUR.week;
 
-  // Per BM: compute all signals
-  const bmData = BMS.map(bm => {
+  // Per BM: compute all signals (excl. medewerkers met afwijkende rol, bv. Luc Kools)
+  const bmData = BMS.filter(bm => !bm.special).map(bm => {
     const r26   = INDIVIDUAL_RATIOS[bm.naam];
     const rowsYTD = filterData(bm.naam, year);
     const ytd   = ytdTotals(rowsYTD);
@@ -1634,8 +1714,8 @@ function getCombinedProjectRanges() {
   for (const bm of BMS) {
     const cards = pipeLoad(bm.naam);
     for (const c of cards) {
-      if (c.stage !== 'Contractvoorstel' || c.goedkeuring !== 'akkoord' || !c.start_datum) continue;
-      ranges.push({ id: c.id, source: 'pipeline', bmNaam: bm.naam, naam: c.naam, bm: bm.naam, opdrachtgever: '',
+      if (c.stage !== 'Starter' || c.goedkeuring !== 'akkoord' || !c.start_datum) continue;
+      ranges.push({ id: c.id, source: 'pipeline', bmNaam: bm.naam, naam: c.naam, bm: bm.naam, opdrachtgever: c.opdrachtgever || '',
         begin: new Date(c.start_datum), eind: c.eind_datum_verwacht ? new Date(c.eind_datum_verwacht) : null,
         verwijderdOp: c.verwijderd_op ? new Date(c.verwijderd_op) : null });
     }
@@ -1715,13 +1795,13 @@ async function importProjectenExcel(inputEl) {
   }
 }
 
-// ── Starters-goedkeuring (kandidaten in fase 'Contractvoorstel') ──────────────
+// ── Starters-goedkeuring (kandidaten in fase 'Starter') ──────────────────────
 // Blijft staan tot beoordeeld (akkoord/niet akkoord), onafhankelijk van de week.
-function getContractvoorstelCards() {
+function getStarterCards() {
   const out = [];
   for (const bm of BMS) {
     const cards = pipeLoad(bm.naam);
-    for (const c of cards) if (c.stage === 'Contractvoorstel' && !c.verwijderd_op) out.push({ ...c, bmNaam: bm.naam });
+    for (const c of cards) if (c.stage === 'Starter' && !c.verwijderd_op) out.push({ ...c, bmNaam: bm.naam });
   }
   return out;
 }
@@ -1880,7 +1960,7 @@ function renderPrognose() {
 
   // ── Projectenlijst / projectenlijn / starters-goedkeuring ──────────────────
   const projLineCounts = countActiveProjectsPerWeek(year);
-  const contractCards  = getContractvoorstelCards();
+  const starterCards   = getStarterCards();
   const nuVoorOverdue  = new Date();
   // Alleen niet-verwijderde projecten tonen in het overzicht; verwijderde
   // projecten blijven wel meegerekend in de historische projectenlijn.
@@ -1948,13 +2028,13 @@ function renderPrognose() {
     </div>
 
     <!-- Starters goedkeuring -->
-    <div class="section-title">Starters-goedkeuring (fase Contractvoorstel)</div>
+    <div class="section-title">Starters-goedkeuring (fase Starter)</div>
     <div class="chart-card">
-      ${contractCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Contractvoorstel.</div>' : contractCards.map(c => {
+      ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : starterCards.map(c => {
         const safeId = String(c.id).replace(/[^a-zA-Z0-9]/g, '');
         const status = c.goedkeuring || 'open';
         return `<div class="proj-overview-row">
-          <div style="flex:1; min-width:160px"><strong>${c.naam}</strong> <span class="sub">(${c.bmNaam})</span></div>
+          <div style="flex:1; min-width:160px"><strong>${c.naam}</strong> <span class="sub">(${c.bmNaam}${c.opdrachtgever ? ' · ' + escHtml(c.opdrachtgever) : ''}${c.gedeeld ? ' · gedeeld (0,5)' : ''})</span></div>
           <button class="goedkeur-btn ${status==='akkoord'?'akkoord':''}" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
           <button class="goedkeur-btn ${status==='niet_akkoord'?'niet-akkoord':''}" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>
           ${status === 'akkoord' ? `
@@ -2050,14 +2130,15 @@ function escHtml(s) {
 }
 function escApos(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
-function renderPipeline(bm) {
+function renderPipeline(bm, stages = PIPE_STAGES) {
   const cards  = pipeLoad(bm.naam);
   const weeks  = getPipeWeeks();
   const bmE    = escApos(bm.naam);
+  const isLucBezoek = isBezoekOnlyBm(bm.naam);
 
   // Column headers
-  const hdrs = PIPE_STAGES.map((stage, si) => {
-    const col = PIPE_STAGE_COLORS[si];
+  const hdrs = stages.map((stage) => {
+    const col = PIPE_STAGE_COLOR_MAP[stage];
     const cnt = cards.filter(c => c.stage === stage).length;
     return `<div class="pipe-col-hdr" style="background:${col.bg};color:${col.text}">
       ${stage}<span class="pipe-count-sm">${cnt}</span>
@@ -2071,8 +2152,8 @@ function renderPipeline(bm) {
     const wkTag   = isCur ? 'huidig' : wk.offset === 1 ? 'volgend' : wk.offset === -1 ? 'vorige' : '-2 wkn';
     const wkTotal = cards.filter(c => c.week === wk.week && c.jaar === wk.year).length;
 
-    const cells = PIPE_STAGES.map((stage, si) => {
-      const col       = PIPE_STAGE_COLORS[si];
+    const cells = stages.map((stage) => {
+      const col       = PIPE_STAGE_COLOR_MAP[stage];
       const isAanb    = stage === 'Aanbieden';
       const isMatch   = stage === 'Matchgesprekken';
       const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
@@ -2098,7 +2179,7 @@ function renderPipeline(bm) {
                </select>
              </div>`
           : '';
-        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : ''].filter(Boolean);
+        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.gedeeld ? 'Gedeeld (0,5)' : '', c.contactpersoon ? ('Contactpersoon: ' + c.contactpersoon) : '', c.doel_gesprek ? ('Doel: ' + c.doel_gesprek) : '', c.vervolgactie ? ('Vervolgactie: ' + c.vervolgactie) : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" draggable="true"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
@@ -2134,7 +2215,9 @@ function renderPipeline(bm) {
     </div>`;
   }).join('');
 
-  return `<div class="section-title">🗂️ Kandidaten pipeline <span style="font-size:.78rem;font-weight:400;color:var(--muted);margin-left:8px">${cards.length} kandidaten actief</span></div>
+  const titel = isLucBezoek ? '🗂️ Bezoeken pipeline' : '🗂️ Kandidaten pipeline';
+  const subtitel = isLucBezoek ? `${cards.length} bezoeken actief` : `${cards.length} kandidaten actief`;
+  return `<div class="section-title">${titel} <span style="font-size:.78rem;font-weight:400;color:var(--muted);margin-left:8px">${subtitel}</span></div>
   <div class="info-box blue" style="margin-bottom:10px">💡 Sleep kaartjes naar een andere fase of week. Opgeslagen in je browser.</div>
   <div class="pipe-grid-wrap"><div class="pipe-grid">
     <div class="pipe-grid-corner"></div>${hdrs}${rows}
@@ -2172,19 +2255,40 @@ function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
 // ── Add / bewerk card modal (zelfde modal, cardId bepaalt de modus) ──────────
 var _pipeModalCtx = { bmNaam: null, stage: null, week: null, jaar: null, cardId: null };
 
-function _pipeToggleIntakeFields(stage) {
-  document.getElementById('pipe-modal-intake-fields').style.display = (stage === 'Intake') ? 'block' : 'none';
+function _pipeToggleStageFields(stage) {
+  const isIntake    = stage === 'Intake';
+  const isBezoek    = stage === 'Bezoeken';
+  const isLucBezoek = isBezoek && isBezoekOnlyBm(_pipeModalCtx.bmNaam);
+  const isContract  = stage === 'Contractvoorstel';
+  const isStarter   = stage === 'Starter';
+  document.getElementById('pipe-modal-intake-fields').style.display       = isIntake ? 'block' : 'none';
+  document.getElementById('pipe-modal-bezoek-fields').style.display      = (isBezoek && !isLucBezoek) ? 'block' : 'none';
+  document.getElementById('pipe-modal-bezoek-luc-fields').style.display  = isLucBezoek ? 'block' : 'none';
+  document.getElementById('pipe-modal-opdrachtgever-field').style.display = (isContract || isStarter) ? 'block' : 'none';
+  document.getElementById('pipe-modal-salaris-field').style.display      = isContract ? 'block' : 'none';
+  document.getElementById('pipe-modal-gedeeld-field').style.display      = (isContract || isStarter) ? 'block' : 'none';
+  document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'Naam opdrachtgever *' : 'Naam kandidaat *';
+  document.getElementById('pipe-modal-notitie').rows = isLucBezoek ? 6 : 2;
+  document.getElementById('pipe-modal-notitie').placeholder = isLucBezoek ? 'Verslag van het bezoek (optioneel)' : 'Notitie (optioneel)';
 }
 function pipeOpenModal(bmNaam, stage, week, jaar) {
   _pipeModalCtx = { bmNaam, stage, week, jaar, cardId: null };
-  document.getElementById('pipe-modal-title').textContent = '➕ Kandidaat toevoegen';
+  const isLucBezoek = stage === 'Bezoeken' && isBezoekOnlyBm(bmNaam);
+  document.getElementById('pipe-modal-title').textContent = isLucBezoek ? '➕ Bezoek toevoegen' : '➕ Kandidaat toevoegen';
   document.getElementById('pipe-modal-stage-label').textContent = stage + ' · Week ' + week + ' (' + jaar + ')';
   document.getElementById('pipe-modal-naam').value = '';
   document.getElementById('pipe-modal-notitie').value = '';
   document.getElementById('pipe-modal-functie').value = '';
   document.getElementById('pipe-modal-si').value = '';
   document.getElementById('pipe-modal-regio').value = '';
-  _pipeToggleIntakeFields(stage);
+  document.getElementById('pipe-modal-bezoek-reden').value = '';
+  document.getElementById('pipe-modal-opdrachtgever').value = '';
+  document.getElementById('pipe-modal-salaris').value = '';
+  document.getElementById('pipe-modal-gedeeld').checked = false;
+  document.getElementById('pipe-modal-contactpersoon').value = '';
+  document.getElementById('pipe-modal-doel-gesprek').value = '';
+  document.getElementById('pipe-modal-vervolgactie').value = '';
+  _pipeToggleStageFields(stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Toevoegen';
   document.getElementById('pipe-modal').classList.add('open');
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
@@ -2193,14 +2297,22 @@ function pipeOpenEditModal(bmNaam, cardId) {
   const card = pipeLoad(bmNaam).find(c => c.id === cardId);
   if (!card) return;
   _pipeModalCtx = { bmNaam, stage: card.stage, week: card.week, jaar: card.jaar, cardId };
-  document.getElementById('pipe-modal-title').textContent = '✏️ Kandidaat wijzigen';
+  const isLucBezoek = card.stage === 'Bezoeken' && isBezoekOnlyBm(bmNaam);
+  document.getElementById('pipe-modal-title').textContent = isLucBezoek ? '✏️ Bezoek wijzigen' : '✏️ Kandidaat wijzigen';
   document.getElementById('pipe-modal-stage-label').textContent = card.stage + ' · Week ' + card.week + ' (' + card.jaar + ')';
   document.getElementById('pipe-modal-naam').value = card.naam || '';
   document.getElementById('pipe-modal-notitie').value = card.notitie || '';
   document.getElementById('pipe-modal-functie').value = card.functie || '';
   document.getElementById('pipe-modal-si').value = card.salarisindicatie || '';
   document.getElementById('pipe-modal-regio').value = card.regio || '';
-  _pipeToggleIntakeFields(card.stage);
+  document.getElementById('pipe-modal-bezoek-reden').value = card.bezoek_reden || '';
+  document.getElementById('pipe-modal-opdrachtgever').value = card.opdrachtgever || '';
+  document.getElementById('pipe-modal-salaris').value = card.salaris || '';
+  document.getElementById('pipe-modal-gedeeld').checked = !!card.gedeeld;
+  document.getElementById('pipe-modal-contactpersoon').value = card.contactpersoon || '';
+  document.getElementById('pipe-modal-doel-gesprek').value = card.doel_gesprek || '';
+  document.getElementById('pipe-modal-vervolgactie').value = card.vervolgactie || '';
+  _pipeToggleStageFields(card.stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Opslaan';
   document.getElementById('pipe-modal').classList.add('open');
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
@@ -2211,10 +2323,21 @@ async function pipeConfirmAdd() {
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
   const notitie = document.getElementById('pipe-modal-notitie').value.trim();
   const { bmNaam, stage, week, jaar, cardId } = _pipeModalCtx;
-  const isIntake = stage === 'Intake';
-  const functie  = isIntake ? document.getElementById('pipe-modal-functie').value.trim() : undefined;
-  const si       = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
-  const regio    = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
+  const isIntake    = stage === 'Intake';
+  const isBezoek    = stage === 'Bezoeken';
+  const isLucBezoek = isBezoek && isBezoekOnlyBm(bmNaam);
+  const isContract  = stage === 'Contractvoorstel';
+  const isStarter   = stage === 'Starter';
+  const functie        = isIntake ? document.getElementById('pipe-modal-functie').value.trim() : undefined;
+  const si              = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
+  const regio           = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
+  const bezoekReden     = (isBezoek && !isLucBezoek) ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
+  const contactpersoon  = isLucBezoek ? document.getElementById('pipe-modal-contactpersoon').value.trim() : undefined;
+  const doelGesprek     = isLucBezoek ? document.getElementById('pipe-modal-doel-gesprek').value.trim() : undefined;
+  const vervolgactie    = isLucBezoek ? document.getElementById('pipe-modal-vervolgactie').value.trim() : undefined;
+  const opdrachtgever   = (isContract || isStarter) ? document.getElementById('pipe-modal-opdrachtgever').value.trim() : undefined;
+  const salaris         = isContract ? document.getElementById('pipe-modal-salaris').value.trim() : undefined;
+  const gedeeld         = (isContract || isStarter) ? document.getElementById('pipe-modal-gedeeld').checked : undefined;
 
   // Verplichte velden bij Intake: naam (al gecontroleerd), functie, salarisindicatie, regio.
   if (isIntake) {
@@ -2229,11 +2352,53 @@ async function pipeConfirmAdd() {
       return;
     }
   }
+  // Verplicht bij Bezoeken: reden van bezoek (naam = naam opdrachtgever, al gecontroleerd).
+  if (isBezoek && !isLucBezoek && !bezoekReden) {
+    alert('Verplicht bij Bezoeken: Reden van bezoek');
+    document.getElementById('pipe-modal-bezoek-reden').focus();
+    return;
+  }
+  // Verplicht bij Luc Kools' bezoekrapportage: contactpersoon, doel gesprek, vervolgactie
+  // (naam = naam opdrachtgever, al gecontroleerd).
+  if (isLucBezoek) {
+    const missingField = !contactpersoon ? 'pipe-modal-contactpersoon' : !doelGesprek ? 'pipe-modal-doel-gesprek' : !vervolgactie ? 'pipe-modal-vervolgactie' : null;
+    if (missingField) {
+      const missingLabels = [];
+      if (!contactpersoon) missingLabels.push('Naam contactpersoon');
+      if (!doelGesprek)    missingLabels.push('Doel van het gesprek');
+      if (!vervolgactie)   missingLabels.push('Vervolgactie');
+      alert('Verplicht bij Bezoeken: ' + missingLabels.join(', '));
+      document.getElementById(missingField).focus();
+      return;
+    }
+  }
+  // Verplicht bij Contractvoorstel: naam opdrachtgever + salaris (naam kandidaat al gecontroleerd).
+  if (isContract) {
+    const missingField = !opdrachtgever ? 'pipe-modal-opdrachtgever' : !salaris ? 'pipe-modal-salaris' : null;
+    if (missingField) {
+      const missingLabels = [];
+      if (!opdrachtgever) missingLabels.push('Naam opdrachtgever');
+      if (!salaris)       missingLabels.push('Salaris');
+      alert('Verplicht bij Contractvoorstel: ' + missingLabels.join(', '));
+      document.getElementById(missingField).focus();
+      return;
+    }
+  }
+  // Verplicht bij Starter: naam opdrachtgever (naam kandidaat al gecontroleerd).
+  if (isStarter && !opdrachtgever) {
+    alert('Verplicht bij Starter: Naam opdrachtgever');
+    document.getElementById('pipe-modal-opdrachtgever').focus();
+    return;
+  }
 
   if (cardId) {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
-    if (isIntake) { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; }
+    if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; }
+    if (isBezoek && !isLucBezoek) { updatePayload.bezoek_reden = bezoekReden; }
+    if (isLucBezoek) { updatePayload.contactpersoon = contactpersoon; updatePayload.doel_gesprek = doelGesprek; updatePayload.vervolgactie = vervolgactie; }
+    if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
+    if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
     if (supa) {
       const { error } = await supa.from('pipeline_cards').update(updatePayload).eq('id', cardId);
       if (error) { alert('Kandidaat wijzigen mislukt: ' + error.message); return; }
@@ -2242,7 +2407,11 @@ async function pipeConfirmAdd() {
     const card  = cards.find(c => c.id === cardId);
     if (card) {
       card.naam = naam; card.notitie = notitie;
-      if (isIntake) { card.functie = functie; card.salarisindicatie = si; card.regio = regio; }
+      if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; }
+      if (isBezoek && !isLucBezoek) { card.bezoek_reden = bezoekReden; }
+      if (isLucBezoek) { card.contactpersoon = contactpersoon; card.doel_gesprek = doelGesprek; card.vervolgactie = vervolgactie; }
+      if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
+      if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
     }
     pipeSave(bmNaam, cards);
     pipeCloseModal();
@@ -2253,16 +2422,20 @@ async function pipeConfirmAdd() {
   // Nieuwe kandidaat toevoegen
   const datum = new Date().toLocaleDateString('nl-NL');
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
-  if (isIntake) { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; }
+  if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; }
+  if (isBezoek && !isLucBezoek) { insertPayload.bezoek_reden = bezoekReden; }
+  if (isLucBezoek) { insertPayload.contactpersoon = contactpersoon; insertPayload.doel_gesprek = doelGesprek; insertPayload.vervolgactie = vervolgactie; }
+  if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
+  if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
   let newCard;
   if (supa) {
     const { data, error } = await supa.from('pipeline_cards')
       .insert(insertPayload)
       .select().single();
     if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, contactpersoon: data.contactpersoon, doel_gesprek: data.doel_gesprek, vervolgactie: data.vervolgactie };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, contactpersoon, doel_gesprek: doelGesprek, vervolgactie };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -2331,6 +2504,27 @@ function pipeDelete(bmNaam, cardId) {
         <option value="Zuid">Zuid</option>
       </select>
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Intake</p>
+    </div>
+    <div id="pipe-modal-bezoek-fields" style="display:none;">
+      <input type="text" id="pipe-modal-bezoek-reden" placeholder="Reden van bezoek *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+      <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Bezoeken</p>
+    </div>
+    <div id="pipe-modal-bezoek-luc-fields" style="display:none;">
+      <input type="text" id="pipe-modal-contactpersoon" placeholder="Naam contactpersoon *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+      <input type="text" id="pipe-modal-doel-gesprek" placeholder="Doel van het gesprek *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+      <input type="text" id="pipe-modal-vervolgactie" placeholder="Vervolgactie *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+      <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Bezoeken</p>
+    </div>
+    <div id="pipe-modal-opdrachtgever-field" style="display:none;">
+      <input type="text" id="pipe-modal-opdrachtgever" placeholder="Naam opdrachtgever *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+    </div>
+    <div id="pipe-modal-salaris-field" style="display:none;">
+      <input type="text" id="pipe-modal-salaris" placeholder="Salaris *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+    </div>
+    <div id="pipe-modal-gedeeld-field" style="display:none;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);margin-bottom:10px;">
+        <input type="checkbox" id="pipe-modal-gedeeld"/> Gedeelde plaatsing met collega (telt als 0,5)
+      </label>
     </div>
     <textarea id="pipe-modal-notitie" placeholder="Notitie (optioneel)" rows="2"></textarea>
     <div class="pipe-modal-btns">
