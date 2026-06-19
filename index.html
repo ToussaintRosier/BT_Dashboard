@@ -736,24 +736,28 @@ function renderWeeklyEntry(bm) {
   const alreadySaved = !!existingRow;
   const unlocked      = !alreadySaved || WEEKLY_EDIT_UNLOCKED.has(bm.naam);
 
+  const frozen = alreadySaved && !unlocked;
+
   const fields = KPIS.map(k => `
     <div>
       <label style="display:block;font-size:.72rem;color:var(--muted);margin-bottom:3px;">${KPI_LABELS[k]}</label>
-      <input type="number" min="0" id="inv-${k}-${safeId}" value="${existing[k] ?? 0}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid var(--border);border-radius:6px;padding:5px 7px;font-size:.85rem;${unlocked?'':'background:#f3f4f6;color:var(--muted);'}">
+      <input type="number" min="0" id="inv-${k}-${safeId}" value="${existing[k] ?? 0}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid ${frozen?'#bbf7d0':'var(--border)'};border-radius:6px;padding:5px 7px;font-size:.85rem;font-weight:${frozen?'700':'400'};${frozen?'background:#f0fdf4;color:#15803d;':''}">
     </div>`).join('');
 
   const actionBtn = unlocked
-    ? `<button onclick="saveWeeklyEntry('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-weight:700;font-size:.85rem;cursor:pointer;">Opslaan</button>`
+    ? `<button onclick="saveWeeklyEntry('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-weight:700;font-size:.85rem;cursor:pointer;">🔒 Opslaan</button>`
     : `<button onclick="unlockWeeklyEntry('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:7px 16px;font-weight:700;font-size:.85rem;cursor:pointer;">✏️ Wijzigen</button>`;
 
-  const statusText = alreadySaved && !unlocked ? '✓ Opgeslagen voor deze week' : '';
+  const statusText = frozen
+    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">🔒 Bevroren &amp; opgeslagen voor deze week</span>`
+    : '';
 
   return `<div class="week-actions" style="margin-bottom:16px;">
     <h4>✏️ Invoer week ${CUR.week} · ${CUR.year}</h4>
     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
       ${fields}
       ${actionBtn}
-      <span id="inv-status-${safeId}" style="font-size:.78rem;color:var(--muted);">${statusText}</span>
+      <span id="inv-status-${safeId}">${statusText}</span>
     </div>
   </div>`;
 }
