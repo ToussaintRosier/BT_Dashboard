@@ -480,7 +480,7 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend:{display:opts.legend!==false,position:'top',labels:{boxWidth:12,font:{size:11}}}, tooltip:{mode:'index',intersect:false} },
+      plugins: { legend:{display:opts.legend!==false,position:'top',labels:{boxWidth:12,font:{size:11}}}, tooltip:{mode:'index',intersect:false, callbacks: opts.tooltipLabel ? { label: opts.tooltipLabel } : undefined} },
       scales: {
         x: { grid:{display:false}, ticks:{font:{size:10}} },
         y: { beginAtZero:true, grid:{color:'#f0f0f0'}, ticks:{font:{size:10}} }
@@ -756,7 +756,8 @@ function renderTeam() {
     </tr>`;
   }).join('');
 
-  const histRows = [2022,2023,2024,2025,2026].map(yr => {
+  // Nieuwste jaar boven, oudste onder; 2023 is uitgesloten (niet representatief).
+  const histRows = [2026,2025,2024,2022].map(yr => {
     const yr_rows = RAW.filter(d => d.jaar===yr && !EXCL.has(d.naam));
     if (!yr_rows.length) return '';
     const t = ytdTotals(yr_rows);
@@ -819,7 +820,7 @@ function renderTeam() {
     <!-- Staafdiagram activiteiten -->
     <div class="section-title">Activiteiten per maand – team (${year})</div>
     <div class="chart-card">
-      <h3>Intakes · Bezoeken · Matchgesprekken per maand</h3>
+      <h3>Intakes · Bezoeken · Aanbiedingen · Matchgesprekken per maand <span style="color:var(--muted);font-weight:400;font-size:.78rem">(hover voor % t.o.v. teamnorm)</span></h3>
       <div class="chart-wrap" style="height:300px"><canvas id="chartBar"></canvas></div>
     </div>
 
@@ -879,12 +880,21 @@ function renderTeam() {
       { label:`Norm (${aanbNormPerWeek}/wk)`, data:aggW.map(()=>aanbNormPerWeek), borderColor:'#E87400', borderDash:[5,4], pointRadius:0 },
     ]);
 
-    // 3. Activiteiten staafdiagram per maand
+    // 3. Activiteiten staafdiagram per maand — incl. aanbiedingen en % t.o.v. teamnorm (tooltip)
+    const teamNormMonth = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'maand');
     makeChart('chartBar', maandLabels, [
-      { label:'Intakes',   data:aggM.map(a=>a.intakes),         backgroundColor:'#1a56db99', borderColor:'#1a56db', borderWidth:1 },
-      { label:'Bezoeken',  data:aggM.map(a=>a.bezoeken),        backgroundColor:'#0e9f6e99', borderColor:'#0e9f6e', borderWidth:1 },
-      { label:'Match',     data:aggM.map(a=>a.matchgesprekken), backgroundColor:'#e0242499', borderColor:'#e02424', borderWidth:1 },
-    ], 'bar');
+      { label:'Intakes',      kpiKey:'intakes',         data:aggM.map(a=>a.intakes),         backgroundColor:'#1a56db99', borderColor:'#1a56db', borderWidth:1 },
+      { label:'Bezoeken',     kpiKey:'bezoeken',        data:aggM.map(a=>a.bezoeken),        backgroundColor:'#0e9f6e99', borderColor:'#0e9f6e', borderWidth:1 },
+      { label:'Aanbiedingen', kpiKey:'aanbiedingen',    data:aggM.map(a=>a.aanbiedingen),    backgroundColor:'#7e3af299', borderColor:'#7e3af2', borderWidth:1 },
+      { label:'Match',        kpiKey:'matchgesprekken', data:aggM.map(a=>a.matchgesprekken), backgroundColor:'#e0242499', borderColor:'#e02424', borderWidth:1 },
+    ], 'bar', {
+      tooltipLabel: (ctx) => {
+        const norm = teamNormMonth[ctx.dataset.kpiKey] || 0;
+        const val  = ctx.parsed.y;
+        const p    = norm > 0 ? Math.round(val / norm * 100) : 0;
+        return `${ctx.dataset.label}: ${val} (${p}% van teamnorm)`;
+      },
+    });
 
     // 4. Overige KPI's per week, alle medewerkers — gesommeerde lijnen + teamnorm per KPI
     const teamNorm = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'week');
