@@ -85,6 +85,7 @@
   .badge-green  { background:#d1fae5; color:#065f46; }
   .badge-blue   { background:#dbeafe; color:#1e40af; }
   .badge-orange { background:#fef3c7; color:#92400e; }
+  .badge-yellow { background:#fef9c3; color:#854d0e; }
   .badge-red    { background:#fee2e2; color:#991b1b; }
   .proj-overview-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border); }
   .proj-overview-row:last-child { border-bottom:none; }
@@ -102,9 +103,9 @@
   .acc-table thead th.acc-th-left { text-align:left; }
   .acc-table tbody td { padding:6px 5px; font-size:.78rem; text-align:center; white-space:normal; word-break:break-word; vertical-align:middle; }
   .acc-table tbody td.acc-td-left { text-align:left; font-weight:600; }
-  .acc-table tbody tr.acc-tier-top    { background:#f0fdf4; }
-  .acc-table tbody tr.acc-tier-mid    { background:#fff; }
-  .acc-table tbody tr.acc-tier-bottom { background:#fef6f5; }
+  .acc-table tbody tr.acc-tier-top    { background:#f0fdf4; } /* groen: score 28+ */
+  .acc-table tbody tr.acc-tier-mid    { background:#fefce8; } /* geel: score 27 (norm) */
+  .acc-table tbody tr.acc-tier-bottom { background:#fef6f5; } /* rood: score 26 en lager */
   .acc-table tbody tr:hover { filter:brightness(0.97); }
   .acc-heat-1 { background:#fee2e2; color:#991b1b; font-weight:700; border-radius:6px; }
   .acc-heat-2 { background:#fed7aa; color:#9a3412; font-weight:700; border-radius:6px; }
@@ -2224,12 +2225,10 @@ function accHeatClass(val) {
   return v >= 1 && v <= 5 ? `acc-heat-${v}` : '';
 }
 
+// Score 28+ = groen, score 27 = geel (norm), score 26 en lager = rood.
 function accScoreBadgeClass(score) {
-  const maxScore = ACC_SCORE_FIELDS.length * 5; // 45
-  const p = score / maxScore;
-  if (p >= 0.8) return 'badge-green';
-  if (p >= 0.6) return 'badge-blue';
-  if (p >= 0.4) return 'badge-orange';
+  if (score >= 28) return 'badge-green';
+  if (score === 27) return 'badge-yellow';
   return 'badge-red';
 }
 
@@ -2318,12 +2317,12 @@ function renderAccounts() {
   const opOptHtml     = opOptions.map(o => `<option value="${escHtml(o)}" ${ACC_FILTER_OP===o?'selected':''}>${escHtml(o)}</option>`).join('');
   const scoreHeaders  = ACC_SCORE_FIELDS.map(([,label]) => `<th title="${escHtml(label)}">${escHtml(label)}</th>`).join('');
 
-  const n = sorted.length;
-  const rows = sorted.map((a, idx) => {
+  const rows = sorted.map((a) => {
     const safeId  = String(a.id).replace(/[^a-zA-Z0-9_-]/g, '_');
     const editing = ACC_EDIT_UNLOCKED.has(String(a.id));
     const score   = accScore(a);
-    const tier    = n <= 2 ? 'acc-tier-mid' : idx < n/3 ? 'acc-tier-top' : idx > n*2/3 ? 'acc-tier-bottom' : 'acc-tier-mid';
+    // Score 28+ = groen, score 27 = geel (norm), score 26 en lager = rood.
+    const tier    = score >= 28 ? 'acc-tier-top' : score === 27 ? 'acc-tier-mid' : 'acc-tier-bottom';
 
     const naamCell = editing
       ? `<input type="text" id="acc-naam-${safeId}" class="acc-text-input" value="${escHtml(a.naam||'')}">`
