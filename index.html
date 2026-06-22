@@ -338,6 +338,7 @@ const PREV       = isoWeek(new Date(+TODAY - 7 * 86400000));
 // ── Plan van aanpak: logboek met laatste weken (inklapbare balken) ────────────
 const PVA_LOG_WEEKS = 10; // aantal historische weken dat in het logboek getoond wordt
 let PVA_LOG_OPEN = new Set(); // keys "bmNaam|jaar|week" voor open logboekbalken
+let PVA_AUTOSAVE_TIMERS = {}; // debounce-timers per bmNaam zodat getypte tekst nooit verloren gaat
 function getRecentWeeks(n) {
   const out = [];
   for (let i = 1; i <= n; i++) out.push(isoWeek(new Date(+TODAY - i * 7 * 86400000)));
@@ -964,8 +965,32 @@ function renderTeam() {
   }, 50);
 }
 
+// Vangnet tegen dataverlies: legt de actuele waarden van alle open Plan van
+// aanpak-velden vast in PLAN_VA vóórdat het scherm opnieuw wordt opgebouwd. Nodig
+// omdat render() ook door live updates van andere gebruikers getriggerd kan worden
+// (zie subscribeRealtime) — zonder dit vangnet zou nog niet-geautosavede tekst dan
+// even kunnen "terugspringen" naar de laatst opgeslagen waarde.
+function snapshotPvaInputs() {
+  document.querySelectorAll('textarea[data-pva-bm]').forEach(ta => {
+    if (ta.disabled) return;
+    const bmNaam = ta.dataset.pvaBm, field = ta.dataset.pvaField;
+    if (!bmNaam || !field) return;
+    let row = PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
+    if (!row) { row = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }; PLAN_VA.push(row); }
+    row[field] = ta.value;
+  });
+  document.querySelectorAll('input[data-pva-bm][type="radio"]:checked').forEach(r => {
+    const bmNaam = r.dataset.pvaBm;
+    if (!bmNaam) return;
+    let row = PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
+    if (!row) { row = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }; PLAN_VA.push(row); }
+    row.behaald = r.value;
+  });
+}
+
 // ── Main render ───────────────────────────────────────────────────────────────
 function render() {
+  snapshotPvaInputs();
   renderTabs();
   Object.values(charts).forEach(c => c?.destroy()); charts = {};
   if (currentTab === 'accounts') { renderAccounts(); return; }
@@ -1102,9 +1127,16 @@ const PLAN_FIELDS = ['doel_vorige_week','behaald','verklaring','nieuw_weekdoel',
 function planField(id, title, value, opts) {
   opts = opts || {};
   const disabled = opts.disabled ? 'disabled' : '';
+  // Autosave: zodra een veld bewerkbaar is en bij een medewerker hoort, wordt elke
+  // tekstwijziging na een korte pauze automatisch opgeslagen — zo kan getypte tekst
+  // nooit meer verloren gaan door een tussentijdse herrender (bv. door live updates
+  // van een andere gebruiker elders in het dashboard).
+  const autosaveAttr = (!opts.disabled && opts.bmNaam)
+    ? ` oninput="pvaScheduleAutosave('${escApos(opts.bmNaam)}')" data-pva-bm="${escHtml(opts.bmNaam)}" data-pva-field="${escHtml(opts.field||'')}"`
+    : '';
   return `<div class="plan-field">
     <div class="plan-field-title">${title}</div>
-    <textarea id="${id}" rows="${opts.rows||2}" placeholder="${opts.placeholder||''}" ${disabled}>${escHtml(value||'')}</textarea>
+    <textarea id="${id}" rows="${opts.rows||2}" placeholder="${opts.placeholder||''}" ${disabled}${autosaveAttr}>${escHtml(value||'')}</textarea>
   </div>`;
 }
 
@@ -1127,8 +1159,8 @@ function renderPlanVanAanpak(bm) {
 
   const jaNeeHtml = `<div class="plan-ja-nee">
     <span class="plan-field-title" style="margin:0">Behaald?</span>
-    <label><input type="radio" name="plan-behaald-${safeId}" value="ja" ${d.behaald==='ja'?'checked':''} ${frozen?'disabled':''}> Ja</label>
-    <label><input type="radio" name="plan-behaald-${safeId}" value="nee" ${d.behaald==='nee'?'checked':''} ${frozen?'disabled':''}> Nee</label>
+    <label><input type="radio" name="plan-behaald-${safeId}" value="ja" data-pva-bm="${escHtml(bm.naam)}" ${d.behaald==='ja'?'checked':''} ${frozen?'disabled':''} onchange="pvaScheduleAutosave('${escApos(bm.naam)}')"> Ja</label>
+    <label><input type="radio" name="plan-behaald-${safeId}" value="nee" data-pva-bm="${escHtml(bm.naam)}" ${d.behaald==='nee'?'checked':''} ${frozen?'disabled':''} onchange="pvaScheduleAutosave('${escApos(bm.naam)}')"> Nee</label>
   </div>`;
 
   const statusText = frozen
@@ -1153,23 +1185,23 @@ function renderPlanVanAanpak(bm) {
     <div class="plan-col-label">✍️ Nieuwe afspraken — week ${CUR.week} · ${CUR.year}</div>
 
     <div class="section-title" style="margin:0 0 8px">Terugblik (weekdoel vorige week)</div>
-    ${planField(`pva-doel_vorige_week-${safeId}`, 'Noteer je doel van vorige week.', doelVorigeWeek, {disabled:frozen, placeholder:'Doel van vorige week…'})}
+    ${planField(`pva-doel_vorige_week-${safeId}`, 'Noteer je doel van vorige week.', doelVorigeWeek, {disabled:frozen, placeholder:'Doel van vorige week…', bmNaam:bm.naam, field:'doel_vorige_week'})}
     ${jaNeeHtml}
-    ${planField(`pva-verklaring-${safeId}`, 'Geef een korte verklaring: wat werkte, wat werkte niet?', d.verklaring, {disabled:frozen})}
+    ${planField(`pva-verklaring-${safeId}`, 'Geef een korte verklaring: wat werkte, wat werkte niet?', d.verklaring, {disabled:frozen, bmNaam:bm.naam, field:'verklaring'})}
 
     <div class="section-title" style="margin:18px 0 8px">Nieuw weekdoel</div>
-    ${planField(`pva-nieuw_weekdoel-${safeId}`, 'Bespreek weekdoel + planning komende week.', d.nieuw_weekdoel, {disabled:frozen, rows:3})}
+    ${planField(`pva-nieuw_weekdoel-${safeId}`, 'Bespreek weekdoel + planning komende week.', d.nieuw_weekdoel, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'nieuw_weekdoel'})}
 
     <div class="section-title" style="margin:18px 0 8px">Acties</div>
-    ${planField(`pva-acties-${safeId}`, 'Maak een lijst van geplande acties deze week (KPI).', d.acties, {disabled:frozen, rows:3})}
+    ${planField(`pva-acties-${safeId}`, 'Maak een lijst van geplande acties deze week (KPI).', d.acties, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'acties'})}
 
     <div class="section-title" style="margin:18px 0 8px">Recruitmentfocus</div>
-    ${planField(`pva-vacature_focus-${safeId}`, 'Op welke vacature ligt je focus?', d.vacature_focus, {disabled:frozen})}
-    ${planField(`pva-obstakel-${safeId}`, 'Loop je hierbij ergens tegenaan?', d.obstakel, {disabled:frozen})}
+    ${planField(`pva-vacature_focus-${safeId}`, 'Op welke vacature ligt je focus?', d.vacature_focus, {disabled:frozen, bmNaam:bm.naam, field:'vacature_focus'})}
+    ${planField(`pva-obstakel-${safeId}`, 'Loop je hierbij ergens tegenaan?', d.obstakel, {disabled:frozen, bmNaam:bm.naam, field:'obstakel'})}
 
     <div class="section-title" style="margin:18px 0 8px">Afsluiting / focus</div>
-    ${planField(`pva-focuspunt-${safeId}`, 'Noteer je belangrijkste focuspunt voor de week.', d.focuspunt, {disabled:frozen})}
-    ${planField(`pva-team_support-${safeId}`, 'Bereid kort voor waar je ondersteuning van het team nodig hebt.', d.team_support, {disabled:frozen})}
+    ${planField(`pva-focuspunt-${safeId}`, 'Noteer je belangrijkste focuspunt voor de week.', d.focuspunt, {disabled:frozen, bmNaam:bm.naam, field:'focuspunt'})}
+    ${planField(`pva-team_support-${safeId}`, 'Bereid kort voor waar je ondersteuning van het team nodig hebt.', d.team_support, {disabled:frozen, bmNaam:bm.naam, field:'team_support'})}
 
     <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
       ${actionBtn}
@@ -1180,7 +1212,7 @@ function renderPlanVanAanpak(bm) {
 
   const managerNoteBlock = `<div class="plan-manager-note">
     <div class="plan-col-label">🗒️ Managernotitie — week ${CUR.week} · ${CUR.year} (zichtbaar voor iedereen)</div>
-    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled:frozen || !isManager, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.'})}
+    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled:frozen || !isManager, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie'})}
   </div>`;
 
   return `<div class="info-box blue" style="margin-bottom:12px">💡 Gegevens van vorige weken blijven altijd bewaard. Je nieuwe afspraken van deze week worden volgende week automatisch de basis voor "wat hebben we afgesproken".</div>
@@ -1303,13 +1335,13 @@ function unlockPlanVanAanpak(bmNaam) {
   render();
 }
 
-async function savePlanVanAanpak(bmNaam) {
-  if (!supa || !CURRENT_USER) return;
-  const safeId   = bmNaam.replace(/\s+/g,'_');
-  const statusEl = document.getElementById(`pva-status-${safeId}`);
+// Bouwt de upsert-payload op basis van de huidige (live) waarden in de invoervelden.
+// Gedeeld door zowel de handmatige "Opslaan"-knop als de automatische autosave,
+// zodat beide altijd exact dezelfde gegevens wegschrijven.
+function buildPvaPayload(bmNaam) {
+  const safeId = bmNaam.replace(/\s+/g,'_');
   const val = (id) => document.getElementById(id)?.value?.trim() || '';
   const behaaldEl = document.querySelector(`input[name="plan-behaald-${safeId}"]:checked`);
-
   const payload = {
     bm_naam: bmNaam, jaar: CUR.year, week: CUR.week,
     doel_vorige_week: val(`pva-doel_vorige_week-${safeId}`),
@@ -1329,6 +1361,38 @@ async function savePlanVanAanpak(bmNaam) {
   if (CURRENT_USER.rol === 'manager') {
     payload.manager_notitie = val(`pva-manager_notitie-${safeId}`);
   }
+  return payload;
+}
+
+// Autosave: wordt na een korte pauze in het typen aangeroepen (zie pvaScheduleAutosave)
+// en schrijft de huidige veldwaarden stil naar Supabase + de lokale cache, zonder de
+// week te vergrendelen en zonder render() aan te roepen — zo blijft de cursor/focus
+// behouden en kan getypte tekst nooit meer "verdwijnen" door een tussentijdse herrender.
+async function pvaAutosave(bmNaam) {
+  if (!supa || !CURRENT_USER) return;
+  const safeId    = bmNaam.replace(/\s+/g,'_');
+  const lockKey   = `plan|${bmNaam}|${CUR.year}|${CUR.week}`;
+  const already   = !!getPlanRow(bmNaam, CUR.year, CUR.week);
+  if (already && !WEEKLY_EDIT_UNLOCKED.has(lockKey)) return; // bevroren week: niet autosaven
+  const statusEl  = document.getElementById(`pva-status-${safeId}`);
+  const payload   = buildPvaPayload(bmNaam);
+  const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+  if (error) { console.error('Automatisch opslaan plan van aanpak mislukt:', error); return; }
+  const idx = PLAN_VA.findIndex(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
+  if (idx >= 0) PLAN_VA[idx] = { ...PLAN_VA[idx], ...payload }; else PLAN_VA.push(payload);
+  if (statusEl) statusEl.innerHTML = `<span style="color:var(--muted);font-size:.78rem;">✓ Automatisch opgeslagen om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</span>`;
+}
+function pvaScheduleAutosave(bmNaam) {
+  clearTimeout(PVA_AUTOSAVE_TIMERS[bmNaam]);
+  PVA_AUTOSAVE_TIMERS[bmNaam] = setTimeout(() => pvaAutosave(bmNaam), 1000);
+}
+
+async function savePlanVanAanpak(bmNaam) {
+  if (!supa || !CURRENT_USER) return;
+  const safeId   = bmNaam.replace(/\s+/g,'_');
+  const statusEl = document.getElementById(`pva-status-${safeId}`);
+  clearTimeout(PVA_AUTOSAVE_TIMERS[bmNaam]); // handmatige save overschrijft een eventueel wachtende autosave
+  const payload = buildPvaPayload(bmNaam);
   if (statusEl) statusEl.textContent = 'Opslaan…';
   const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
   if (error) { if (statusEl) statusEl.textContent = '❌ ' + error.message; return; }
@@ -2405,7 +2469,7 @@ function renderAccounts() {
     <div class="table-card" style="overflow-x:auto;">
       <table class="acc-table">
         <thead><tr>
-          <th class="acc-th-left">Klant</th>
+          <th class="acc-th-left" style="width:220px;min-width:220px;">Klant</th>
           <th>Strat CP</th>
           <th>OP CP</th>
           ${scoreHeaders}
