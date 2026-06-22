@@ -819,23 +819,33 @@ function renderTeam() {
       ${r.intakes} intakes · ${r.bezoeken} bezoeken · ${r.aanbiedingen} aanbiedingen · ${r.matchgesprekken} matchgesprekken per starter.
     </div>
 
-    <!-- Aanbiedingen aanbeveling -->
-    <div class="recommend-box">
-      <h3>💡 Aanbeveling – Aanbiedingen per intake (team)</h3>
-      <p>
-        Historisch baseline (teamgemiddelde, laatste 26 wkn): <strong>${aanbBaselinePerIntake}×</strong> aanbiedingen per intake.<br>
-        Maar door inconsistentie in kwaliteit van aanbiedingen is de spreiding groot (σ = 4,4).
-        Op basis van de P75 uit de volledige historische dataset geldt als <strong>datagedreven veiligheidsnorm:</strong>
-        <span class="big">${aanbSafePerIntake}×</span> aanbiedingen per intake.
-      </p>
-      <p style="margin-top:6px;font-size:.84rem;color:#166534">
-        📊 Ter vergelijking: jullie 2× suggestie = <strong>${aanb2xPerIntake}×</strong> — dit is nog conservatiever dan P75 en biedt de meeste zekerheid, maar vraagt significant meer volume.
-        De P75-norm (${aanbSafePerIntake}×) biedt al een solide buffer en is haalbaar op basis van historische prestaties.
-      </p>
-      <p style="margin-top:8px;padding-top:8px;border-top:1px solid #86efac">
-        Actueel YTD ${year}: <strong>${aanbActPerIntake}× per intake</strong>
-        — <strong>${aanbPctVsBase}%</strong> van de baseline · <strong>${aanbPctVsSafe}%</strong> van de P75-norm.
-        ${aanbPctVsSafe < 90 ? '⚠️ Team zit onder de veiligheidsnorm — meer aanbiedingen per intake nodig.' : '✅ Team zit op of boven de veiligheidsnorm!'}
+    <!-- Overige KPI's per week, alle medewerkers samen -->
+    <div class="section-title">Overige KPI's per week (${year}) · alle medewerkers</div>
+    <div class="chart-card">
+      <div class="kpi-toggles">
+        ${KPIS.map(k => `<label class="kpi-toggle" style="--toggle-color:${kpiColor(k)}">
+          <input type="checkbox" checked data-kpi="${k}" data-chart="chartTK" onchange="toggleKpiDataset(this)"> ${KPI_LABELS[k]}
+        </label>`).join('')}
+      </div>
+      <div class="chart-wrap"><canvas id="chartTK"></canvas></div>
+    </div>
+
+    <!-- Individuele ratio's -->
+    <div class="section-title">Individuele ratio's huidige BM's (laatste 26 weken)</div>
+    <div class="table-card"><table>
+      <thead><tr>
+        <th>BM</th><th>Intakes/starter</th><th>Bezoeken/starter</th>
+        <th>Aanbied./starter</th><th>Match/starter</th><th>Contractvoorstel/starter</th><th>Starters</th><th>Weekrecords</th>
+      </tr></thead>
+      <tbody>${bmRatioRows}</tbody>
+    </table></div>
+
+    <!-- Aanbiedingen aanbeveling — compact, alleen de uitkomst -->
+    <div class="recommend-box" style="padding:8px 14px;margin-bottom:14px;">
+      <h3 style="font-size:.78rem;margin-bottom:2px;">💡 Aanbiedingen per intake (team)</h3>
+      <p style="font-size:.78rem;line-height:1.4;margin:0;">
+        YTD ${year}: <strong>${aanbActPerIntake}×</strong> per intake — <strong>${aanbPctVsSafe}%</strong> van de veiligheidsnorm (${aanbSafePerIntake}×).
+        ${aanbPctVsSafe < 90 ? '⚠️ Onder de norm.' : '✅ Op of boven de norm.'}
       </p>
     </div>
 
@@ -859,17 +869,6 @@ function renderTeam() {
       <div class="chart-wrap" style="height:300px"><canvas id="chartBar"></canvas></div>
     </div>
 
-    <!-- Overige KPI's per week, alle medewerkers samen -->
-    <div class="section-title">Overige KPI's per week (${year}) · alle medewerkers</div>
-    <div class="chart-card">
-      <div class="kpi-toggles">
-        ${KPIS.map(k => `<label class="kpi-toggle" style="--toggle-color:${kpiColor(k)}">
-          <input type="checkbox" checked data-kpi="${k}" data-chart="chartTK" onchange="toggleKpiDataset(this)"> ${KPI_LABELS[k]}
-        </label>`).join('')}
-      </div>
-      <div class="chart-wrap"><canvas id="chartTK"></canvas></div>
-    </div>
-
     <!-- Normentabel -->
     <div class="section-title">Normentabel nieuwe BM's – per week</div>
     <div class="table-card"><table>
@@ -878,16 +877,6 @@ function renderTeam() {
         <th>Aanbied./wk</th><th>Match/wk</th><th>Contractvoorstel/wk</th><th>Starters/wk</th>
       </tr></thead>
       <tbody>${doelRijen}</tbody>
-    </table></div>
-
-    <!-- Individuele ratio's -->
-    <div class="section-title">Individuele ratio's huidige BM's (laatste 26 weken)</div>
-    <div class="table-card"><table>
-      <thead><tr>
-        <th>BM</th><th>Intakes/starter</th><th>Bezoeken/starter</th>
-        <th>Aanbied./starter</th><th>Match/starter</th><th>Contractvoorstel/starter</th><th>Starters</th><th>Weekrecords</th>
-      </tr></thead>
-      <tbody>${bmRatioRows}</tbody>
     </table></div>
 
     <!-- Historisch -->
