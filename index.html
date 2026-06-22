@@ -125,7 +125,9 @@
   .goedkeur-btn.niet-akkoord { border-color:#e02424; background:#e02424; color:#fff; }
   .btn-secondary { display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:7px 14px; font-size:.82rem; font-weight:700; cursor:pointer; }
   .btn-secondary:hover { background:#f3f4f6; }
-  .person-header { background:var(--card); border-radius:var(--radius); padding:18px 24px; border:1px solid var(--border); margin:16px 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .person-header { background:#F4CB3C; border-radius:var(--radius); padding:18px 24px; border:1px solid #F4CB3C; margin:16px 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .person-header .person-name, .person-header .person-meta { color:#16142e; }
+  .person-header .meta-pill { background:rgba(22,20,46,.1); color:#16142e; }
   .bm-subtabs { display:flex; gap:6px; margin:0 0 18px; border-bottom:2px solid var(--border); }
   .bm-subtab-btn { background:none; border:none; padding:10px 18px; font-size:.9rem; font-weight:700; color:#94a3b8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
   .bm-subtab-btn:hover { color:var(--accent); }
@@ -141,6 +143,11 @@
   .plan-ja-nee { display:flex; gap:14px; align-items:center; margin-bottom:8px; font-size:.84rem; }
   .plan-manager-note { background:#fdf4ff; border:1px solid #e9d5ff; border-radius:var(--radius); padding:12px 14px; margin-top:4px; }
   .plan-manager-note .plan-col-label { color:#7e22ce; }
+  .pva-log-bar { display:flex; align-items:center; justify-content:space-between; background:#fff; border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:6px; cursor:pointer; font-size:.84rem; font-weight:600; color:var(--text); }
+  .pva-log-bar:hover { border-color:var(--primary); }
+  .pva-log-bar .sub { font-weight:400; color:var(--muted); font-size:.76rem; }
+  .pva-log-bar .chev { font-weight:400; color:var(--muted); font-size:.76rem; }
+  .pva-log-content { background:#fff; border:1px solid #dbeafe; border-radius:8px; padding:12px 14px; margin:-2px 0 10px; }
   @media (max-width:760px) { .plan-grid { grid-template-columns:1fr; } }
   .person-name { font-size:1.3rem; font-weight:800; }
   .person-meta { display:flex; gap:10px; flex-wrap:wrap; }
@@ -326,6 +333,20 @@ const CUTOFF     = isoWeek(new Date(+TODAY - 26 * 7 * 86400000));
 const NEXT       = isoWeek(new Date(+TODAY + 7 * 86400000));
 // PREV = de ISO-week vóór de actuele week (voor "Plan van aanpak"-terugblik).
 const PREV       = isoWeek(new Date(+TODAY - 7 * 86400000));
+
+// ── Plan van aanpak: logboek met laatste weken (inklapbare balken) ────────────
+const PVA_LOG_WEEKS = 10; // aantal historische weken dat in het logboek getoond wordt
+let PVA_LOG_OPEN = new Set(); // keys "bmNaam|jaar|week" voor open logboekbalken
+function getRecentWeeks(n) {
+  const out = [];
+  for (let i = 1; i <= n; i++) out.push(isoWeek(new Date(+TODAY - i * 7 * 86400000)));
+  return out;
+}
+function togglePvaLog(bmNaam, jaar, week) {
+  const key = `${bmNaam}|${jaar}|${week}`;
+  if (PVA_LOG_OPEN.has(key)) PVA_LOG_OPEN.delete(key); else PVA_LOG_OPEN.add(key);
+  render();
+}
 
 function inLast26(d) {
   if (d.jaar === CUR.year && d.jaar === CUTOFF.year) return d.week >= CUTOFF.week && d.week <= CUR.week;
@@ -605,7 +626,7 @@ function renderBM(bm) {
     </tr>`;
   }).join('');
 
-  const histRows = history.map(h => `<tr>
+  const histRows = history.slice().reverse().map(h => `<tr>
     <td>${h.jaar}</td>
     <td>${fmt(h.intakes,0)}</td><td>${fmt(h.bezoeken,0)}</td>
     <td>${fmt(h.aanbiedingen,0)}</td><td>${fmt(h.matchgesprekken,0)}</td>
@@ -1126,18 +1147,10 @@ function renderPlanVanAanpak(bm) {
 
   const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
 
-  // Linkerkolom: wat er vorige week is afgesproken (historie, blijft altijd zichtbaar)
-  const leftCol = `<div class="plan-col afgesproken">
-    <div class="plan-col-label">📌 Wat hebben we afgesproken — week ${PREV.week} · ${PREV.year}</div>
-    ${prevRow.id == null ? '<div class="sub">Nog geen plan van aanpak voor vorige week opgeslagen.</div>' : `
-      <div class="plan-field"><div class="plan-field-title">Nieuw weekdoel (toen afgesproken)</div><textarea rows="2" disabled>${escHtml(prevRow.nieuw_weekdoel||'')}</textarea></div>
-      <div class="plan-field"><div class="plan-field-title">Geplande acties</div><textarea rows="2" disabled>${escHtml(prevRow.acties||'')}</textarea></div>
-      <div class="plan-field"><div class="plan-field-title">Recruitmentfocus</div><textarea rows="2" disabled>${escHtml(prevRow.vacature_focus||'')}</textarea></div>
-      <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" disabled>${escHtml(prevRow.obstakel||'')}</textarea></div>
-      <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" disabled>${escHtml(prevRow.focuspunt||'')}</textarea></div>
-      <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" disabled>${escHtml(prevRow.team_support||'')}</textarea></div>
-    `}
-  </div>`;
+  // Linkerkolom: logboek met de laatste weken — elke week is een inklapbare balk,
+  // zodat oudere afspraken niet meer altijd standaard zichtbaar zijn maar wel
+  // makkelijk terug op te zoeken zijn (incl. printknop per week).
+  const leftCol = `<div class="plan-col afgesproken">${renderPvaLogboek(bm, safeId)}</div>`;
 
   // Rechterkolom: deze week — terugblik + nieuwe afspraken (bewerkbaar, opslaan/wijzigen)
   const rightCol = `<div class="plan-col nieuw">
@@ -1169,22 +1182,67 @@ function renderPlanVanAanpak(bm) {
     </div>
   </div>`;
 
-  const managerNoteBlock = isManager ? `<div class="plan-manager-note">
-    <div class="plan-col-label">🔒 Managernotities — alleen zichtbaar voor jou</div>
-    ${planField(`pva-manager_notitie-${safeId}`, 'Persoonlijke observaties of aandachtspunten over deze medewerker.', d.manager_notitie, {disabled:frozen, rows:4, placeholder:'Notities voor jezelf als manager…'})}
-  </div>` : '';
+  const managerNoteBlock = `<div class="plan-manager-note">
+    <div class="plan-col-label">🗒️ Managernotitie — week ${CUR.week} · ${CUR.year} (zichtbaar voor iedereen)</div>
+    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled:frozen || !isManager, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.'})}
+  </div>`;
 
   return `<div class="info-box blue" style="margin-bottom:12px">💡 Gegevens van vorige weken blijven altijd bewaard. Je nieuwe afspraken van deze week worden volgende week automatisch de basis voor "wat hebben we afgesproken".</div>
   <div class="plan-grid">${leftCol}${rightCol}</div>
   ${managerNoteBlock}`;
 }
 
-// Print het Plan van aanpak als nette, op zichzelf staande pagina. Bewust
-// opgebouwd vanuit de opgeslagen data (niet via innerHTML van het scherm), zodat
-// de managernotitie hier nooit in voorkomt, ook niet als de manager zelf print.
-function printPlanVanAanpak(bmNaam) {
-  const prevRow = getPlanRow(bmNaam, PREV.year, PREV.week) || {};
-  const curRow  = getPlanRow(bmNaam, CUR.year, CUR.week)  || {};
+// Logboek: toont de laatste PVA_LOG_WEEKS weken als inklapbare balken, ieder met
+// het volledige opgeslagen plan van die week (incl. managernotitie, nu zichtbaar
+// voor iedereen) en een eigen printknop.
+function renderPvaLogboek(bm, safeId) {
+  const weeks = getRecentWeeks(PVA_LOG_WEEKS);
+  const rows = weeks.map(w => {
+    const row  = getPlanRow(bm.naam, w.year, w.week);
+    const key  = `${bm.naam}|${w.year}|${w.week}`;
+    const open = PVA_LOG_OPEN.has(key);
+    const bar = `<div class="pva-log-bar" onclick="togglePvaLog('${escApos(bm.naam)}',${w.year},${w.week})">
+      <span>📅 Week ${w.week} · ${w.year} ${row ? '' : '<span class="sub">(geen data)</span>'}</span>
+      <span class="chev">${open ? '▲ Sluiten' : '▼ Openen'}</span>
+    </div>`;
+    let content = '';
+    if (open) {
+      if (!row) {
+        content = `<div class="pva-log-content"><span class="sub">Geen plan van aanpak opgeslagen voor week ${w.week} · ${w.year}.</span></div>`;
+      } else {
+        content = `<div class="pva-log-content">
+          <div class="plan-field"><div class="plan-field-title">Doel vorige week</div><textarea rows="2" disabled>${escHtml(row.doel_vorige_week||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Behaald?</div><textarea rows="1" disabled>${row.behaald==='ja'?'Ja':row.behaald==='nee'?'Nee':'—'}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Verklaring</div><textarea rows="2" disabled>${escHtml(row.verklaring||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Nieuw weekdoel</div><textarea rows="2" disabled>${escHtml(row.nieuw_weekdoel||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Acties</div><textarea rows="2" disabled>${escHtml(row.acties||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Recruitmentfocus</div><textarea rows="2" disabled>${escHtml(row.vacature_focus||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" disabled>${escHtml(row.obstakel||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" disabled>${escHtml(row.focuspunt||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" disabled>${escHtml(row.team_support||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">🗒️ Managernotitie</div><textarea rows="2" disabled>${escHtml(row.manager_notitie||'')}</textarea></div>
+          <div style="margin-top:8px">
+            <button onclick="printPlanVanAanpak('${escApos(bm.naam)}',${w.year},${w.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-weight:700;font-size:.78rem;cursor:pointer;">🖨️ Printen — week ${w.week}</button>
+          </div>
+        </div>`;
+      }
+    }
+    return bar + content;
+  }).join('');
+  return `<div class="plan-col-label">📌 Wat hebben we afgesproken — logboek (laatste ${PVA_LOG_WEEKS} weken)</div>${rows}`;
+}
+
+// Print het Plan van aanpak van een specifieke week (standaard de actuele week,
+// maar ook aan te roepen voor elke historische week vanuit het logboek) als
+// nette, op zichzelf staande pagina. Bewust opgebouwd vanuit de opgeslagen data
+// (niet via innerHTML van het scherm). De managernotitie is zichtbaar voor
+// iedereen en wordt daarom ook meegenomen in de afdruk.
+function printPlanVanAanpak(bmNaam, year, week) {
+  const y = (year != null) ? year : CUR.year;
+  const w = (week != null) ? week : CUR.week;
+  const prevWk  = weekBefore(y, w);
+  const prevRow = getPlanRow(bmNaam, prevWk.year, prevWk.week) || {};
+  const curRow  = getPlanRow(bmNaam, y, w) || {};
   const val = (v) => escHtml(v || '—').replace(/\n/g, '<br>');
   const win = window.open('', '_blank');
   if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen.'); return; }
@@ -1202,10 +1260,10 @@ function printPlanVanAanpak(bmNaam) {
     @media print { @page { margin:16mm; } }
   </style></head><body>
     <h1>📝 Plan van aanpak — ${escHtml(bmNaam)}</h1>
-    <div class="meta">Geprint op ${new Date().toLocaleDateString('nl-NL')} · week ${CUR.week} · ${CUR.year}</div>
+    <div class="meta">Geprint op ${new Date().toLocaleDateString('nl-NL')} · week ${w} · ${y}</div>
     <div class="cols">
       <div class="col">
-        <h2>📌 Wat hebben we afgesproken — week ${PREV.week} · ${PREV.year}</h2>
+        <h2>📌 Wat hebben we afgesproken — week ${prevWk.week} · ${prevWk.year}</h2>
         <div class="field"><div class="lbl">Nieuw weekdoel (toen afgesproken)</div><div class="v">${val(prevRow.nieuw_weekdoel)}</div></div>
         <div class="field"><div class="lbl">Geplande acties</div><div class="v">${val(prevRow.acties)}</div></div>
         <div class="field"><div class="lbl">Recruitmentfocus</div><div class="v">${val(prevRow.vacature_focus)}</div></div>
@@ -1214,7 +1272,7 @@ function printPlanVanAanpak(bmNaam) {
         <div class="field"><div class="lbl">Benodigde teamondersteuning</div><div class="v">${val(prevRow.team_support)}</div></div>
       </div>
       <div class="col">
-        <h2>✍️ Nieuwe afspraken — week ${CUR.week} · ${CUR.year}</h2>
+        <h2>✍️ Nieuwe afspraken — week ${w} · ${y}</h2>
         <div class="field"><div class="lbl">Doel vorige week</div><div class="v">${val(curRow.doel_vorige_week)}</div></div>
         <div class="field"><div class="lbl">Behaald?</div><div class="v">${curRow.behaald==='ja'?'Ja':curRow.behaald==='nee'?'Nee':'—'}</div></div>
         <div class="field"><div class="lbl">Verklaring</div><div class="v">${val(curRow.verklaring)}</div></div>
@@ -1224,6 +1282,7 @@ function printPlanVanAanpak(bmNaam) {
         <div class="field"><div class="lbl">Obstakel</div><div class="v">${val(curRow.obstakel)}</div></div>
         <div class="field"><div class="lbl">Focuspunt</div><div class="v">${val(curRow.focuspunt)}</div></div>
         <div class="field"><div class="lbl">Benodigde teamondersteuning</div><div class="v">${val(curRow.team_support)}</div></div>
+        <div class="field"><div class="lbl">🗒️ Managernotitie</div><div class="v">${val(curRow.manager_notitie)}</div></div>
       </div>
     </div>
   </body></html>`);
@@ -1307,13 +1366,8 @@ async function loadProjecten() {
 // ── Database: Plan van aanpak laden ────────────────────────────────────────────
 async function loadPlanVanAanpak() {
   if (!supa) return;
-  // Niet-managers krijgen manager_notitie nooit binnen, ook niet via het netwerk —
-  // het veld zit dan simpelweg niet in de select-kolommenlijst.
-  const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
-  const cols = isManager
-    ? '*'
-    : 'id,bm_naam,jaar,week,doel_vorige_week,behaald,verklaring,nieuw_weekdoel,acties,vacature_focus,obstakel,focuspunt,team_support,updated_by,updated_at';
-  const { data, error } = await supa.from('plan_van_aanpak').select(cols);
+  // Managernotitie is zichtbaar voor iedereen, dus geen kolomrestrictie meer nodig.
+  const { data, error } = await supa.from('plan_van_aanpak').select('*');
   if (error) { console.error('Plan van aanpak laden mislukt:', error); return; }
   PLAN_VA = data || [];
 }
@@ -1686,6 +1740,14 @@ function isoWeekStartDate(year, week) {
   const start = new Date(wk1Mon);
   start.setUTCDate(wk1Mon.getUTCDate() + (week - 1) * 7);
   return start;
+}
+
+// Geeft de ISO-week vóór de opgegeven (jaar, week) terug — gebruikt om voor élke
+// willekeurige week (niet alleen de actuele) de "vorige week"-context te bepalen,
+// nodig voor het logboek en het printen van historische weken.
+function weekBefore(year, week) {
+  const start = isoWeekStartDate(year, week);
+  return isoWeek(new Date(+start - 7 * 86400000));
 }
 
 function toISODate(d) {
@@ -2460,7 +2522,6 @@ function renderPipeline(bm) {
   }).join('');
 
   return `<div class="section-title">🗂️ Kandidaten pipeline <span style="font-size:.78rem;font-weight:400;color:rgba(255,255,255,.6);margin-left:8px">${cards.length} kandidaten actief</span></div>
-  <div class="info-box blue" style="margin-bottom:10px">💡 Sleep kaartjes naar een andere fase of week. Opgeslagen in je browser.</div>
   <div class="pipe-grid-wrap"><div class="pipe-grid">
     <div class="pipe-grid-corner"></div>${hdrs}${rows}
   </div></div>`;
