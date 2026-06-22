@@ -535,8 +535,7 @@ function renderTabs() {
   }
 
   const teamIdx     = BMS.length;
-  const coachingIdx = BMS.length + 1;
-  const prognoseIdx = BMS.length + 2;
+  const prognoseIdx = BMS.length + 1;
   const inMedewerkers = currentTab < BMS.length;
   if (inMedewerkers) medewerkersOpen = true;
 
@@ -554,9 +553,6 @@ function renderTabs() {
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab===teamIdx?'active-cat':''}" onclick="selectTab(${teamIdx})"><span>📊 Team</span></button>
-    </div>
-    <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab===coachingIdx?'active-cat':''}" onclick="selectTab(${coachingIdx})"><span>🎯 Coaching</span></button>
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab===prognoseIdx?'active-cat':''}" onclick="selectTab(${prognoseIdx})"><span>📈 Prognose</span></button>
@@ -627,12 +623,17 @@ function renderBM(bm) {
     <div class="bm-subtabs">
       <button class="bm-subtab-btn ${bmSubTab==='kpis'?'active':''}" onclick="selectBmSubTab('kpis')">📊 KPI's</button>
       <button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">📝 Plan van aanpak</button>
+      <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">🎯 Coaching</button>
     </div>
     <div id="bm-subtab-content"></div>
   </div>`;
 
   if (bmSubTab === 'plan') {
     document.getElementById('bm-subtab-content').innerHTML = renderPlanVanAanpak(bm);
+    return;
+  }
+  if (bmSubTab === 'coaching') {
+    document.getElementById('bm-subtab-content').innerHTML = renderBmCoachingTab(bm);
     return;
   }
 
@@ -938,9 +939,8 @@ function render() {
   Object.values(charts).forEach(c => c?.destroy()); charts = {};
   if (currentTab === 'accounts') { renderAccounts(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
-  else if (currentTab === BMS.length)     renderTeam();
-  else if (currentTab === BMS.length + 1) renderCoaching();
-  else                                    renderPrognose();
+  else if (currentTab === BMS.length) renderTeam();
+  else                                 renderPrognose();
 }
 
 // ── Wekelijkse invoer (BM/manager voert eigen KPI-cijfers in) ─────────────────
@@ -1316,13 +1316,10 @@ async function initApp() {
 }
 initApp();
 
-// ── Coaching Panel ────────────────────────────────────────────────────────────
-function renderCoaching() {
-  const year   = getYear();
-  const CUR_WK = CUR.week;
-
-  // Per BM: compute all signals
-  const bmData = BMS.map(bm => {
+// ── Coaching Panel (per medewerker, als subtabblad naast KPI's en Plan van aanpak) ──
+function computeCoachingData(bm) {
+    const year   = getYear();
+    const CUR_WK = CUR.week;
     const isKAM = bm.rol === 'Key Accountmanager';
     const r26   = INDIVIDUAL_RATIOS[bm.naam];
     const rowsYTD = filterData(bm.naam, year);
@@ -1504,60 +1501,27 @@ function renderCoaching() {
     ].slice(0, 5);
 
     return { bm, isKAM, ytd, expectedStarters, starterGap, starterPctOfDoel, i2a, a2m, m2s, ti2a, ta2m, tm2s, ytdPerWk, norm, trend, points: sorted, r26 };
-  });
+}
 
-  // Status emoji
-  function statusEmoji(gap) {
-    if (gap >= 0)   return '🟢';
-    if (gap >= -2)  return '🟡';
-    return '🔴';
-  }
+function coachStatusEmoji(gap) {
+  if (gap >= 0)   return '🟢';
+  if (gap >= -2)  return '🟡';
+  return '🔴';
+}
 
-  // Overview cards
-  const overviewCards = bmData.map(d => `
-    <div class="coach-card">
-      <div class="coach-card-header" style="background:${d.starterGap>=0?'#f0fdf4':d.starterGap>=-2?'#fffbeb':'#fef2f2'}">
-        <div>
-          <div class="name">${d.bm.naam.split(' ')[0]}</div>
-          <div style="font-size:.78rem;color:var(--muted);margin-top:2px">Doel: ${d.bm.doel}/jaar</div>
-        </div>
-        <div class="status">${statusEmoji(d.starterGap)}</div>
-      </div>
-      <div class="coach-card-body">
-        <div class="coach-metric">
-          <span class="mk">Starters YTD</span>
-          <span class="mv">${fmt(d.ytd.starters,1)} / ${d.expectedStarters} verwacht</span>
-        </div>
-        ${d.isKAM ? `
-        <div class="coach-metric">
-          <span class="mk">Bezoeken/week (YTD)</span>
-          <span class="mv" style="color:${pct(d.ytdPerWk.bezoeken,d.norm.bezoeken)<80?'var(--warn)':'var(--success)'}">${d.ytdPerWk.bezoeken} <span style="color:var(--muted);font-weight:400">/ norm ${d.norm.bezoeken}</span></span>
-        </div>
-        ` : `
-        <div class="coach-metric">
-          <span class="mk">Intakes/week (YTD)</span>
-          <span class="mv" style="color:${pct(d.ytdPerWk.intakes,d.norm.intakes)<80?'var(--warn)':'var(--success)'}">${d.ytdPerWk.intakes} <span style="color:var(--muted);font-weight:400">/ norm ${d.norm.intakes}</span></span>
-        </div>
-        <div class="coach-metric">
-          <span class="mk">Aanbied.→Match</span>
-          <span class="mv">${d.a2m > 0 ? d.a2m+'%' : '—'} <span style="color:var(--muted);font-weight:400">/ team ${d.ta2m}%</span></span>
-        </div>
-        <div class="coach-metric">
-          <span class="mk">Match→Starter</span>
-          <span class="mv">${d.m2s > 0 ? d.m2s+'%' : '—'} <span style="color:var(--muted);font-weight:400">/ team ${d.tm2s}%</span></span>
-        </div>
-        `}
-        <div style="margin-top:10px">
-          ${d.points.slice(0,2).map(p=>`<div style="font-size:.78rem;padding:4px 0;border-left:3px solid ${p.prio==='red'?'var(--danger)':p.prio==='orange'?'var(--warn)':'var(--success)'};padding-left:8px;margin-bottom:4px">${p.icon} ${p.title}</div>`).join('')}
-        </div>
-      </div>
+// Coaching-subtab van één medewerker: inhoudelijke coaching + het advies dat
+// op basis van data aan de manager wordt gegeven. Ook zichtbaar voor de medewerker zelf.
+function renderBmCoachingTab(bm) {
+  const d = computeCoachingData(bm);
+
+  return `
+    <div class="norm-intro">
+      <strong>🎯 Coaching &amp; advies</strong><br>
+      📅 Data t/m week ${CUR.week} · ${CUR.year} · analyse o.b.v. laatste 26 weken + YTD ${getYear()}.
     </div>
-  `).join('');
 
-  // Detailed sections per BM
-  const details = bmData.map(d => `
     <div class="detail-section">
-      <h3>${statusEmoji(d.starterGap)} ${d.bm.naam}
+      <h3>${coachStatusEmoji(d.starterGap)} ${d.bm.naam}
         <span style="font-size:.82rem;font-weight:600;color:var(--muted);margin-left:8px">
           ${fmt(d.ytd.starters,1)} starters YTD · doel ${d.bm.doel}/jaar
         </span>
@@ -1607,24 +1571,7 @@ function renderCoaching() {
         </ul>
       </div>
     </div>
-  `).join('');
-
-  document.getElementById('main').innerHTML = `<div>
-    <div class="person-header">
-      <div class="person-name">🎯 Coachingsdashboard</div>
-      <div class="person-meta">
-        <span class="meta-pill">📅 Data t/m week ${CUR.week} · ${CUR.year}</span>
-        <span class="meta-pill">⏱️ 1 week verwerkingstijd meegenomen</span>
-        <span class="meta-pill">📐 Analyse o.b.v. laatste 26 weken + YTD ${getYear()}</span>
-      </div>
-    </div>
-
-    <div class="section-title">Overzicht alle BM's</div>
-    <div class="coach-grid">${overviewCards}</div>
-
-    <div class="section-title">Gedetailleerde coachpunten per BM</div>
-    ${details}
-  </div>`;
+  `;
 }
 
 // ── Prognose Panel ────────────────────────────────────────────────────────────
