@@ -1243,14 +1243,33 @@ function renderPlanVanAanpak(bm) {
   </div>`;
 
   // Managernotitie staat los van de bevroren/vergrendelde status van de medewerker
-  // zelf: de manager moet deze altijd kunnen bijwerken, ook als de medewerker zijn
-  // eigen plan voor deze week al heeft opgeslagen (en dus niet de hoofd-"Opslaan"-
-  // knop van de medewerker kan gebruiken). Daarom een eigen autosave-pad
-  // (pvaScheduleAutosaveManagerNotitie) dat nooit door diens freeze geblokkeerd wordt.
+  // zelf (eigen lockKey met prefix "mgrnote|" i.p.v. "plan|"): de manager kan deze
+  // altijd bewerken, ook als de medewerker zijn eigen plan voor deze week al heeft
+  // opgeslagen. De notitie is gekoppeld aan de huidige week (CUR.year/CUR.week) en
+  // blijft, net als alle andere velden, voor altijd bewaard in het logboek links
+  // zodra de week voorbij is (zie renderPvaLogboek). Net als bij de medewerker is
+  // er continu autosave (pvaScheduleAutosaveManagerNotitie) ÉN een expliciete
+  // "Opslaan"/"Wijzigen"-knop die het veld bevriest tot het weer ontgrendeld wordt.
+  // Alleen de manager mag dit veld bewerken; de medewerker ziet het altijd read-only.
+  const mgrNoteAlready  = !!(d.manager_notitie && String(d.manager_notitie).trim() !== '');
+  const mgrNoteLockKey  = `mgrnote|${bm.naam}|${CUR.year}|${CUR.week}`;
+  const mgrNoteUnlocked = !mgrNoteAlready || WEEKLY_EDIT_UNLOCKED.has(mgrNoteLockKey);
+  const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
+  const mgrNoteStatusText = mgrNoteFrozen
+    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">🔒 Bevroren &amp; opgeslagen voor deze week</span>`
+    : '';
+  const mgrNoteActionBtn = isManager
+    ? (mgrNoteUnlocked
+        ? `<button onclick="saveManagerNotitie('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">🔒 Opslaan</button>`
+        : `<button onclick="unlockManagerNotitie('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">✏️ Wijzigen</button>`)
+    : '';
   const managerNoteBlock = `<div class="plan-manager-note">
     <div class="plan-col-label">🗒️ Managernotitie — week ${CUR.week} · ${CUR.year} (zichtbaar voor iedereen)</div>
-    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled: !isManager, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
-    ${isManager ? `<span id="pva-mgrnote-status-${safeId}" style="font-size:.78rem;color:var(--muted);"></span>` : ''}
+    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled: !isManager || mgrNoteFrozen, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      ${mgrNoteActionBtn}
+      <span id="pva-mgrnote-status-${safeId}">${mgrNoteStatusText}</span>
+    </div>
   </div>`;
 
   return `<div class="info-box blue" style="margin-bottom:12px">💡 Gegevens van vorige weken blijven altijd bewaard. Je nieuwe afspraken van deze week worden volgende week automatisch de basis voor "wat hebben we afgesproken".</div>
@@ -1452,6 +1471,38 @@ async function pvaAutosaveManagerNotitie(bmNaam) {
 function pvaScheduleAutosaveManagerNotitie(bmNaam) {
   clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]);
   PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam] = setTimeout(() => pvaAutosaveManagerNotitie(bmNaam), 1000);
+}
+
+// Expliciete "Opslaan"/"Wijzigen" voor de managernotitie, los van de eigen
+// vergrendeling van de medewerker (eigen lockKey-prefix "mgrnote|", zie renderPlanVanAanpak).
+// Werkt verder precies zoals savePlanVanAanpak/unlockPlanVanAanpak voor de
+// medewerker: opslaan vergrendelt het veld voor deze week, wijzigen ontgrendelt
+// het weer — alleen bruikbaar door de manager.
+async function saveManagerNotitie(bmNaam) {
+  if (!supa || !CURRENT_USER || CURRENT_USER.rol !== 'manager') return;
+  const safeId   = bmNaam.replace(/\s+/g,'_');
+  const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
+  clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]); // handmatige save overschrijft een wachtende autosave
+  const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
+  const existing = getPlanRow(bmNaam, CUR.year, CUR.week);
+  const payload  = {
+    ...(existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }),
+    manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
+  };
+  if (statusEl) statusEl.textContent = 'Opslaan…';
+  const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+  if (error) {
+    console.error('Managernotitie opslaan mislukt:', error);
+    if (statusEl) statusEl.textContent = '❌ ' + error.message;
+    return;
+  }
+  WEEKLY_EDIT_UNLOCKED.delete(`mgrnote|${bmNaam}|${CUR.year}|${CUR.week}`);
+  await loadPlanVanAanpak();
+  render();
+}
+function unlockManagerNotitie(bmNaam) {
+  WEEKLY_EDIT_UNLOCKED.add(`mgrnote|${bmNaam}|${CUR.year}|${CUR.week}`);
+  render();
 }
 
 async function savePlanVanAanpak(bmNaam) {
