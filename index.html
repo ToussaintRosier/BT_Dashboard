@@ -333,16 +333,26 @@ function isoWeek(date) {
   return { year: d.getUTCFullYear(), week: Math.ceil((((d - y0) / 86400000) + 1) / 7) };
 }
 
-const TODAY      = new Date();
-// CUR is altijd de echte, actuele ISO-week — wordt bij elke pagina-load opnieuw
-// berekend, dus de invoer en alle ratio's/coaching schuiven automatisch mee.
-const CUR        = isoWeek(TODAY);
-const CUTOFF     = isoWeek(new Date(+TODAY - 26 * 7 * 86400000));
-// NEXT = de ISO-week ná de actuele week (voor "planning week erop"), met
-// correcte jaarovergang bij week 52/53.
-const NEXT       = isoWeek(new Date(+TODAY + 7 * 86400000));
-// PREV = de ISO-week vóór de actuele week (voor "Plan van aanpak"-terugblik).
-const PREV       = isoWeek(new Date(+TODAY - 7 * 86400000));
+// TODAY/CUR/CUTOFF/NEXT/PREV zijn "let" (niet "const") en worden via
+// refreshWeekConstants() opnieuw berekend bij elke render() — niet alleen bij
+// page-load. Zonder dit bleef de weektelling vastzitten op het moment dat het
+// tabblad voor het laatst geopend werd: liet je de browsertab een paar dagen
+// open staan over een weekgrens heen, dan toonde "Plan van aanpak" (en alles
+// wat CUR gebruikt) alsnog de oude week. Nu schuift het altijd automatisch mee
+// met de echte, actuele datum, ook zonder dat de pagina herladen wordt.
+let TODAY, CUR, CUTOFF, NEXT, PREV;
+function refreshWeekConstants() {
+  TODAY  = new Date();
+  // CUR is altijd de echte, actuele ISO-week.
+  CUR    = isoWeek(TODAY);
+  CUTOFF = isoWeek(new Date(+TODAY - 26 * 7 * 86400000));
+  // NEXT = de ISO-week ná de actuele week (voor "planning week erop"), met
+  // correcte jaarovergang bij week 52/53.
+  NEXT   = isoWeek(new Date(+TODAY + 7 * 86400000));
+  // PREV = de ISO-week vóór de actuele week (voor "Plan van aanpak"-terugblik).
+  PREV   = isoWeek(new Date(+TODAY - 7 * 86400000));
+}
+refreshWeekConstants();
 
 // ── Plan van aanpak: logboek met laatste weken (inklapbare balken) ────────────
 const PVA_LOG_WEEKS = 10; // aantal historische weken dat in het logboek getoond wordt
@@ -1002,6 +1012,7 @@ function snapshotPvaInputs() {
 
 // ── Main render ───────────────────────────────────────────────────────────────
 function render() {
+  refreshWeekConstants();
   snapshotPvaInputs();
   renderTabs();
   Object.values(charts).forEach(c => c?.destroy()); charts = {};
@@ -1148,9 +1159,12 @@ function planField(id, title, value, opts) {
   // Autosave: zodra een veld bewerkbaar is en bij een medewerker hoort, wordt elke
   // tekstwijziging na een korte pauze automatisch opgeslagen — zo kan getypte tekst
   // nooit meer verloren gaan door een tussentijdse herrender (bv. door live updates
-  // van een andere gebruiker elders in het dashboard).
+  // van een andere gebruiker elders in het dashboard). opts.autosaveFn laat de caller
+  // een andere autosave-functie kiezen (zie managernotitie, die los van de
+  // bevroren/vergrendelde status van de medewerker zelf altijd opslaanbaar moet zijn).
+  const autosaveFn = opts.autosaveFn || 'pvaScheduleAutosave';
   const autosaveAttr = (!opts.disabled && opts.bmNaam)
-    ? ` oninput="pvaScheduleAutosave('${escApos(opts.bmNaam)}')" data-pva-bm="${escHtml(opts.bmNaam)}" data-pva-field="${escHtml(opts.field||'')}"`
+    ? ` oninput="${autosaveFn}('${escApos(opts.bmNaam)}')" data-pva-bm="${escHtml(opts.bmNaam)}" data-pva-field="${escHtml(opts.field||'')}"`
     : '';
   return `<div class="plan-field">
     <div class="plan-field-title">${title}</div>
@@ -1228,9 +1242,15 @@ function renderPlanVanAanpak(bm) {
     </div>
   </div>`;
 
+  // Managernotitie staat los van de bevroren/vergrendelde status van de medewerker
+  // zelf: de manager moet deze altijd kunnen bijwerken, ook als de medewerker zijn
+  // eigen plan voor deze week al heeft opgeslagen (en dus niet de hoofd-"Opslaan"-
+  // knop van de medewerker kan gebruiken). Daarom een eigen autosave-pad
+  // (pvaScheduleAutosaveManagerNotitie) dat nooit door diens freeze geblokkeerd wordt.
   const managerNoteBlock = `<div class="plan-manager-note">
     <div class="plan-col-label">🗒️ Managernotitie — week ${CUR.week} · ${CUR.year} (zichtbaar voor iedereen)</div>
-    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled:frozen || !isManager, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie'})}
+    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled: !isManager, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
+    ${isManager ? `<span id="pva-mgrnote-status-${safeId}" style="font-size:.78rem;color:var(--muted);"></span>` : ''}
   </div>`;
 
   return `<div class="info-box blue" style="margin-bottom:12px">💡 Gegevens van vorige weken blijven altijd bewaard. Je nieuwe afspraken van deze week worden volgende week automatisch de basis voor "wat hebben we afgesproken".</div>
@@ -1405,6 +1425,35 @@ function pvaScheduleAutosave(bmNaam) {
   PVA_AUTOSAVE_TIMERS[bmNaam] = setTimeout(() => pvaAutosave(bmNaam), 1000);
 }
 
+// Managernotitie: eigen autosave-pad, los van de freeze/lock van de medewerker
+// zelf (zie toelichting bij renderPlanVanAanpak/managerNoteBlock). Schrijft alleen
+// de notitie + sleutelvelden weg, zodat de eigen ingevoerde gegevens van de
+// medewerker nooit per ongeluk overschreven worden.
+async function pvaAutosaveManagerNotitie(bmNaam) {
+  if (!supa || !CURRENT_USER || CURRENT_USER.rol !== 'manager') return;
+  const safeId   = bmNaam.replace(/\s+/g,'_');
+  const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
+  const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
+  const existing = getPlanRow(bmNaam, CUR.year, CUR.week);
+  const payload  = {
+    ...(existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }),
+    manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
+  };
+  const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+  if (error) {
+    console.error('Managernotitie opslaan mislukt:', error);
+    if (statusEl) statusEl.textContent = '❌ ' + error.message;
+    return;
+  }
+  const idx = PLAN_VA.findIndex(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
+  if (idx >= 0) PLAN_VA[idx] = { ...PLAN_VA[idx], ...payload }; else PLAN_VA.push(payload);
+  if (statusEl) statusEl.innerHTML = `✓ Notitie automatisch opgeslagen om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}`;
+}
+function pvaScheduleAutosaveManagerNotitie(bmNaam) {
+  clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]);
+  PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam] = setTimeout(() => pvaAutosaveManagerNotitie(bmNaam), 1000);
+}
+
 async function savePlanVanAanpak(bmNaam) {
   if (!supa || !CURRENT_USER) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
@@ -1413,7 +1462,13 @@ async function savePlanVanAanpak(bmNaam) {
   const payload = buildPvaPayload(bmNaam);
   if (statusEl) statusEl.textContent = 'Opslaan…';
   const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
-  if (error) { if (statusEl) statusEl.textContent = '❌ ' + error.message; return; }
+  if (error) {
+    // Volledige foutmelding in de console loggen (incl. eventuele Postgres-code/
+    // details), zodat dit precies te herleiden is als het nog eens misgaat.
+    console.error('Opslaan plan van aanpak mislukt:', error);
+    if (statusEl) statusEl.textContent = '❌ ' + error.message;
+    return;
+  }
   WEEKLY_EDIT_UNLOCKED.delete(`plan|${bmNaam}|${CUR.year}|${CUR.week}`);
   await loadPlanVanAanpak();
   render();
@@ -2441,6 +2496,26 @@ function accScoreBadgeClass(score) {
   return 'badge-red';
 }
 
+// "Laatste wijziging" wordt automatisch bijgehouden via accounts.updated_at (bij
+// elke save in accountsSaveRow/accountsConfirmNew) — dit is GEEN invoerveld, dus
+// medewerkers én managers kunnen deze datum nooit zelf aanpassen. Ouder dan 1
+// kalendermaand → klant krijgt een klein rood uitroepteken bij de naam; zodra de
+// datum weer actueel wordt (door een nieuwe wijziging/save) verdwijnt dat vanzelf.
+function accIsStale(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(+d)) return false;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 1);
+  return d < cutoff;
+}
+function fmtAccDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(+d)) return '—';
+  return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function accountsStartEdit(id) { ACC_EDIT_UNLOCKED.add(String(id)); renderAccounts(); }
 function accountsCancelEdit(id) { ACC_EDIT_UNLOCKED.delete(String(id)); renderAccounts(); }
 
@@ -2497,6 +2572,64 @@ async function accountsAddRow() {
   renderAccounts();
 }
 
+// Pop-up "Nieuwe klant": alle scores en gegevens worden in één keer ingevoerd
+// via het modal-venster (i.p.v. een nieuwe lege rij die je vervolgens los moet
+// invullen in de tabel). Bouwt de score-velden dynamisch op uit ACC_SCORE_FIELDS
+// zodat dit altijd in sync blijft met de tabelkolommen.
+function accountsOpenNewModal() {
+  const scoresHtml = ACC_SCORE_FIELDS.map(([f, label]) => `
+    <div>
+      <label style="display:block;font-size:.72rem;color:var(--muted);margin-bottom:2px;">${escHtml(label)}</label>
+      <input type="number" min="1" max="5" id="acc-modal-score-${f}" placeholder="1-5">
+    </div>`).join('');
+  document.getElementById('acc-modal-scores').innerHTML = scoresHtml;
+  document.getElementById('acc-modal-naam').value = '';
+  document.getElementById('acc-modal-stratcp').value = '';
+  document.getElementById('acc-modal-opcp').value = '';
+  document.getElementById('acc-modal-voorw').value = '';
+  document.getElementById('acc-modal-actief').value = '';
+  document.getElementById('acc-modal-notitie').value = '';
+  document.getElementById('acc-modal').classList.add('open');
+  setTimeout(() => document.getElementById('acc-modal-naam').focus(), 50);
+}
+
+function accountsCloseNewModal() {
+  document.getElementById('acc-modal').classList.remove('open');
+}
+
+async function accountsConfirmNew() {
+  const naam = (document.getElementById('acc-modal-naam').value || '').trim();
+  if (!naam) { alert('Vul een naam in voor de klant.'); return; }
+  const clampScore = (raw) => raw === '' ? null : Math.max(1, Math.min(5, parseInt(raw, 10) || 1));
+  const textOrNull = (raw) => String(raw).trim() === '' ? null : String(raw).trim();
+
+  const payload = {
+    naam,
+    strat_cp: textOrNull(document.getElementById('acc-modal-stratcp').value),
+    op_cp: textOrNull(document.getElementById('acc-modal-opcp').value),
+    voorwaarden_bekend: document.getElementById('acc-modal-voorw').value || null,
+    actief_aanbieden: document.getElementById('acc-modal-actief').value || null,
+    notitie: textOrNull(document.getElementById('acc-modal-notitie').value),
+  };
+  ACC_SCORE_FIELDS.forEach(([f]) => {
+    const el = document.getElementById(`acc-modal-score-${f}`);
+    payload[f] = clampScore(el ? el.value : '');
+  });
+
+  let newRow;
+  if (supa) {
+    const { data, error } = await supa.from('accounts').insert({ ...payload, updated_at: new Date().toISOString() }).select().single();
+    if (error) { console.error('Klant toevoegen mislukt:', error); alert('Opslaan mislukt: ' + error.message); return; }
+    newRow = data;
+  } else {
+    newRow = { id: accountsUid(), ...payload, updated_at: new Date().toISOString() };
+  }
+  ACCOUNTS_CACHE.push(newRow);
+  if (!supa) accountsSaveLocal();
+  accountsCloseNewModal();
+  renderAccounts(); // geen edit-modus: klant staat direct vast in de lijst
+}
+
 async function accountsDeleteRow(id) {
   if (!confirm('Deze klant verwijderen uit de lijst?')) return;
   if (supa && !String(id).startsWith('local-')) {
@@ -2533,9 +2666,11 @@ function renderAccounts() {
     // Score 28+ = groen, score 27 = geel (norm), score 26 en lager = rood.
     const tier    = score >= 28 ? 'acc-tier-top' : score === 27 ? 'acc-tier-mid' : 'acc-tier-bottom';
 
+    const stale = accIsStale(a.updated_at);
     const naamCell = editing
       ? `<input type="text" id="acc-naam-${safeId}" class="acc-text-input" value="${escHtml(a.naam||'')}">`
-      : escHtml(a.naam||'');
+      : `${escHtml(a.naam||'')}${stale ? ` <span title="Langer dan 1 maand niet bijgewerkt" style="color:var(--danger);font-weight:800;">❗</span>` : ''}`;
+    const lastModCell = `<span style="color:${stale ? 'var(--danger)' : 'var(--muted)'};font-size:.82rem;">${fmtAccDate(a.updated_at)}</span>`;
     const stratCell = editing
       ? `<input type="text" id="acc-stratcp-${safeId}" class="acc-text-input" style="text-align:center;text-transform:uppercase;" value="${escHtml(a.strat_cp||'')}">`
       : (a.strat_cp ? `<span class="acc-pill acc-pill-strat">${escHtml(a.strat_cp)}</span>` : `<span class="acc-pill acc-pill-empty">—</span>`);
@@ -2583,6 +2718,7 @@ function renderAccounts() {
       <td>${opCell}</td>
       ${scoreCells}
       <td><span class="badge ${accScoreBadgeClass(score)}" style="font-size:.82rem;">${score}</span></td>
+      <td>${lastModCell}</td>
       <td>${voorwCell}</td>
       <td>${actiefCell}</td>
       <td class="acc-td-left">${notitieCell}</td>
@@ -2609,7 +2745,7 @@ function renderAccounts() {
         <option value="" ${!ACC_FILTER_OP?'selected':''}>Alle OP CP</option>
         ${opOptHtml}
       </select>
-      <button class="proj-save-btn" onclick="accountsAddRow()">+ Nieuwe klant</button>
+      <button class="proj-save-btn" onclick="accountsOpenNewModal()">+ Nieuwe klant</button>
     </div>
     <div class="table-card" style="overflow:visible;">
       <table class="acc-table">
@@ -2619,12 +2755,13 @@ function renderAccounts() {
           <th>OP CP</th>
           ${scoreHeaders}
           <th>Score</th>
+          <th title="Datum van de laatste wijziging — wordt automatisch bijgehouden, niet handmatig aan te passen.">Laatste wijziging</th>
           <th>Voorwaarden bekend</th>
           <th>Actief aanbieden</th>
           <th class="acc-th-left">Notitie</th>
           <th></th>
         </tr></thead>
-        <tbody>${rows || `<tr><td colspan="17" style="text-align:center;color:var(--muted);padding:24px;">Geen klanten gevonden.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:24px;">Geen klanten gevonden.</td></tr>`}</tbody>
       </table>
     </div>
   </div>`;
@@ -3304,6 +3441,36 @@ function pipeDelete(bmNaam, cardId) {
     <div class="pipe-modal-btns">
       <button class="pipe-modal-cancel" onclick="pipeCloseModal()">Annuleren</button>
       <button class="pipe-modal-ok" id="pipe-modal-ok-btn" onclick="pipeConfirmAdd()">Toevoegen</button>
+    </div>
+  </div>
+</div>
+
+<div id="acc-modal" class="pipe-modal-overlay" onclick="if(event.target===this)accountsCloseNewModal()">
+  <div class="pipe-modal" style="width:480px;">
+    <h4>➕ Nieuwe klant toevoegen</h4>
+    <p class="pipe-modal-sub">Vul de gegevens en scores in en klik op Invoeren.</p>
+    <input type="text" id="acc-modal-naam" placeholder="Naam klant *" autocomplete="off"/>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="acc-modal-stratcp" placeholder="Strat CP" autocomplete="off" style="flex:1;text-transform:uppercase;"/>
+      <input type="text" id="acc-modal-opcp" placeholder="OP CP" autocomplete="off" style="flex:1;text-transform:uppercase;"/>
+    </div>
+    <div id="acc-modal-scores" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;"></div>
+    <div style="display:flex; gap:8px;">
+      <select id="acc-modal-voorw" style="flex:1;">
+        <option value="">Voorwaarden bekend?</option>
+        <option value="ja">Ja</option>
+        <option value="nee">Nee</option>
+      </select>
+      <select id="acc-modal-actief" style="flex:1;">
+        <option value="">Actief aanbieden?</option>
+        <option value="ja">Ja</option>
+        <option value="nee">Nee</option>
+      </select>
+    </div>
+    <textarea id="acc-modal-notitie" placeholder="Notitie (optioneel)" rows="2"></textarea>
+    <div class="pipe-modal-btns">
+      <button class="pipe-modal-cancel" onclick="accountsCloseNewModal()">Annuleren</button>
+      <button class="pipe-modal-ok" onclick="accountsConfirmNew()">Invoeren</button>
     </div>
   </div>
 </div>
