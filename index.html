@@ -3026,11 +3026,27 @@ function renderFinancieel() {
     }, { ytd: 0, vervallen: 0 });
 
     const vervallenList = list.filter(r => (+r.vervallen || 0) > 0).sort((a, b) => (b.vervallen || 0) - (a.vervallen || 0));
-    const vervallenRows = vervallenList.map(r => `<tr>
-      <td class="acc-td-left">${escHtml(r.opdrachtgever || '')}</td>
-      <td style="color:var(--danger);font-weight:600;">${fmtEuro(r.vervallen)}</td>
-      <td>${r.aantal_facturen_vervallen ?? 0}</td>
-    </tr>`).join('');
+    // vervallen_facturen is een door moneybird-sync gevulde lijst van
+    // {nummer, dagen} per vervallen factuur, oudste (= hoogste "dagen") eerst.
+    // Bestaande rijen die nog niet opnieuw gesynchroniseerd zijn na deze
+    // uitbreiding tonen hier nog "—" totdat de volgende sync is gedraaid.
+    const vervallenRows = vervallenList.map(r => {
+      const facturen   = Array.isArray(r.vervallen_facturen) ? r.vervallen_facturen : [];
+      const nummersHtml = facturen.length
+        ? facturen.map(f => escHtml(String(f.nummer))).join(', ')
+        : '<span style="color:var(--muted);">—</span>';
+      const oudsteDagen = facturen.length ? Math.max(...facturen.map(f => +f.dagen || 0)) : null;
+      const dagenHtml   = oudsteDagen != null
+        ? `<span style="color:var(--danger);font-weight:600;">${oudsteDagen} ${oudsteDagen === 1 ? 'dag' : 'dagen'}</span>`
+        : '<span style="color:var(--muted);">—</span>';
+      return `<tr>
+        <td class="acc-td-left">${escHtml(r.opdrachtgever || '')}</td>
+        <td style="color:var(--danger);font-weight:600;">${fmtEuro(r.vervallen)}</td>
+        <td>${r.aantal_facturen_vervallen ?? 0}</td>
+        <td class="acc-td-left">${nummersHtml}</td>
+        <td>${dagenHtml}</td>
+      </tr>`;
+    }).join('');
 
     const rows = list.map(r => `<tr>
       <td class="acc-td-left">${escHtml(r.opdrachtgever || '')}</td>
@@ -3053,6 +3069,8 @@ function renderFinancieel() {
             <th class="acc-th-left" style="width:260px;min-width:220px;">Opdrachtgever</th>
             <th>Vervallen bedrag</th>
             <th>Aantal facturen</th>
+            <th class="acc-th-left">Factuurnummers</th>
+            <th>Dagen vervallen (oudste)</th>
           </tr></thead>
           <tbody>${vervallenRows}</tbody>
         </table>
