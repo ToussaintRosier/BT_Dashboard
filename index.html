@@ -315,10 +315,14 @@ let ACC_SEARCH = '', ACC_FILTER_STRAT = '', ACC_FILTER_OP = ''; // Accountmanage
 let ACC_EDIT_UNLOCKED = new Set(); // ids van klanten die nu in bewerk-modus staan (bevroren tot opslaan)
 let FINANCIEEL_CACHE = [];  // Financieel: omzet/facturen per opdrachtgever, gevuld via Moneybird-sync
 let FINANCIEEL_SYNC_BUSY = false; // voorkomt dubbele sync-aanvragen tijdens het laden
-let FINANCIEEL_SUBVIEW = 'actief'; // 'actief' (omzet YTD > 0), 'oud' (omzet YTD = 0) of 'begroting' (Omzetten vs. begroting)
+let FINANCIEEL_SUBVIEW = 'actief'; // 'actief' (omzet YTD > 0), 'oud' (omzet YTD = 0), 'begroting' (Omzetten vs. begroting), 'declarabiliteit', 'ziekte', 'marge', 'overuren' of 'ranking' (op basis van Urenrapportage)
 let BEGROTING_OMZET_CACHE = [];     // begrote omzet/declarabiliteit per jaar+maand, uit Begroting.xlsx
 let BEGROTING_PROJ_CACHE = [];      // begrote projectenlijn per jaar+week, uit Begroting.xlsx
 let FINANCIEEL_OMZET_MAAND_CACHE = []; // werkelijke omzet per jaar+maand (alle klanten), gevuld via Moneybird-sync
+let UREN_KPI_MAAND_CACHE = [];          // Urenrapportage: declarabiliteit/ziekte/marge/overuren per maand, gevuld via uren-sync
+let UREN_KPI_OPDRACHTGEVER_CACHE = [];  // Urenrapportage: declarabiliteit/marge per opdrachtgever per maand, gevuld via uren-sync
+let UREN_SYNC_BUSY = false;             // voorkomt dubbele handmatige sync-aanvragen
+let UREN_RANKING_MAAND = null;          // null = alle maanden (totaal), anders "jaar-maand"
 let BEGROTING_JAAR = new Date().getFullYear(); // geselecteerd jaar in "Omzetten vs. begroting"
 let BEGROTING_GRANULARITEIT = 'jaar'; // 'jaar' (totaal), 'kwartaal' of 'maand' — periode-keuze in "Omzetten vs. begroting"
 let BEGROTING_PERIODE = 1; // bij 'kwartaal': 1-4, bij 'maand': 1-12 (genegeerd bij 'jaar')
@@ -1583,6 +1587,19 @@ async function loadBegroting() {
   FINANCIEEL_OMZET_MAAND_CACHE = maand.data || [];
 }
 
+// ── Database: Urenrapportage-KPI's (declarabiliteit/ziekte/marge/overuren), gevuld via uren-sync ──
+async function loadUrenrapportage() {
+  if (!supa) return;
+  const [maand, opdrachtgever] = await Promise.all([
+    supa.from('uren_kpi_maand').select('*'),
+    supa.from('uren_kpi_opdrachtgever_maand').select('*'),
+  ]);
+  if (maand.error) console.error('Uren-KPI (maand) laden mislukt:', maand.error);
+  if (opdrachtgever.error) console.error('Uren-KPI (opdrachtgever) laden mislukt:', opdrachtgever.error);
+  UREN_KPI_MAAND_CACHE = (maand.data || []).sort((a, b) => (a.jaar - b.jaar) || (a.maand - b.maand));
+  UREN_KPI_OPDRACHTGEVER_CACHE = opdrachtgever.data || [];
+}
+
 async function loadAllData() {
   await loadKpiWeekly();
   await pipeFetchAll();
@@ -1591,6 +1608,7 @@ async function loadAllData() {
   await accountsFetchAll();
   await loadFinancieelOmzet();
   await loadBegroting();
+  await loadUrenrapportage();
   recomputeRatios();
 }
 
@@ -2856,7 +2874,56 @@ async function syncMoneybird() {
   }
 }
 
+// De Urenrapportage is te groot om in één Edge Function-aanroep te verwerken
+// (Supabase staat maar ~2 seconden rekentijd per aanroep toe), dus de functie
+// 'uren-sync' verwerkt steeds 1/6e van het bestand per aanroep. 's Nachts
+// gebeurt dit automatisch via pg_cron; deze knop doet hetzelfde maar roept de
+// functie meteen een paar keer achter elkaar aan zodat een handmatige sync
+// niet 6x apart geklikt moet worden.
+async function syncUrenrapportage() {
+  if (!supa) return;
+  if (UREN_SYNC_BUSY) return;
+  UREN_SYNC_BUSY = true;
+  const statusEl = document.getElementById('urenrapportage-sync-status');
+  try {
+    for (let poging = 0; poging < 8; poging++) {
+      if (statusEl) statusEl.textContent = '⏳ Bezig met synchroniseren vanuit Urenrapportage…';
+      renderFinancieel();
+      const { data, error } = await supa.functions.invoke('uren-sync');
+      if (error) {
+        const msg = (data && data.error) ? data.error : error.message;
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(msg)}</span>`;
+        return;
+      }
+      if (data && data.error) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ ${escHtml(data.error)}</span>`;
+        return;
+      }
+      if (data && data.boodschap) {
+        await loadUrenrapportage();
+        if (statusEl) statusEl.textContent = `ℹ️ ${data.boodschap}`;
+        return;
+      }
+      if (data && data.klaar) {
+        await loadUrenrapportage();
+        if (statusEl) statusEl.textContent = `✅ Gesynchroniseerd: ${data.regelsVerwerkt} regels verwerkt om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
+        return;
+      }
+      if (statusEl) statusEl.textContent = `⏳ Bezig… deel ${data?.deel ?? '?'} van ${data?.van ?? '?'}`;
+      // Klein pauzetje zodat we Supabase niet bombarderen met aanroepen.
+      await new Promise(r => setTimeout(r, 800));
+    }
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Sync nog niet klaar na 8 pogingen — probeer het zo opnieuw.</span>`;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(String(e?.message || e))}</span>`;
+  } finally {
+    UREN_SYNC_BUSY = false;
+    renderFinancieel();
+  }
+}
+
 function selectFinancieelSubview(v) { FINANCIEEL_SUBVIEW = v; renderFinancieel(); }
+function selectUrenRankingMaand(v) { UREN_RANKING_MAAND = v || null; renderFinancieel(); }
 
 function selectBegrotingJaar(jaar) { BEGROTING_JAAR = +jaar; renderFinancieel(); }
 
@@ -2909,6 +2976,54 @@ function computeBegrotingPeriode(jaar) {
   const periodeLabel = BEGROTING_GRANULARITEIT === 'jaar' ? 'hele jaar' :
     BEGROTING_GRANULARITEIT === 'kwartaal' ? `Q${BEGROTING_PERIODE}` : maandLabelsFull[BEGROTING_PERIODE - 1];
   return { chartLabels, chartActual, chartBudget, totaalActual, totaalBudget, verschil, periodeLabel };
+}
+
+// ── Urenrapportage: declarabiliteit / ziekte / marge / overuren / ranking ──
+// Alle hieronder gebruikte cijfers komen uit UREN_KPI_MAAND_CACHE en
+// UREN_KPI_OPDRACHTGEVER_CACHE, gevuld door loadUrenrapportage() vanuit de
+// tabellen die de Edge Function 'uren-sync' elke nacht bijwerkt.
+const MAAND_LABELS_KORT = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+function urenMaandLabel(r) { return `${MAAND_LABELS_KORT[r.maand - 1]} '${String(r.jaar).slice(2)}`; }
+
+// Laatste 12 maanden met data (of minder als er nog geen 12 maanden zijn).
+function getUrenTrendMaanden() {
+  return UREN_KPI_MAAND_CACHE.slice(-12);
+}
+
+function urenLaatsteMaand() {
+  return UREN_KPI_MAAND_CACHE.length ? UREN_KPI_MAAND_CACHE[UREN_KPI_MAAND_CACHE.length - 1] : null;
+}
+
+// Alle jaar-maand-sleutels die voorkomen, nieuw->oud, voor het maand-filter
+// bij de ranking per opdrachtgever.
+function getUrenMaandOpties() {
+  return UREN_KPI_MAAND_CACHE.slice().reverse().map(r => ({ key: `${r.jaar}-${r.maand}`, label: urenMaandLabel(r) }));
+}
+
+// Som per opdrachtgever over alle maanden, of (als UREN_RANKING_MAAND gezet
+// is) alleen over die ene maand — gebruikt door de subtab "Ranking".
+function aggregateUrenOpdrachtgever() {
+  const rows = UREN_RANKING_MAAND
+    ? UREN_KPI_OPDRACHTGEVER_CACHE.filter(r => `${r.jaar}-${r.maand}` === UREN_RANKING_MAAND)
+    : UREN_KPI_OPDRACHTGEVER_CACHE;
+  const byKlant = new Map();
+  rows.forEach(r => {
+    const key = r.opdrachtgever || 'Onbekend';
+    if (!byKlant.has(key)) byKlant.set(key, { opdrachtgever: key, declarabel: 0, aanvullend: 0, omzet: 0, loon: 0 });
+    const a = byKlant.get(key);
+    a.declarabel += (+r.declarabele_uren || 0);
+    a.aanvullend += (+r.aanvullend_uren || 0);
+    a.omzet += (+r.omzet_uren || 0);
+    a.loon += (+r.loonkosten || 0);
+  });
+  return [...byKlant.values()].map(a => {
+    const totaal = a.declarabel + a.aanvullend;
+    return {
+      ...a,
+      declarabiliteit_pct: totaal > 0 ? (a.declarabel / totaal) * 100 : 0,
+      marge_pct: a.omzet > 0 ? ((a.omzet - a.loon) / a.omzet) * 100 : 0,
+    };
+  }).sort((a, b) => b.omzet - a.omzet);
 }
 
 function renderFinancieel() {
@@ -3018,6 +3133,85 @@ function renderFinancieel() {
           <tbody>${rows || `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px;">Geen oude klanten gevonden.</td></tr>`}</tbody>
         </table>
       </div>`;
+  } else if (FINANCIEEL_SUBVIEW === 'declarabiliteit') {
+    const laatste = urenLaatsteMaand();
+    bodyHtml = !UREN_KPI_MAAND_CACHE.length ? `
+      <div class="info-box blue">ℹ️ Nog geen Urenrapportage-data. ${isManager ? 'Klik op "Vernieuwen vanuit Urenrapportage" om te starten.' : 'Vraag een manager om te synchroniseren.'}</div>` : `
+      <div class="kpi-grid" style="margin-bottom:14px;">
+        <div class="kpi-card"><div class="label">Declarabiliteit (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value" style="color:var(--primary);">${laatste ? (+laatste.declarabiliteit_pct).toFixed(1) : '0'}%</div></div>
+        <div class="kpi-card"><div class="label">Declarabele uren (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value">${laatste ? (+laatste.declarabele_uren).toFixed(0) : '0'} uur</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>📈 Declarabiliteit-trend per maand</h3>
+        <div class="chart-wrap"><canvas id="chartDeclarabiliteit"></canvas></div>
+      </div>`;
+  } else if (FINANCIEEL_SUBVIEW === 'ziekte') {
+    const laatste = urenLaatsteMaand();
+    bodyHtml = !UREN_KPI_MAAND_CACHE.length ? `
+      <div class="info-box blue">ℹ️ Nog geen Urenrapportage-data. ${isManager ? 'Klik op "Vernieuwen vanuit Urenrapportage" om te starten.' : 'Vraag een manager om te synchroniseren.'}</div>` : `
+      <div class="kpi-grid" style="margin-bottom:14px;">
+        <div class="kpi-card"><div class="label">Ziekteverzuim (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value" style="color:var(--danger);">${laatste ? (+laatste.ziekte_pct).toFixed(1) : '0'}%</div></div>
+        <div class="kpi-card"><div class="label">Ziekte-uren (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value">${laatste ? (+laatste.ziekte_uren).toFixed(0) : '0'} uur</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>🤒 Ziekte overzicht — uren en percentage per maand</h3>
+        <div class="chart-wrap"><canvas id="chartZiekte"></canvas></div>
+      </div>`;
+  } else if (FINANCIEEL_SUBVIEW === 'marge') {
+    const laatste = urenLaatsteMaand();
+    bodyHtml = !UREN_KPI_MAAND_CACHE.length ? `
+      <div class="info-box blue">ℹ️ Nog geen Urenrapportage-data. ${isManager ? 'Klik op "Vernieuwen vanuit Urenrapportage" om te starten.' : 'Vraag een manager om te synchroniseren.'}</div>` : `
+      <div class="kpi-grid" style="margin-bottom:14px;">
+        <div class="kpi-card"><div class="label">Marge (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value" style="color:var(--success);">${laatste ? (+laatste.marge_pct).toFixed(1) : '0'}%</div></div>
+        <div class="kpi-card"><div class="label">Omzet (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value">${laatste ? fmtEuro(laatste.omzet_uren) : fmtEuro(0)}</div></div>
+        <div class="kpi-card"><div class="label">Loonkosten (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value">${laatste ? fmtEuro(laatste.loonkosten) : fmtEuro(0)}</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>📊 Marge overzicht per maand</h3>
+        <div class="chart-wrap"><canvas id="chartMarge"></canvas></div>
+      </div>`;
+  } else if (FINANCIEEL_SUBVIEW === 'overuren') {
+    const laatste = urenLaatsteMaand();
+    bodyHtml = !UREN_KPI_MAAND_CACHE.length ? `
+      <div class="info-box blue">ℹ️ Nog geen Urenrapportage-data. ${isManager ? 'Klik op "Vernieuwen vanuit Urenrapportage" om te starten.' : 'Vraag een manager om te synchroniseren.'}</div>` : `
+      <div class="kpi-grid" style="margin-bottom:14px;">
+        <div class="kpi-card"><div class="label">Overuren (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value">${laatste ? (+laatste.overuren_uren).toFixed(0) : '0'} uur</div></div>
+        <div class="kpi-card"><div class="label">Loonkosten overuren (${laatste ? urenMaandLabel(laatste) : '—'})</div><div class="value">${laatste ? fmtEuro(laatste.overuren_loonkosten) : fmtEuro(0)}</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>⏰ Overuren-overzicht per maand</h3>
+        <div class="chart-wrap"><canvas id="chartOveruren"></canvas></div>
+      </div>`;
+  } else if (FINANCIEEL_SUBVIEW === 'ranking') {
+    const ranking = aggregateUrenOpdrachtgever();
+    const maandOpties = getUrenMaandOpties();
+    const maandSelectHtml = `<select onchange="selectUrenRankingMaand(this.value)">
+        <option value="">Alle maanden (totaal)</option>
+        ${maandOpties.map(o => `<option value="${o.key}" ${UREN_RANKING_MAAND===o.key?'selected':''}>${o.label}</option>`).join('')}
+      </select>`;
+    const rows = ranking.map(r => `<tr>
+      <td class="acc-td-left">${escHtml(r.opdrachtgever)}</td>
+      <td>${r.declarabel.toFixed(0)} uur</td>
+      <td>${r.declarabiliteit_pct.toFixed(1)}%</td>
+      <td>${fmtEuro(r.omzet)}</td>
+      <td style="color:${r.marge_pct>=0?'var(--success)':'var(--danger)'}">${r.marge_pct.toFixed(1)}%</td>
+    </tr>`).join('');
+    bodyHtml = `
+      <div class="chart-card" style="margin-bottom:14px;">
+        <div style="display:flex; align-items:center; gap:8px;"><span class="sub">Maand:</span>${maandSelectHtml}</div>
+      </div>
+      <div class="table-card" style="overflow:visible;">
+        <table class="acc-table">
+          <thead><tr>
+            <th class="acc-th-left" style="width:260px;min-width:220px;">Opdrachtgever</th>
+            <th>Declarabele uren</th>
+            <th>Declarabiliteit</th>
+            <th>Omzet</th>
+            <th>Marge</th>
+          </tr></thead>
+          <tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">Nog geen Urenrapportage-data.</td></tr>`}</tbody>
+        </table>
+      </div>`;
   } else {
     const totals = list.reduce((acc, r) => {
       acc.ytd += (+r.omzet_ytd || 0);
@@ -3106,7 +3300,17 @@ function renderFinancieel() {
       ${subTabBtn('actief', `Actieve klanten (${actief.length})`)}
       ${subTabBtn('oud', `Oude klanten (${oud.length})`)}
       ${subTabBtn('begroting', `Omzetten vs. begroting`)}
+      ${subTabBtn('declarabiliteit', `Declarabiliteit`)}
+      ${subTabBtn('ziekte', `Ziekte overzicht`)}
+      ${subTabBtn('marge', `Marge overzicht`)}
+      ${subTabBtn('overuren', `Overuren`)}
+      ${subTabBtn('ranking', `Ranking per opdrachtgever`)}
     </div>
+    ${['declarabiliteit','ziekte','marge','overuren','ranking'].includes(FINANCIEEL_SUBVIEW) ? `
+    <div class="acc-toolbar">
+      ${isManager ? `<button class="proj-save-btn" onclick="syncUrenrapportage()" ${UREN_SYNC_BUSY?'disabled':''}>🔄 Vernieuwen vanuit Urenrapportage</button>` : ''}
+      <span id="urenrapportage-sync-status" style="font-size:.82rem;color:var(--muted);"></span>
+    </div>` : ''}
     ${bodyHtml}
   </div>`;
 
@@ -3119,6 +3323,38 @@ function renderFinancieel() {
         { type: 'bar', label: 'Werkelijke omzet', data: chartActual, backgroundColor: '#1a56db99', borderColor: '#1a56db', borderWidth: 1 },
         { type: 'line', label: 'Begrote omzet', data: chartBudget, borderColor: '#E87400', borderDash: [5,4], pointRadius: 0, borderWidth: 2, fill: false },
       ], 'bar', { tooltipLabel: (ctx) => `${ctx.dataset.label}: ${fmtEuro(ctx.parsed.y)}` });
+    }, 50);
+  } else if (FINANCIEEL_SUBVIEW === 'declarabiliteit' && UREN_KPI_MAAND_CACHE.length) {
+    const trend = getUrenTrendMaanden();
+    setTimeout(() => {
+      makeChart('chartDeclarabiliteit', trend.map(urenMaandLabel), [
+        { type: 'line', label: 'Declarabiliteit %', data: trend.map(r => +r.declarabiliteit_pct || 0), borderColor: '#1a56db', backgroundColor: '#1a56db22', borderWidth: 2, fill: true, tension: 0.25 },
+      ], 'line', { tooltipLabel: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` });
+    }, 50);
+  } else if (FINANCIEEL_SUBVIEW === 'ziekte' && UREN_KPI_MAAND_CACHE.length) {
+    const trend = getUrenTrendMaanden();
+    setTimeout(() => {
+      // makeChart() gebruikt altijd één gedeelde y-as, dus uren en % los van
+      // elkaar tonen kan niet zonder de grafiek-helper aan te passen. Ziekte %
+      // staat al duidelijk in de KPI-kaart erboven; deze grafiek toont de trend
+      // in uren.
+      makeChart('chartZiekte', trend.map(urenMaandLabel), [
+        { type: 'bar', label: 'Ziekte-uren', data: trend.map(r => +r.ziekte_uren || 0), backgroundColor: '#dc262699', borderColor: '#dc2626', borderWidth: 1 },
+      ], 'bar', { tooltipLabel: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} uur` });
+    }, 50);
+  } else if (FINANCIEEL_SUBVIEW === 'marge' && UREN_KPI_MAAND_CACHE.length) {
+    const trend = getUrenTrendMaanden();
+    setTimeout(() => {
+      makeChart('chartMarge', trend.map(urenMaandLabel), [
+        { type: 'line', label: 'Marge %', data: trend.map(r => +r.marge_pct || 0), borderColor: '#16a34a', backgroundColor: '#16a34a22', borderWidth: 2, fill: true, tension: 0.25 },
+      ], 'line', { tooltipLabel: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` });
+    }, 50);
+  } else if (FINANCIEEL_SUBVIEW === 'overuren' && UREN_KPI_MAAND_CACHE.length) {
+    const trend = getUrenTrendMaanden();
+    setTimeout(() => {
+      makeChart('chartOveruren', trend.map(urenMaandLabel), [
+        { type: 'bar', label: 'Overuren', data: trend.map(r => +r.overuren_uren || 0), backgroundColor: '#E8740099', borderColor: '#E87400', borderWidth: 1 },
+      ], 'bar', { tooltipLabel: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} uur` });
     }, 50);
   }
 }
