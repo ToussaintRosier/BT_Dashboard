@@ -2874,48 +2874,65 @@ async function syncMoneybird() {
   }
 }
 
-// De Urenrapportage is te groot om in één Edge Function-aanroep te verwerken
-// (Supabase staat maar ~2 seconden rekentijd per aanroep toe), dus de functie
-// 'uren-sync' verwerkt steeds 1/6e van het bestand per aanroep. 's Nachts
-// gebeurt dit automatisch via pg_cron; deze knop doet hetzelfde maar roept de
-// functie meteen een paar keer achter elkaar aan zodat een handmatige sync
-// niet 6x apart geklikt moet worden.
-async function syncUrenrapportage() {
-  if (!supa) return;
+// De automatische SharePoint-koppeling bleek onbetrouwbaar (anonieme
+// downloads werden door SharePoint geblokkeerd), daarom werkt deze knop nu
+// als handmatige import: hij opent een bestandskiezer, uploadt het gekozen
+// Urenrapportage.xlsx-bestand naar de privé Supabase Storage-bucket
+// 'urenrapportage', en laat de Edge Function 'uren-sync' het daarna
+// verwerken. De Urenrapportage is te groot om in één Edge Function-aanroep
+// te verwerken (Supabase staat maar ~2 seconden rekentijd per aanroep toe),
+// dus die functie verwerkt steeds 1/6e van het bestand per aanroep — deze
+// knop roept de functie na het uploaden meteen een paar keer achter elkaar
+// aan zodat dat niet 6x apart geklikt moet worden.
+function kiesUrenBestand() {
+  if (UREN_SYNC_BUSY) return;
+  const input = document.getElementById('uren-file-input');
+  if (input) input.click();
+}
+
+async function onUrenFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = ''; // zodat hetzelfde bestand later opnieuw gekozen kan worden
+  if (!file || !supa) return;
   if (UREN_SYNC_BUSY) return;
   UREN_SYNC_BUSY = true;
   const statusEl = document.getElementById('urenrapportage-sync-status');
   try {
+    if (statusEl) statusEl.textContent = '⏳ Bestand uploaden…';
+    renderFinancieel();
+    const { error: uploadError } = await supa.storage.from('urenrapportage').upload('Urenrapportage.xlsx', file, {
+      upsert: true,
+      contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    if (uploadError) {
+      if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Uploaden mislukt: ${escHtml(uploadError.message)}</span>`;
+      return;
+    }
     for (let poging = 0; poging < 8; poging++) {
-      if (statusEl) statusEl.textContent = '⏳ Bezig met synchroniseren vanuit Urenrapportage…';
+      if (statusEl) statusEl.textContent = '⏳ Bezig met verwerken van het geïmporteerde bestand…';
       renderFinancieel();
-      const { data, error } = await supa.functions.invoke('uren-sync');
+      const { data, error } = await supa.functions.invoke('uren-sync', { body: { forceerNieuw: poging === 0 } });
       if (error) {
         const msg = (data && data.error) ? data.error : error.message;
-        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(msg)}</span>`;
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Verwerken mislukt: ${escHtml(msg)}</span>`;
         return;
       }
       if (data && data.error) {
         if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ ${escHtml(data.error)}</span>`;
         return;
       }
-      if (data && data.boodschap) {
-        await loadUrenrapportage();
-        if (statusEl) statusEl.textContent = `ℹ️ ${data.boodschap}`;
-        return;
-      }
       if (data && data.klaar) {
         await loadUrenrapportage();
-        if (statusEl) statusEl.textContent = `✅ Gesynchroniseerd: ${data.regelsVerwerkt} regels verwerkt om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
+        if (statusEl) statusEl.textContent = `✅ Geïmporteerd en verwerkt: ${data.regelsVerwerkt} regels, om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
         return;
       }
       if (statusEl) statusEl.textContent = `⏳ Bezig… deel ${data?.deel ?? '?'} van ${data?.van ?? '?'}`;
       // Klein pauzetje zodat we Supabase niet bombarderen met aanroepen.
       await new Promise(r => setTimeout(r, 800));
     }
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Sync nog niet klaar na 8 pogingen — probeer het zo opnieuw.</span>`;
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Verwerken nog niet klaar na 8 pogingen — probeer het zo opnieuw.</span>`;
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(String(e?.message || e))}</span>`;
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Importeren mislukt: ${escHtml(String(e?.message || e))}</span>`;
   } finally {
     UREN_SYNC_BUSY = false;
     renderFinancieel();
@@ -3294,7 +3311,7 @@ function renderFinancieel() {
     <div class="info-box blue">ℹ️ Omzet- en factuurgegevens per opdrachtgever, automatisch overgenomen uit Moneybird. ${isManager ? 'Klik op 🔄 om de nieuwste cijfers op te halen.' : 'Alleen een manager kan een nieuwe synchronisatie starten.'}</div>
     <div class="acc-toolbar">
       ${syncBtnHtml}
-      ${['declarabiliteit','ziekte','marge','overuren','ranking'].includes(FINANCIEEL_SUBVIEW) && isManager ? `<button class="proj-save-btn" onclick="syncUrenrapportage()" ${UREN_SYNC_BUSY?'disabled':''}>🔄 Vernieuwen vanuit Urenrapportage</button>` : ''}
+      ${['declarabiliteit','ziekte','marge','overuren','ranking'].includes(FINANCIEEL_SUBVIEW) && isManager ? `<button class="proj-save-btn" onclick="kiesUrenBestand()" ${UREN_SYNC_BUSY?'disabled':''}>🔄 Vernieuwen vanuit Urenrapportage</button><input type="file" id="uren-file-input" accept=".xlsx" style="display:none" onchange="onUrenFileSelected(event)">` : ''}
       <span id="financieel-sync-status" style="font-size:.82rem;color:var(--muted);"></span>
       <span id="urenrapportage-sync-status" style="font-size:.82rem;color:var(--muted);"></span>
     </div>
