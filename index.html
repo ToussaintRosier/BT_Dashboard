@@ -2875,19 +2875,147 @@ async function syncMoneybird() {
 }
 
 // De automatische SharePoint-koppeling bleek onbetrouwbaar (anonieme
-// downloads werden door SharePoint geblokkeerd), daarom werkt deze knop nu
-// als handmatige import: hij opent een bestandskiezer, uploadt het gekozen
-// Urenrapportage.xlsx-bestand naar de privé Supabase Storage-bucket
-// 'urenrapportage', en laat de Edge Function 'uren-sync' het daarna
-// verwerken. De Urenrapportage is te groot om in één Edge Function-aanroep
-// te verwerken (Supabase staat maar ~2 seconden rekentijd per aanroep toe),
-// dus die functie verwerkt steeds 1/6e van het bestand per aanroep — deze
-// knop roept de functie na het uploaden meteen een paar keer achter elkaar
-// aan zodat dat niet 6x apart geklikt moet worden.
+// downloads werden door SharePoint geblokkeerd), dus werd dit eerst een
+// handmatige import via Supabase Storage + Edge Function — maar het
+// Urenrapportage-bestand bleek 82,9MB en de gratis Supabase-laag staat
+// maximaal 50MB per upload toe. Daarom wordt het bestand nu helemaal niet
+// meer geüpload: deze knop opent een bestandskiezer en de browser leest en
+// berekent alles zelf (zie berekenUrenAggregaten hieronder, dezelfde
+// rekenregels als de oude Edge Function), en stuurt alleen de kleine
+// uitkomst (een paar honderd regels) rechtstreeks naar de KPI-tabellen.
+// Vereist de RLS-policies uit urenrapportage_clientside.sql.
 function kiesUrenBestand() {
   if (UREN_SYNC_BUSY) return;
   const input = document.getElementById('uren-file-input');
   if (input) input.click();
+}
+
+// Excel-datumserienummer (vanaf 30-12-1899) naar {jaar, maand}.
+function excelSerialToYearMonth(serial) {
+  if (!isFinite(serial) || serial <= 0) return null;
+  const ms = (serial - 25569) * 86400 * 1000; // 25569 = dagen tussen 30-12-1899 en 1-1-1970
+  const d = new Date(ms);
+  return { jaar: d.getUTCFullYear(), maand: d.getUTCMonth() + 1 };
+}
+
+function leegUrenMaandAgg() {
+  return { declarabel: 0, ziekte: 0, verlof: 0, bijzonderVerlof: 0, overigAanvullend: 0, omzet: 0, loon: 0, overurenUren: 0, overurenLoon: 0 };
+}
+
+// Leest het werkblad regel voor regel uit (kolommen A,D,H,I,J,K,L,W — net als
+// voorheen) en telt dezelfde aggregaten op die de oude Edge Function ook
+// berekende. Draait in de browser, dus geen tijdslimiet zoals bij een Edge
+// Function — het hele bestand kan in één keer.
+function berekenUrenAggregaten(ws) {
+  const rijen = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, blankrows: false });
+  const maand = {};
+  const opdrachtgever = {};
+  let verwerkt = 0;
+  for (let i = 1; i < rijen.length; i++) { // i=0 is de headerrij
+    const r = rijen[i];
+    if (!r) continue;
+    const A = r[0];                                  // datum (serienummer)
+    const D = parseFloat(r[3]) || 0;                  // aantal uren
+    const H = r[7];                                   // status
+    const I = parseFloat(r[8]) || 0;                  // tarief
+    const J = parseFloat(r[9]) || 0;                  // loon (kostprijs)
+    const K = r[10] != null ? String(r[10]) : '';     // urensoort
+    const L = r[11] != null ? String(r[11]) : '';      // componenttype
+    const W = r[22] != null ? String(r[22]) : '';      // opdrachtgever (inlener)
+
+    if (H === 'Nieuw') continue; // nog niet definitief, niet meetellen
+    const ym = excelSerialToYearMonth(parseFloat(A));
+    if (!ym) continue;
+    verwerkt++;
+
+    const key = `${ym.jaar}-${ym.maand}`;
+    if (!maand[key]) maand[key] = leegUrenMaandAgg();
+    const m = maand[key];
+
+    const prefix = K.includes(' · ') ? K.split(' · ')[0] : K;
+    const isOveruren = /overuren|overwerk/i.test(prefix);
+
+    if (L === 'Urensoort') {
+      m.declarabel += D;
+      m.omzet += D * I;
+      m.loon += D * J;
+    } else if (L === 'Aanvullend urensoort') {
+      m.loon += D * J;
+      if (prefix.startsWith('Ziekte')) m.ziekte += D;
+      else if (prefix.startsWith('Verlof')) m.verlof += D;
+      else if (prefix.startsWith('Ouderschaps verlof')) m.bijzonderVerlof += D;
+      else m.overigAanvullend += D;
+    }
+    // Componenttype 'Vergoeding' telt niet mee in declarabiliteit/marge.
+
+    if (isOveruren) {
+      m.overurenUren += D;
+      m.overurenLoon += D * J;
+    }
+
+    if (W && (L === 'Urensoort' || L === 'Aanvullend urensoort')) {
+      const okey = `${ym.jaar}-${ym.maand}|${W}`;
+      if (!opdrachtgever[okey]) opdrachtgever[okey] = { declarabel: 0, aanvullend: 0, omzet: 0, loon: 0 };
+      const o = opdrachtgever[okey];
+      if (L === 'Urensoort') { o.declarabel += D; o.omzet += D * I; o.loon += D * J; }
+      else { o.aanvullend += D; o.loon += D * J; }
+    }
+  }
+  return { maand, opdrachtgever, verwerkt };
+}
+
+function urenRound2(n) { return Math.round(n * 100) / 100; }
+
+// Zet de opgetelde aggregaten om naar de rijen zoals de tabellen ze
+// verwachten (zelfde velden/formules als de oude Edge Function).
+function bouwUrenKpiRijen(acc) {
+  const maandRows = Object.entries(acc.maand).map(([key, m]) => {
+    const [jaarStr, maandStr] = key.split('-');
+    const totaal100 = m.declarabel + m.ziekte + m.verlof + m.bijzonderVerlof + m.overigAanvullend;
+    const decPct = totaal100 > 0 ? (m.declarabel / totaal100) * 100 : 0;
+    const ziektePct = totaal100 > 0 ? (m.ziekte / totaal100) * 100 : 0;
+    const margePct = m.omzet > 0 ? ((m.omzet - m.loon) / m.omzet) * 100 : 0;
+    return {
+      jaar: parseInt(jaarStr, 10),
+      maand: parseInt(maandStr, 10),
+      declarabele_uren: urenRound2(m.declarabel),
+      ziekte_uren: urenRound2(m.ziekte),
+      verlof_uren: urenRound2(m.verlof),
+      bijzonder_verlof_uren: urenRound2(m.bijzonderVerlof),
+      overig_aanvullend_uren: urenRound2(m.overigAanvullend),
+      totaal_100pct_uren: urenRound2(totaal100),
+      declarabiliteit_pct: urenRound2(decPct),
+      ziekte_pct: urenRound2(ziektePct),
+      omzet_uren: urenRound2(m.omzet),
+      loonkosten: urenRound2(m.loon),
+      marge_pct: urenRound2(margePct),
+      overuren_uren: urenRound2(m.overurenUren),
+      overuren_loonkosten: urenRound2(m.overurenLoon),
+      bijgewerkt_op: new Date().toISOString(),
+    };
+  });
+
+  const opdrRows = Object.entries(acc.opdrachtgever).map(([key, o]) => {
+    const [ymKey, opdrachtgever] = key.split('|');
+    const [jaarStr, maandStr] = ymKey.split('-');
+    const totaal = o.declarabel + o.aanvullend;
+    const decPct = totaal > 0 ? (o.declarabel / totaal) * 100 : 0;
+    const margePct = o.omzet > 0 ? ((o.omzet - o.loon) / o.omzet) * 100 : 0;
+    return {
+      jaar: parseInt(jaarStr, 10),
+      maand: parseInt(maandStr, 10),
+      opdrachtgever,
+      declarabele_uren: urenRound2(o.declarabel),
+      aanvullend_uren: urenRound2(o.aanvullend),
+      declarabiliteit_pct: urenRound2(decPct),
+      omzet_uren: urenRound2(o.omzet),
+      loonkosten: urenRound2(o.loon),
+      marge_pct: urenRound2(margePct),
+      bijgewerkt_op: new Date().toISOString(),
+    };
+  });
+
+  return { maandRows, opdrRows };
 }
 
 async function onUrenFileSelected(event) {
@@ -2898,39 +3026,32 @@ async function onUrenFileSelected(event) {
   UREN_SYNC_BUSY = true;
   const statusEl = document.getElementById('urenrapportage-sync-status');
   try {
-    if (statusEl) statusEl.textContent = '⏳ Bestand uploaden…';
+    if (statusEl) statusEl.textContent = '⏳ Bestand inlezen…';
     renderFinancieel();
-    const { error: uploadError } = await supa.storage.from('urenrapportage').upload('Urenrapportage.xlsx', file, {
-      upsert: true,
-      contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    if (uploadError) {
-      if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Uploaden mislukt: ${escHtml(uploadError.message)}</span>`;
-      return;
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+
+    if (statusEl) statusEl.textContent = '⏳ Bezig met berekenen (kan een minuut duren bij een groot bestand)…';
+    renderFinancieel();
+    const acc = berekenUrenAggregaten(ws);
+    const { maandRows, opdrRows } = bouwUrenKpiRijen(acc);
+
+    if (statusEl) statusEl.textContent = '⏳ Resultaten opslaan…';
+    renderFinancieel();
+    if (maandRows.length) {
+      const { error } = await supa.from('uren_kpi_maand').upsert(maandRows, { onConflict: 'jaar,maand' });
+      if (error) throw new Error('Wegschrijven uren_kpi_maand mislukt: ' + error.message);
     }
-    for (let poging = 0; poging < 8; poging++) {
-      if (statusEl) statusEl.textContent = '⏳ Bezig met verwerken van het geïmporteerde bestand…';
-      renderFinancieel();
-      const { data, error } = await supa.functions.invoke('uren-sync', { body: { forceerNieuw: poging === 0 } });
-      if (error) {
-        const msg = (data && data.error) ? data.error : error.message;
-        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Verwerken mislukt: ${escHtml(msg)}</span>`;
-        return;
-      }
-      if (data && data.error) {
-        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ ${escHtml(data.error)}</span>`;
-        return;
-      }
-      if (data && data.klaar) {
-        await loadUrenrapportage();
-        if (statusEl) statusEl.textContent = `✅ Geïmporteerd en verwerkt: ${data.regelsVerwerkt} regels, om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
-        return;
-      }
-      if (statusEl) statusEl.textContent = `⏳ Bezig… deel ${data?.deel ?? '?'} van ${data?.van ?? '?'}`;
-      // Klein pauzetje zodat we Supabase niet bombarderen met aanroepen.
-      await new Promise(r => setTimeout(r, 800));
+    // In porties van 500 wegschrijven om te grote requests te voorkomen.
+    for (let i = 0; i < opdrRows.length; i += 500) {
+      const batch = opdrRows.slice(i, i + 500);
+      const { error } = await supa.from('uren_kpi_opdrachtgever_maand').upsert(batch, { onConflict: 'jaar,maand,opdrachtgever' });
+      if (error) throw new Error('Wegschrijven uren_kpi_opdrachtgever_maand mislukt: ' + error.message);
     }
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Verwerken nog niet klaar na 8 pogingen — probeer het zo opnieuw.</span>`;
+
+    await loadUrenrapportage();
+    if (statusEl) statusEl.textContent = `✅ Geïmporteerd en verwerkt: ${acc.verwerkt} regels, om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
   } catch (e) {
     if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Importeren mislukt: ${escHtml(String(e?.message || e))}</span>`;
   } finally {
