@@ -605,10 +605,10 @@ function renderTabs() {
 
   document.getElementById('sidebar').innerHTML = `
     <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}" onclick="selectMedewerkersCat()">
-        <span>👥 Medewerkers</span>
-        <span class="sidebar-caret ${medewerkersOpen?'open':''}">▶</span>
-      </button>
+      <div class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}">
+        <span style="cursor:pointer;flex:1;" onclick="goMedewerkersOverzicht()">👥 Medewerkers</span>
+        <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleMedewerkers(event)">▶</span>
+      </div>
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
@@ -628,25 +628,22 @@ function renderTabs() {
     </div>`;
 }
 
-function toggleMedewerkers() {
+function toggleMedewerkers(event) {
+  if (event) event.stopPropagation();
   medewerkersOpen = !medewerkersOpen;
   renderTabs();
 }
-// Klikken op de categorie "Medewerkers": als je nog niet in deze categorie was,
-// ga naar het rankingoverzicht (en klap de lijst open). Was je al in deze
-// categorie (overzicht of een individuele medewerker), dan klapt de lijst
-// alleen in/uit zonder van pagina te wisselen.
-function selectMedewerkersCat() {
-  const inMedewerkers = currentTab === 'medewerkers' || currentTab < BMS.length;
-  if (!inMedewerkers) {
-    currentTab = 'medewerkers';
-    medewerkersOpen = true;
-    bmSubTab = 'kpis';
-    renderTabs();
-    render();
-  } else {
-    toggleMedewerkers();
-  }
+// Klikken op het label "Medewerkers" gaat altijd naar het rankingoverzicht
+// terug, ook als je al op de pagina van een individuele medewerker staat —
+// zo is er altijd een weg terug naar de hoofdpagina. Het pijltje ernaast is
+// een apart klikgebied dat alleen de lijst met namen in-/uitklapt, zonder
+// van pagina te wisselen.
+function goMedewerkersOverzicht() {
+  currentTab = 'medewerkers';
+  medewerkersOpen = true;
+  bmSubTab = 'kpis';
+  renderTabs();
+  render();
 }
 function canEdit(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.bm_naam === bmNaam);
