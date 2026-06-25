@@ -622,6 +622,13 @@ function toggleMedewerkers() {
 function canEdit(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.bm_naam === bmNaam);
 }
+// Backoffice mag alles bekijken (zelfde breedte als manager) maar nergens
+// invoeren/opslaan — canView() regelt dat laatste onderscheid voor schermen
+// die voorheen aan canEdit() vasthingen om te bepalen of iemand iets mag ZIEN
+// (canEdit blijft uitsluitend bepalen of iemand mag WIJZIGEN).
+function canView(bmNaam) {
+  return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.rol === 'backoffice' || CURRENT_USER.bm_naam === bmNaam);
+}
 function selectTab(i) { currentTab=i; bmSubTab='kpis'; renderTabs(); render(); }
 function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 
@@ -1023,7 +1030,7 @@ function render() {
   if (currentTab === 'accounts') { renderAccounts(); return; }
   if (currentTab === 'financieel') {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
-    if (!CURRENT_USER || CURRENT_USER.rol !== 'manager') { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+    if (!CURRENT_USER || (CURRENT_USER.rol !== 'manager' && CURRENT_USER.rol !== 'backoffice')) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
     renderFinancieel();
     return;
   }
@@ -1177,7 +1184,7 @@ function planField(id, title, value, opts) {
 }
 
 function renderPlanVanAanpak(bm) {
-  if (!canEdit(bm.naam)) return '<div class="info-box blue">Geen rechten om dit plan te bekijken.</div>';
+  if (!canView(bm.naam)) return '<div class="info-box blue">Geen rechten om dit plan te bekijken.</div>';
   if (!supa) return `<div class="info-box blue">📝 <strong>Plan van aanpak</strong> komt beschikbaar zodra de database is gekoppeld.</div>`;
 
   const safeId    = bm.naam.replace(/\s+/g,'_');
@@ -1382,7 +1389,7 @@ function printPlanVanAanpak(bmNaam, year, week) {
 
 // ── Motivatieladder (per medewerker) ───────────────────────────────────────────
 function renderMotivatieladder(bm) {
-  if (!canEdit(bm.naam)) return '<div class="info-box blue">Geen rechten om dit te bekijken.</div>';
+  if (!canView(bm.naam)) return '<div class="info-box blue">Geen rechten om dit te bekijken.</div>';
   if (!MOTIVATIELADDER_IMG) {
     return `<div class="info-box blue">🪜 De <strong>Motivatieladder</strong>-afbeelding is nog niet toegevoegd. Vraag Toussaint om het document aan te leveren.</div>`;
   }
@@ -2265,6 +2272,7 @@ async function saveProjectRangeDates(source, id, bmNaam) {
 }
 
 function renderPrognose() {
+  const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
   const year = getYear();
 
   // Alleen huidige medewerkers meenemen in de prognose
@@ -2390,7 +2398,8 @@ function renderPrognose() {
       elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.
     </div>
 
-    <!-- Projectenlijst: Excel-import -->
+    <!-- Projectenlijst: Excel-import (alleen manager) -->
+    ${isManager ? `
     <div class="section-title">Projectenlijst (Excel-import)</div>
     <div class="chart-card">
       <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
@@ -2406,7 +2415,7 @@ function renderPrognose() {
         </label>
         <span id="begroting-import-status" class="sub"></span>
       </div>
-    </div>
+    </div>` : ''}
 
     <!-- Projectenlijn -->
     <div class="section-title">Projectenlijn — actieve projecten per week (${year})</div>
@@ -2712,6 +2721,7 @@ async function accountsDeleteRow(id) {
 }
 
 function renderAccounts() {
+  const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
   const list = ACCOUNTS_CACHE;
   const stratOptions = [...new Set(list.map(a => (a.strat_cp || '').trim()).filter(Boolean))].sort();
   const opOptions     = [...new Set(list.map(a => (a.op_cp || '').trim()).filter(Boolean))].sort();
@@ -2771,7 +2781,9 @@ function renderAccounts() {
       ? `<input type="text" id="acc-notitie-${safeId}" class="acc-text-input" value="${escHtml(a.notitie||'')}">`
       : (a.notitie ? escHtml(a.notitie) : `<span style="color:var(--muted);">—</span>`);
 
-    const actionsCell = editing
+    const actionsCell = !canEditAccounts
+      ? ''
+      : editing
       ? `<div class="acc-actions-cell">
            <button class="acc-edit-btn" onclick="accountsSaveRow('${a.id}')" title="Opslaan">💾</button>
            <button class="proj-del-btn" onclick="accountsCancelEdit('${a.id}')" title="Annuleren">✕</button>
@@ -2803,7 +2815,7 @@ function renderAccounts() {
         <span class="meta-pill">🔍 ${filtered.length} getoond</span>
       </div>
     </div>
-    <div class="info-box blue">ℹ️ Klik op ✏️ om een klant te bewerken. Wijzigingen blijven bevroren tot je op 💾 Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.</div>
+    <div class="info-box blue">${canEditAccounts ? 'ℹ️ Klik op ✏️ om een klant te bewerken. Wijzigingen blijven bevroren tot je op 💾 Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.' : 'ℹ️ Alleen-lezen overzicht.'}</div>
     <div class="acc-toolbar">
       <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(ACC_SEARCH)}" onchange="accSetFilter('search', this.value)">
       <select class="acc-select" onchange="accSetFilter('strat', this.value)">
@@ -2814,7 +2826,7 @@ function renderAccounts() {
         <option value="" ${!ACC_FILTER_OP?'selected':''}>Alle OP CP</option>
         ${opOptHtml}
       </select>
-      <button class="proj-save-btn" onclick="accountsOpenNewModal()">+ Nieuwe klant</button>
+      ${canEditAccounts ? `<button class="proj-save-btn" onclick="accountsOpenNewModal()">+ Nieuwe klant</button>` : ''}
     </div>
     <div class="table-card" style="overflow:visible;">
       <table class="acc-table">
@@ -3215,11 +3227,11 @@ function renderFinancieel() {
     bodyHtml = `
       <div class="chart-card" style="margin-bottom:14px;">
         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
-          <label class="btn-secondary">
+          ${isManager ? `<label class="btn-secondary">
             📂 Importeer Begroting.xlsx
             <input type="file" id="begroting-excel-input" accept=".xlsx,.xls" style="display:none" onchange="importBegrotingExcel(this)">
           </label>
-          <span id="begroting-import-status" class="sub"></span>
+          <span id="begroting-import-status" class="sub"></span>` : ''}
           <span class="sub">Jaar:</span>
           <select onchange="selectBegrotingJaar(this.value)">${yearOptions}</select>
         </div>
@@ -3505,9 +3517,10 @@ function escHtml(s) {
 function escApos(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
 function renderPipeline(bm) {
-  const cards  = pipeLoad(bm.naam);
-  const weeks  = getPipeWeeks();
-  const bmE    = escApos(bm.naam);
+  const cards    = pipeLoad(bm.naam);
+  const weeks    = getPipeWeeks();
+  const bmE      = escApos(bm.naam);
+  const editable = canEdit(bm.naam);
 
   // Column headers
   const hdrs = PIPE_STAGES.map((stage, si) => {
@@ -3538,7 +3551,7 @@ function renderPipeline(bm) {
                <span class="card-aanb-label">Aanbod:</span>
                <input class="card-aanb-input" type="number" min="0" max="99" value="${c.aanb||0}"
                  onchange="pipeUpdateAanb('${bmE}','${c.id}',this.value)"
-                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()"/>
+                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" ${editable?'':'disabled'}/>
              </div>`
           : '';
         const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
@@ -3546,7 +3559,7 @@ function renderPipeline(bm) {
           ? `<div class="card-aanb-row">
                <select class="card-aanb-input" style="width:auto;flex:1;font-weight:600;"
                  onchange="pipeUpdateGesprek('${bmE}','${c.id}',this.value)"
-                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" ${editable?'':'disabled'}>
                  <option value="">Gesprek —</option>
                  ${gesprekOpts}
                </select>
@@ -3554,10 +3567,10 @@ function renderPipeline(bm) {
           : '';
         const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
-        return `<div class="pipe-card" draggable="true"
+        return `<div class="pipe-card" draggable="${editable?'true':'false'}"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
           ondragend="pipeDragEnd(event)">
-          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns"><button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button></span></div>
+          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${editable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
           ${metaHtml}
           ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
           ${gesprekHtml}
@@ -3574,7 +3587,7 @@ function renderPipeline(bm) {
           <span class="pipe-cell-hdr-cnt" style="background:${col.text}22;color:${col.text}">${cellCount}</span>
         </div>
         ${cardsHtml}
-        <button class="pipe-add-btn" onclick="pipeOpenModal('${bmE}','${escApos(stage)}',${wk.week},${wk.year})">+ toevoegen</button>
+        ${editable ? `<button class="pipe-add-btn" onclick="pipeOpenModal('${bmE}','${escApos(stage)}',${wk.week},${wk.year})">+ toevoegen</button>` : ''}
       </div>`;
     }).join('');
 
@@ -3596,6 +3609,7 @@ function renderPipeline(bm) {
 
 // ── Drag & drop ───────────────────────────────────────────────────────────────
 function pipeDragStart(e, bmNaam, stage, week, jaar, cardId) {
+  if (!canEdit(bmNaam)) return;
   _pipeDrag = { bmNaam, stage, week, jaar, cardId };
   e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
@@ -3606,6 +3620,7 @@ function pipeDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
 function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
+  if (!canEdit(bmNaam)) return;
   const { bmNaam: fromBM, stage: fromStage, week: fromWeek, jaar: fromJaar, cardId } = _pipeDrag;
   if (!cardId || fromBM !== bmNaam) return;
   if (fromStage === toStage && fromWeek === toWeek && fromJaar === toJaar) return;
@@ -3638,6 +3653,7 @@ function _pipeToggleStageFields(stage) {
   document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'Naam opdrachtgever *' : 'Naam kandidaat *';
 }
 function pipeOpenModal(bmNaam, stage, week, jaar) {
+  if (!canEdit(bmNaam)) return;
   _pipeModalCtx = { bmNaam, stage, week, jaar, cardId: null };
   document.getElementById('pipe-modal-title').textContent = '➕ Kandidaat toevoegen';
   document.getElementById('pipe-modal-stage-label').textContent = stage + ' · Week ' + week + ' (' + jaar + ')';
@@ -3658,6 +3674,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
 }
 function pipeOpenEditModal(bmNaam, cardId) {
+  if (!canEdit(bmNaam)) return;
   const card = pipeLoad(bmNaam).find(c => c.id === cardId);
   if (!card) return;
   _pipeModalCtx = { bmNaam, stage: card.stage, week: card.week, jaar: card.jaar, cardId };
@@ -3803,6 +3820,7 @@ document.addEventListener('keydown', e => {
 
 // ── Update aanbieden count ────────────────────────────────────────────────────
 function pipeUpdateAanb(bmNaam, cardId, value) {
+  if (!canEdit(bmNaam)) return;
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
   if (!card) return;
@@ -3816,6 +3834,7 @@ function pipeUpdateAanb(bmNaam, cardId, value) {
 
 // ── Update gesprek-ronde (1e/2e/3e) ────────────────────────────────────────────
 function pipeUpdateGesprek(bmNaam, cardId, value) {
+  if (!canEdit(bmNaam)) return;
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
   if (!card) return;
@@ -3829,6 +3848,7 @@ function pipeUpdateGesprek(bmNaam, cardId, value) {
 
 // ── Delete card ───────────────────────────────────────────────────────────────
 function pipeDelete(bmNaam, cardId) {
+  if (!canEdit(bmNaam)) return;
   pipeSave(bmNaam, pipeLoad(bmNaam).filter(c => c.id !== cardId));
   render();
   if (supa) supa.from('pipeline_cards').delete().eq('id', cardId)
