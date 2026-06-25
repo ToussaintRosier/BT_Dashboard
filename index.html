@@ -595,6 +595,10 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
 let medewerkersOpen = true;
 // Welk sub-tabblad ('kpis' of 'plan') op de huidige medewerkerpagina actief is.
 let bmSubTab = 'kpis';
+// Verschuiving (in weken) van het 4-weken-venster op het Pipeline-bord t.o.v.
+// vandaag. 0 = standaardvenster (-2 t/m +1 week). Wordt gereset bij wisselen
+// van medewerker, zodat je niet per ongeluk in een oude week blijft hangen.
+let pipeWeekOffset = 0;
 
 function renderTabs() {
   // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
@@ -670,7 +674,7 @@ function canEdit(bmNaam) {
 function canView(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.rol === 'backoffice' || CURRENT_USER.bm_naam === bmNaam);
 }
-function selectTab(i) { currentTab=i; bmSubTab='kpis'; if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true; renderTabs(); render(); }
+function selectTab(i) { currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0; if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true; renderTabs(); render(); }
 function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 
 // ── BM Panel ──────────────────────────────────────────────────────────────────
@@ -2580,13 +2584,18 @@ function renderPrognose() {
 
 function getPipeWeeks() {
   const weeks = [];
-  for (let offset = -2; offset <= 1; offset++) {
+  for (let offset = -2 + pipeWeekOffset; offset <= 1 + pipeWeekOffset; offset++) {
     const d = new Date(+TODAY + offset * 7 * 86400000);
     const w = isoWeek(d);
-    weeks.push({ year: w.year, week: w.week, offset });
+    weeks.push({ year: w.year, week: w.week, offset: offset - pipeWeekOffset });
   }
   return weeks;
 }
+
+// Navigeer het Pipeline-weekvenster: delta in stappen van 4 weken (een hele
+// schermbreedte tegelijk), zodat je snel door oudere weken kunt bladeren.
+function pipeNavWeek(delta) { pipeWeekOffset += delta * 4; render(); }
+function pipeNavWeekReset()  { pipeWeekOffset = 0; render(); }
 
 // New key (pipeline2_) so old v1 data doesn't conflict
 function pipeKey(bmNaam) { return 'pipeline2_' + btoa(unescape(encodeURIComponent(bmNaam))); }
@@ -4052,7 +4061,14 @@ function renderPipeline(bm) {
 
   const activeCount = cards.filter(c => weeks.some(wk => wk.week === c.week && wk.jaar === wk.year)).length;
 
-  return `<div class="section-title">🗂️ Kandidaten pipeline <span style="font-size:.78rem;font-weight:400;color:rgba(255,255,255,.6);margin-left:8px">${activeCount} kandidaten actief</span></div>
+  return `<div class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span>🗂️ Kandidaten pipeline <span style="font-size:.78rem;font-weight:400;color:rgba(255,255,255,.6);margin-left:8px">${activeCount} kandidaten actief</span></span>
+    <span style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:400;">
+      <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
+      ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
+      <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
+    </span>
+  </div>
   <div class="pipe-grid-wrap"><div class="pipe-grid">
     ${rows}
   </div></div>`;
