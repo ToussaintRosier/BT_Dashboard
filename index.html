@@ -19,7 +19,7 @@
   :root {
     --bg: #eef0f3; --card: #fff; --primary: #253151; --primary-dark: #0F092F; --primary-light: #E0E4E9;
     --accent: #E87400; --accent-gold: #F4CB3C;
-    --success: #0e9f6e; --warn: #f59e0b; --danger: #e02424;
+    --success: #0e9f6e; --warn: #f59e0b; --danger: #e02424; --over: #9333ea;
     --text: #16142e; --muted: #5b6478; --border: #dde1e8; --radius: 10px;
   }
   body { font-family: 'Cera Pro', 'Segoe UI', system-ui, sans-serif; background: #253151; color: var(--text); min-height: 100vh; }
@@ -478,7 +478,7 @@ const PIPE_STAGE_COLORS = [
 ];
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let view = 'week', currentTab = 0, charts = {};
+let view = 'week', currentTab = 'medewerkers', charts = {};
 
 function setView(v) {
   view = v;
@@ -491,8 +491,9 @@ function getYear() { return +document.getElementById('yearSelect').value; }
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function weekToMonth(w) { return Math.ceil(w / (52/12)); }
 function fmt(n, dec=1)  { return (+n).toFixed(dec); }
-function pct(a,b)       { return b ? Math.min(100, Math.round(a/b*100)) : 0; }
-function barColor(p)    { return p>=90?'var(--success)':p>=60?'var(--warn)':' var(--danger)'; }
+function pct(a,b)       { return b ? Math.round(a/b*100) : 0; }
+function pctBar(p)      { return Math.min(100, p); }
+function barColor(p)    { return p>=100?'var(--over)':p>=90?'var(--success)':p>=60?'var(--warn)':' var(--danger)'; }
 
 function filterData(naam, year) {
   return RAW.filter(d => (!naam || d.naam===naam) && d.jaar===year);
@@ -590,7 +591,7 @@ function renderTabs() {
 
   const teamIdx     = BMS.length;
   const prognoseIdx = BMS.length + 1;
-  const inMedewerkers = currentTab < BMS.length;
+  const inMedewerkers = currentTab === 'medewerkers' || currentTab < BMS.length;
   if (inMedewerkers) medewerkersOpen = true;
 
   const medewerkersItems = BMS.map((b,i) =>
@@ -599,8 +600,8 @@ function renderTabs() {
 
   document.getElementById('sidebar').innerHTML = `
     <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}" onclick="toggleMedewerkers()">
-        <span>👥 Assets / Medewerkers</span>
+      <button class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}" onclick="selectMedewerkersCat()">
+        <span>👥 Medewerkers</span>
         <span class="sidebar-caret ${medewerkersOpen?'open':''}">▶</span>
       </button>
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
@@ -625,6 +626,22 @@ function renderTabs() {
 function toggleMedewerkers() {
   medewerkersOpen = !medewerkersOpen;
   renderTabs();
+}
+// Klikken op de categorie "Medewerkers": als je nog niet in deze categorie was,
+// ga naar het rankingoverzicht (en klap de lijst open). Was je al in deze
+// categorie (overzicht of een individuele medewerker), dan klapt de lijst
+// alleen in/uit zonder van pagina te wisselen.
+function selectMedewerkersCat() {
+  const inMedewerkers = currentTab === 'medewerkers' || currentTab < BMS.length;
+  if (!inMedewerkers) {
+    currentTab = 'medewerkers';
+    medewerkersOpen = true;
+    bmSubTab = 'kpis';
+    renderTabs();
+    render();
+  } else {
+    toggleMedewerkers();
+  }
 }
 function canEdit(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.bm_naam === bmNaam);
@@ -747,8 +764,8 @@ function renderBM(bm) {
         <span class="progress-name">Starters YTD</span>
         <span class="progress-nums">${fmt(ytd.starters,1)} van ~${fmt(ytdTarget,1)} verwacht · einddoel ${bm.doel}</span>
       </div>
-      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${sPct}%;background:${barColor(sPct)}"></div></div>
-      <div class="progress-sub"><span>${sPct}%</span><span>Doel: ${bm.doel} starters</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pctBar(sPct)}%;background:${barColor(sPct)}"></div></div>
+      <div class="progress-sub"><span style="${sPct>=100?'color:var(--over);font-weight:700':''}">${sPct}%${sPct>=100?' 🏆':''}</span><span>Doel: ${bm.doel} starters</span></div>
     </div>
     ${KPIS.filter(k=>k!=='starters').map(k => {
       const target = norm[k] * passed;
@@ -758,8 +775,8 @@ function renderBM(bm) {
           <span class="progress-name">${KPI_LABELS[k]} YTD</span>
           <span class="progress-nums">${fmt(ytd[k],0)} van ~${fmt(target,0)} verwacht</span>
         </div>
-        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${p}%;background:var(--primary)"></div></div>
-        <div class="progress-sub"><span>${p}%</span><span></span></div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pctBar(p)}%;background:${p>=100?'var(--over)':'var(--primary)'}"></div></div>
+        <div class="progress-sub"><span style="${p>=100?'color:var(--over);font-weight:700':''}">${p}%${p>=100?' 🏆':''}</span><span></span></div>
       </div>`;
     }).join('')}
 
@@ -812,6 +829,54 @@ function renderBM(bm) {
 }
 
 // ── Team Panel ────────────────────────────────────────────────────────────────
+function renderMedewerkersOverzicht() {
+  const year   = getYear();
+  const passed = periodsPassedInYear(year, 'week');
+
+  const ranking = BMS.map(bm => {
+    const rows      = filterData(bm.naam, year);
+    const ytd       = ytdTotals(rows);
+    const ytdTarget = bm.doel * (passed / 52);
+    const p         = pct(ytd.starters, ytdTarget || 1);
+    return { bm, starters: ytd.starters, ytdTarget, p };
+  }).sort((a, b) => b.p - a.p);
+
+  const rows = ranking.map((r, i) => {
+    const rank  = i + 1;
+    const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : rank === 3 ? '\u{1F949}' : rank;
+    return `<tr style="${rank === 1 ? 'background:#fdf6e3' : ''}">
+      <td style="font-weight:700;">${medal}</td>
+      <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${r.bm.kleur};margin-right:6px;"></span>${escHtml(r.bm.naam)}${r.bm.rol ? ` <span style="color:var(--muted);font-size:.78rem">(${escHtml(r.bm.rol)})</span>` : ''}</td>
+      <td>${fmt(r.starters, 1)}</td>
+      <td>${fmt(r.ytdTarget, 1)}</td>
+      <td style="min-width:160px;">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pctBar(r.p)}%;background:${barColor(r.p)}"></div></div>
+      </td>
+      <td style="font-weight:700;color:${barColor(r.p)}">${r.p}%${r.p >= 100 ? ' \u{1F3C6}' : ''}</td>
+      <td>${r.bm.doel}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">\u{1F3C5} Medewerkers</div>
+      <div class="person-meta">
+        <span class="meta-pill">\u{1F3AF} Teamdoel: ${TOTAAL_DOEL} starters/jaar</span>
+        <span class="meta-pill">\u{1F4C5} Stand t/m week ${CUR.week}, ${year}</span>
+      </div>
+    </div>
+    <div class="norm-intro">
+      Ranking op basis van <strong>% van het starters-jaardoel</strong> dat YTD behaald is, t.o.v. wat op dit punt in het jaar verwacht werd. 100% of meer betekent vóór op schema (\u{1F3C6}) &mdash; ook ver daarboven blijft zichtbaar.
+    </div>
+    <div class="table-card"><table>
+      <thead><tr>
+        <th>#</th><th>Medewerker</th><th>Starters YTD</th><th>Verwacht YTD</th><th>Voortgang</th><th>% behaald</th><th>Jaardoel</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
 function renderTeam() {
   const year   = getYear();
   const passed = periodsPassedInYear(year, view);
@@ -1048,6 +1113,7 @@ function render() {
     return;
   }
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
+  if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
   else if (currentTab === BMS.length) renderTeam();
   else                                 renderPrognose();
