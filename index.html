@@ -426,6 +426,11 @@ const TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL;
 const EXCL  = new Set(['Luc Kools', 'Yoël Bronckers', 'Luc Schiffers']);
 // EXCL_RATIO: voor ratio-berekeningen ook management uitsluiten (vertekening voorkomen)
 const EXCL_RATIO = EXCL;
+// EXCL_STARTERS: starters-totalen tellen Luc Kools en Yoël Bronckers wél mee —
+// hun funnel-ratio's wijken structureel af, maar hun starters zijn reële
+// resultaten die in het teamtotaal thuishoren. Alleen Luc Schiffers (uit dienst)
+// blijft hier buiten beeld.
+const EXCL_STARTERS = new Set(['Luc Schiffers']);
 
 // P75 historisch veiligheidsmargin: aanbiedingen/intake norm
 const AANB_PER_INTAKE_P75   = 6.3;  // datagedreven P75 (excl. outliers)
@@ -902,6 +907,13 @@ function renderTeam() {
   const rows  = RAW.filter(d => d.jaar===year && !EXCL.has(d.naam));
   // Always aggregate starters by maand for team chart
   const aggM  = aggregateByPeriod(rows, 'maand');
+  // Starters-specifiek aggregaat: Luc Kools en Yoël Bronckers tellen hier wél
+  // mee (zie EXCL_STARTERS) — gebruikt alleen voor de starters-grafiek/cijfers,
+  // niet voor de overige (funnel-ratio) KPI's hierboven.
+  const rowsStarters  = RAW.filter(d => d.jaar===year && !EXCL_STARTERS.has(d.naam));
+  const aggMStarters  = aggregateByPeriod(rowsStarters, 'maand');
+  const startersByPeriod = {};
+  aggMStarters.forEach(a => { startersByPeriod[a.period] = a.starters; });
   // Aggregate by week for aanbiedingen chart
   const aggW  = aggregateByPeriod(rows, 'week');
 
@@ -954,14 +966,16 @@ function renderTeam() {
   // Nieuwste jaar boven, oudste onder; 2023 is uitgesloten (niet representatief).
   const histRows = [2026,2025,2024,2022].map(yr => {
     const yr_rows = RAW.filter(d => d.jaar===yr && !EXCL.has(d.naam));
-    if (!yr_rows.length) return '';
+    const yr_rows_starters = RAW.filter(d => d.jaar===yr && !EXCL_STARTERS.has(d.naam));
+    if (!yr_rows.length && !yr_rows_starters.length) return '';
     const t = ytdTotals(yr_rows);
+    const tStarters = ytdTotals(yr_rows_starters).starters;
     return `<tr>
       <td>${yr}</td>
       <td>${fmt(t.intakes,0)}</td><td>${fmt(t.bezoeken,0)}</td>
       <td>${fmt(t.aanbiedingen,0)}</td><td>${fmt(t.matchgesprekken,0)}</td>
       <td>${fmt(t.contractvoorstellen,0)}</td>
-      <td><strong>${fmt(t.starters,1)}</strong></td>
+      <td><strong>${fmt(tStarters,1)}</strong></td>
       <td style="color:var(--muted)">${new Set(yr_rows.map(d=>d.naam)).size}</td>
     </tr>`;
   }).join('');
@@ -1054,7 +1068,7 @@ function renderTeam() {
     // 1. Starters per maand (lijn)
     const maandLabels = aggM.map(a => 'M'+a.period);
     makeChart('chartTS', maandLabels, [
-      { label:'Starters', data:aggM.map(a=>a.starters), borderColor:'#f59e0b', backgroundColor:'#f59e0b22', fill:true, tension:.3, pointRadius:4 },
+      { label:'Starters', data:aggM.map(a=>startersByPeriod[a.period] ?? a.starters), borderColor:'#f59e0b', backgroundColor:'#f59e0b22', fill:true, tension:.3, pointRadius:4 },
     ]);
 
     // 2. Aanbiedingen per week (lijn) + normlijn
