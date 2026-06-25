@@ -62,6 +62,11 @@
   .progress-bar-bg   { background:#e9ecef; border-radius:99px; height:10px; overflow:hidden; }
   .progress-bar-fill { height:100%; border-radius:99px; transition:width .6s ease; }
   .progress-sub { display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); margin-top:5px; }
+  .medew-bar-wrap { position:relative; padding-top:14px; min-width:150px; }
+  .medew-bar-bg { background:#e9ecef; border-radius:99px; height:10px; overflow:hidden; }
+  .medew-bar-fill { height:100%; border-radius:99px; transition:width .6s ease; }
+  .medew-bar-mark { position:absolute; left:50%; top:13px; bottom:0; width:2px; background:#6b7280; opacity:.6; }
+  .medew-bar-mark-label { position:absolute; left:50%; top:0; transform:translateX(-50%); font-size:.62rem; color:var(--muted); font-weight:700; white-space:nowrap; }
   .two-col   { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
   @media(max-width:1100px){ .three-col { grid-template-columns:1fr 1fr; } }
@@ -499,6 +504,12 @@ function fmt(n, dec=1)  { return (+n).toFixed(dec); }
 function pct(a,b)       { return b ? Math.round(a/b*100) : 0; }
 function pctBar(p)      { return Math.min(100, p); }
 function barColor(p)    { return p>=100?'var(--over)':p>=90?'var(--success)':p>=60?'var(--warn)':' var(--danger)'; }
+// Brede schaal speciaal voor de Voortgang-balk op de Medewerkers-overzichtpagina:
+// 100% ligt precies in het midden van de balk (schaal loopt van 0% tot 200%),
+// zodat overperformance boven 100% ook echt zichtbaar wordt als extra voortgang
+// voorbij het midden, in plaats van een balk die al bij 100% "vol" lijkt.
+function pctWide(p)        { return Math.max(0, Math.min(200, p)) / 2; }
+function barColorWide(p)   { return p<=79?'var(--danger)':p<=95?'var(--warn)':'var(--success)'; }
 
 function filterData(naam, year) {
   return RAW.filter(d => (!naam || d.naam===naam) && d.jaar===year);
@@ -597,7 +608,6 @@ function renderTabs() {
   const teamIdx     = BMS.length;
   const prognoseIdx = BMS.length + 1;
   const inMedewerkers = currentTab === 'medewerkers' || currentTab < BMS.length;
-  if (inMedewerkers) medewerkersOpen = true;
 
   const medewerkersItems = BMS.map((b,i) =>
     `<button class="sidebar-item ${i===currentTab?'active':''}" onclick="selectTab(${i})">${escHtml(b.naam)}</button>`
@@ -655,7 +665,7 @@ function canEdit(bmNaam) {
 function canView(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.rol === 'backoffice' || CURRENT_USER.bm_naam === bmNaam);
 }
-function selectTab(i) { currentTab=i; bmSubTab='kpis'; renderTabs(); render(); }
+function selectTab(i) { currentTab=i; bmSubTab='kpis'; if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true; renderTabs(); render(); }
 function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 
 // ── BM Panel ──────────────────────────────────────────────────────────────────
@@ -852,9 +862,13 @@ function renderMedewerkersOverzicht() {
       <td>${fmt(r.starters, 1)}</td>
       <td>${fmt(r.ytdTarget, 1)}</td>
       <td style="min-width:160px;">
-        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pctBar(r.p)}%;background:${barColor(r.p)}"></div></div>
+        <div class="medew-bar-wrap">
+          <div class="medew-bar-mark-label">100%</div>
+          <div class="medew-bar-bg"><div class="medew-bar-fill" style="width:${pctWide(r.p)}%;background:${barColorWide(r.p)}"></div></div>
+          <div class="medew-bar-mark"></div>
+        </div>
       </td>
-      <td style="font-weight:700;color:${barColor(r.p)}">${r.p}%${r.p >= 100 ? ' \u{1F3C6}' : ''}</td>
+      <td style="font-weight:700;color:${barColorWide(r.p)}">${r.p}%${r.p >= 100 ? ' \u{1F3C6}' : ''}</td>
       <td>${r.bm.doel}</td>
     </tr>`;
   }).join('');
@@ -868,7 +882,7 @@ function renderMedewerkersOverzicht() {
       </div>
     </div>
     <div class="norm-intro">
-      Ranking op basis van <strong>% van het starters-jaardoel</strong> dat YTD behaald is, t.o.v. wat op dit punt in het jaar verwacht werd. 100% of meer betekent vóór op schema (\u{1F3C6}) &mdash; ook ver daarboven blijft zichtbaar.
+      Ranking op basis van <strong>% van het starters-jaardoel</strong> dat YTD behaald is, t.o.v. wat op dit punt in het jaar verwacht werd. De balk loopt van 0% tot 200%, met <strong>100% precies in het midden</strong> (streepje) &mdash; zo blijft overperformance ver boven 100% (\u{1F3C6}) ook echt zichtbaar. 🔴 tot 79% &middot; 🟡 80&ndash;95% &middot; 🟢 boven 95%.
     </div>
     <div class="table-card"><table>
       <thead><tr>
