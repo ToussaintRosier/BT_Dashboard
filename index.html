@@ -19,7 +19,7 @@
     --text: #16142e; --muted: #5b6478; --border: #dde1e8; --radius: 10px;
   }
   body { font-family: 'Cera Pro', 'Segoe UI', system-ui, sans-serif; background: #253151; color: var(--text); min-height: 100vh; }
-  header { background: linear-gradient(135deg,#0F092F,#253151); color:#fff; padding:20px 32px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.2); flex-wrap:wrap; gap:12px; position:relative; overflow:hidden; }
+  header { background: linear-gradient(135deg,#0F092F,#253151); color:#fff; padding:20px 32px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.2); flex-wrap:wrap; gap:12px; position:sticky; top:0; z-index:200; overflow:hidden; }
   header::before { content:''; position:absolute; inset:0; background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.13) 0 2px, transparent 2px 18px); -webkit-mask-image:linear-gradient(135deg, transparent 0%, rgba(0,0,0,.95) 100%); mask-image:linear-gradient(135deg, transparent 0%, rgba(0,0,0,.95) 100%); pointer-events:none; z-index:0; }
   header > div { position:relative; z-index:1; }
   header h1 { font-size:1.4rem; font-weight:700; }
@@ -31,7 +31,7 @@
   select { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:7px 12px; border-radius:8px; font-size:.85rem; cursor:pointer; }
   select option { color:#111; background:#fff; }
   .app-layout { display:flex; align-items:flex-start; }
-  .sidebar { width:230px; flex-shrink:0; background:#253151; border-right:1px solid rgba(255,255,255,.1); padding:18px 10px; min-height:calc(100vh - 90px); position:sticky; top:0; }
+  .sidebar { width:230px; flex-shrink:0; background:#253151; border-right:1px solid rgba(255,255,255,.1); padding:18px 10px; min-height:calc(100vh - 106px); position:sticky; top:106px; }
   .sidebar-cat { margin-bottom:4px; }
   .sidebar-cat-btn { width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; background:none; border:none; padding:10px 12px; font-weight:700; font-size:.83rem; letter-spacing:.2px; color:#fff; cursor:pointer; border-radius:8px; transition:background .15s; }
   .sidebar-cat-btn:hover { background:rgba(255,255,255,.08); }
@@ -126,7 +126,7 @@
   .goedkeur-btn.niet-akkoord { border-color:#e02424; background:#e02424; color:#fff; }
   .btn-secondary { display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:7px 14px; font-size:.82rem; font-weight:700; cursor:pointer; }
   .btn-secondary:hover { background:#f3f4f6; }
-  .person-header { background:#F4CB3C; border-radius:var(--radius); padding:18px 24px; border:1px solid #F4CB3C; margin:16px 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .person-header { background:#F4CB3C; border-radius:var(--radius); padding:18px 24px; border:1px solid #F4CB3C; margin:16px 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; position:sticky; top:106px; z-index:90; box-shadow:0 4px 10px rgba(0,0,0,.15); }
   .person-header .person-name, .person-header .person-meta { color:#16142e; }
   .person-header .meta-pill { background:rgba(22,20,46,.1); color:#16142e; }
   .bm-subtabs { display:flex; gap:6px; margin:0 0 18px; border-bottom:2px solid var(--border); }
@@ -597,10 +597,10 @@ function renderTabs() {
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab===teamIdx?'active-cat':''}" onclick="selectTab(${teamIdx})"><span>📊 Team</span></button>
+      <button class="sidebar-cat-btn ${currentTab===teamIdx?'active-cat':''}" onclick="selectTab(${teamIdx})"><span>📊 Team Resultaten</span></button>
     </div>
     <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab===prognoseIdx?'active-cat':''}" onclick="selectTab(${prognoseIdx})"><span>📈 Prognose</span></button>
+      <button class="sidebar-cat-btn ${currentTab===prognoseIdx?'active-cat':''}" onclick="selectTab(${prognoseIdx})"><span>📈 Projecten</span></button>
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span>🏢 Accountmanagement</span></button>
@@ -875,7 +875,7 @@ function renderTeam() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">🏆 Teamnorm &amp; Nieuwe Collega's</div>
+      <div class="person-name">🏆 Team Resultaten</div>
       <div class="person-meta">
         <span class="meta-pill">🎯 Teamdoel: ${TOTAAL_DOEL} starters/jaar</span>
         <span class="meta-pill">📐 Ratio's o.b.v. laatste 26 weken</span>
@@ -1284,8 +1284,7 @@ function renderPlanVanAanpak(bm) {
     </div>
   </div>`;
 
-  return `<div class="info-box blue" style="margin-bottom:12px">💡 Gegevens van vorige weken blijven altijd bewaard. Je nieuwe afspraken van deze week worden volgende week automatisch de basis voor "wat hebben we afgesproken".</div>
-  <div class="plan-grid">${leftCol}${rightCol}</div>
+  return `<div class="plan-grid">${leftCol}${rightCol}</div>
   ${managerNoteBlock}`;
 }
 
@@ -2360,7 +2359,7 @@ function renderPrognose() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">📈 Prognose & Groeiplanning</div>
+      <div class="person-name">📈 Projecten & Groeiplanning</div>
       <div class="person-meta">
         <span class="meta-pill">🎯 Ambitieus doel: ${JAAR_DOEL_AMBITIEUS} starters/${year}</span>
         <span class="meta-pill">📊 Huidig tempo: ${extrapolated} starters/jaar</span>
