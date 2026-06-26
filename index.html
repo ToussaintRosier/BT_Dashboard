@@ -603,11 +603,17 @@ let pipeWeekOffset = 0;
 function renderTabs() {
   // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
   if (CURRENT_USER && CURRENT_USER.rol === 'bm') {
+    // "Kandidaten"-overzicht (alle Intakes van alle BM's, laatste 10 weken) is
+    // op verzoek alleen voor Yoël Bronckers beschikbaar, niet voor de overige BM's.
+    const isYoelKandidaten = CURRENT_USER.bm_naam === 'Yoël Bronckers';
     document.getElementById('sidebar').innerHTML = `
       <div class="sidebar-cat"><div class="sidebar-cat-btn active-cat" style="cursor:default;">📋 ${escHtml(CURRENT_USER.bm_naam)}</div></div>
       <div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span>🏢 Accountmanagement</span></button>
       </div>
+      ${isYoelKandidaten ? `<div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
+      </div>` : ''}
       <div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='cvgen'?'active-cat':''}" onclick="selectTab('cvgen')"><span>📄 CV-generator</span></button>
       </div>`;
@@ -638,6 +644,9 @@ function renderTabs() {
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span>🏢 Accountmanagement</span></button>
+    </div>
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='financieel'?'active-cat':''}" onclick="selectTab('financieel')"><span>💰 Financieel</span></button>
@@ -1146,6 +1155,7 @@ function render() {
     renderFinancieel();
     return;
   }
+  if (currentTab === 'kandidaten') { renderKandidaten(); return; }
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
@@ -2590,6 +2600,87 @@ function getPipeWeeks() {
     weeks.push({ year: w.year, week: w.week, offset: offset - pipeWeekOffset });
   }
   return weeks;
+}
+
+// ── Kandidaten-overzicht: alle Intake-kaartjes van alle BM's/managers, ───────
+// gegroepeerd per week, huidige week eerst, tot 10 weken terug. Puur ter
+// inzage (geen drag/edit) — bewerken blijft op het eigen Pipeline-bord.
+function getKandidatenWeeks() {
+  const weeks = [];
+  for (let offset = 0; offset >= -9; offset--) {
+    const d = new Date(+TODAY + offset * 7 * 86400000);
+    const w = isoWeek(d);
+    weeks.push({ year: w.year, week: w.week, offset });
+  }
+  return weeks;
+}
+function renderKandidaten() {
+  const weeks = getKandidatenWeeks();
+  const allIntakeCards = [];
+  // Alle Aanbieden-kaartjes van alle BM's (alle weken, niet alleen de
+  // laatste 10) — nodig om per kandidaatnaam het totaal aantal aanbiedingen
+  // te kunnen optellen, ook als de aanbieding pas weken na de intake volgt.
+  const allAanbCards = [];
+  for (const bm of BMS) {
+    const cards = pipeLoad(bm.naam);
+    for (const c of cards) {
+      if (c.verwijderd_op) continue;
+      if (c.stage === 'Intake') allIntakeCards.push({ ...c, bmNaam: bm.naam });
+      else if (c.stage === 'Aanbieden') allAanbCards.push(c);
+    }
+  }
+  // Matching op naam: trim + lowercase, zodat kleine spelling-/hoofdletter-
+  // verschillen tussen het Intake- en het Aanbieden-kaartje niet voor een
+  // gemiste match zorgen.
+  const normName = n => (n || '').trim().toLowerCase();
+  const aanbTotalByNaam = {};
+  for (const c of allAanbCards) {
+    const key = normName(c.naam);
+    if (!key) continue;
+    aanbTotalByNaam[key] = (aanbTotalByNaam[key] || 0) + (+c.aanb || 0);
+  }
+
+  const weekSections = weeks.map(wk => {
+    const wkCards = allIntakeCards.filter(c => c.week === wk.week && c.jaar === wk.year);
+    const cardsHtml = wkCards.length ? wkCards.map(c => {
+      const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : ''].filter(Boolean);
+      const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
+      // Eén totaal aanbiedingen per kandidaatnaam — alle matchende
+      // Aanbieden-kaartjes (van iedere BM, elke week) bij elkaar opgeteld en
+      // hier eenmalig genoteerd, niet per match herhaald.
+      const aanbTotal = aanbTotalByNaam[normName(c.naam)] || 0;
+      return `<div class="pipe-card" style="cursor:default;">
+        <div class="card-naam">${escHtml(c.naam)}</div>
+        ${metaHtml}
+        ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
+        <div class="card-sub" style="font-weight:700;color:var(--primary);">📄 Aanbiedingen: ${aanbTotal}</div>
+        <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
+      </div>`;
+    }).join('') : `<div class="card-sub" style="color:var(--muted);padding:8px 0;">Geen intakes deze week</div>`;
+
+    return `<div style="margin-bottom:22px;">
+      <div class="section-title" style="font-size:.92rem;margin-bottom:8px;">
+        Week ${wk.week} (${wk.year})${wk.offset===0?' · huidige week':''}
+        <span style="font-weight:400;color:rgba(255,255,255,.6);font-size:.78rem;margin-left:8px">${wkCards.length} intake${wkCards.length===1?'':'s'}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
+        ${cardsHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">🗂️ Kandidaten</div>
+      <div class="person-meta">
+        <span class="meta-pill">📅 Laatste 10 weken</span>
+      </div>
+    </div>
+    <div class="norm-intro">
+      Alle kandidaten die BM's en managers de afgelopen 10 weken als Intake hebben ingevoerd, per week op een rij. Bewerken doe je op het Pipeline-bord van de betreffende medewerker.
+    </div>
+    ${weekSections}
+  </div>`;
 }
 
 // Navigeer het Pipeline-weekvenster: delta in stappen van 4 weken (een hele
