@@ -133,6 +133,17 @@
   .acc-bool-no  { color:var(--border); }
   .acc-link-btn { display:inline-block; background:var(--primary-light); color:var(--primary); border:none; border-radius:6px; padding:4px 10px; font-size:.74rem; font-weight:700; cursor:pointer; text-decoration:none; }
   .acc-link-btn:hover { background:var(--primary); color:#fff; }
+  .ms-dropdown { position:relative; display:inline-block; }
+  .ms-dropdown summary { border:1px solid var(--border); border-radius:6px; padding:6px 9px; font-size:.82rem; background:#fff; color:var(--text); cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .ms-dropdown summary::-webkit-details-marker { display:none; }
+  .ms-dropdown summary::after { content:'▾'; font-size:.65rem; color:var(--muted); }
+  .ms-dropdown[open] summary::after { content:'▴'; }
+  .ms-dropdown[open] summary { border-color:var(--primary); color:var(--primary); }
+  .ms-dropdown-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:60; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,.15); padding:6px; min-width:210px; max-height:260px; overflow-y:auto; }
+  .ms-dropdown-panel label { display:flex; align-items:center; gap:7px; padding:5px 8px; font-size:.82rem; border-radius:4px; cursor:pointer; white-space:nowrap; }
+  .ms-dropdown-panel label:hover { background:var(--bg); }
+  .ms-dropdown-actions { display:flex; justify-content:flex-end; padding:2px 4px 6px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+  .ms-dropdown-actions button { background:none; border:none; color:var(--primary); font-size:.74rem; font-weight:700; cursor:pointer; padding:2px 4px; }
   .proj-overview-row.overdue { background:#fef2f2; border-radius:8px; padding:8px 10px; margin:2px 0; border-bottom:1px solid #fecaca; }
   .goedkeur-btn { border:1px solid var(--border); background:#fff; color:#444; border-radius:6px; padding:4px 10px; font-size:.76rem; font-weight:700; cursor:pointer; }
   .goedkeur-btn.akkoord { border-color:#0e9f6e; background:#0e9f6e; color:#fff; }
@@ -330,8 +341,17 @@ let ACC_SEARCH = '', ACC_FILTER_STRAT = '', ACC_FILTER_OP = ''; // Accountmanage
 let ACC_EDIT_UNLOCKED = new Set(); // ids van klanten die nu in bewerk-modus staan (bevroren tot opslaan)
 let SALES_LEADS_CACHE = []; // Sales Leads: prospectlijst (RLDV), gedeeld door iedereen die inlogt
 let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' — welke sub-tab van Accountmanagement actief is
-let SL_SEARCH = '', SL_FILTER_VAKGEBIED = '', SL_FILTER_REGIO = '', SL_FILTER_CP = '', SL_FILTER_STATUS = '', SL_FILTER_VOORW = '';
+let SL_SEARCH = '';
+let SL_FILTER_VAKGEBIED = [], SL_FILTER_REGIO = [], SL_FILTER_CP = [], SL_FILTER_STATUS = [], SL_FILTER_VOORW = []; // multi-select: meerdere opties per kolom mogelijk
 let SL_FILTER_SC = '', SL_FILTER_MONTEUR = '', SL_FILTER_WVB = '', SL_FILTER_ENG = '', SL_FILTER_PM = ''; // '' | 'ja' | 'nee'
+let SL_OPEN_DROPDOWN = null; // welke multi-select filterdropdown nu open staat (blijft open na her-render bij aanvinken)
+
+// Sluit een open Sales Leads-filterdropdown als er buiten geklikt wordt.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.ms-dropdown[open]').forEach(d => {
+    if (!d.contains(e.target)) d.removeAttribute('open');
+  });
+});
 let SL_EDIT_UNLOCKED = new Set(); // ids van leads die nu in bewerk-modus staan (bevroren tot opslaan)
 let FINANCIEEL_CACHE = [];  // Financieel: omzet/facturen per opdrachtgever, gevuld via Moneybird-sync
 let FINANCIEEL_SYNC_BUSY = false; // voorkomt dubbele sync-aanvragen tijdens het laden
@@ -3003,11 +3023,6 @@ function salesLeadsUid() { return 'local-' + Date.now().toString(36) + Math.rand
 
 function slSetFilter(kind, val) {
   if (kind === 'search')          SL_SEARCH = val;
-  else if (kind === 'vakgebied')  SL_FILTER_VAKGEBIED = val;
-  else if (kind === 'regio')      SL_FILTER_REGIO = val;
-  else if (kind === 'cp')         SL_FILTER_CP = val;
-  else if (kind === 'status')     SL_FILTER_STATUS = val;
-  else if (kind === 'voorw')      SL_FILTER_VOORW = val;
   else if (kind === 'sc')         SL_FILTER_SC = val;
   else if (kind === 'monteur')    SL_FILTER_MONTEUR = val;
   else if (kind === 'wvb')        SL_FILTER_WVB = val;
@@ -3016,9 +3031,40 @@ function slSetFilter(kind, val) {
   renderAccounts();
 }
 
+// Multi-select filters (vakgebied/regio/contactpersoon/status/voorwaarden):
+// een waarde aan- of uitvinken in het dropdownpaneel. Het paneel blijft open
+// na de her-render zodat je meerdere opties achter elkaar kunt aanvinken.
+function slToggleMultiFilter(kind, value) {
+  const toggle = (arr) => { const i = arr.indexOf(value); if (i === -1) arr.push(value); else arr.splice(i, 1); };
+  if (kind === 'vakgebied')  toggle(SL_FILTER_VAKGEBIED);
+  else if (kind === 'regio') toggle(SL_FILTER_REGIO);
+  else if (kind === 'cp')    toggle(SL_FILTER_CP);
+  else if (kind === 'status') toggle(SL_FILTER_STATUS);
+  else if (kind === 'voorw') toggle(SL_FILTER_VOORW);
+  SL_OPEN_DROPDOWN = kind;
+  renderAccounts();
+}
+
+function slClearMultiFilter(kind) {
+  if (kind === 'vakgebied')  SL_FILTER_VAKGEBIED = [];
+  else if (kind === 'regio') SL_FILTER_REGIO = [];
+  else if (kind === 'cp')    SL_FILTER_CP = [];
+  else if (kind === 'status') SL_FILTER_STATUS = [];
+  else if (kind === 'voorw') SL_FILTER_VOORW = [];
+  SL_OPEN_DROPDOWN = kind;
+  renderAccounts();
+}
+
+// Houdt bij welk dropdownpaneel open staat zodat het na her-render (bij
+// aanvinken) open blijft i.p.v. steeds dicht te klappen.
+function slDropdownToggled(kind, isOpen) {
+  SL_OPEN_DROPDOWN = isOpen ? kind : (SL_OPEN_DROPDOWN === kind ? null : SL_OPEN_DROPDOWN);
+}
+
 function slResetFilters() {
-  SL_SEARCH = ''; SL_FILTER_VAKGEBIED = ''; SL_FILTER_REGIO = ''; SL_FILTER_CP = ''; SL_FILTER_STATUS = ''; SL_FILTER_VOORW = '';
+  SL_SEARCH = ''; SL_FILTER_VAKGEBIED = []; SL_FILTER_REGIO = []; SL_FILTER_CP = []; SL_FILTER_STATUS = []; SL_FILTER_VOORW = [];
   SL_FILTER_SC = ''; SL_FILTER_MONTEUR = ''; SL_FILTER_WVB = ''; SL_FILTER_ENG = ''; SL_FILTER_PM = '';
+  SL_OPEN_DROPDOWN = null;
   renderAccounts();
 }
 
@@ -3036,11 +3082,11 @@ function slWebsiteSearchUrl(naam) {
 function slFilteredList() {
   return SALES_LEADS_CACHE.filter(s => {
     if (SL_SEARCH && !(s.naam || '').toLowerCase().includes(SL_SEARCH.toLowerCase())) return false;
-    if (SL_FILTER_VAKGEBIED && (s.vakgebied || '') !== SL_FILTER_VAKGEBIED) return false;
-    if (SL_FILTER_REGIO && (s.regio || '') !== SL_FILTER_REGIO) return false;
-    if (SL_FILTER_CP && (s.contactpersoon || '') !== SL_FILTER_CP) return false;
-    if (SL_FILTER_STATUS && (s.status || '') !== SL_FILTER_STATUS) return false;
-    if (SL_FILTER_VOORW && (s.voorwaarden_bekend || '') !== SL_FILTER_VOORW) return false;
+    if (SL_FILTER_VAKGEBIED.length && !SL_FILTER_VAKGEBIED.includes(s.vakgebied || '')) return false;
+    if (SL_FILTER_REGIO.length && !SL_FILTER_REGIO.includes(s.regio || '')) return false;
+    if (SL_FILTER_CP.length && !SL_FILTER_CP.includes(s.contactpersoon || '')) return false;
+    if (SL_FILTER_STATUS.length && !SL_FILTER_STATUS.includes(s.status || '')) return false;
+    if (SL_FILTER_VOORW.length && !SL_FILTER_VOORW.includes(s.voorwaarden_bekend || '')) return false;
     if (!slBoolMatch(s.sc, SL_FILTER_SC)) return false;
     if (!slBoolMatch(s.monteur, SL_FILTER_MONTEUR)) return false;
     if (!slBoolMatch(s.wvb, SL_FILTER_WVB)) return false;
@@ -3201,7 +3247,21 @@ function renderSalesLeadsHtml(subTabBtns) {
   const filtered = slFilteredList();
   const sorted = filtered.slice().sort((a,b) => (a.naam||'').localeCompare(b.naam||''));
 
-  const optHtml = (options, current) => options.map(o => `<option value="${escHtml(o)}" ${current===o?'selected':''}>${escHtml(o)}</option>`).join('');
+  // Checkbox-dropdownpaneel voor multi-select filters (vakgebied/regio/
+  // contactpersoon/status/voorwaarden) — meerdere opties per kolom mogelijk.
+  const msFilterHtml = (kind, label, options, current) => {
+    const summaryLabel = !current.length ? `Alle ${label}` : (current.length === 1 ? current[0] : `${label}: ${current.length} geselecteerd`);
+    const itemsHtml = options.length
+      ? options.map(o => `<label><input type="checkbox" onchange="slToggleMultiFilter('${kind}','${escApos(o)}')" ${current.includes(o)?'checked':''}>${escHtml(o)}</label>`).join('')
+      : `<div style="padding:6px 8px;color:var(--muted);font-size:.8rem;">Geen opties</div>`;
+    return `<details class="ms-dropdown" ${SL_OPEN_DROPDOWN===kind?'open':''} ontoggle="slDropdownToggled('${kind}', this.open)">
+      <summary>${escHtml(summaryLabel)}</summary>
+      <div class="ms-dropdown-panel">
+        ${current.length ? `<div class="ms-dropdown-actions"><button type="button" onclick="event.preventDefault();slClearMultiFilter('${kind}')">↺ Wissen</button></div>` : ''}
+        ${itemsHtml}
+      </div>
+    </details>`;
+  };
   const boolFilterHtml = (kind, label, current) => `
     <select class="acc-select" onchange="slSetFilter('${kind}', this.value)">
       <option value="" ${!current?'selected':''}>${escHtml(label)}: alle</option>
@@ -3292,26 +3352,11 @@ function renderSalesLeadsHtml(subTabBtns) {
     ${subTabBtns}
     <div class="acc-toolbar">
       <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(SL_SEARCH)}" onchange="slSetFilter('search', this.value)">
-      <select class="acc-select" onchange="slSetFilter('vakgebied', this.value)">
-        <option value="" ${!SL_FILTER_VAKGEBIED?'selected':''}>Alle vakgebieden</option>
-        ${optHtml(vakgebiedOptions, SL_FILTER_VAKGEBIED)}
-      </select>
-      <select class="acc-select" onchange="slSetFilter('regio', this.value)">
-        <option value="" ${!SL_FILTER_REGIO?'selected':''}>Alle regio's</option>
-        ${optHtml(regioOptions, SL_FILTER_REGIO)}
-      </select>
-      <select class="acc-select" onchange="slSetFilter('cp', this.value)">
-        <option value="" ${!SL_FILTER_CP?'selected':''}>Alle contactpersonen</option>
-        ${optHtml(cpOptions, SL_FILTER_CP)}
-      </select>
-      <select class="acc-select" onchange="slSetFilter('status', this.value)">
-        <option value="" ${!SL_FILTER_STATUS?'selected':''}>Alle statussen</option>
-        ${optHtml(statusOptions, SL_FILTER_STATUS)}
-      </select>
-      <select class="acc-select" onchange="slSetFilter('voorw', this.value)">
-        <option value="" ${!SL_FILTER_VOORW?'selected':''}>Voorwaarden: alle</option>
-        ${optHtml(voorwOptions, SL_FILTER_VOORW)}
-      </select>
+      ${msFilterHtml('vakgebied', 'vakgebieden', vakgebiedOptions, SL_FILTER_VAKGEBIED)}
+      ${msFilterHtml('regio', "regio's", regioOptions, SL_FILTER_REGIO)}
+      ${msFilterHtml('cp', 'contactpersonen', cpOptions, SL_FILTER_CP)}
+      ${msFilterHtml('status', 'statussen', statusOptions, SL_FILTER_STATUS)}
+      ${msFilterHtml('voorw', 'voorwaarden', voorwOptions, SL_FILTER_VOORW)}
       ${boolFilterHtml('sc', 'SC', SL_FILTER_SC)}
       ${boolFilterHtml('monteur', 'Monteur', SL_FILTER_MONTEUR)}
       ${boolFilterHtml('wvb', 'WVB', SL_FILTER_WVB)}
