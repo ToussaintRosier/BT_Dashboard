@@ -3974,7 +3974,16 @@ async function syncMoneybird() {
   try {
     const { data, error } = await supa.functions.invoke('moneybird-sync');
     if (error) {
-      const msg = (data && data.error) ? data.error : error.message;
+      let msg = (data && data.error) ? data.error : error.message;
+      // supabase-js (v2) zet de echte foutmelding van de Edge Function niet in
+      // `data` als de respons non-2xx is — alleen in `error.context` (het ruwe
+      // Response-object). Probeer die hier alsnog uit te lezen.
+      if (error && error.context && typeof error.context.clone === 'function') {
+        try {
+          const body = await error.context.clone().json();
+          if (body && body.error) msg = body.error;
+        } catch (_) { /* geen JSON-body leesbaar; generieke melding blijft staan */ }
+      }
       FINANCIEEL_SYNC_MSG = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(msg)}</span>`;
       return;
     }
