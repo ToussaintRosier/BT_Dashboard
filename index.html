@@ -1615,9 +1615,12 @@ async function pvaAutosaveManagerNotitie(bmNaam) {
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
   const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
-  const existing = getPlanRow(bmNaam, CUR.year, CUR.week);
+  // id eruit halen: dat is de door de database toegekende identity-kolom en
+  // mag nooit zelf worden meegestuurd in een insert/upsert (anders: "cannot
+  // insert a non-DEFAULT value into column \"id\"").
+  const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week };
   const payload  = {
-    ...(existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }),
+    ...existingRest,
     manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
   };
   const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
@@ -1646,9 +1649,12 @@ async function saveManagerNotitie(bmNaam) {
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
   clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]); // handmatige save overschrijft een wachtende autosave
   const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
-  const existing = getPlanRow(bmNaam, CUR.year, CUR.week);
+  // id eruit halen: dat is de door de database toegekende identity-kolom en
+  // mag nooit zelf worden meegestuurd in een insert/upsert (anders: "cannot
+  // insert a non-DEFAULT value into column \"id\"").
+  const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week };
   const payload  = {
-    ...(existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }),
+    ...existingRest,
     manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
   };
   if (statusEl) statusEl.textContent = 'Opslaan…';
