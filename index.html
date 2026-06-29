@@ -236,6 +236,8 @@
   .pipe-card .card-del:hover { color:var(--danger); background:#fef2f2; }
   .pipe-card .card-edit { background:none; border:none; color:#d1d5db; cursor:pointer; font-size:.75rem; padding:1px 3px; border-radius:3px; flex-shrink:0; line-height:1; }
   .pipe-card .card-edit:hover { color:var(--primary); background:var(--primary-light); }
+  .kand-excl-btn { position:absolute; top:4px; right:4px; background:none; border:none; color:#d1d5db; cursor:pointer; font-size:.7rem; line-height:1; padding:2px 4px; border-radius:3px; }
+  .kand-excl-btn:hover { color:var(--danger); background:#fef2f2; }
   .card-naam-btns { display:flex; align-items:center; gap:2px; flex-shrink:0; }
   .card-aanb-row   { display:flex; align-items:center; gap:5px; margin-top:5px; padding-top:4px; border-top:1px solid var(--border); }
   .card-aanb-label { font-size:.68rem; color:var(--muted); white-space:nowrap; }
@@ -637,6 +639,15 @@ function renderTabs() {
     document.getElementById('sidebar').innerHTML = `
       <div class="sidebar-cat"><div class="sidebar-cat-btn active-cat" style="cursor:default;">📋 ${escHtml(CURRENT_USER.bm_naam)}</div></div>
       <div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab==='medewerkers'?'active-cat':''}" onclick="goMedewerkersOverzicht()"><span>👥 Medewerkers</span></button>
+      </div>
+      <div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab===BMS.length?'active-cat':''}" onclick="selectTab(${BMS.length})"><span>📊 Team Resultaten</span></button>
+      </div>
+      <div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab===BMS.length+1?'active-cat':''}" onclick="selectTab(${BMS.length+1})"><span>📈 Projecten</span></button>
+      </div>
+      <div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span>🏢 Accountmanagement</span></button>
       </div>
       <div class="sidebar-cat">
@@ -710,6 +721,13 @@ function canEdit(bmNaam) {
 // (canEdit blijft uitsluitend bepalen of iemand mag WIJZIGEN).
 function canView(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.rol === 'backoffice' || CURRENT_USER.bm_naam === bmNaam);
+}
+// Los van de normale rol: alleen Yoël en Toussaint mogen op Projecten
+// wijzigingen doorvoeren en kandidaten uit het Kandidaten-overzicht
+// uitsluiten — iedereen anders (ook andere managers/backoffice) krijgt daar
+// alleen een viewer-versie. Gestuurd door de DB-kolom profiles.proj_kand_editor.
+function isProjKandEditor() {
+  return !!CURRENT_USER && !!CURRENT_USER.proj_kand_editor;
 }
 function selectTab(i) { currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0; if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true; renderTabs(); render(); }
 function selectBmSubTab(tab) { bmSubTab = tab; render(); }
@@ -2435,6 +2453,9 @@ async function saveProjectRangeDates(source, id, bmNaam) {
 
 function renderPrognose() {
   const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
+  // Alleen Yoël en Toussaint mogen hier daadwerkelijk iets wijzigen; iedereen
+  // anders krijgt deze hele pagina als alleen-lezen overzicht te zien.
+  const canEditProj = isProjKandEditor();
   const year = getYear();
 
   // Alleen huidige medewerkers meenemen in de prognose
@@ -2529,6 +2550,8 @@ function renderPrognose() {
       </div>
     </div>
 
+    ${!canEditProj ? '<div class="info-box blue">ℹ️ Alleen-lezen overzicht — wijzigingen (import, goedkeuring, datums) kunnen alleen Yoël en Toussaint doorvoeren.</div>' : ''}
+
     <!-- Gap analyse -->
     <div class="section-title">Gapanalyse</div>
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
@@ -2560,8 +2583,8 @@ function renderPrognose() {
       elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.
     </div>
 
-    <!-- Projectenlijst: Excel-import (alleen manager) -->
-    ${isManager ? `
+    <!-- Projectenlijst: Excel-import (alleen Yoël/Toussaint) -->
+    ${canEditProj ? `
     <div class="section-title">Projectenlijst (Excel-import)</div>
     <div class="chart-card">
       <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
@@ -2593,8 +2616,9 @@ function renderPrognose() {
       ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : starterCards.map(c => {
         return `<div class="proj-overview-row">
           <div style="flex:1; min-width:160px"><strong>${c.naam}</strong> <span class="sub">(${c.bmNaam}${c.opdrachtgever ? ' · ' + escHtml(c.opdrachtgever) : ''}${c.gedeeld ? ' · gedeeld (0,5)' : ''})</span></div>
+          ${canEditProj ? `
           <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
-          <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>
+          <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>` : '<span class="sub">Alleen-lezen</span>'}
         </div>`;
       }).join('')}
     </div>
@@ -2608,11 +2632,12 @@ function renderPrognose() {
         const overdue = r.eind && r.eind < nuVoorOverdue;
         return `<div class="proj-overview-row${overdue ? ' overdue' : ''}">
           <div style="flex:1; min-width:200px"><strong>${r.naam}</strong> <span class="sub">${r.bm ? '· '+r.bm : ''}${r.opdrachtgever ? ' · '+r.opdrachtgever : ''} ${r.source==='excel'?'📄':'🧩'}</span>${overdue ? ' <span class="badge badge-red">einddatum verstreken</span>' : ''}</div>
+          ${canEditProj ? `
           <input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${toISODate(r.begin) || ''}" title="Begindatum">
           <input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind) || ''}" title="Einddatum (informatief — project blijft meetellen totdat verwijderd)">
           <button class="proj-save-btn" onclick="saveProjectRangeDates('${r.source}','${r.id}',${r.bmNaam ? `'${r.bmNaam}'` : 'null'})">💾 Opslaan</button>
           <button class="proj-del-btn" onclick="deleteProjectRange('${r.source}','${r.id}',${r.bmNaam ? `'${r.bmNaam}'` : 'null'})">🗑️ Verwijderen</button>
-          <span class="sub" id="pr-status-${safeId}"></span>
+          <span class="sub" id="pr-status-${safeId}"></span>` : `<span class="sub">${toISODate(r.begin) || '–'} t/m ${toISODate(r.eind) || '–'}</span>`}
         </div>`;
       }).join('')}
     </div>
@@ -2655,7 +2680,9 @@ function getKandidatenWeeks() {
 }
 function renderKandidaten() {
   const weeks = getKandidatenWeeks();
+  const canExclude = isProjKandEditor();
   const allIntakeCards = [];
+  const excludedCards = [];
   // Alle Aanbieden-kaartjes van alle BM's (alle weken, niet alleen de
   // laatste 10) — nodig om per kandidaatnaam het totaal aantal aanbiedingen
   // te kunnen optellen, ook als de aanbieding pas weken na de intake volgt.
@@ -2664,7 +2691,10 @@ function renderKandidaten() {
     const cards = pipeLoad(bm.naam);
     for (const c of cards) {
       if (c.verwijderd_op) continue;
-      if (c.stage === 'Intake') allIntakeCards.push({ ...c, bmNaam: bm.naam });
+      if (c.stage === 'Intake') {
+        if (c.kandidaten_uitgesloten) excludedCards.push({ ...c, bmNaam: bm.naam });
+        else allIntakeCards.push({ ...c, bmNaam: bm.naam });
+      }
       else if (c.stage === 'Aanbieden') allAanbCards.push(c);
     }
   }
@@ -2688,7 +2718,8 @@ function renderKandidaten() {
       // Aanbieden-kaartjes (van iedere BM, elke week) bij elkaar opgeteld en
       // hier eenmalig genoteerd, niet per match herhaald.
       const aanbTotal = aanbTotalByNaam[normName(c.naam)] || 0;
-      return `<div class="pipe-card" style="cursor:default;">
+      return `<div class="pipe-card" style="cursor:default;position:relative;">
+        ${canExclude ? `<button class="kand-excl-btn" title="Uitsluiten van dit overzicht" onclick="kandidaatExcludeToggle('${c.bmNaam}','${c.id}', true)">✕</button>` : ''}
         <div class="card-naam">${escHtml(c.naam)}</div>
         ${metaHtml}
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
@@ -2719,7 +2750,35 @@ function renderKandidaten() {
       Alle kandidaten die BM's en managers de afgelopen 10 weken als Intake hebben ingevoerd, per week op een rij. Bewerken doe je op het Pipeline-bord van de betreffende medewerker.
     </div>
     ${weekSections}
+    ${canExclude && excludedCards.length ? `
+    <div class="section-title" style="margin-top:22px;">Uitgesloten kandidaten (${excludedCards.length})</div>
+    <div class="norm-intro">Alleen voor jou zichtbaar — deze kandidaten zijn verborgen voor het algemene Kandidaten-overzicht. Klik op herstellen om ze weer te tonen.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
+      ${excludedCards.map(c => `<div class="pipe-card" style="cursor:default;opacity:.7;">
+        <div class="card-naam">${escHtml(c.naam)}</div>
+        <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
+        <button class="btn-secondary" style="margin-top:6px;" onclick="kandidaatExcludeToggle('${c.bmNaam}','${c.id}', false)">↺ Herstellen</button>
+      </div>`).join('')}
+    </div>` : ''}
   </div>`;
+}
+
+// Sluit (of herstelt) een kandidaat-kaart voor het Kandidaten-overzicht. Dit
+// past alleen de kaart op het Pipeline-bord aan (kandidaten_uitgesloten) —
+// de kaart zelf blijft gewoon bestaan, niets wordt verwijderd. Alleen zichtbaar
+// voor Yoël/Toussaint (zie canExclude / isProjKandEditor hierboven).
+async function kandidaatExcludeToggle(bmNaam, cardId, exclude) {
+  if (!isProjKandEditor()) return;
+  const cards = pipeLoad(bmNaam);
+  const idx = cards.findIndex(c => String(c.id) === String(cardId));
+  if (idx === -1) return;
+  cards[idx] = { ...cards[idx], kandidaten_uitgesloten: exclude };
+  pipeSave(bmNaam, cards);
+  render();
+  if (supa) {
+    const { error } = await supa.from('pipeline_cards').update({ kandidaten_uitgesloten: exclude }).eq('id', cardId);
+    if (error) console.error('Kandidaat uitsluiten/herstellen mislukt:', error);
+  }
 }
 
 // Navigeer het Pipeline-weekvenster: delta in stappen van 4 weken (een hele
@@ -2754,7 +2813,7 @@ async function pipeFetchAll() {
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op });
+    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten });
   });
   PIPE_CACHE = next;
 }
