@@ -357,6 +357,13 @@ document.addEventListener('click', (e) => {
 let SL_EDIT_UNLOCKED = new Set(); // ids van leads die nu in bewerk-modus staan (bevroren tot opslaan)
 let FINANCIEEL_CACHE = [];  // Financieel: omzet/facturen per opdrachtgever, gevuld via Moneybird-sync
 let FINANCIEEL_SYNC_BUSY = false; // voorkomt dubbele sync-aanvragen tijdens het laden
+// Statusmeldingen van de Moneybird-sync / Urenrapportage-import staan bewust
+// in render-state (i.p.v. direct in een DOM-element geschreven): renderFinancieel()
+// bouwt #main bij elke aanroep volledig opnieuw op (via innerHTML), waardoor een
+// eerder opgehaalde DOM-referentie meteen loskoppelt van de pagina en latere
+// schrijfacties daarop onzichtbaar blijven voor de gebruiker.
+let FINANCIEEL_SYNC_MSG = '';
+let UREN_SYNC_MSG = '';
 let FINANCIEEL_SUBVIEW = 'actief'; // 'actief' (omzet YTD > 0), 'oud' (omzet YTD = 0), 'begroting' (Omzetten vs. begroting), 'declarabiliteit', 'ziekte', 'marge', 'overuren' of 'ranking' (op basis van Urenrapportage)
 let BEGROTING_OMZET_CACHE = [];     // begrote omzet/declarabiliteit per jaar+maand, uit Begroting.xlsx
 let BEGROTING_PROJ_CACHE = [];      // begrote projectenlijn per jaar+week, uit Begroting.xlsx
@@ -3957,18 +3964,17 @@ async function syncMoneybird() {
   if (!supa) return;
   if (FINANCIEEL_SYNC_BUSY) return;
   FINANCIEEL_SYNC_BUSY = true;
-  const statusEl = document.getElementById('financieel-sync-status');
-  if (statusEl) statusEl.textContent = '⏳ Bezig met synchroniseren vanuit Moneybird…';
+  FINANCIEEL_SYNC_MSG = '⏳ Bezig met synchroniseren vanuit Moneybird…';
   renderFinancieel();
   try {
     const { data, error } = await supa.functions.invoke('moneybird-sync');
     if (error) {
       const msg = (data && data.error) ? data.error : error.message;
-      if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(msg)}</span>`;
+      FINANCIEEL_SYNC_MSG = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(msg)}</span>`;
       return;
     }
     if (data && data.error) {
-      if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ ${escHtml(data.error)}</span>`;
+      FINANCIEEL_SYNC_MSG = `<span style="color:var(--danger);">❌ ${escHtml(data.error)}</span>`;
       return;
     }
     await loadFinancieelOmzet();
@@ -3977,9 +3983,9 @@ async function syncMoneybird() {
     if (ongekoppeld.length) {
       msg += `<br>⚠️ Niet gekoppeld aan een bestaande klant in Accountmanagement: ${ongekoppeld.map(escHtml).join(', ')}. Koppel deze handmatig via het veld <code>moneybird_contact_id</code> op de bijbehorende klant, of pas de naam aan zodat hij overeenkomt.`;
     }
-    if (statusEl) statusEl.innerHTML = msg;
+    FINANCIEEL_SYNC_MSG = msg;
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(String(e?.message || e))}</span>`;
+    FINANCIEEL_SYNC_MSG = `<span style="color:var(--danger);">❌ Synchroniseren mislukt: ${escHtml(String(e?.message || e))}</span>`;
   } finally {
     FINANCIEEL_SYNC_BUSY = false;
     renderFinancieel();
@@ -4136,20 +4142,19 @@ async function onUrenFileSelected(event) {
   if (!file || !supa) return;
   if (UREN_SYNC_BUSY) return;
   UREN_SYNC_BUSY = true;
-  const statusEl = document.getElementById('urenrapportage-sync-status');
   try {
-    if (statusEl) statusEl.textContent = '⏳ Bestand inlezen…';
+    UREN_SYNC_MSG = '⏳ Bestand inlezen…';
     renderFinancieel();
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
 
-    if (statusEl) statusEl.textContent = '⏳ Bezig met berekenen (kan een minuut duren bij een groot bestand)…';
+    UREN_SYNC_MSG = '⏳ Bezig met berekenen (kan een minuut duren bij een groot bestand)…';
     renderFinancieel();
     const acc = berekenUrenAggregaten(ws);
     const { maandRows, opdrRows } = bouwUrenKpiRijen(acc);
 
-    if (statusEl) statusEl.textContent = '⏳ Resultaten opslaan…';
+    UREN_SYNC_MSG = '⏳ Resultaten opslaan…';
     renderFinancieel();
     if (maandRows.length) {
       const { error } = await supa.from('uren_kpi_maand').upsert(maandRows, { onConflict: 'jaar,maand' });
@@ -4163,9 +4168,9 @@ async function onUrenFileSelected(event) {
     }
 
     await loadUrenrapportage();
-    if (statusEl) statusEl.textContent = `✅ Geïmporteerd en verwerkt: ${acc.verwerkt} regels, om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
+    UREN_SYNC_MSG = `✅ Geïmporteerd en verwerkt: ${acc.verwerkt} regels, om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);">❌ Importeren mislukt: ${escHtml(String(e?.message || e))}</span>`;
+    UREN_SYNC_MSG = `<span style="color:var(--danger);">❌ Importeren mislukt: ${escHtml(String(e?.message || e))}</span>`;
   } finally {
     UREN_SYNC_BUSY = false;
     renderFinancieel();
@@ -4545,8 +4550,8 @@ function renderFinancieel() {
     <div class="acc-toolbar">
       ${syncBtnHtml}
       ${['declarabiliteit','ziekte','marge','overuren','ranking'].includes(FINANCIEEL_SUBVIEW) && isManager ? `<button class="proj-save-btn" onclick="kiesUrenBestand()" ${UREN_SYNC_BUSY?'disabled':''}>🔄 Vernieuwen vanuit Urenrapportage</button><input type="file" id="uren-file-input" accept=".xlsx" style="display:none" onchange="onUrenFileSelected(event)">` : ''}
-      <span id="financieel-sync-status" style="font-size:.82rem;color:var(--muted);"></span>
-      <span id="urenrapportage-sync-status" style="font-size:.82rem;color:var(--muted);"></span>
+      <span id="financieel-sync-status" style="font-size:.82rem;color:var(--muted);">${FINANCIEEL_SYNC_MSG}</span>
+      <span id="urenrapportage-sync-status" style="font-size:.82rem;color:var(--muted);">${UREN_SYNC_MSG}</span>
     </div>
     <div class="acc-toolbar">
       ${subTabBtn('actief', `Actieve klanten (${actief.length})`)}
