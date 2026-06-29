@@ -129,10 +129,6 @@
   .acc-edit-btn   { background:var(--primary); color:#fff; border:none; border-radius:6px; padding:4px 9px; font-size:.78rem; font-weight:700; cursor:pointer; }
   .acc-edit-btn:hover { background:var(--primary-dark); }
   .acc-actions-cell { display:flex; gap:4px; justify-content:center; flex-wrap:wrap; }
-  .acc-subtabs { display:flex; gap:8px; margin-bottom:16px; }
-  .acc-subtab-btn { background:#fff; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:9px 18px; font-size:.85rem; font-weight:700; cursor:pointer; transition:background .15s,color .15s; }
-  .acc-subtab-btn:hover { background:var(--bg); }
-  .acc-subtab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
   .acc-bool-yes { color:#0e9f6e; font-weight:800; }
   .acc-bool-no  { color:var(--border); }
   .acc-link-btn { display:inline-block; background:var(--primary-light); color:var(--primary); border:none; border-radius:6px; padding:4px 10px; font-size:.74rem; font-weight:700; cursor:pointer; text-decoration:none; }
@@ -2951,10 +2947,15 @@ async function accountsDeleteRow(id) {
 function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
 
 function renderAccounts() {
+  // Zelfde subTabBtn-patroon als renderFinancieel(): btn-secondary-knoppen in
+  // een .acc-toolbar-rij, actieve knop krijgt inline primary-kleur i.p.v. een
+  // eigen CSS-klasse — zo ogen de sub-tabs van Accountmanagement identiek aan
+  // die van Financieel.
+  const subTabBtn = (key, label) => `<button class="btn-secondary" style="${ACCOUNT_SUBTAB===key?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="accSelectSubTab('${key}')">${label}</button>`;
   const subTabBtns = `
-    <div class="acc-subtabs">
-      <button class="acc-subtab-btn ${ACCOUNT_SUBTAB==='sales'?'active':''}" onclick="accSelectSubTab('sales')">📡 Sales Leads</button>
-      <button class="acc-subtab-btn ${ACCOUNT_SUBTAB==='strategisch'?'active':''}" onclick="accSelectSubTab('strategisch')">🎯 Strategische Leads</button>
+    <div class="acc-toolbar">
+      ${subTabBtn('sales', '📡 Sales Leads')}
+      ${subTabBtn('strategisch', '🎯 Strategische Leads')}
     </div>`;
   const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml() : renderSalesLeadsHtml();
   document.getElementById('main').innerHTML = `<div>${subTabBtns}${body}</div>`;
