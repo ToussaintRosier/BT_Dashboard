@@ -441,9 +441,9 @@ const BMS = [
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
   { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424', doelCurve: 'exponentieel' },
-  { naam: 'Robin Farnis',        doel: 14, kleur: '#d97706' }, // start 1 juli 2026
-  { naam: 'Luc Kools',           doel:  8, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
-  { naam: 'Yoël Bronckers',      doel:  8, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
+  { naam: 'Robin Farnis',        doel: 14, kleur: '#d97706', doelStartFraction: 26/52 }, // start 1 juli 2026 (ISO-week 27) — YTD-norm bouwt pas vanaf dan op
+  { naam: 'Luc Kools',           doel:  6, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
+  { naam: 'Yoël Bronckers',      doel: 10, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
 ];
 const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
 
@@ -591,6 +591,11 @@ function cumDoel(bm, passed, totalPeriods) {
   if (bm.doelCurve === 'exponentieel') {
     const x = Math.max(0, Math.min(1, passed / totalPeriods));
     return bm.doel * (Math.exp(DOEL_CURVE_A * x) - 1) / (Math.exp(DOEL_CURVE_A) - 1);
+  }
+  if (bm.doelStartFraction) {
+    const x = Math.max(0, Math.min(1, passed / totalPeriods));
+    const f = bm.doelStartFraction;
+    return bm.doel * Math.max(0, x - f) / (1 - f);
   }
   return bm.doel * (passed / totalPeriods);
 }
