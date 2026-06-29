@@ -129,6 +129,14 @@
   .acc-edit-btn   { background:var(--primary); color:#fff; border:none; border-radius:6px; padding:4px 9px; font-size:.78rem; font-weight:700; cursor:pointer; }
   .acc-edit-btn:hover { background:var(--primary-dark); }
   .acc-actions-cell { display:flex; gap:4px; justify-content:center; flex-wrap:wrap; }
+  .acc-subtabs { display:flex; gap:8px; margin-bottom:16px; }
+  .acc-subtab-btn { background:#fff; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:9px 18px; font-size:.85rem; font-weight:700; cursor:pointer; transition:background .15s,color .15s; }
+  .acc-subtab-btn:hover { background:var(--bg); }
+  .acc-subtab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .acc-bool-yes { color:#0e9f6e; font-weight:800; }
+  .acc-bool-no  { color:var(--border); }
+  .acc-link-btn { display:inline-block; background:var(--primary-light); color:var(--primary); border:none; border-radius:6px; padding:4px 10px; font-size:.74rem; font-weight:700; cursor:pointer; text-decoration:none; }
+  .acc-link-btn:hover { background:var(--primary); color:#fff; }
   .proj-overview-row.overdue { background:#fef2f2; border-radius:8px; padding:8px 10px; margin:2px 0; border-bottom:1px solid #fecaca; }
   .goedkeur-btn { border:1px solid var(--border); background:#fff; color:#444; border-radius:6px; padding:4px 10px; font-size:.76rem; font-weight:700; cursor:pointer; }
   .goedkeur-btn.akkoord { border-color:#0e9f6e; background:#0e9f6e; color:#fff; }
@@ -324,6 +332,11 @@ const CV_TEMPLATE_DOCX_BASE64 = 'UEsDBBQAAAAIAAV02Vw2ywGZfQEAAMwHAAATAAAAW0NvbnR
 let ACCOUNTS_CACHE = [];   // Accountmanagement: klantenlijst, gedeeld door iedereen die inlogt
 let ACC_SEARCH = '', ACC_FILTER_STRAT = '', ACC_FILTER_OP = ''; // Accountmanagement filters
 let ACC_EDIT_UNLOCKED = new Set(); // ids van klanten die nu in bewerk-modus staan (bevroren tot opslaan)
+let SALES_LEADS_CACHE = []; // Sales Leads: prospectlijst (RLDV), gedeeld door iedereen die inlogt
+let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' — welke sub-tab van Accountmanagement actief is
+let SL_SEARCH = '', SL_FILTER_VAKGEBIED = '', SL_FILTER_REGIO = '', SL_FILTER_CP = '', SL_FILTER_STATUS = '', SL_FILTER_VOORW = '';
+let SL_FILTER_SC = '', SL_FILTER_MONTEUR = '', SL_FILTER_WVB = '', SL_FILTER_ENG = '', SL_FILTER_PM = ''; // '' | 'ja' | 'nee'
+let SL_EDIT_UNLOCKED = new Set(); // ids van leads die nu in bewerk-modus staan (bevroren tot opslaan)
 let FINANCIEEL_CACHE = [];  // Financieel: omzet/facturen per opdrachtgever, gevuld via Moneybird-sync
 let FINANCIEEL_SYNC_BUSY = false; // voorkomt dubbele sync-aanvragen tijdens het laden
 let FINANCIEEL_SUBVIEW = 'actief'; // 'actief' (omzet YTD > 0), 'oud' (omzet YTD = 0), 'begroting' (Omzetten vs. begroting), 'declarabiliteit', 'ziekte', 'marge', 'overuren' of 'ranking' (op basis van Urenrapportage)
@@ -1735,6 +1748,7 @@ async function loadAllData() {
   await loadProjecten();
   await loadPlanVanAanpak();
   await accountsFetchAll();
+  await salesLeadsFetchAll();
   await loadFinancieelOmzet();
   await loadBegroting();
   await loadUrenrapportage();
@@ -1805,6 +1819,9 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, async () => {
       await accountsFetchAll(); render();
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_leads' }, async () => {
+      await salesLeadsFetchAll(); render();
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'financieel_omzet' }, async () => {
       await loadFinancieelOmzet(); render();
     })
@@ -1816,6 +1833,7 @@ async function initApp() {
   if (!supa) {
     // Geen database gekoppeld: demo-modus met ingebouwde voorbeelddata, geen login
     await accountsFetchAll();
+    await salesLeadsFetchAll();
     document.getElementById('app-root').style.display = '';
     render();
     return;
@@ -2928,7 +2946,402 @@ async function accountsDeleteRow(id) {
   renderAccounts();
 }
 
+// Sub-tab dispatcher: Sales Leads (eerste/standaard) en Strategische Leads
+// (tweede, het oorspronkelijke klant-scorecard-overzicht, ongewijzigd qua inhoud).
+function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
+
 function renderAccounts() {
+  const subTabBtns = `
+    <div class="acc-subtabs">
+      <button class="acc-subtab-btn ${ACCOUNT_SUBTAB==='sales'?'active':''}" onclick="accSelectSubTab('sales')">📡 Sales Leads</button>
+      <button class="acc-subtab-btn ${ACCOUNT_SUBTAB==='strategisch'?'active':''}" onclick="accSelectSubTab('strategisch')">🎯 Strategische Leads</button>
+    </div>`;
+  const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml() : renderSalesLeadsHtml();
+  document.getElementById('main').innerHTML = `<div>${subTabBtns}${body}</div>`;
+}
+
+// ===========================================================================
+// SALES LEADS — sales-navigator over de prospect-/klantenlijst (RLDV-import).
+// Eenmalige Excel-import in Supabase (zie sales_leads_schema.sql), daarna
+// volledig bewerkbaar in het dashboard zelf (zelfde freeze/edit/save-patroon
+// als Strategische Leads hierboven).
+// ===========================================================================
+
+const SL_BOOL_FIELDS = [
+  ['sc', 'SC'],
+  ['monteur', 'Monteur / Uitvoering'],
+  ['wvb', 'WVB'],
+  ['eng', 'ENG'],
+  ['pm', 'PM'],
+];
+
+function salesLeadsLocalKey() { return 'sales_leads_v1'; }
+
+function salesLeadsLoadLocal() {
+  try {
+    const raw = localStorage.getItem(salesLeadsLocalKey());
+    if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; }
+  } catch(e) {}
+  return [];
+}
+
+function salesLeadsSaveLocal() {
+  if (supa) return;
+  try { localStorage.setItem(salesLeadsLocalKey(), JSON.stringify(SALES_LEADS_CACHE)); } catch(e) {}
+}
+
+async function salesLeadsFetchAll() {
+  if (!supa) { SALES_LEADS_CACHE = salesLeadsLoadLocal(); return; }
+  const { data, error } = await supa.from('sales_leads').select('*');
+  if (error) { console.error('Sales Leads laden mislukt:', error); return; }
+  SALES_LEADS_CACHE = data || [];
+}
+
+function salesLeadsUid() { return 'local-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function slSetFilter(kind, val) {
+  if (kind === 'search')          SL_SEARCH = val;
+  else if (kind === 'vakgebied')  SL_FILTER_VAKGEBIED = val;
+  else if (kind === 'regio')      SL_FILTER_REGIO = val;
+  else if (kind === 'cp')         SL_FILTER_CP = val;
+  else if (kind === 'status')     SL_FILTER_STATUS = val;
+  else if (kind === 'voorw')      SL_FILTER_VOORW = val;
+  else if (kind === 'sc')         SL_FILTER_SC = val;
+  else if (kind === 'monteur')    SL_FILTER_MONTEUR = val;
+  else if (kind === 'wvb')        SL_FILTER_WVB = val;
+  else if (kind === 'eng')        SL_FILTER_ENG = val;
+  else if (kind === 'pm')         SL_FILTER_PM = val;
+  renderAccounts();
+}
+
+function slResetFilters() {
+  SL_SEARCH = ''; SL_FILTER_VAKGEBIED = ''; SL_FILTER_REGIO = ''; SL_FILTER_CP = ''; SL_FILTER_STATUS = ''; SL_FILTER_VOORW = '';
+  SL_FILTER_SC = ''; SL_FILTER_MONTEUR = ''; SL_FILTER_WVB = ''; SL_FILTER_ENG = ''; SL_FILTER_PM = '';
+  renderAccounts();
+}
+
+function slBoolMatch(val, filterVal) {
+  if (!filterVal) return true;
+  return filterVal === 'ja' ? !!val : !val;
+}
+
+// Live zoeklink i.p.v. een hardgecodeerd domein: altijd actueel, geen
+// onderhoud nodig, en je komt direct op de zoekresultaten met vacatures.
+function slWebsiteSearchUrl(naam) {
+  return 'https://www.google.com/search?q=' + encodeURIComponent((naam || '') + ' vacatures');
+}
+
+function slFilteredList() {
+  return SALES_LEADS_CACHE.filter(s => {
+    if (SL_SEARCH && !(s.naam || '').toLowerCase().includes(SL_SEARCH.toLowerCase())) return false;
+    if (SL_FILTER_VAKGEBIED && (s.vakgebied || '') !== SL_FILTER_VAKGEBIED) return false;
+    if (SL_FILTER_REGIO && (s.regio || '') !== SL_FILTER_REGIO) return false;
+    if (SL_FILTER_CP && (s.contactpersoon || '') !== SL_FILTER_CP) return false;
+    if (SL_FILTER_STATUS && (s.status || '') !== SL_FILTER_STATUS) return false;
+    if (SL_FILTER_VOORW && (s.voorwaarden_bekend || '') !== SL_FILTER_VOORW) return false;
+    if (!slBoolMatch(s.sc, SL_FILTER_SC)) return false;
+    if (!slBoolMatch(s.monteur, SL_FILTER_MONTEUR)) return false;
+    if (!slBoolMatch(s.wvb, SL_FILTER_WVB)) return false;
+    if (!slBoolMatch(s.eng, SL_FILTER_ENG)) return false;
+    if (!slBoolMatch(s.pm, SL_FILTER_PM)) return false;
+    return true;
+  });
+}
+
+function slStartEdit(id) { SL_EDIT_UNLOCKED.add(String(id)); renderAccounts(); }
+function slCancelEdit(id) { SL_EDIT_UNLOCKED.delete(String(id)); renderAccounts(); }
+
+async function slSaveRow(id) {
+  const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const getVal = (suffix) => { const el = document.getElementById(`sl-${suffix}-${safeId}`); return el ? el.value : ''; };
+  const getChecked = (suffix) => { const el = document.getElementById(`sl-${suffix}-${safeId}`); return el ? el.checked : false; };
+  const textOrNull = (raw) => String(raw).trim() === '' ? null : String(raw).trim();
+
+  const updates = {
+    naam: textOrNull(getVal('naam')) || 'Naamloos',
+    vakgebied: textOrNull(getVal('vakgebied')),
+    regio: textOrNull(getVal('regio')),
+    sc: getChecked('sc'),
+    monteur: getChecked('monteur'),
+    wvb: getChecked('wvb'),
+    eng: getChecked('eng'),
+    pm: getChecked('pm'),
+    contactpersoon: textOrNull(getVal('cp')),
+    status: getVal('status') || null,
+    voorwaarden_bekend: getVal('voorw') || null,
+  };
+
+  const row = SALES_LEADS_CACHE.find(s => String(s.id) === String(id));
+  if (row) Object.assign(row, updates);
+
+  if (supa && !String(id).startsWith('local-')) {
+    const { error } = await supa.from('sales_leads').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) console.error('Sales lead opslaan mislukt:', error);
+  } else {
+    salesLeadsSaveLocal();
+  }
+  SL_EDIT_UNLOCKED.delete(String(id));
+  render(); // pas nu herberekenen we de gefilterde lijst
+}
+
+function slOpenNewModal() {
+  document.getElementById('sl-modal-naam').value = '';
+  document.getElementById('sl-modal-vakgebied').value = '';
+  document.getElementById('sl-modal-regio').value = '';
+  ['sc','monteur','wvb','eng','pm'].forEach(f => { const el = document.getElementById('sl-modal-' + f); if (el) el.checked = false; });
+  document.getElementById('sl-modal-cp').value = '';
+  document.getElementById('sl-modal-status').value = '';
+  document.getElementById('sl-modal-voorw').value = '';
+  document.getElementById('sl-modal').classList.add('open');
+  setTimeout(() => document.getElementById('sl-modal-naam').focus(), 50);
+}
+
+function slCloseNewModal() {
+  document.getElementById('sl-modal').classList.remove('open');
+}
+
+async function slConfirmNew() {
+  const naam = (document.getElementById('sl-modal-naam').value || '').trim();
+  if (!naam) { alert('Vul een naam in voor de klant.'); return; }
+  const textOrNull = (raw) => String(raw).trim() === '' ? null : String(raw).trim();
+
+  const payload = {
+    naam,
+    vakgebied: textOrNull(document.getElementById('sl-modal-vakgebied').value),
+    regio: textOrNull(document.getElementById('sl-modal-regio').value),
+    sc: document.getElementById('sl-modal-sc').checked,
+    monteur: document.getElementById('sl-modal-monteur').checked,
+    wvb: document.getElementById('sl-modal-wvb').checked,
+    eng: document.getElementById('sl-modal-eng').checked,
+    pm: document.getElementById('sl-modal-pm').checked,
+    contactpersoon: textOrNull(document.getElementById('sl-modal-cp').value),
+    status: document.getElementById('sl-modal-status').value || null,
+    voorwaarden_bekend: document.getElementById('sl-modal-voorw').value || null,
+  };
+
+  let newRow;
+  if (supa) {
+    const { data, error } = await supa.from('sales_leads').insert({ ...payload, updated_at: new Date().toISOString() }).select().single();
+    if (error) { console.error('Lead toevoegen mislukt:', error); alert('Opslaan mislukt: ' + error.message); return; }
+    newRow = data;
+  } else {
+    newRow = { id: salesLeadsUid(), ...payload, updated_at: new Date().toISOString() };
+  }
+  SALES_LEADS_CACHE.push(newRow);
+  if (!supa) salesLeadsSaveLocal();
+  slCloseNewModal();
+  renderAccounts();
+}
+
+async function slDeleteRow(id) {
+  if (!confirm('Deze lead verwijderen uit de lijst?')) return;
+  if (supa && !String(id).startsWith('local-')) {
+    const { error } = await supa.from('sales_leads').delete().eq('id', id);
+    if (error) { console.error('Lead verwijderen mislukt:', error); return; }
+  }
+  SALES_LEADS_CACHE = SALES_LEADS_CACHE.filter(s => String(s.id) !== String(id));
+  SL_EDIT_UNLOCKED.delete(String(id));
+  salesLeadsSaveLocal();
+  renderAccounts();
+}
+
+// Print de huidige (gefilterde) selectie als nette tabel — "harde lijst" om
+// mee te nemen naar bezoeken of te bespreken met collega's.
+function slPrint() {
+  const filtered = slFilteredList().slice().sort((a,b) => (a.naam||'').localeCompare(b.naam||''));
+  const win = window.open('', '_blank');
+  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen.'); return; }
+  const boolMark = (v) => v ? '✓' : '—';
+  const rowsHtml = filtered.map(s => `<tr>
+    <td>${escHtml(s.naam||'')}</td>
+    <td>${escHtml(s.vakgebied||'—')}</td>
+    <td>${escHtml(s.regio||'—')}</td>
+    <td style="text-align:center;">${boolMark(s.sc)}</td>
+    <td style="text-align:center;">${boolMark(s.monteur)}</td>
+    <td style="text-align:center;">${boolMark(s.wvb)}</td>
+    <td style="text-align:center;">${boolMark(s.eng)}</td>
+    <td style="text-align:center;">${boolMark(s.pm)}</td>
+    <td>${escHtml(s.contactpersoon||'—')}</td>
+    <td>${escHtml(s.status||'—')}</td>
+    <td>${escHtml(s.voorwaarden_bekend||'—')}</td>
+  </tr>`).join('');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sales Leads</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:24px;}
+    h1{font-size:1.2rem;margin:0 0 4px;}
+    .meta{color:#5b6478;font-size:.82rem;margin-bottom:14px;}
+    table{width:100%;border-collapse:collapse;font-size:.78rem;}
+    th,td{border:1px solid #dde1e8;padding:5px 7px;text-align:left;}
+    th{background:#f4f5f7;}
+    @media print { @page { margin:14mm; size:landscape; } }
+  </style></head><body>
+    <h1>📡 Sales Leads</h1>
+    <div class="meta">Geprint op ${new Date().toLocaleDateString('nl-NL')} · ${filtered.length} van ${SALES_LEADS_CACHE.length} klanten (huidige filterselectie)</div>
+    <table>
+      <thead><tr><th>Klant</th><th>Vakgebied</th><th>Regio</th><th>SC</th><th>Monteur</th><th>WVB</th><th>ENG</th><th>PM</th><th>Contactpersoon</th><th>Status</th><th>Voorwaarden bekend</th></tr></thead>
+      <tbody>${rowsHtml || '<tr><td colspan="11" style="text-align:center;">Geen leads gevonden.</td></tr>'}</tbody>
+    </table>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 300);
+}
+
+function renderSalesLeadsHtml() {
+  const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
+  const list = SALES_LEADS_CACHE;
+  const vakgebiedOptions = [...new Set(list.map(s => (s.vakgebied||'').trim()).filter(Boolean))].sort();
+  const regioOptions     = [...new Set(list.map(s => (s.regio||'').trim()).filter(Boolean))].sort();
+  const cpOptions        = [...new Set(list.map(s => (s.contactpersoon||'').trim()).filter(Boolean))].sort();
+  const statusOptions    = [...new Set(list.map(s => (s.status||'').trim()).filter(Boolean))].sort();
+  const voorwOptions     = [...new Set(list.map(s => (s.voorwaarden_bekend||'').trim()).filter(Boolean))].sort();
+
+  const filtered = slFilteredList();
+  const sorted = filtered.slice().sort((a,b) => (a.naam||'').localeCompare(b.naam||''));
+
+  const optHtml = (options, current) => options.map(o => `<option value="${escHtml(o)}" ${current===o?'selected':''}>${escHtml(o)}</option>`).join('');
+  const boolFilterHtml = (kind, label, current) => `
+    <select class="acc-select" onchange="slSetFilter('${kind}', this.value)">
+      <option value="" ${!current?'selected':''}>${escHtml(label)}: alle</option>
+      <option value="ja" ${current==='ja'?'selected':''}>${escHtml(label)}: ja</option>
+      <option value="nee" ${current==='nee'?'selected':''}>${escHtml(label)}: nee</option>
+    </select>`;
+
+  const rows = sorted.map((s) => {
+    const safeId = String(s.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const editing = SL_EDIT_UNLOCKED.has(String(s.id));
+
+    const naamCell = editing
+      ? `<input type="text" id="sl-naam-${safeId}" class="acc-text-input" value="${escHtml(s.naam||'')}">`
+      : escHtml(s.naam||'');
+    const vakgebiedCell = editing
+      ? `<input type="text" id="sl-vakgebied-${safeId}" class="acc-text-input" value="${escHtml(s.vakgebied||'')}">`
+      : (s.vakgebied ? escHtml(s.vakgebied) : `<span style="color:var(--muted);">—</span>`);
+    const regioCell = editing
+      ? `<input type="text" id="sl-regio-${safeId}" class="acc-text-input" value="${escHtml(s.regio||'')}">`
+      : (s.regio ? escHtml(s.regio) : `<span style="color:var(--muted);">—</span>`);
+
+    const boolCells = SL_BOOL_FIELDS.map(([f]) => {
+      if (editing) return `<td><input type="checkbox" id="sl-${f}-${safeId}" ${s[f]?'checked':''}></td>`;
+      return `<td>${s[f] ? `<span class="acc-bool-yes">✓</span>` : `<span class="acc-bool-no">—</span>`}</td>`;
+    }).join('');
+
+    const cpCell = editing
+      ? `<input type="text" id="sl-cp-${safeId}" class="acc-text-input" style="text-align:center;text-transform:uppercase;" value="${escHtml(s.contactpersoon||'')}">`
+      : (s.contactpersoon ? `<span class="acc-pill acc-pill-op">${escHtml(s.contactpersoon)}</span>` : `<span class="acc-pill acc-pill-empty">—</span>`);
+
+    const statusCell = editing
+      ? `<select id="sl-status-${safeId}" class="acc-select" style="width:100%;">
+           <option value="" ${!s.status?'selected':''}>—</option>
+           <option value="Prospect" ${s.status==='Prospect'?'selected':''}>Prospect</option>
+           <option value="Lead" ${s.status==='Lead'?'selected':''}>Lead</option>
+           <option value="CP-bekend" ${s.status==='CP-bekend'?'selected':''}>CP-bekend</option>
+           <option value="Klant" ${s.status==='Klant'?'selected':''}>Klant</option>
+         </select>`
+      : (s.status ? `<span class="badge ${s.status==='Klant'?'badge-green':s.status==='CP-bekend'?'badge-yellow':'badge-red'}">${escHtml(s.status)}</span>` : `<span style="color:var(--muted);">—</span>`);
+
+    const voorwCell = editing
+      ? `<select id="sl-voorw-${safeId}" class="acc-select" style="width:100%;">
+           <option value="" ${!s.voorwaarden_bekend?'selected':''}>—</option>
+           <option value="ja" ${s.voorwaarden_bekend==='ja'?'selected':''}>Ja</option>
+           <option value="nee" ${s.voorwaarden_bekend==='nee'?'selected':''}>Nee</option>
+           <option value="ja/nee" ${s.voorwaarden_bekend==='ja/nee'?'selected':''}>Deels</option>
+         </select>`
+      : (s.voorwaarden_bekend==='ja' ? `<span class="badge badge-green">Ja</span>` : s.voorwaarden_bekend==='nee' ? `<span class="badge badge-red">Nee</span>` : s.voorwaarden_bekend==='ja/nee' ? `<span class="badge badge-yellow">Deels</span>` : `<span style="color:var(--muted);">—</span>`);
+
+    const websiteCell = `<a class="acc-link-btn" href="${slWebsiteSearchUrl(s.naam||'')}" target="_blank" rel="noopener">🔍 Zoek</a>`;
+
+    const actionsCell = !canEditAccounts
+      ? ''
+      : editing
+      ? `<div class="acc-actions-cell">
+           <button class="acc-edit-btn" onclick="slSaveRow('${s.id}')" title="Opslaan">💾</button>
+           <button class="proj-del-btn" onclick="slCancelEdit('${s.id}')" title="Annuleren">✕</button>
+         </div>`
+      : `<div class="acc-actions-cell">
+           <button class="acc-edit-btn" onclick="slStartEdit('${s.id}')" title="Wijzigen">✏️</button>
+           <button class="proj-del-btn" onclick="slDeleteRow('${s.id}')" title="Verwijderen">🗑️</button>
+         </div>`;
+
+    return `<tr>
+      <td class="acc-td-left">${naamCell}</td>
+      <td>${vakgebiedCell}</td>
+      <td>${regioCell}</td>
+      ${boolCells}
+      <td>${cpCell}</td>
+      <td>${statusCell}</td>
+      <td>${voorwCell}</td>
+      <td>${websiteCell}</td>
+      <td>${actionsCell}</td>
+    </tr>`;
+  }).join('');
+
+  const boolHeaders = SL_BOOL_FIELDS.map(([,label]) => `<th title="${escHtml(label)}">${escHtml(label)}</th>`).join('');
+
+  return `<div>
+    <div class="person-header">
+      <div class="person-name">📡 Sales Leads</div>
+      <div class="person-meta">
+        <span class="meta-pill">📋 ${list.length} klanten</span>
+        <span class="meta-pill">🔍 ${filtered.length} getoond</span>
+      </div>
+    </div>
+    <div class="info-box blue">ℹ️ Filter op vakgebied, regio, functietype, contactpersoon, status of voorwaarden om een harde selectie te maken. Klik op 🔍 Zoek om de vacaturepagina van een klant op te zoeken. Print de huidige selectie via 🖨️ Printen.</div>
+    <div class="acc-toolbar">
+      <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(SL_SEARCH)}" onchange="slSetFilter('search', this.value)">
+      <select class="acc-select" onchange="slSetFilter('vakgebied', this.value)">
+        <option value="" ${!SL_FILTER_VAKGEBIED?'selected':''}>Alle vakgebieden</option>
+        ${optHtml(vakgebiedOptions, SL_FILTER_VAKGEBIED)}
+      </select>
+      <select class="acc-select" onchange="slSetFilter('regio', this.value)">
+        <option value="" ${!SL_FILTER_REGIO?'selected':''}>Alle regio's</option>
+        ${optHtml(regioOptions, SL_FILTER_REGIO)}
+      </select>
+      <select class="acc-select" onchange="slSetFilter('cp', this.value)">
+        <option value="" ${!SL_FILTER_CP?'selected':''}>Alle contactpersonen</option>
+        ${optHtml(cpOptions, SL_FILTER_CP)}
+      </select>
+      <select class="acc-select" onchange="slSetFilter('status', this.value)">
+        <option value="" ${!SL_FILTER_STATUS?'selected':''}>Alle statussen</option>
+        ${optHtml(statusOptions, SL_FILTER_STATUS)}
+      </select>
+      <select class="acc-select" onchange="slSetFilter('voorw', this.value)">
+        <option value="" ${!SL_FILTER_VOORW?'selected':''}>Voorwaarden: alle</option>
+        ${optHtml(voorwOptions, SL_FILTER_VOORW)}
+      </select>
+      ${boolFilterHtml('sc', 'SC', SL_FILTER_SC)}
+      ${boolFilterHtml('monteur', 'Monteur', SL_FILTER_MONTEUR)}
+      ${boolFilterHtml('wvb', 'WVB', SL_FILTER_WVB)}
+      ${boolFilterHtml('eng', 'ENG', SL_FILTER_ENG)}
+      ${boolFilterHtml('pm', 'PM', SL_FILTER_PM)}
+      <button class="proj-del-btn" onclick="slResetFilters()">↺ Filters wissen</button>
+      <button class="proj-save-btn" onclick="slPrint()">🖨️ Printen</button>
+      ${canEditAccounts ? `<button class="proj-save-btn" onclick="slOpenNewModal()">+ Nieuwe lead</button>` : ''}
+    </div>
+    <div class="table-card" style="overflow:visible;">
+      <table class="acc-table">
+        <thead><tr>
+          <th class="acc-th-left" style="width:200px;min-width:200px;">Klant</th>
+          <th>Vakgebied</th>
+          <th>Regio</th>
+          ${boolHeaders}
+          <th>Contactpersoon</th>
+          <th>Status</th>
+          <th>Voorwaarden bekend</th>
+          <th>Website</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${rows || `<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:24px;">Geen leads gevonden.</td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// Strategische Leads (voorheen het enige Accountmanagement-overzicht, nu de
+// tweede sub-tab) — inhoud en gedrag ongewijzigd, alleen hernoemd van
+// renderAccounts() en geeft nu een HTML-string terug i.p.v. direct te schrijven
+// naar #main, zodat de dispatcher hierboven de sub-tab-knoppen kan toevoegen.
+function renderStrategischeLeadsHtml() {
   const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
   const list = ACCOUNTS_CACHE;
   const stratOptions = [...new Set(list.map(a => (a.strat_cp || '').trim()).filter(Boolean))].sort();
@@ -3015,9 +3428,9 @@ function renderAccounts() {
     </tr>`;
   }).join('');
 
-  document.getElementById('main').innerHTML = `<div>
+  return `<div>
     <div class="person-header">
-      <div class="person-name">🏢 Accountmanagement</div>
+      <div class="person-name">🎯 Strategische Leads</div>
       <div class="person-meta">
         <span class="meta-pill">📋 ${list.length} klanten</span>
         <span class="meta-pill">🔍 ${filtered.length} getoond</span>
@@ -4488,6 +4901,45 @@ function pipeDelete(bmNaam, cardId) {
     <div class="pipe-modal-btns">
       <button class="pipe-modal-cancel" onclick="accountsCloseNewModal()">Annuleren</button>
       <button class="pipe-modal-ok" onclick="accountsConfirmNew()">Invoeren</button>
+    </div>
+  </div>
+</div>
+
+<div id="sl-modal" class="pipe-modal-overlay" onclick="if(event.target===this)slCloseNewModal()">
+  <div class="pipe-modal" style="width:480px;">
+    <h4>➕ Nieuwe sales lead toevoegen</h4>
+    <p class="pipe-modal-sub">Vul de gegevens in en klik op Invoeren.</p>
+    <input type="text" id="sl-modal-naam" placeholder="Naam klant *" autocomplete="off"/>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="sl-modal-vakgebied" placeholder="Vakgebied" autocomplete="off" style="flex:1;"/>
+      <input type="text" id="sl-modal-regio" placeholder="Regio" autocomplete="off" style="flex:1;"/>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
+      <label style="display:flex;align-items:center;gap:4px;font-size:.82rem;"><input type="checkbox" id="sl-modal-sc"> SC</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:.82rem;"><input type="checkbox" id="sl-modal-monteur"> Monteur</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:.82rem;"><input type="checkbox" id="sl-modal-wvb"> WVB</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:.82rem;"><input type="checkbox" id="sl-modal-eng"> ENG</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:.82rem;"><input type="checkbox" id="sl-modal-pm"> PM</label>
+    </div>
+    <input type="text" id="sl-modal-cp" placeholder="Contactpersoon (initialen)" autocomplete="off" style="text-transform:uppercase;"/>
+    <div style="display:flex; gap:8px;">
+      <select id="sl-modal-status" style="flex:1;">
+        <option value="">Status</option>
+        <option value="Prospect">Prospect</option>
+        <option value="Lead">Lead</option>
+        <option value="CP-bekend">CP-bekend</option>
+        <option value="Klant">Klant</option>
+      </select>
+      <select id="sl-modal-voorw" style="flex:1;">
+        <option value="">Voorwaarden bekend?</option>
+        <option value="ja">Ja</option>
+        <option value="nee">Nee</option>
+        <option value="ja/nee">Deels</option>
+      </select>
+    </div>
+    <div class="pipe-modal-btns">
+      <button class="pipe-modal-cancel" onclick="slCloseNewModal()">Annuleren</button>
+      <button class="pipe-modal-ok" onclick="slConfirmNew()">Invoeren</button>
     </div>
   </div>
 </div>
