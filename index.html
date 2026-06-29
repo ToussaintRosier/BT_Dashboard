@@ -2949,16 +2949,17 @@ function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
 function renderAccounts() {
   // Zelfde subTabBtn-patroon als renderFinancieel(): btn-secondary-knoppen in
   // een .acc-toolbar-rij, actieve knop krijgt inline primary-kleur i.p.v. een
-  // eigen CSS-klasse — zo ogen de sub-tabs van Accountmanagement identiek aan
-  // die van Financieel.
+  // eigen CSS-klasse. De knoppenrij wordt doorgegeven aan render*Html() en
+  // dáar ONDER de gele person-header geplaatst (net als bij Financieel) —
+  // niet ervoor, anders staat hij in de donkere strook boven de pagina.
   const subTabBtn = (key, label) => `<button class="btn-secondary" style="${ACCOUNT_SUBTAB===key?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="accSelectSubTab('${key}')">${label}</button>`;
   const subTabBtns = `
     <div class="acc-toolbar">
       ${subTabBtn('sales', '📡 Sales Leads')}
       ${subTabBtn('strategisch', '🎯 Strategische Leads')}
     </div>`;
-  const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml() : renderSalesLeadsHtml();
-  document.getElementById('main').innerHTML = `<div>${subTabBtns}${body}</div>`;
+  const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns) : renderSalesLeadsHtml(subTabBtns);
+  document.getElementById('main').innerHTML = body;
 }
 
 // ===========================================================================
@@ -3188,7 +3189,7 @@ function slPrint() {
   setTimeout(() => { win.print(); }, 300);
 }
 
-function renderSalesLeadsHtml() {
+function renderSalesLeadsHtml(subTabBtns) {
   const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
   const list = SALES_LEADS_CACHE;
   const vakgebiedOptions = [...new Set(list.map(s => (s.vakgebied||'').trim()).filter(Boolean))].sort();
@@ -3288,6 +3289,7 @@ function renderSalesLeadsHtml() {
       </div>
     </div>
     <div class="info-box blue">ℹ️ Filter op vakgebied, regio, functietype, contactpersoon, status of voorwaarden om een harde selectie te maken. Klik op 🔍 Zoek om de vacaturepagina van een klant op te zoeken. Print de huidige selectie via 🖨️ Printen.</div>
+    ${subTabBtns}
     <div class="acc-toolbar">
       <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(SL_SEARCH)}" onchange="slSetFilter('search', this.value)">
       <select class="acc-select" onchange="slSetFilter('vakgebied', this.value)">
@@ -3342,7 +3344,7 @@ function renderSalesLeadsHtml() {
 // tweede sub-tab) — inhoud en gedrag ongewijzigd, alleen hernoemd van
 // renderAccounts() en geeft nu een HTML-string terug i.p.v. direct te schrijven
 // naar #main, zodat de dispatcher hierboven de sub-tab-knoppen kan toevoegen.
-function renderStrategischeLeadsHtml() {
+function renderStrategischeLeadsHtml(subTabBtns) {
   const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
   const list = ACCOUNTS_CACHE;
   const stratOptions = [...new Set(list.map(a => (a.strat_cp || '').trim()).filter(Boolean))].sort();
@@ -3438,6 +3440,7 @@ function renderStrategischeLeadsHtml() {
       </div>
     </div>
     <div class="info-box blue">${canEditAccounts ? 'ℹ️ Klik op ✏️ om een klant te bewerken. Wijzigingen blijven bevroren tot je op 💾 Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.' : 'ℹ️ Alleen-lezen overzicht.'}</div>
+    ${subTabBtns}
     <div class="acc-toolbar">
       <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(ACC_SEARCH)}" onchange="accSetFilter('search', this.value)">
       <select class="acc-select" onchange="accSetFilter('strat', this.value)">
