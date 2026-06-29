@@ -433,7 +433,7 @@ const BMS = [
   { naam: 'Jelle van Schijndel', doel: 18, kleur: '#1a56db' },
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
-  { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424' },
+  { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424', doelCurve: 'exponentieel' },
   { naam: 'Robin Farnis',        doel: 14, kleur: '#d97706' }, // start 1 juli 2026
   { naam: 'Luc Kools',           doel:  8, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
   { naam: 'Yoël Bronckers',      doel:  8, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
@@ -570,6 +570,22 @@ function ytdTotals(rows) {
 function periodsPassedInYear(year, period) {
   if (year < CUR.year) return period==='week' ? 52 : 12;
   return period==='week' ? CUR.week : weekToMonth(CUR.week);
+}
+
+// Cumulatief verwachte starters tot een bepaald punt in het jaar. Standaard
+// lineair (doel × verstreken-deel-van-het-jaar) — bm.doelCurve = 'exponentieel'
+// (vooralsnog alleen Charlotte) geeft een exponentieel oplopende verwachting:
+// in het begin van het jaar wordt minder verwacht, richting jaareinde loopt
+// het tempo snel op naar het einddoel. DOEL_CURVE_A bepaalt hoe steil die knik
+// is (groter = sterker naar het einde toe geconcentreerd); bij week 26 wordt
+// dan ~27% van het jaardoel verwacht (i.p.v. 50% lineair), bij week 39 ~55%.
+const DOEL_CURVE_A = 2;
+function cumDoel(bm, passed, totalPeriods) {
+  if (bm.doelCurve === 'exponentieel') {
+    const x = Math.max(0, Math.min(1, passed / totalPeriods));
+    return bm.doel * (Math.exp(DOEL_CURVE_A * x) - 1) / (Math.exp(DOEL_CURVE_A) - 1);
+  }
+  return bm.doel * (passed / totalPeriods);
 }
 
 function normPerPeriod(doel_jaar, ratios, period, override) {
@@ -745,7 +761,7 @@ function renderBM(bm) {
   const ytdAvg = {};
   for (const k of KPIS) ytdAvg[k] = +(ytd[k] / (passed||1)).toFixed(2);
 
-  const ytdTarget  = bm.doel * (passed / (view==='week'?52:12));
+  const ytdTarget  = cumDoel(bm, passed, view==='week'?52:12);
   const sPct       = pct(ytd.starters, ytdTarget||1);
   const history    = yearlyTotals(bm.naam);
   const lowData    = ratios.totalStarters < 5;
@@ -892,7 +908,7 @@ function renderBM(bm) {
     const periods = agg.map(a => (view==='week'?'W':'M')+a.period);
     makeChart('chartS', periods, [
       { label:'Starters', data:agg.map(a=>a.starters), borderColor:bm.kleur, backgroundColor:bm.kleur+'22', fill:true, tension:.3, pointRadius:3 },
-      { label:'Norm',     data:agg.map(()=>norm.starters), borderColor:'#E87400', borderDash:[5,4], pointRadius:0 },
+      { label:'Norm',     data:agg.map(a => { const tp = view==='week'?52:12; return +(cumDoel(bm, a.period, tp) - cumDoel(bm, a.period-1, tp)).toFixed(3); }), borderColor:'#E87400', borderDash:[5,4], pointRadius:0 },
     ]);
     const kDatasets = [];
     for (const k of KPIS) {
@@ -912,7 +928,7 @@ function renderMedewerkersOverzicht() {
   const ranking = BMS.map(bm => {
     const rows      = filterData(bm.naam, year);
     const ytd       = ytdTotals(rows);
-    const ytdTarget = bm.doel * (passed / 52);
+    const ytdTarget = cumDoel(bm, passed, 52);
     const p         = pct(ytd.starters, ytdTarget || 1);
     return { bm, starters: ytd.starters, ytdTarget, p };
   }).sort((a, b) => b.p - a.p);
@@ -1898,7 +1914,7 @@ function computeCoachingData(bm) {
     const t4    = ytdTotals(rows4);
 
     // Expected starters YTD
-    const expectedStarters = +(bm.doel * CUR_WK / 52).toFixed(1);
+    const expectedStarters = +(cumDoel(bm, CUR_WK, 52)).toFixed(1);
     const starterGap       = +(ytd.starters - expectedStarters).toFixed(1);
     const starterPctOfDoel = pct(ytd.starters, bm.doel);
 
