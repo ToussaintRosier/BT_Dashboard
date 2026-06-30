@@ -4396,6 +4396,24 @@ function computeBegrotingPeriode(jaar) {
   return { chartLabels, chartActual, chartBudget, totaalActual, totaalBudget, verschil, periodeLabel };
 }
 
+// Werkelijke omzet voor het hele lopende jaar — zelfde brondata (de maand-
+// totalen in FINANCIEEL_OMZET_MAAND_CACHE) en optelling als "Werkelijke
+// omzet (hele jaar)" bij Omzetten vs. begroting, maar los van de daar
+// gekozen jaar/periode/granulariteit. Dit is de bron voor de "Omzet YTD"-kpi
+// bij Actieve klanten, zodat dat cijfer altijd gelijk is aan de Begroting-tab
+// — in plaats van de som van de per-klant omzet_ytd-velden uit financieel_omzet,
+// die door dubbele/verouderde klantrijen te hoog kan uitvallen.
+function computeOmzetActiefYtd() {
+  const jaren = new Set();
+  FINANCIEEL_OMZET_MAAND_CACHE.forEach(r => jaren.add(+r.jaar));
+  const huidigJaar = new Date().getFullYear();
+  const jaar = jaren.has(huidigJaar) ? huidigJaar : [...jaren].sort((a, b) => b - a)[0];
+  if (jaar === undefined) return 0;
+  return FINANCIEEL_OMZET_MAAND_CACHE
+    .filter(r => +r.jaar === jaar)
+    .reduce((s, r) => s + (+r.omzet || 0), 0);
+}
+
 // ── Urenrapportage: declarabiliteit / ziekte / marge / overuren / ranking ──
 // Alle hieronder gebruikte cijfers komen uit UREN_KPI_MAAND_CACHE en
 // UREN_KPI_OPDRACHTGEVER_CACHE, gevuld door loadUrenrapportage() vanuit de
@@ -4576,17 +4594,14 @@ function renderFinancieel() {
   const all = FINANCIEEL_CACHE.slice();
   const isManager = CURRENT_USER && CURRENT_USER.rol === 'manager';
 
-  // Som van alle jaren in omzet_historie. Valt terug op omzet_vorig_jaar voor
-  // klanten die nog niet opnieuw gesynchroniseerd zijn met de historie-kolom.
-  const historieTotaal = (r) => {
-    const h = r.omzet_historie && typeof r.omzet_historie === 'object' ? r.omzet_historie : {};
-    const vals = Object.values(h).map(v => +v || 0);
-    return vals.length ? vals.reduce((s, v) => s + v, 0) : (+r.omzet_vorig_jaar || 0);
-  };
+  // Omzet van alleen vorig kalenderjaar (niet de som van alle jaren in
+  // omzet_historie — dat zou meerdere jaren tegelijk optellen en het cijfer
+  // onterecht veel hoger laten uitvallen dan de werkelijke omzet van vorig jaar).
+  const vorigJaarOmzet = (r) => +r.omzet_vorig_jaar || 0;
 
   // Actief = nog omzet dit kalenderjaar. Oud = geen omzet dit jaar (alleen historie van vorig jaar of eerder).
   const actief = all.filter(r => (+r.omzet_ytd || 0) > 0).sort((a, b) => (b.omzet_ytd || 0) - (a.omzet_ytd || 0));
-  const oud = all.filter(r => (+r.omzet_ytd || 0) === 0).sort((a, b) => historieTotaal(b) - historieTotaal(a));
+  const oud = all.filter(r => (+r.omzet_ytd || 0) === 0).sort((a, b) => vorigJaarOmzet(b) - vorigJaarOmzet(a));
   const list = FINANCIEEL_SUBVIEW === 'oud' ? oud : actief;
 
   const lastSync = all.reduce((latest, r) => {
@@ -4655,7 +4670,11 @@ function renderFinancieel() {
         <div class="chart-wrap"><canvas id="chartOmzetBegroting"></canvas></div>
       </div>`;
   } else if (FINANCIEEL_SUBVIEW === 'oud') {
-    const totaalHistorie = list.reduce((s, r) => s + historieTotaal(r), 0);
+    // Headline-totaal toont alleen vorig jaar (niet de som van alle jaren in
+    // omzet_historie) — dat is de omzet die deze verloren klanten in hun
+    // laatste actieve jaar hebben gedraaid. De tabel hieronder laat per klant
+    // nog wel alle jaren uit omzet_historie zien, ter info.
+    const totaalVorigJaar = list.reduce((s, r) => s + vorigJaarOmzet(r), 0);
     const rows = list.map(r => {
       const h = r.omzet_historie && typeof r.omzet_historie === 'object' ? r.omzet_historie : {};
       const jaren = Object.entries(h)
@@ -4673,7 +4692,7 @@ function renderFinancieel() {
     }).join('');
     bodyHtml = `
       <div class="kpi-grid" style="margin-bottom:14px;">
-        <div class="kpi-card"><div class="label">Totaal omzet voorgaande jaren</div><div class="value" style="color:var(--primary);">${fmtEuro(totaalHistorie)}</div></div>
+        <div class="kpi-card"><div class="label">Totaal omzet vorig jaar</div><div class="value" style="color:var(--primary);">${fmtEuro(totaalVorigJaar)}</div></div>
       </div>
       <div class="table-card" style="overflow:visible;">
         <table class="acc-table">
@@ -4789,10 +4808,13 @@ function renderFinancieel() {
       </div>`;
   } else {
     const totals = list.reduce((acc, r) => {
-      acc.ytd += (+r.omzet_ytd || 0);
       acc.vervallen += (+r.vervallen || 0);
       return acc;
-    }, { ytd: 0, vervallen: 0 });
+    }, { vervallen: 0 });
+    // Omzet YTD-kpi komt uit dezelfde brondata als "Werkelijke omzet (hele
+    // jaar)" bij Omzetten vs. begroting (zie computeOmzetActiefYtd hierboven),
+    // niet uit de som van de per-klant omzet_ytd-velden hieronder.
+    totals.ytd = computeOmzetActiefYtd();
 
     const vervallenList = list.filter(r => (+r.vervallen || 0) > 0).sort((a, b) => (b.vervallen || 0) - (a.vervallen || 0));
     // vervallen_facturen is een door moneybird-sync gevulde lijst van
