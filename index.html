@@ -2754,7 +2754,7 @@ function renderKandidaten() {
   const weekSections = weeks.map(wk => {
     const wkCards = allIntakeCards.filter(c => c.week === wk.week && c.jaar === wk.year);
     const cardsHtml = wkCards.length ? wkCards.map(c => {
-      const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : ''].filter(Boolean);
+      const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : ''].filter(Boolean);
       const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
       // Eén totaal aanbiedingen per kandidaatnaam — alle matchende
       // Aanbieden-kaartjes (van iedere BM, elke week) bij elkaar opgeteld en
@@ -2855,7 +2855,7 @@ async function pipeFetchAll() {
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten });
+    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten });
   });
   PIPE_CACHE = next;
 }
@@ -5006,7 +5006,7 @@ function renderPipeline(bm) {
                </select>
              </div>`
           : '';
-        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
+        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" draggable="${editable?'true':'false'}"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
@@ -5112,6 +5112,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-functie').value = '';
   document.getElementById('pipe-modal-si').value = '';
   document.getElementById('pipe-modal-regio').value = '';
+  document.getElementById('pipe-modal-reisbereidheid').value = '';
   document.getElementById('pipe-modal-bezoek-reden').value = '';
   document.getElementById('pipe-modal-bezoek-contactpersoon').value = '';
   document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = '';
@@ -5135,6 +5136,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-functie').value = card.functie || '';
   document.getElementById('pipe-modal-si').value = card.salarisindicatie || '';
   document.getElementById('pipe-modal-regio').value = card.regio || '';
+  document.getElementById('pipe-modal-reisbereidheid').value = card.reisbereidheid || '';
   document.getElementById('pipe-modal-bezoek-reden').value = card.bezoek_reden || '';
   document.getElementById('pipe-modal-bezoek-contactpersoon').value = card.bezoek_contactpersoon || '';
   document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = card.bezoek_contactpersoon_functie || '';
@@ -5159,6 +5161,7 @@ async function pipeConfirmAdd() {
   const functie        = isIntake ? document.getElementById('pipe-modal-functie').value.trim() : undefined;
   const si              = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
   const regio           = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
+  const reisbereidheid  = isIntake ? (document.getElementById('pipe-modal-reisbereidheid').value || null) : undefined;
   const bezoekReden     = isBezoek ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
   const bezoekContact   = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon').value.trim() : undefined;
   const bezoekContactFunctie = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value.trim() : undefined;
@@ -5166,14 +5169,15 @@ async function pipeConfirmAdd() {
   const salaris         = isContract ? document.getElementById('pipe-modal-salaris').value.trim() : undefined;
   const gedeeld         = (isContract || isStarter) ? (document.getElementById('pipe-modal-gedeeld').value === '0.5') : undefined;
 
-  // Verplichte velden bij Intake: naam (al gecontroleerd), functie, salarisindicatie, regio.
+  // Verplichte velden bij Intake: naam (al gecontroleerd), functie, salarisindicatie, regio, reisbereidheid.
   if (isIntake) {
-    const missingField = !functie ? 'pipe-modal-functie' : !si ? 'pipe-modal-si' : !regio ? 'pipe-modal-regio' : null;
+    const missingField = !functie ? 'pipe-modal-functie' : !si ? 'pipe-modal-si' : !regio ? 'pipe-modal-regio' : !reisbereidheid ? 'pipe-modal-reisbereidheid' : null;
     if (missingField) {
       const missingLabels = [];
-      if (!functie) missingLabels.push('Functie');
-      if (!si)      missingLabels.push('Salarisindicatie');
-      if (!regio)   missingLabels.push('Regio');
+      if (!functie)        missingLabels.push('Functie');
+      if (!si)              missingLabels.push('Salarisindicatie');
+      if (!regio)           missingLabels.push('Regio');
+      if (!reisbereidheid)  missingLabels.push('Reisbereidheid');
       alert('Verplicht bij Intake: ' + missingLabels.join(', '));
       document.getElementById(missingField).focus();
       return;
@@ -5215,7 +5219,7 @@ async function pipeConfirmAdd() {
   if (cardId) {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
-    if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; }
+    if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; updatePayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; }
     if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
@@ -5227,7 +5231,7 @@ async function pipeConfirmAdd() {
     const card  = cards.find(c => c.id === cardId);
     if (card) {
       card.naam = naam; card.notitie = notitie;
-      if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; }
+      if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; card.reisbereidheid = reisbereidheid ? +reisbereidheid : null; }
       if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
@@ -5241,7 +5245,7 @@ async function pipeConfirmAdd() {
   // Nieuwe kandidaat toevoegen
   const datum = new Date().toLocaleDateString('nl-NL');
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
-  if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; }
+  if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; insertPayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; }
   if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
@@ -5251,9 +5255,9 @@ async function pipeConfirmAdd() {
       .insert(insertPayload)
       .select().single();
     if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -5321,8 +5325,17 @@ function pipeDelete(bmNaam, cardId) {
       <select id="pipe-modal-regio" style="margin-bottom:10px;">
         <option value="">Regio (kies) *</option>
         <option value="Noord">Noord</option>
+        <option value="NRD-WEERT">NRD-WEERT</option>
+        <option value="NRD-Venlo">NRD-Venlo</option>
         <option value="Midden">Midden</option>
         <option value="Zuid">Zuid</option>
+      </select>
+      <select id="pipe-modal-reisbereidheid" style="margin-bottom:10px;">
+        <option value="">Reisbereidheid (kies) *</option>
+        <option value="15">15 minuten</option>
+        <option value="30">30 minuten</option>
+        <option value="45">45 minuten</option>
+        <option value="60">60 minuten</option>
       </select>
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Intake</p>
     </div>
