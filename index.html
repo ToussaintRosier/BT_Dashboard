@@ -4675,15 +4675,10 @@ function renderFinancieel() {
     // laatste actieve jaar hebben gedraaid. De tabel hieronder laat per klant
     // nog wel alle jaren uit omzet_historie zien, ter info.
     const totaalVorigJaar = list.reduce((s, r) => s + vorigJaarOmzet(r), 0);
+    const huidigJaarOud = new Date().getFullYear();
+    const vorigJaarLabelOud = huidigJaarOud - 1;
     const rows = list.map(r => {
-      const h = r.omzet_historie && typeof r.omzet_historie === 'object' ? r.omzet_historie : {};
-      const jaren = Object.entries(h)
-        .map(([jaar, bedrag]) => [+jaar, +bedrag || 0])
-        .filter(([, bedrag]) => bedrag > 0)
-        .sort((a, b) => b[0] - a[0]);
-      const historieHtml = jaren.length
-        ? jaren.map(([jaar, bedrag]) => `<span style="white-space:nowrap;">${jaar}: ${fmtEuro(bedrag)}</span>`).join(' &nbsp;·&nbsp; ')
-        : (r.omzet_vorig_jaar ? `<span style="white-space:nowrap;">vorig jaar: ${fmtEuro(r.omzet_vorig_jaar)}</span>` : '—');
+      const historieHtml = `<span style="white-space:nowrap;">${vorigJaarLabelOud}: ${fmtEuro(vorigJaarOmzet(r))}</span>`;
       return `<tr>
         <td class="acc-td-left">${escHtml(r.opdrachtgever || '')}</td>
         <td>${historieHtml}</td>
@@ -4698,7 +4693,7 @@ function renderFinancieel() {
         <table class="acc-table">
           <thead><tr>
             <th class="acc-th-left" style="width:260px;min-width:220px;">Opdrachtgever</th>
-            <th>Omzet per jaar</th>
+            <th>Omzet vorig jaar</th>
             <th>Laatst bijgewerkt</th>
           </tr></thead>
           <tbody>${rows || `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px;">Geen oude klanten gevonden.</td></tr>`}</tbody>
