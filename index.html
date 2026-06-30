@@ -165,9 +165,15 @@
   .plan-field textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.85rem; font-family:inherit; resize:vertical; min-height:56px; }
   .plan-field textarea:disabled { background:#f3f4f6; color:#4b5563; }
   .plan-field { margin-bottom:12px; }
-  .cvgen-toolbar { display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap; }
-  .cvgen-toolbtn { font-size:.72rem; padding:4px 9px; border:1px solid var(--border); border-radius:6px; background:#f9fafb; color:var(--text); cursor:pointer; font-family:inherit; }
+  .cvgen-toolbar { display:flex; gap:5px; margin-bottom:6px; flex-wrap:wrap; align-items:center; }
+  .cvgen-toolbtn { font-size:.72rem; padding:4px 9px; border:1px solid var(--border); border-radius:6px; background:#f9fafb; color:var(--text); cursor:pointer; font-family:inherit; line-height:1.3; }
   .cvgen-toolbtn:hover { background:#eef2ff; border-color:var(--primary); }
+  .cvgen-toolbtn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .cvgen-sep { color:var(--border); font-size:.9rem; padding:0 2px; user-select:none; }
+  .cvgen-rte { min-height:80px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.9rem; font-family:inherit; line-height:1.6; color:var(--text); background:var(--card); outline:none; white-space:pre-wrap; word-break:break-word; }
+  .cvgen-rte:focus { border-color:var(--primary); box-shadow:0 0 0 2px rgba(99,102,241,.12); }
+  .cvgen-rte ul { margin:4px 0 4px 18px; padding:0; }
+  .cvgen-rte li { margin:2px 0; }
   .cvgen-dropzone { border:2px dashed var(--border); border-radius:var(--radius,10px); padding:14px; margin-top:10px; text-align:center; font-size:.82rem; color:var(--muted); transition:background .15s,border-color .15s; }
   .cvgen-dropzone-over { background:#eef2ff; border-color:var(--primary); color:var(--text); }
   .plan-ja-nee { display:flex; gap:14px; align-items:center; margin-bottom:8px; font-size:.84rem; }
@@ -3722,37 +3728,53 @@ function cvGenSetNotities(value) { CV_GEN.notities = value; }
 function cvGenSetSuggestie(value) { CV_GEN.suggestie = value; }
 function cvGenSetVeld(key, value) { CV_GEN.velden[key] = value; }
 
-function cvGenToggleBullets(key) {
-  const ta = document.getElementById('cvgen-veld-' + key);
-  if (!ta) return;
-  const start = ta.selectionStart, end = ta.selectionEnd;
-  const value = ta.value;
-  let lineStart = value.lastIndexOf('\n', start - 1) + 1;
-  let lineEnd = value.indexOf('\n', end);
-  if (lineEnd === -1) lineEnd = value.length;
-  const block = value.slice(lineStart, lineEnd);
-  const lines = block.split('\n');
-  const nonEmpty = lines.filter(l => l.trim() !== '');
-  const alreadyBulleted = nonEmpty.length > 0 && nonEmpty.every(l => /^\s*[•\-]\s/.test(l));
-  const newLines = lines.map(l => {
-    if (l.trim() === '') return l;
-    if (alreadyBulleted) return l.replace(/^(\s*)[•\-]\s/, '$1');
-    return /^\s*[•\-]\s/.test(l) ? l : '• ' + l.replace(/^\s+/, '');
+// ── CV-generator rich-text editor helpers ────────────────────────────────────
+// Voert een execCommand uit op de contenteditable editor voor het opgegeven veld.
+function cvGenCmd(key, cmd) {
+  const el = document.getElementById('cvgen-veld-' + key);
+  if (!el) return;
+  el.focus();
+  document.execCommand(cmd, false, null);
+  cvGenSetVeld(key, el.innerHTML);
+  cvGenUpdateToolbar(key);
+}
+
+// Schakelt een bullitpointenlijst aan/uit op de geselecteerde regels.
+function cvGenBullets(key) {
+  const el = document.getElementById('cvgen-veld-' + key);
+  if (!el) return;
+  el.focus();
+  document.execCommand('insertUnorderedList', false, null);
+  cvGenSetVeld(key, el.innerHTML);
+}
+
+// Past de actieve staat (vet/cursief/onderstrepen/doorhalen) van de toolbarknoppen aan
+// op basis van de cursor-positie in de editor.
+function cvGenUpdateToolbar(key) {
+  const el = document.getElementById('cvgen-veld-' + key);
+  if (!el) return;
+  const toolbar = el.previousElementSibling;
+  if (!toolbar || !toolbar.classList.contains('cvgen-toolbar')) return;
+  const cmds = ['bold', 'italic', 'underline', 'strikeThrough'];
+  cmds.forEach(cmd => {
+    const btn = toolbar.querySelector('[data-cmd="' + cmd + '"]');
+    if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
   });
-  const newBlock = newLines.join('\n');
-  const newValue = value.slice(0, lineStart) + newBlock + value.slice(lineEnd);
-  ta.value = newValue;
-  cvGenSetVeld(key, newValue);
-  const delta = newBlock.length - block.length;
-  ta.focus();
-  ta.selectionStart = lineStart;
-  ta.selectionEnd = lineEnd + delta;
+}
+
+// Synct innerHTML naar CV_GEN.velden en updatet de toolbar.
+function cvGenOnInput(key) {
+  const el = document.getElementById('cvgen-veld-' + key);
+  if (!el) return;
+  cvGenSetVeld(key, el.innerHTML);
+  cvGenUpdateToolbar(key);
 }
 
 function cvGenOpschonen(key) {
-  const ta = document.getElementById('cvgen-veld-' + key);
-  if (!ta) return;
-  let text = ta.value;
+  const el = document.getElementById('cvgen-veld-' + key);
+  if (!el) return;
+  // Lees plain text uit (innerText bewaart regeleindes, maar strip HTML-opmaak).
+  let text = (el.innerText || el.textContent || '');
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   text = text.replace(/[\u00A0\u2007\u202F]/g, ' ');
   text = text.replace(/[\u2023\u25E6\u2043\u2219]/g, '•');
@@ -3760,8 +3782,9 @@ function cvGenOpschonen(key) {
   text = text.replace(/\n{3,}/g, '\n\n');
   text = text.replace(/[ \t]{2,}/g, ' ');
   text = text.trim();
-  ta.value = text;
-  cvGenSetVeld(key, text);
+  // Zet terug als plain HTML (escaped, newlines → <br>).
+  el.innerHTML = text.split('\n').map(l => l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br>');
+  cvGenSetVeld(key, el.innerHTML);
 }
 
 async function cvGenGenereerSuggesties() {
@@ -3827,6 +3850,112 @@ function cvGenFillSequentialMultiline(xml, placeholder, values) {
   });
 }
 
+// ── HTML → Word XML helpers (voor rich-text velden in Stap 5) ──────────────
+
+// Parseert HTML (geproduceerd door de contenteditable editor) naar een reeks
+// run-objecten: { text, bold, italic, underline, strike } of { br: true }.
+function cvGenHtmlToWordRuns(html) {
+  const items = [];
+  const addBr = () => { if (items.length && !items[items.length - 1].br) items.push({ br: true }); };
+  function walk(node, b, i, u, s) {
+    if (node.nodeType === 3) {
+      const t = node.textContent;
+      if (t) items.push({ text: t, bold: b, italic: i, underline: u, strike: s });
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    let nb = b, ni = i, nu = u, ns = s;
+    if (tag === 'b' || tag === 'strong') nb = true;
+    if (tag === 'i' || tag === 'em') ni = true;
+    if (tag === 'u') nu = true;
+    if (tag === 's' || tag === 'strike' || tag === 'del') ns = true;
+    if (tag === 'br') { addBr(); return; }
+    if (tag === 'li') {
+      items.push({ text: '• ', bold: nb, italic: ni, underline: nu, strike: ns });
+      for (const child of node.childNodes) walk(child, nb, ni, nu, ns);
+      addBr(); return;
+    }
+    for (const child of node.childNodes) walk(child, nb, ni, nu, ns);
+    if (tag === 'div' || tag === 'p') addBr();
+  }
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  for (const child of doc.body.childNodes) walk(child, false, false, false, false);
+  while (items.length && items[items.length - 1].br) items.pop();
+  return items;
+}
+
+// Converteert een HTML-waarde naar één of meer Word <w:r>-blokken.
+// baseRprInner = de XML-inhoud van de <w:rPr> uit het Word-sjabloon.
+function cvGenHtmlToWordRunsXml(html, baseRprInner) {
+  if (!html) return `<w:r><w:rPr>${baseRprInner}</w:rPr><w:t></w:t></w:r>`;
+  // Platte tekst (geen HTML-tags) → klassieke aanpak.
+  if (!/<[a-zA-Z]/.test(html)) {
+    const regels = html.split(/\r\n|\r|\n/);
+    const content = regels.map(r => `<w:t xml:space="preserve">${cvGenXmlEscape(r)}</w:t>`).join('<w:br/>');
+    return `<w:r><w:rPr>${baseRprInner}</w:rPr>${content}</w:r>`;
+  }
+  const items = cvGenHtmlToWordRuns(html);
+  if (!items.length) return `<w:r><w:rPr>${baseRprInner}</w:rPr><w:t></w:t></w:r>`;
+
+  const makeRpr = (fmt) => {
+    let r = baseRprInner;
+    if (fmt && fmt.bold)      r += '<w:b/><w:bCs/>';
+    if (fmt && fmt.italic)    r += '<w:i/><w:iCs/>';
+    if (fmt && fmt.underline) r += '<w:u w:val="single"/>';
+    if (fmt && fmt.strike)    r += '<w:strike/>';
+    return r;
+  };
+
+  let out = '', buf = [], bufFmt = null;
+  const fmtKey = f => f ? `${+!!f.bold}${+!!f.italic}${+!!f.underline}${+!!f.strike}` : '0000';
+  const flushBuf = () => {
+    if (!buf.length) return;
+    const rpr = makeRpr(bufFmt);
+    out += `<w:r><w:rPr>${rpr}</w:rPr>${buf.map(t => `<w:t xml:space="preserve">${cvGenXmlEscape(t)}</w:t>`).join('')}</w:r>`;
+    buf = []; bufFmt = null;
+  };
+
+  for (const item of items) {
+    if (item.br) {
+      flushBuf();
+      out += `<w:r><w:rPr>${baseRprInner}</w:rPr><w:br/></w:r>`;
+      continue;
+    }
+    const fmt = { bold: !!item.bold, italic: !!item.italic, underline: !!item.underline, strike: !!item.strike };
+    if (fmtKey(fmt) !== fmtKey(bufFmt)) { flushBuf(); bufFmt = fmt; }
+    buf.push(item.text);
+  }
+  flushBuf();
+  return out || `<w:r><w:rPr>${baseRprInner}</w:rPr><w:t></w:t></w:r>`;
+}
+
+// HTML-bewuste vervanging van [placeholder] in Word-XML.
+// Zoekt de omringende <w:r>…</w:r> op om de basis-rPr te achterhalen,
+// en vervangt het volledige run-blok door (meerdere) opgemaakte runs.
+function cvGenFillSequentialMultilineHtml(xml, placeholder, htmlValues) {
+  let i = 0, result = xml;
+  while (true) {
+    const pIdx = result.indexOf(placeholder);
+    if (pIdx === -1 || i >= htmlValues.length) break;
+    const html = String(htmlValues[i++] || '');
+    const runStart = result.lastIndexOf('<w:r', pIdx);
+    const runEnd   = result.indexOf('</w:r>', pIdx);
+    if (runStart === -1 || runEnd === -1) {
+      // Geen run gevonden: simpele tekst-vervanging als fallback.
+      result = result.slice(0, pIdx) + cvGenXmlEscape(html) + result.slice(pIdx + placeholder.length);
+      continue;
+    }
+    const runContent = result.slice(runStart, runEnd + 6);
+    const rprMatch = runContent.match(/<w:rPr>([\s\S]*?)<\/w:rPr>/);
+    const baseRprInner = rprMatch ? rprMatch[1] : '';
+    const replacement = cvGenHtmlToWordRunsXml(html, baseRprInner);
+    result = result.slice(0, runStart) + replacement + result.slice(runEnd + 6);
+  }
+  return result;
+}
+
 // Voegt een nieuwe tekst-run toe direct na het label (bv. "Naam") binnen
 // dezelfde alinea — vlak voor de afsluitende </w:p>. Robuust tegen de exacte
 // opmaak/tabs achter het label, omdat we alleen op de <w:t>Label</w:t> zoeken.
@@ -3861,7 +3990,9 @@ async function cvGenDownloadWoordCv() {
     // reeks van 5 placeholders in document-volgorde. Allemaal via de
     // multiline-variant (ook voor Beschikbaarheid is dat onschadelijk) zodat
     // regeleinden/bullitpoints zoals zelf geplakt behouden blijven.
-    xml = cvGenFillSequentialMultiline(xml, '[Door medewerker zelf in te voeren]', [
+    // Gebruik de HTML-bewuste variant zodat vet/cursief/onderstreept uit de
+    // rich-text editor ook in het Word-document terechtkomen.
+    xml = cvGenFillSequentialMultilineHtml(xml, '[Door medewerker zelf in te voeren]', [
       CV_GEN.velden.beschikbaarheid, CV_GEN.velden.opleiding, CV_GEN.velden.werkgevers, CV_GEN.velden.talen, CV_GEN.velden.hobbys,
     ]);
     xml = cvGenInsertAfterLabel(xml, 'Naam', CV_GEN.velden.naam);
@@ -3905,12 +4036,36 @@ function cvGenNieuwCv() {
 function renderCvGenerator() {
   const v = CV_GEN.velden;
   const kleinField = (label, key) => `<div class="plan-field"><div class="plan-field-title">${escHtml(label)}</div><input type="text" class="acc-text-input" value="${escHtml(v[key]||'')}" onchange="cvGenSetVeld('${key}', this.value)"></div>`;
-  const breedField = (label, key, rows) => `<div class="plan-field"><div class="plan-field-title">${escHtml(label)}</div>
-    <div class="cvgen-toolbar">
-      <button type="button" class="cvgen-toolbtn" onclick="cvGenToggleBullets('${key}')" title="Bullitpoints toevoegen/verwijderen op geselecteerde regels">• Bullitpoints</button>
-      <button type="button" class="cvgen-toolbtn" onclick="cvGenOpschonen('${key}')" title="Opmaak uit geplakte tekst verwijderen (witruimte, lege regels, rare tekens)">🧹 Opmaak opschonen</button>
+  // Converteert een opgeslagen waarde (plain tekst of HTML) naar veilige HTML voor de editor.
+  const toEditorHtml = (val) => {
+    if (!val) return '';
+    // Als de waarde al HTML-tags bevat (rich-text opgeslagen): gebruik as-is.
+    if (/<[a-zA-Z]/.test(val)) return val;
+    // Platte tekst: escapen en newlines → <br>.
+    return val.split('\n').map(l => l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br>');
+  };
+  const breedField = (label, key, rows) => {
+    const minH = Math.max(60, rows * 22);
+    const html = toEditorHtml(v[key] || '');
+    return `<div class="plan-field"><div class="plan-field-title">${escHtml(label)}</div>
+    <div class="cvgen-toolbar" id="cvgen-tb-${key}">
+      <button type="button" class="cvgen-toolbtn cvgen-fmt-btn" data-cmd="bold"         onmousedown="event.preventDefault();cvGenCmd('${key}','bold')"         title="Vet (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="cvgen-toolbtn cvgen-fmt-btn" data-cmd="italic"       onmousedown="event.preventDefault();cvGenCmd('${key}','italic')"       title="Cursief (Ctrl+I)"><i>I</i></button>
+      <button type="button" class="cvgen-toolbtn cvgen-fmt-btn" data-cmd="underline"    onmousedown="event.preventDefault();cvGenCmd('${key}','underline')"    title="Onderstrepen (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="cvgen-toolbtn cvgen-fmt-btn" data-cmd="strikeThrough" onmousedown="event.preventDefault();cvGenCmd('${key}','strikeThrough')" title="Doorhalen"><s>D</s></button>
+      <span class="cvgen-sep">|</span>
+      <button type="button" class="cvgen-toolbtn" onmousedown="event.preventDefault();cvGenCmd('${key}','removeFormat')" title="Opmaak wissen">✕ wis</button>
+      <span class="cvgen-sep">|</span>
+      <button type="button" class="cvgen-toolbtn" onmousedown="event.preventDefault();cvGenBullets('${key}')" title="Bullitpoints">• Bullets</button>
+      <button type="button" class="cvgen-toolbtn" onmousedown="event.preventDefault();cvGenOpschonen('${key}')" title="Opmaak opschonen — verwijdert ook HTML-opmaak">🧹</button>
     </div>
-    <textarea id="cvgen-veld-${key}" rows="${rows}" placeholder="Plak hier gerust tekst met meerdere regels of bullitpoints — de opmaak blijft behouden in het Word-CV." onchange="cvGenSetVeld('${key}', this.value)">${escHtml(v[key]||'')}</textarea></div>`;
+    <div class="cvgen-rte" id="cvgen-veld-${key}" contenteditable="true"
+      style="min-height:${minH}px"
+      oninput="cvGenOnInput('${key}')"
+      onkeyup="cvGenUpdateToolbar('${key}')"
+      onmouseup="cvGenUpdateToolbar('${key}')"
+      onkeydown="cvGenUpdateToolbar('${key}')">${html}</div></div>`;
+  };
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
