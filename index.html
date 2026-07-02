@@ -4139,6 +4139,7 @@ function renderCvGenerator() {
 // ── Plaatsingsadvies (salesnavigator: zoek vacatures voor kandidaat) ──────────
 let PLAATSING = {
   functietitel: '', regio: 'Limburg en Noord-Brabant', vakgebied: '', cvTekst: '',
+  cvFileName: '', cvBusyExtract: false,
   busySearch: false, statusMsg: '', resultaten: [],
 };
 
@@ -4208,8 +4209,26 @@ function renderPlaatsing() {
           oninput="PLAATSING.vakgebied=this.value">
       </div>
       <div class="plan-field" style="margin-top:8px;">
-        <div class="plan-field-title">CV-tekst of kandidaatprofiel (optioneel — verbetert de matching)</div>
-        <textarea rows="4" placeholder="Plak hier (een deel van) het CV of een korte omschrijving van de kandidaat."
+        <div class="plan-field-title">CV importeren (optioneel — verbetert de matching)</div>
+        <div class="cvgen-dropzone" style="margin-bottom:8px;padding:12px 14px;"
+          ondragover="event.preventDefault();event.currentTarget.classList.add('cvgen-dropzone-over')"
+          ondragleave="event.currentTarget.classList.remove('cvgen-dropzone-over')"
+          ondrop="event.preventDefault();event.currentTarget.classList.remove('cvgen-dropzone-over');const f=event.dataTransfer&&event.dataTransfer.files&&event.dataTransfer.files[0];if(f)plaatsingProcessFile(f)">
+          <input type="file" id="plaatsing-cv-input" accept=".pdf,.docx" style="display:none"
+            onchange="if(this.files[0])plaatsingProcessFile(this.files[0])">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="proj-save-btn" style="font-size:.78rem;padding:5px 12px;"
+              onclick="document.getElementById('plaatsing-cv-input').click()">
+              📎 CV kiezen (PDF of Word)
+            </button>
+            <span style="font-size:.78rem;color:var(--muted);">
+              ${p.cvBusyExtract ? '⏳ Bezig met inlezen…'
+                : p.cvFileName ? `✅ ${escHtml(p.cvFileName)} (${p.cvTekst.length} tekens)`
+                : 'of sleep een .pdf of .docx hierheen'}
+            </span>
+          </div>
+        </div>
+        <textarea rows="4" placeholder="CV-tekst verschijnt hier na import — of plak zelf een samenvatting."
           oninput="PLAATSING.cvTekst=this.value">${escHtml(p.cvTekst)}</textarea>
       </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -4223,6 +4242,45 @@ function renderPlaatsing() {
 
     ${resultatenHtml}
   </div>`;
+}
+
+async function plaatsingProcessFile(file) {
+  PLAATSING.cvBusyExtract = true;
+  PLAATSING.cvFileName = file.name;
+  PLAATSING.cvTekst = '';
+  renderPlaatsing();
+  try {
+    const naamLower = file.name.toLowerCase();
+    let text = '';
+    if (naamLower.endsWith('.docx')) {
+      const buf = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      text = result.value || '';
+    } else if (naamLower.endsWith('.pdf')) {
+      const buf = await file.arrayBuffer();
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      const parts = [];
+      for (let pg = 1; pg <= pdf.numPages; pg++) {
+        const page = await pdf.getPage(pg);
+        const content = await page.getTextContent();
+        parts.push(content.items.map(it => it.str).join(' '));
+      }
+      text = parts.join('\n\n');
+    } else {
+      PLAATSING.statusMsg = '❌ Alleen .pdf- of .docx-bestanden worden ondersteund.';
+      PLAATSING.cvBusyExtract = false;
+      renderPlaatsing();
+      return;
+    }
+    PLAATSING.cvTekst = text.trim();
+    if (!PLAATSING.cvTekst) PLAATSING.statusMsg = '⚠️ Geen tekst gevonden in dit bestand — vul zelf tekst in.';
+  } catch (e) {
+    PLAATSING.statusMsg = `❌ CV inlezen mislukt: ${escHtml(String(e?.message || e))}`;
+  } finally {
+    PLAATSING.cvBusyExtract = false;
+    renderPlaatsing();
+  }
 }
 
 async function plaatsingZoeken() {
