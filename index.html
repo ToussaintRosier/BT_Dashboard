@@ -697,6 +697,9 @@ function renderTabs() {
       </div>
       <div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='cvgen'?'active-cat':''}" onclick="selectTab('cvgen')"><span>📄 CV-generator</span></button>
+      </div>
+      <div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab==='plaatsing'?'active-cat':''}" onclick="selectTab('plaatsing')"><span>🎯 Plaatsingsadvies</span></button>
       </div>`;
     return;
   }
@@ -734,6 +737,9 @@ function renderTabs() {
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='cvgen'?'active-cat':''}" onclick="selectTab('cvgen')"><span>📄 CV-generator</span></button>
+    </div>
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab==='plaatsing'?'active-cat':''}" onclick="selectTab('plaatsing')"><span>🎯 Plaatsingsadvies</span></button>
     </div>`;
 }
 
@@ -1245,6 +1251,7 @@ function render() {
   }
   if (currentTab === 'kandidaten') { renderKandidaten(); return; }
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
+  if (currentTab === 'plaatsing') { renderPlaatsing(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
   else if (currentTab === BMS.length) renderTeam();
@@ -4129,6 +4136,141 @@ function renderCvGenerator() {
     </div>
   </div>`;
 }
+// ── Plaatsingsadvies (salesnavigator: zoek vacatures voor kandidaat) ──────────
+let PLAATSING = {
+  functietitel: '', regio: 'Limburg en Noord-Brabant', vakgebied: '', cvTekst: '',
+  busySearch: false, statusMsg: '', resultaten: [],
+};
+
+function renderPlaatsing() {
+  const p = PLAATSING;
+
+  const resultatenHtml = p.resultaten.length === 0 ? '' : `
+    <div style="margin-top:18px;">
+      <div class="plan-field-title" style="font-size:.88rem;margin-bottom:10px;">
+        ${p.resultaten.length} bedrijven gevonden die zoeken naar dit profiel
+      </div>
+      ${p.resultaten.map((r, i) => `
+        <div class="table-card" style="padding:14px 16px;margin-bottom:10px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:var(--text);">${escHtml(r.bedrijf || '—')}</div>
+              <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;">
+                <span class="meta-pill" style="background:#eef2ff;color:var(--primary);">${escHtml(r.titel || '')}</span>
+                ${r.locatie ? `<span class="meta-pill">📍 ${escHtml(r.locatie)}</span>` : ''}
+              </div>
+            </div>
+            ${r.url ? `<a href="${escHtml(r.url)}" target="_blank" rel="noopener" class="proj-save-btn" style="font-size:.78rem;padding:5px 12px;white-space:nowrap;">🔗 Bekijk vacature</a>` : ''}
+          </div>
+          ${r.matchReden ? `<div style="margin-top:8px;font-size:.85rem;color:var(--muted);line-height:1.5;">${escHtml(r.matchReden)}</div>` : ''}
+          ${r.contact ? `<div style="margin-top:6px;font-size:.82rem;"><strong>👤 Contactpersoon:</strong> ${r.contactUrl
+            ? `<a href="${escHtml(r.contactUrl)}" target="_blank" rel="noopener" style="color:var(--primary);">${escHtml(r.contact)}</a>`
+            : escHtml(r.contact)}</div>` : ''}
+          ${r.zoekLinks && r.zoekLinks.length ? `
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+              ${r.zoekLinks.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener" style="font-size:.75rem;color:var(--primary);text-decoration:underline;">${escHtml(l.label)}</a>`).join('')}
+            </div>` : ''}
+        </div>`).join('')}
+    </div>`;
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">🎯 Plaatsingsadvies</div>
+      <div class="person-meta">
+        <span class="meta-pill">Zoek bedrijven die actief werven voor dit kandidaatprofiel</span>
+      </div>
+    </div>
+    <div class="info-box blue">ℹ️ Vul het kandidaatprofiel in en klik op "Zoek vacatures". Claude zoekt live op Nederlandse jobboards (Indeed, Werken.nl, Jobbird, limburgvac.nl e.a.) en geeft een lijst van bedrijven die actief werven voor dit profiel — inclusief vacaturelinks en contactpersonen.</div>
+
+    <div class="table-card" style="padding:16px;margin-bottom:14px;">
+      <div class="plan-field-title" style="font-size:.9rem;margin-bottom:12px;">Kandidaatprofiel</div>
+      <div class="plan-grid">
+        <div class="plan-field">
+          <div class="plan-field-title">Gewenste functietitel *</div>
+          <input type="text" class="acc-text-input" placeholder="bijv. Verpleegkundige, Technisch Tekenaar, HR-adviseur…"
+            value="${escHtml(p.functietitel)}"
+            oninput="PLAATSING.functietitel=this.value">
+        </div>
+        <div class="plan-field">
+          <div class="plan-field-title">Regio</div>
+          <select class="acc-text-input" onchange="PLAATSING.regio=this.value">
+            <option value="Limburg" ${p.regio==='Limburg'?'selected':''}>Limburg</option>
+            <option value="Noord-Brabant" ${p.regio==='Noord-Brabant'?'selected':''}>Noord-Brabant</option>
+            <option value="Limburg en Noord-Brabant" ${p.regio==='Limburg en Noord-Brabant'?'selected':''}>Limburg + Noord-Brabant</option>
+            <option value="heel Nederland" ${p.regio==='heel Nederland'?'selected':''}>Heel Nederland</option>
+          </select>
+        </div>
+      </div>
+      <div class="plan-field" style="margin-top:8px;">
+        <div class="plan-field-title">Vakgebied / sector</div>
+        <input type="text" class="acc-text-input" placeholder="bijv. Zorg, Techniek, Logistiek, Finance, IT…"
+          value="${escHtml(p.vakgebied)}"
+          oninput="PLAATSING.vakgebied=this.value">
+      </div>
+      <div class="plan-field" style="margin-top:8px;">
+        <div class="plan-field-title">CV-tekst of kandidaatprofiel (optioneel — verbetert de matching)</div>
+        <textarea rows="4" placeholder="Plak hier (een deel van) het CV of een korte omschrijving van de kandidaat."
+          oninput="PLAATSING.cvTekst=this.value">${escHtml(p.cvTekst)}</textarea>
+      </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button class="proj-save-btn" onclick="plaatsingZoeken()" ${p.busySearch?'disabled':''}>
+          ${p.busySearch?'⏳ Zoeken…':'🔍 Zoek vacatures'}
+        </button>
+        ${p.resultaten.length ? `<button class="proj-save-btn" style="background:#6b7280;" onclick="PLAATSING.resultaten=[];PLAATSING.statusMsg='';renderPlaatsing()">✕ Wis resultaten</button>` : ''}
+      </div>
+      ${p.statusMsg ? `<div style="margin-top:10px;font-size:.85rem;">${p.statusMsg}</div>` : ''}
+    </div>
+
+    ${resultatenHtml}
+  </div>`;
+}
+
+async function plaatsingZoeken() {
+  if (!PLAATSING.functietitel.trim()) {
+    PLAATSING.statusMsg = '⚠️ Vul minimaal een functietitel in.';
+    renderPlaatsing(); return;
+  }
+  if (!supa) {
+    PLAATSING.statusMsg = '❌ Geen verbinding met de database/AI-koppeling beschikbaar.';
+    renderPlaatsing(); return;
+  }
+  PLAATSING.busySearch = true;
+  PLAATSING.statusMsg = '⏳ Claude zoekt vacatures op jobboards — dit duurt ca. 15-30 seconden…';
+  PLAATSING.resultaten = [];
+  renderPlaatsing();
+  try {
+    const { data, error } = await supa.functions.invoke('plaatsingsadvies', {
+      body: {
+        functietitel: PLAATSING.functietitel,
+        regio: PLAATSING.regio,
+        vakgebied: PLAATSING.vakgebied,
+        cvTekst: PLAATSING.cvTekst,
+      },
+    });
+    const fout = error ? error.message : (data && data.error);
+    if (fout) {
+      // Probeer echte foutmelding uit de edge-function body te lezen (zelfde patroon als moneybird-sync)
+      let msg = fout;
+      if (error && error.context && typeof error.context.clone === 'function') {
+        try { const b = await error.context.clone().json(); if (b && b.error) msg = b.error; } catch (_) { /* ignore */ }
+      }
+      PLAATSING.statusMsg = `<span style="color:var(--danger);">❌ Zoeken mislukt: ${escHtml(msg)}</span>`;
+      return;
+    }
+    PLAATSING.resultaten = (data && data.resultaten) || [];
+    if (PLAATSING.resultaten.length === 0) {
+      PLAATSING.statusMsg = '⚠️ Geen resultaten gevonden. Probeer een andere functietitel of regio.';
+    } else {
+      PLAATSING.statusMsg = `✅ ${PLAATSING.resultaten.length} bedrijven gevonden om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
+    }
+  } catch (e) {
+    PLAATSING.statusMsg = `<span style="color:var(--danger);">❌ Zoeken mislukt: ${escHtml(String(e?.message || e))}</span>`;
+  } finally {
+    PLAATSING.busySearch = false;
+    renderPlaatsing();
+  }
+}
+
 // ── Financieel (omzet per opdrachtgever, gevuld via Moneybird-sync) ──────────
 function fmtEuro(n) {
   return '€ ' + (+n || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
