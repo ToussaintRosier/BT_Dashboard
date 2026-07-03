@@ -707,6 +707,9 @@ function renderTabs() {
       </div>
       <div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='plaatsing'?'active-cat':''}" onclick="selectTab('plaatsing')"><span>🎯 Matchmaker</span></button>
+      </div>
+      <div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab==='gesprek'?'active-cat':''}" onclick="selectTab('gesprek')"><span>🎙️ Recorder</span></button>
       </div>`;
     return;
   }
@@ -749,6 +752,9 @@ function renderTabs() {
     </div>
     <div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='plaatsing'?'active-cat':''}" onclick="selectTab('plaatsing')"><span>🎯 Matchmaker</span></button>
+    </div>
+    <div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab==='gesprek'?'active-cat':''}" onclick="selectTab('gesprek')"><span>🎙️ Recorder</span></button>
     </div>`;
 }
 
@@ -1271,6 +1277,7 @@ function render() {
   if (currentTab === 'kandidaten') { renderKandidaten(); return; }
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
   if (currentTab === 'plaatsing') { renderPlaatsing(); return; }
+  if (currentTab === 'gesprek') { renderGesprek(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
   else if (currentTab === BMS.length) renderTeam();
@@ -4191,7 +4198,206 @@ function renderCvGenerator() {
     </div>
   </div>`;
 }
+// ── Gesprek (sollicitatiegesprek opnemen + analyseren via Claude) ─────────────
+
+let gesprekRecognition = null;
+
+function gesprekStart() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    GESPREK.statusMsg = '⚠️ Web Speech API wordt niet ondersteund in deze browser. Gebruik Chrome.';
+    renderGesprek(); return;
+  }
+  GESPREK.recording = true;
+  GESPREK.statusMsg = '🔴 Opname bezig… spreek duidelijk in de microfoon.';
+  GESPREK.result = null;
+  renderGesprek();
+
+  const r = new SpeechRecognition();
+  r.lang = 'nl-NL';
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  gesprekRecognition = r;
+
+  let interim = '';
+
+  r.onresult = (e) => {
+    let newFinal = '';
+    interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) newFinal += e.results[i][0].transcript + ' ';
+      else interim += e.results[i][0].transcript;
+    }
+    if (newFinal) GESPREK.transcript += newFinal;
+    const el = document.getElementById('gesprek-transcript');
+    if (el) { el.value = GESPREK.transcript + (interim ? '[…' + interim + '…]' : ''); el.scrollTop = el.scrollHeight; }
+  };
+
+  r.onerror = (e) => {
+    if (e.error === 'not-allowed') {
+      GESPREK.statusMsg = '⚠️ Microfoontoegang geweigerd. Sta microfoon toe in de browser.';
+      GESPREK.recording = false; renderGesprek();
+    }
+  };
+
+  r.onend = () => {
+    if (GESPREK.recording) r.start(); // herstart bij stilte
+  };
+
+  r.start();
+}
+
+function gesprekStop() {
+  GESPREK.recording = false;
+  GESPREK.statusMsg = GESPREK.transcript.trim()
+    ? '✅ Opname gestopt. Klik op "Analyseer" om het gesprek te analyseren.'
+    : '⚠️ Opname gestopt — geen tekst ontvangen. Probeer opnieuw.';
+  if (gesprekRecognition) { try { gesprekRecognition.stop(); } catch(e){} gesprekRecognition = null; }
+  renderGesprek();
+}
+
+function gesprekReset() {
+  gesprekStop();
+  GESPREK = { naam:'', functie:'', transcript:'', recording:false, analyzing:false, statusMsg:'', result:null };
+  renderGesprek();
+}
+
+async function gesprekAnalyseer() {
+  const transcript = GESPREK.transcript.trim();
+  if (!transcript) { GESPREK.statusMsg = '⚠️ Geen transcriptie beschikbaar. Start eerst een opname.'; renderGesprek(); return; }
+  GESPREK.analyzing = true;
+  GESPREK.statusMsg = '⏳ Claude analyseert het gesprek…';
+  GESPREK.result = null;
+  renderGesprek();
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', ...(authHeader ? {'Authorization':'Bearer '+authHeader} : {}) },
+      body: JSON.stringify({ naam: GESPREK.naam, functie: GESPREK.functie, transcript }),
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    GESPREK.result = json;
+    GESPREK.statusMsg = '✅ Analyse klaar!';
+  } catch(err) {
+    GESPREK.statusMsg = '⚠️ Fout: ' + err.message;
+  }
+  GESPREK.analyzing = false;
+  renderGesprek();
+}
+
+function gesprekKopieer() {
+  const r = GESPREK.result;
+  if (!r) return;
+  const p = r.profiel || {};
+  const lines = [
+    '=== SOLLICITATIEGESPREK ===',
+    r.samenvatting || '',
+    '',
+    '--- KANDIDAATPROFIEL ---',
+    p.naam        ? 'Naam: '         + p.naam        : '',
+    p.functie     ? 'Functie: '      + p.functie     : '',
+    p.motivatie   ? 'Motivatie: '    + p.motivatie   : '',
+    p.ervaring    ? 'Ervaring: '     + p.ervaring    : '',
+    p.sterkePunten   ? 'Sterke punten: '   + p.sterkePunten   : '',
+    p.aandachtspunten ? 'Aandachtspunten: ' + p.aandachtspunten : '',
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(lines).then(() => {
+    GESPREK.statusMsg = '📋 Gekopieerd naar klembord!'; renderGesprek();
+    setTimeout(() => { GESPREK.statusMsg = '✅ Analyse klaar!'; renderGesprek(); }, 2000);
+  });
+}
+
+function renderGesprek() {
+  const g = GESPREK;
+  const r = g.result;
+  const profiel = r ? (r.profiel || {}) : {};
+
+  const resultHtml = r ? `
+    <div class="two-col" style="margin-top:18px;gap:16px;">
+      <div class="chart-card">
+        <h3 style="margin-bottom:10px;">📝 Samenvatting</h3>
+        <p style="line-height:1.7;white-space:pre-wrap;">${escHtml(r.samenvatting || '')}</p>
+      </div>
+      <div class="chart-card">
+        <h3 style="margin-bottom:10px;">👤 Kandidaatprofiel</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:.87rem;">
+          ${[
+            ['Naam',            profiel.naam],
+            ['Functie',         profiel.functie],
+            ['Motivatie',       profiel.motivatie],
+            ['Ervaring',        profiel.ervaring],
+            ['Sterke punten',   profiel.sterkePunten],
+            ['Aandachtspunten', profiel.aandachtspunten],
+          ].filter(([,v]) => v).map(([k,v]) => `<tr>
+            <td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:5px 10px 5px 0;vertical-align:top;">${escHtml(k)}</td>
+            <td style="padding:5px 0;line-height:1.55;">${escHtml(v)}</td>
+          </tr>`).join('')}
+        </table>
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="proj-save-btn" onclick="gesprekKopieer()">📋 Kopieer naar klembord (voor CRM)</button>
+    </div>` : '';
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">🎙️ Recorder</div>
+      <div class="person-meta">
+        <span class="meta-pill">Sollicitatiegesprek transcriberen &amp; analyseren</span>
+      </div>
+    </div>
+    <div class="info-box blue">ℹ️ Werkt alleen in <strong>Chrome</strong>. Audio wordt via Google verwerkt voor spraakherkenning — informeer kandidaten dat het gesprek wordt getranscribeerd. Klik op Start, stel je vraag en spreek duidelijk. Daarna analyseert Claude de inhoud.</div>
+
+    <div class="chart-card" style="margin-bottom:14px;">
+      <div class="two-col" style="gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Naam kandidaat</label>
+          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Jan de Vries"
+            value="${escHtml(g.naam)}" oninput="GESPREK.naam=this.value">
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Functie waarop gesolliciteerd</label>
+          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Monteur, HR-adviseur…"
+            value="${escHtml(g.functie)}" oninput="GESPREK.functie=this.value">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        ${!g.recording
+          ? `<button class="proj-save-btn" style="background:#dc2626;border-color:#dc2626;font-size:1rem;padding:10px 22px;"
+               onclick="gesprekStart()">🎙️ Start opname</button>`
+          : `<button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:1rem;padding:10px 22px;"
+               onclick="gesprekStop()">⏹ Stop opname</button>`}
+        ${!g.recording && g.transcript
+          ? `<button class="proj-save-btn" onclick="gesprekAnalyseer()" ${g.analyzing?'disabled':''}>
+               ${g.analyzing ? '⏳ Bezig…' : '✨ Analyseer gesprek'}</button>
+             <button class="btn-secondary" onclick="gesprekReset()">↺ Nieuw gesprek</button>`
+          : ''}
+        ${g.statusMsg ? `<span style="font-size:.85rem;color:var(--muted);">${escHtml(g.statusMsg)}</span>` : ''}
+      </div>
+
+      <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">
+        Transcriptie ${g.recording ? '<span style="color:#dc2626;animation:pulse 1s infinite;">● LIVE</span>' : ''}
+      </label>
+      <textarea id="gesprek-transcript" readonly
+        style="width:100%;min-height:220px;font-size:.84rem;line-height:1.65;border:1px solid var(--border);border-radius:8px;padding:10px;background:#f8faff;color:var(--text);resize:vertical;font-family:inherit;"
+        placeholder="De transcriptie verschijnt hier zodra je begint met spreken…">${escHtml(g.transcript)}</textarea>
+    </div>
+
+    ${resultHtml}
+  </div>`;
+}
+
 // ── Plaatsingsadvies (salesnavigator: zoek vacatures voor kandidaat) ──────────
+let GESPREK = {
+  naam: '', functie: '', transcript: '',
+  recording: false, analyzing: false,
+  statusMsg: '', result: null,
+};
+
 let PLAATSING = {
   functietitels: [''], operator: 'OR',
   regio: 'Limburg en Noord-Brabant', vakgebied: '', cvTekst: '',
