@@ -2627,7 +2627,7 @@ function renderPrognose() {
     ${!canEditProj ? '<div class="info-box blue">ℹ️ Alleen-lezen overzicht — wijzigingen (import, goedkeuring, datums) kunnen alleen Yoël en Toussaint doorvoeren.</div>' : ''}
 
     <!-- Gap analyse -->
-    <div class="section-title">Gapanalyse</div>
+    <div class="section-title">Gap-Analyse</div>
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="kpi-card">
         <div class="label">YTD gerealiseerd</div>
@@ -3111,9 +3111,9 @@ function renderAccounts() {
   // eigen CSS-klasse. De knoppenrij wordt doorgegeven aan render*Html() en
   // dáar ONDER de gele person-header geplaatst (net als bij Financieel) —
   // niet ervoor, anders staat hij in de donkere strook boven de pagina.
-  const subTabBtn = (key, label) => `<button class="btn-secondary" style="${ACCOUNT_SUBTAB===key?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="accSelectSubTab('${key}')">${label}</button>`;
+  const subTabBtn = (key, label) => `<button class="bm-subtab-btn ${ACCOUNT_SUBTAB===key?'active':''}" onclick="accSelectSubTab('${key}')">${label}</button>`;
   const subTabBtns = `
-    <div class="acc-toolbar">
+    <div class="bm-subtabs">
       ${subTabBtn('sales', '📡 RLDV')}
       ${subTabBtn('strategisch', '🎯 Key Accountmanagement (KAM)')}
     </div>`;
@@ -5042,7 +5042,7 @@ function renderFinancieel() {
     ? `<button class="proj-save-btn" onclick="syncMoneybird()" ${FINANCIEEL_SYNC_BUSY?'disabled':''}>🔄 Vernieuwen vanuit Moneybird</button>`
     : '';
 
-  const subTabBtn = (key, label) => `<button class="btn-secondary" style="${FINANCIEEL_SUBVIEW===key?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="selectFinancieelSubview('${key}')">${label}</button>`;
+  const subTabBtn = (key, label) => `<button class="bm-subtab-btn ${FINANCIEEL_SUBVIEW===key?'active':''}" onclick="selectFinancieelSubview('${key}')">${label}</button>`;
 
   let bodyHtml;
   if (FINANCIEEL_SUBVIEW === 'begroting') {
@@ -5317,7 +5317,7 @@ function renderFinancieel() {
       <span id="financieel-sync-status" style="font-size:.82rem;color:var(--muted);">${FINANCIEEL_SYNC_MSG}</span>
       <span id="urenrapportage-sync-status" style="font-size:.82rem;color:var(--muted);">${UREN_SYNC_MSG}</span>
     </div>
-    <div class="acc-toolbar">
+    <div class="bm-subtabs" style="flex-wrap:wrap;">
       ${subTabBtn('actief', `Actieve klanten (${actief.length})`)}
       ${subTabBtn('oud', `Oude klanten (${oud.length})`)}
       ${subTabBtn('begroting', `Omzetten vs. begroting`)}
@@ -5414,14 +5414,13 @@ function renderPipeline(bm) {
       const cellCount = isAanb ? cellCards.reduce((s,c) => s + (+c.aanb || 0), 0) : cellCards.length;
 
       const cardsHtml = cellCards.map(c => {
-        const aanbHtml = isAanb
-          ? `<div class="card-aanb-row">
-               <span class="card-aanb-label">Aanbod:</span>
-               <input class="card-aanb-input" type="number" min="0" max="99" value="${c.aanb||0}"
-                 onchange="pipeUpdateAanb('${bmE}','${c.id}',this.value)"
-                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" ${editable?'':'disabled'}/>
-             </div>`
+        const aanbInlineHtml = isAanb
+          ? `<input class="card-aanb-input" type="number" min="0" max="99" value="${c.aanb||0}"
+               onchange="pipeUpdateAanb('${bmE}','${c.id}',this.value)"
+               onclick="event.stopPropagation()" ondragstart="event.stopPropagation()"
+               style="width:28px;margin-right:2px;" ${editable?'':'disabled readonly'}/>`
           : '';
+        const aanbHtml = '';
         const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
         const gesprekHtml = isMatch
           ? `<div class="card-aanb-row">
@@ -5438,7 +5437,7 @@ function renderPipeline(bm) {
         return `<div class="pipe-card" draggable="${editable?'true':'false'}"
           ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
           ondragend="pipeDragEnd(event)">
-          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${editable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
+          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${aanbInlineHtml}${editable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
           ${metaHtml}
           ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
           ${gesprekHtml}
