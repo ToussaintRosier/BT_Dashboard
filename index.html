@@ -4176,7 +4176,8 @@ function renderCvGenerator() {
 }
 // ── Plaatsingsadvies (salesnavigator: zoek vacatures voor kandidaat) ──────────
 let PLAATSING = {
-  functietitel: '', regio: 'Limburg en Noord-Brabant', vakgebied: '', cvTekst: '',
+  functietitels: [''], operator: 'OR',
+  regio: 'Limburg en Noord-Brabant', vakgebied: '', cvTekst: '',
   cvFileName: '', cvBusyExtract: false,
   busySearch: false, statusMsg: '', resultaten: [],
 };
@@ -4225,10 +4226,24 @@ function renderPlaatsing() {
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:12px;">Kandidaatprofiel</div>
       <div class="plan-grid">
         <div class="plan-field">
-          <div class="plan-field-title">Gewenste functietitel *</div>
-          <input type="text" class="acc-text-input" placeholder="bijv. Verpleegkundige, Technisch Tekenaar, HR-adviseur…"
-            value="${escHtml(p.functietitel)}"
-            oninput="PLAATSING.functietitel=this.value">
+          <div class="plan-field-title">Gewenste functietitel(s) *</div>
+          ${p.functietitels.map((t, i) => `
+            <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+              <input type="text" class="acc-text-input" style="flex:1;"
+                placeholder="${i===0?'bijv. Monteur, Verpleegkundige, HR-adviseur…':'Nog een functietitel toevoegen…'}"
+                value="${escHtml(t)}"
+                oninput="PLAATSING.functietitels[${i}]=this.value">
+              ${p.functietitels.length > 1 ? `<button class="proj-del-btn" style="flex-shrink:0;" onclick="PLAATSING.functietitels.splice(${i},1);renderPlaatsing()" title="Verwijderen">✕</button>` : ''}
+            </div>`).join('')}
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px;">
+            <button class="btn-secondary" style="font-size:.78rem;padding:3px 10px;" onclick="PLAATSING.functietitels.push('');renderPlaatsing()">+ Functietitel toevoegen</button>
+            ${p.functietitels.length > 1 ? `
+              <span style="font-size:.8rem;color:var(--muted);">Zoeklogica:</span>
+              <button class="btn-secondary" style="font-size:.78rem;padding:3px 10px;${p.operator==='OR'?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="PLAATSING.operator='OR';renderPlaatsing()">OF</button>
+              <button class="btn-secondary" style="font-size:.78rem;padding:3px 10px;${p.operator==='AND'?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="PLAATSING.operator='AND';renderPlaatsing()">EN</button>
+              <span style="font-size:.75rem;color:var(--muted);">${p.operator==='OR'?'Bedrijven die voor minstens één functie werven':'Bedrijven die voor alle functies tegelijk werven'}</span>
+            ` : ''}
+          </div>
         </div>
         <div class="plan-field">
           <div class="plan-field-title">Regio</div>
@@ -4322,7 +4337,8 @@ async function plaatsingProcessFile(file) {
 }
 
 async function plaatsingZoeken() {
-  if (!PLAATSING.functietitel.trim()) {
+  const titels = PLAATSING.functietitels.map(t => t.trim()).filter(Boolean);
+  if (!titels.length) {
     PLAATSING.statusMsg = '⚠️ Vul minimaal een functietitel in.';
     renderPlaatsing(); return;
   }
@@ -4337,7 +4353,8 @@ async function plaatsingZoeken() {
   try {
     const { data, error } = await supa.functions.invoke('plaatsingsadvies', {
       body: {
-        functietitel: PLAATSING.functietitel,
+        functietitels: titels,
+        operator: PLAATSING.operator,
         regio: PLAATSING.regio,
         vakgebied: PLAATSING.vakgebied,
         cvTekst: PLAATSING.cvTekst,
@@ -4355,9 +4372,7 @@ async function plaatsingZoeken() {
     }
     PLAATSING.resultaten = (data && data.resultaten) || [];
     if (PLAATSING.resultaten.length === 0) {
-      const dbg = data && data._debug;
-      const dbgStr = dbg ? ` | rawLen=${dbg.rawLen} | stop=${dbg.stopReason} | ticks=${dbg.backtickCount} | preview: ${String(dbg.preview||'').slice(0,200)}` : ' | geen _debug veld';
-      PLAATSING.statusMsg = '⚠️ Geen resultaten.' + dbgStr;
+      PLAATSING.statusMsg = '⚠️ Geen resultaten gevonden. Probeer een andere functietitel of regio.';
     } else {
       PLAATSING.statusMsg = `✅ ${PLAATSING.resultaten.length} bedrijven gevonden om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
     }
