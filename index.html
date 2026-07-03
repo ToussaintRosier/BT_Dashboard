@@ -669,6 +669,7 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
 // ── Sidebar-menu ──────────────────────────────────────────────────────────────
 let medewerkersOpen = true;
 let managementOpen = false;
+let toolsOpen = false;
 // Welk sub-tabblad ('kpis' of 'plan') op de huidige medewerkerpagina actief is.
 let bmSubTab = 'kpis';
 // Verschuiving (in weken) van het 4-weken-venster op het Pipeline-bord t.o.v.
@@ -703,13 +704,15 @@ function renderTabs() {
         <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
       </div>
       <div class="sidebar-cat">
-        <button class="sidebar-cat-btn ${currentTab==='cvgen'?'active-cat':''}" onclick="selectTab('cvgen')"><span>📄 CV-generator</span></button>
-      </div>
-      <div class="sidebar-cat">
-        <button class="sidebar-cat-btn ${currentTab==='plaatsing'?'active-cat':''}" onclick="selectTab('plaatsing')"><span>🎯 Matchmaker</span></button>
-      </div>
-      <div class="sidebar-cat">
-        <button class="sidebar-cat-btn ${currentTab==='gesprek'?'active-cat':''}" onclick="selectTab('gesprek')"><span>🎙️ Recorder</span></button>
+        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek')?'active-cat':''}">
+          <span style="cursor:pointer;flex:1;">🛠️ Tools</span>
+          <span class="sidebar-caret ${toolsOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleTools(event)">▶</span>
+        </div>
+        <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
+          <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">📄 CV-generator</button>
+          <button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">🎯 Matchmaker</button>
+          <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ Recorder</button>
+        </div>
       </div>`;
     return;
   }
@@ -748,13 +751,15 @@ function renderTabs() {
       <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
     </div>
     <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab==='cvgen'?'active-cat':''}" onclick="selectTab('cvgen')"><span>📄 CV-generator</span></button>
-    </div>
-    <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab==='plaatsing'?'active-cat':''}" onclick="selectTab('plaatsing')"><span>🎯 Matchmaker</span></button>
-    </div>
-    <div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab==='gesprek'?'active-cat':''}" onclick="selectTab('gesprek')"><span>🎙️ Recorder</span></button>
+      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek')?'active-cat':''}">
+        <span style="cursor:pointer;flex:1;">🛠️ Tools</span>
+        <span class="sidebar-caret ${toolsOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleTools(event)">▶</span>
+      </div>
+      <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
+        <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">📄 CV-generator</button>
+        <button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">🎯 Matchmaker</button>
+        <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ Recorder</button>
+      </div>
     </div>`;
 }
 
@@ -766,6 +771,11 @@ function toggleMedewerkers(event) {
 function toggleManagement(event) {
   if (event) event.stopPropagation();
   managementOpen = !managementOpen;
+  renderTabs();
+}
+function toggleTools(event) {
+  if (event) event.stopPropagation();
+  toolsOpen = !toolsOpen;
   renderTabs();
 }
 // Klikken op het label "Medewerkers" gaat altijd naar het rankingoverzicht
@@ -801,6 +811,7 @@ function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
+  if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek') toolsOpen = true;
   renderTabs(); render();
 }
 function selectBmSubTab(tab) { bmSubTab = tab; render(); }
