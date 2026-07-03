@@ -353,6 +353,8 @@ let SL_SEARCH = '';
 let SL_FILTER_VAKGEBIED = [], SL_FILTER_REGIO = [], SL_FILTER_CP = [], SL_FILTER_STATUS = [], SL_FILTER_VOORW = []; // multi-select: meerdere opties per kolom mogelijk
 let SL_FILTER_SC = '', SL_FILTER_MONTEUR = '', SL_FILTER_WVB = '', SL_FILTER_ENG = '', SL_FILTER_PM = ''; // '' | 'ja' | 'nee'
 let SL_OPEN_DROPDOWN = null; // welke multi-select filterdropdown nu open staat (blijft open na her-render bij aanvinken)
+let SL_SORT_COL = 'naam', SL_SORT_DIR = 1;   // RLDV: actieve sorteerkolom + richting (1=asc,-1=desc)
+let ACC_SORT_COL = 'score', ACC_SORT_DIR = -1; // KAM: standaard score hoog→laag
 
 // Sluit een open Sales Leads-filterdropdown als er buiten geklikt wordt.
 document.addEventListener('click', (e) => {
@@ -3095,8 +3097,8 @@ function renderAccounts() {
   const subTabBtn = (key, label) => `<button class="btn-secondary" style="${ACCOUNT_SUBTAB===key?'background:var(--primary);color:#fff;border-color:var(--primary);':''}" onclick="accSelectSubTab('${key}')">${label}</button>`;
   const subTabBtns = `
     <div class="acc-toolbar">
-      ${subTabBtn('sales', '📡 Sales Leads')}
-      ${subTabBtn('strategisch', '🎯 Strategische Leads')}
+      ${subTabBtn('sales', '📡 RLDV')}
+      ${subTabBtn('strategisch', '🎯 Key Accountmanagement (KAM)')}
     </div>`;
   const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns) : renderSalesLeadsHtml(subTabBtns);
   document.getElementById('main').innerHTML = body;
@@ -3185,6 +3187,18 @@ function slResetFilters() {
   SL_SEARCH = ''; SL_FILTER_VAKGEBIED = []; SL_FILTER_REGIO = []; SL_FILTER_CP = []; SL_FILTER_STATUS = []; SL_FILTER_VOORW = [];
   SL_FILTER_SC = ''; SL_FILTER_MONTEUR = ''; SL_FILTER_WVB = ''; SL_FILTER_ENG = ''; SL_FILTER_PM = '';
   SL_OPEN_DROPDOWN = null;
+  renderAccounts();
+}
+
+function slSetSort(col) {
+  if (SL_SORT_COL === col) SL_SORT_DIR *= -1;
+  else { SL_SORT_COL = col; SL_SORT_DIR = 1; }
+  renderAccounts();
+}
+
+function kamSetSort(col) {
+  if (ACC_SORT_COL === col) ACC_SORT_DIR *= -1;
+  else { ACC_SORT_COL = col; ACC_SORT_DIR = 1; }
   renderAccounts();
 }
 
@@ -3333,7 +3347,7 @@ function slPrint() {
     <td>${escHtml(s.status||'—')}</td>
     <td>${escHtml(s.voorwaarden_bekend||'—')}</td>
   </tr>`).join('');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sales Leads</title>
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RLDV</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:24px;}
     h1{font-size:1.2rem;margin:0 0 4px;}
@@ -3343,7 +3357,7 @@ function slPrint() {
     th{background:#f4f5f7;}
     @media print { @page { margin:14mm; size:landscape; } }
   </style></head><body>
-    <h1>📡 Sales Leads</h1>
+    <h1>📡 RLDV</h1>
     <div class="meta">Geprint op ${new Date().toLocaleDateString('nl-NL')} · ${filtered.length} van ${SALES_LEADS_CACHE.length} klanten (huidige filterselectie)</div>
     <table>
       <thead><tr><th>Klant</th><th>Vakgebied</th><th>Regio</th><th>SC</th><th>Monteur</th><th>WVB</th><th>ENG</th><th>PM</th><th>Contactpersoon</th><th>Status</th><th>Voorwaarden bekend</th></tr></thead>
@@ -3365,7 +3379,18 @@ function renderSalesLeadsHtml(subTabBtns) {
   const voorwOptions     = [...new Set(list.map(s => (s.voorwaarden_bekend||'').trim()).filter(Boolean))].sort();
 
   const filtered = slFilteredList();
-  const sorted = filtered.slice().sort((a,b) => (a.naam||'').localeCompare(b.naam||''));
+  const sorted = filtered.slice().sort((a, b) => {
+    let av = a[SL_SORT_COL], bv = b[SL_SORT_COL];
+    if (typeof av === 'boolean') { av = av ? 1 : 0; bv = bv ? 1 : 0; }
+    if (av == null) av = ''; if (bv == null) bv = '';
+    const cmp = (typeof av === 'number' && typeof bv === 'number') ? av - bv : String(av).localeCompare(String(bv), 'nl');
+    return cmp * SL_SORT_DIR;
+  });
+  const slTh = (col, label, cls) => {
+    const active = SL_SORT_COL === col;
+    const arrow = active ? (SL_SORT_DIR === 1 ? ' ↑' : ' ↓') : '';
+    return `<th class="${cls||''}" style="cursor:pointer;user-select:none;white-space:nowrap;${active?'color:var(--primary);':''}" onclick="slSetSort('${col}')" title="Sorteren op ${label}">${escHtml(label)}${arrow}</th>`;
+  };
 
   // Checkbox-dropdownpaneel voor multi-select filters (vakgebied/regio/
   // contactpersoon/status/voorwaarden) — meerdere opties per kolom mogelijk.
@@ -3458,11 +3483,11 @@ function renderSalesLeadsHtml(subTabBtns) {
     </tr>`;
   }).join('');
 
-  const boolHeaders = SL_BOOL_FIELDS.map(([,label]) => `<th title="${escHtml(label)}">${escHtml(label)}</th>`).join('');
+  const boolHeaders = SL_BOOL_FIELDS.map(([f, label]) => slTh(f, label)).join('');
 
   return `<div>
     <div class="person-header">
-      <div class="person-name">📡 Sales Leads</div>
+      <div class="person-name">📡 RLDV</div>
       <div class="person-meta">
         <span class="meta-pill">📋 ${list.length} klanten</span>
         <span class="meta-pill">🔍 ${filtered.length} getoond</span>
@@ -3489,13 +3514,13 @@ function renderSalesLeadsHtml(subTabBtns) {
     <div class="table-card" style="overflow:visible;">
       <table class="acc-table">
         <thead><tr>
-          <th class="acc-th-left" style="width:200px;min-width:200px;">Klant</th>
-          <th>Vakgebied</th>
-          <th>Regio</th>
+          ${slTh('naam','Klant','acc-th-left')}
+          ${slTh('vakgebied','Vakgebied')}
+          ${slTh('regio','Regio')}
           ${boolHeaders}
-          <th>Contactpersoon</th>
-          <th>Status</th>
-          <th>Voorwaarden bekend</th>
+          ${slTh('contactpersoon','Contactpersoon')}
+          ${slTh('status','Status')}
+          ${slTh('voorwaarden_bekend','Voorwaarden bekend')}
           <th>Website</th>
           <th></th>
         </tr></thead>
@@ -3521,7 +3546,20 @@ function renderStrategischeLeadsHtml(subTabBtns) {
     if (ACC_FILTER_OP && (a.op_cp || '').trim() !== ACC_FILTER_OP) return false;
     return true;
   });
-  const sorted = filtered.slice().sort((a, b) => accScore(b) - accScore(a));
+  const sorted = filtered.slice().sort((a, b) => {
+    let av, bv;
+    if (ACC_SORT_COL === 'score') { av = accScore(a); bv = accScore(b); }
+    else if (ACC_SORT_COL === 'updated_at') { av = a.updated_at || ''; bv = b.updated_at || ''; }
+    else { av = a[ACC_SORT_COL]; bv = b[ACC_SORT_COL]; }
+    if (av == null) av = ''; if (bv == null) bv = '';
+    const cmp = (typeof av === 'number' && typeof bv === 'number') ? av - bv : String(av).localeCompare(String(bv), 'nl');
+    return cmp * ACC_SORT_DIR;
+  });
+  const kamTh = (col, label, cls) => {
+    const active = ACC_SORT_COL === col;
+    const arrow = active ? (ACC_SORT_DIR === 1 ? ' ↑' : ' ↓') : '';
+    return `<th class="${cls||''}" style="cursor:pointer;user-select:none;white-space:nowrap;${active?'color:var(--primary);':''}" onclick="kamSetSort('${col}')" title="Sorteren op ${label}">${escHtml(label)}${arrow}</th>`;
+  };
 
   const stratOptHtml = stratOptions.map(o => `<option value="${escHtml(o)}" ${ACC_FILTER_STRAT===o?'selected':''}>${escHtml(o)}</option>`).join('');
   const opOptHtml     = opOptions.map(o => `<option value="${escHtml(o)}" ${ACC_FILTER_OP===o?'selected':''}>${escHtml(o)}</option>`).join('');
@@ -3598,7 +3636,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
 
   return `<div>
     <div class="person-header">
-      <div class="person-name">🎯 Strategische Leads</div>
+      <div class="person-name">🎯 Key Accountmanagement (KAM)</div>
       <div class="person-meta">
         <span class="meta-pill">📋 ${list.length} klanten</span>
         <span class="meta-pill">🔍 ${filtered.length} getoond</span>
@@ -3621,14 +3659,14 @@ function renderStrategischeLeadsHtml(subTabBtns) {
     <div class="table-card" style="overflow:visible;">
       <table class="acc-table">
         <thead><tr>
-          <th class="acc-th-left" style="width:220px;min-width:220px;">Klant</th>
-          <th>Strat CP</th>
-          <th>OP CP</th>
+          ${kamTh('naam','Klant','acc-th-left')}
+          ${kamTh('strat_cp','Strat CP')}
+          ${kamTh('op_cp','OP CP')}
           ${scoreHeaders}
-          <th>Score</th>
-          <th title="Datum van de laatste wijziging — wordt automatisch bijgehouden, niet handmatig aan te passen.">Laatste wijziging</th>
-          <th>Voorwaarden bekend</th>
-          <th>Actief aanbieden</th>
+          ${kamTh('score','Score')}
+          ${kamTh('updated_at','Laatste wijziging')}
+          ${kamTh('voorwaarden_bekend','Voorwaarden bekend')}
+          ${kamTh('actief_aanbieden','Actief aanbieden')}
           <th class="acc-th-left">Notitie</th>
           <th></th>
         </tr></thead>
