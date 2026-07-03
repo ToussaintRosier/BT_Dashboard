@@ -3727,7 +3727,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
 // JSZip — rechtstreeks in de browser, geen server nodig voor deze stap.
 let CV_GEN = {
   fileName: '', extractedText: '', notities: '',
-  suggestie: '',
+  suggestie: '', gesprekData: null,
   velden: { naam:'', woonplaats:'', reisbereidheid:'', geboortedatum:'', beschikbaarheid:'', opleiding:'', werkgevers:'', talen:'', hobbys:'' },
   busyExtract: false, busySuggest: false, busyDownload: false,
   statusMsg: '',
@@ -3876,7 +3876,7 @@ async function cvGenGenereerSuggesties() {
   render();
   try {
     const { data, error } = await supa.functions.invoke('cv-generator-suggest', {
-      body: { cvTekst: CV_GEN.extractedText, notities: CV_GEN.notities },
+      body: { cvTekst: CV_GEN.extractedText, notities: CV_GEN.notities, gesprekData: CV_GEN.gesprekData },
     });
     const fout = error ? error.message : (data && data.error);
     if (fout) {
@@ -4105,12 +4105,80 @@ async function cvGenDownloadWoordCv() {
 function cvGenNieuwCv() {
   CV_GEN = {
     fileName: '', extractedText: '', notities: '',
-    suggestie: '',
+    suggestie: '', gesprekData: null,
     velden: { naam:'', woonplaats:'', reisbereidheid:'', geboortedatum:'', beschikbaarheid:'', opleiding:'', werkgevers:'', talen:'', hobbys:'' },
     busyExtract: false, busySuggest: false, busyDownload: false,
     statusMsg: '',
   };
   render();
+}
+
+function gesprekNaarCvGenerator() {
+  const r = GESPREK.result;
+  if (!r) return;
+  const hw = r.hardeWensen    || {};
+  const zf = r.zachteFactoren || {};
+  CV_GEN.gesprekData = {
+    naam: GESPREK.naam || '',
+    functie: GESPREK.functie || '',
+    wensen: {
+      functie:    hw.functie    || '',
+      werktijden: hw.werktijden || '',
+      overige:    hw.overige    || '',
+    },
+    zachteFactoren: {
+      drijfveren:           zf.drijfveren           || '',
+      redenAchterCV:        zf.redenAchterCV        || '',
+      eigenschappen:        zf.eigenschappen        || '',
+      persoonlijkeSituatie: zf.persoonlijkeSituatie || '',
+    },
+  };
+  if (!CV_GEN.velden.naam && GESPREK.naam) CV_GEN.velden.naam = GESPREK.naam;
+  selectTab('cvgen');
+}
+
+async function onCvGenGesprekFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    // Zoek een tabelrij op label
+    const rijWaarde = (label) => {
+      for (const td of doc.querySelectorAll('td')) {
+        if (td.textContent.trim() === label) {
+          const next = td.nextElementSibling;
+          return next ? next.textContent.trim() : '';
+        }
+      }
+      return '';
+    };
+    const sterk = doc.querySelector('.meta strong');
+    const naam = sterk ? sterk.textContent.trim() : '';
+    const metaTekst = doc.querySelector('.meta') ? doc.querySelector('.meta').textContent : '';
+    const functieM = metaTekst.match(/—\s*(.+?)\s*\|/);
+    const functie  = functieM ? functieM[1].trim() : '';
+    CV_GEN.gesprekData = {
+      naam, functie,
+      wensen: {
+        functie:    rijWaarde('Functie'),
+        werktijden: rijWaarde('Werktijden'),
+        overige:    rijWaarde('Overige'),
+      },
+      zachteFactoren: {
+        drijfveren:           rijWaarde('Drijfveren'),
+        redenAchterCV:        rijWaarde('Reden achter CV'),
+        eigenschappen:        rijWaarde('Eigenschappen'),
+        persoonlijkeSituatie: rijWaarde('Pers. situatie'),
+      },
+    };
+    if (!CV_GEN.velden.naam && naam) CV_GEN.velden.naam = naam;
+    CV_GEN.statusMsg = '✅ Gespreksverslag ingelezen.';
+  } catch(e) {
+    CV_GEN.statusMsg = '❌ Kon gespreksverslag niet inlezen: ' + (e.message || e);
+  }
+  renderCvGenerator();
 }
 
 function renderCvGenerator() {
@@ -4172,11 +4240,38 @@ function renderCvGenerator() {
       <button class="proj-save-btn" style="background:#6b7280;margin-top:6px;" onclick="cvGenNieuwCv()">🔄 Opnieuw beginnen</button>
     </div>
 
+    ${CV_GEN.gesprekData ? `
+    <div class="table-card" style="padding:16px;margin-bottom:14px;border-left:3px solid var(--primary);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="plan-field-title" style="font-size:.9rem;margin:0;">🎙️ Gespreksnotities (vanuit Recorder)</div>
+        <button class="btn-secondary" style="font-size:.75rem;padding:3px 8px;" onclick="CV_GEN.gesprekData=null;renderCvGenerator()">✕ Verwijder</button>
+      </div>
+      <div class="plan-grid" style="gap:12px;">
+        <div>
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Wensen</div>
+          ${[['Gewenste functie', CV_GEN.gesprekData.wensen.functie],['Werktijden', CV_GEN.gesprekData.wensen.werktijden],['Overige', CV_GEN.gesprekData.wensen.overige]]
+            .filter(([,v]) => v)
+            .map(([k,v]) => `<div style="font-size:.83rem;margin-bottom:5px;"><span style="font-weight:700;color:var(--muted);">${escHtml(k)}: </span>${escHtml(v)}</div>`).join('') || '<div style="font-size:.82rem;color:var(--muted);">—</div>'}
+        </div>
+        <div>
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Motivatie &amp; eigenschappen</div>
+          ${[['Drijfveren', CV_GEN.gesprekData.zachteFactoren.drijfveren],['Reden achter CV', CV_GEN.gesprekData.zachteFactoren.redenAchterCV],['Eigenschappen', CV_GEN.gesprekData.zachteFactoren.eigenschappen],['Pers. situatie', CV_GEN.gesprekData.zachteFactoren.persoonlijkeSituatie]]
+            .filter(([,v]) => v)
+            .map(([k,v]) => `<div style="font-size:.83rem;margin-bottom:5px;"><span style="font-weight:700;color:var(--muted);">${escHtml(k)}: </span>${escHtml(v)}</div>`).join('') || '<div style="font-size:.82rem;color:var(--muted);">—</div>'}
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:.74rem;color:var(--muted);">Salaris en regio worden bewust niet meegenomen in de CV-tekst.</div>
+    </div>` : ''}
+
     <div class="table-card" style="padding:16px;margin-bottom:14px;">
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:10px;">Stap 2 — CV uploaden</div>
       <input type="file" id="cvgen-file-input" accept=".docx,.pdf" style="display:none" onchange="onCvGenFileSelected(event)">
-      <button class="proj-save-btn" onclick="cvGenKiesBestand()" ${CV_GEN.busyExtract?'disabled':''}>📤 Kies CV-bestand (.docx of .pdf)</button>
-      ${CV_GEN.fileName ? `<span style="margin-left:10px;font-size:.82rem;color:var(--muted);">📎 ${escHtml(CV_GEN.fileName)}</span>` : ''}
+      <input type="file" id="cvgen-gesprek-input" accept=".doc,.docx" style="display:none" onchange="onCvGenGesprekFileSelected(event)">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="proj-save-btn" onclick="cvGenKiesBestand()" ${CV_GEN.busyExtract?'disabled':''}>📤 Kies CV-bestand (.docx of .pdf)</button>
+        <button class="btn-secondary" onclick="document.getElementById('cvgen-gesprek-input').click()">🎙️ Importeer gespreksverslag (.doc)</button>
+      </div>
+      ${CV_GEN.fileName ? `<span style="margin-left:2px;font-size:.82rem;color:var(--muted);">📎 ${escHtml(CV_GEN.fileName)}</span>` : ''}
       <div class="cvgen-dropzone" id="cvgen-dropzone" ondragover="onCvGenDragOver(event)" ondragleave="onCvGenDragLeave(event)" ondrop="onCvGenFileDropped(event)">📥 Of sleep hier je CV-bestand (.docx of .pdf) naartoe</div>
       ${CV_GEN.statusMsg ? `<div style="margin-top:10px;font-size:.85rem;">${CV_GEN.statusMsg}</div>` : ''}
     </div>
@@ -4491,6 +4586,7 @@ function renderGesprek() {
       <button class="proj-save-btn" onclick="gesprekKopieer()">📋 Kopieer naar klembord</button>
       <button class="btn-secondary" onclick="gesprekPrint()">🖨️ Printen / PDF</button>
       <button class="btn-secondary" onclick="gesprekDownload('word')">📄 Download Word</button>
+      <button class="btn-secondary" onclick="gesprekNaarCvGenerator()" style="background:#eef2ff;border-color:var(--primary);color:var(--primary);">📄 → CV-generator</button>
     </div>` : '';
 
   document.getElementById('main').innerHTML = `<div>
