@@ -4360,6 +4360,83 @@ function gesprekKopieer() {
   });
 }
 
+function _gesprekBouwHtml(inclTranscript) {
+  const r = GESPREK.result;
+  if (!r) return '';
+  const e = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const hw = r.hardeWensen    || {};
+  const zf = r.zachteFactoren || {};
+  const naam    = GESPREK.naam    || '';
+  const functie = GESPREK.functie || '';
+  const datum   = new Date().toLocaleDateString('nl-NL', { day:'2-digit', month:'long', year:'numeric' });
+  const rij = (label, val) => val ? `<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${label}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>` : '';
+  const transcriptBlok = inclTranscript && GESPREK.transcript ? `
+    <h2 style="font-size:12pt;color:#253151;margin-top:24px;border-bottom:1px solid #ddd;padding-bottom:4px;">Transcriptie</h2>
+    <pre style="font-size:9pt;line-height:1.55;white-space:pre-wrap;background:#f9f9f9;padding:12px;border-radius:4px;font-family:monospace;">${e(GESPREK.transcript)}</pre>` : '';
+  return `<!DOCTYPE html>
+<html lang="nl"><head><meta charset="UTF-8">
+<title>Gespreksverslag${naam ? ' – ' + naam : ''}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11pt; margin: 2cm; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 18pt; color: #253151; border-bottom: 2px solid #253151; padding-bottom: 8px; margin-bottom: 4px; }
+  .meta { font-size: 10pt; color: #666; margin-bottom: 20px; }
+  h2 { font-size: 12pt; color: #253151; margin-top: 20px; margin-bottom: 6px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+  .samenvatting { background: #f5f7fb; padding: 12px 16px; border-radius: 4px; line-height: 1.65; font-size: 10.5pt; }
+  .drie { display: table; width: 100%; border-spacing: 16px 0; margin: 0 -16px; }
+  .drie-cel { display: table-cell; vertical-align: top; width: 33%; }
+  @media print { body { margin: 1.5cm; } @page { margin: 1.5cm; } }
+</style></head><body>
+<h1>Gespreksverslag</h1>
+<div class="meta">${naam ? `<strong>${e(naam)}</strong>` : ''}${functie ? ` &mdash; ${e(functie)}` : ''} &nbsp;|&nbsp; ${datum}</div>
+<h2>Samenvatting</h2>
+<div class="samenvatting">${e(r.samenvatting || '')}</div>
+<div class="drie" style="margin-top:20px;">
+  <div class="drie-cel">
+    <h2>Harde wensen</h2>
+    <table>${rij('Functie',hw.functie)}${rij('Regio',hw.regio)}${rij('Salaris',hw.salaris)}${rij('Werktijden',hw.werktijden)}${rij('Overige',hw.overige)}</table>
+  </div>
+  <div class="drie-cel">
+    <h2>Zachte factoren</h2>
+    <table>${rij('Drijfveren',zf.drijfveren)}${rij('Reden achter CV',zf.redenAchterCV)}${rij('Eigenschappen',zf.eigenschappen)}${rij('Pers. situatie',zf.persoonlijkeSituatie)}</table>
+  </div>
+  <div class="drie-cel">
+    <h2>Afspraken</h2>
+    <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken || '—')}</p>
+  </div>
+</div>
+${transcriptBlok}
+</body></html>`;
+}
+
+function gesprekPrint() {
+  const html = _gesprekBouwHtml(true);
+  if (!html) return;
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function gesprekDownload(formaat) {
+  const html = _gesprekBouwHtml(formaat === 'word');
+  if (!html) return;
+  const naam = (GESPREK.naam || 'gespreksverslag').replace(/\s+/g, '_');
+  if (formaat === 'word') {
+    const blob = new Blob([html], { type: 'application/msword' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = naam + '.doc'; a.click(); URL.revokeObjectURL(a.href);
+  } else {
+    // PDF: open printvenster in nieuw tabblad, gebruiker kiest "Opslaan als PDF"
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
+}
+
 function renderGesprek() {
   const g = GESPREK;
   const r = g.result;
@@ -4410,8 +4487,10 @@ function renderGesprek() {
         <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken || '—')}</p>
       </div>
     </div>
-    <div style="margin-top:4px;margin-bottom:18px;">
-      <button class="proj-save-btn" onclick="gesprekKopieer()">📋 Kopieer naar klembord (voor CRM)</button>
+    <div style="margin-top:4px;margin-bottom:18px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="proj-save-btn" onclick="gesprekKopieer()">📋 Kopieer naar klembord</button>
+      <button class="btn-secondary" onclick="gesprekPrint()">🖨️ Printen / PDF</button>
+      <button class="btn-secondary" onclick="gesprekDownload('word')">📄 Download Word</button>
     </div>` : '';
 
   document.getElementById('main').innerHTML = `<div>
