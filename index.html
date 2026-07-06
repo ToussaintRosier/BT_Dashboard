@@ -1054,21 +1054,72 @@ function renderMedewerkersOverzicht() {
     return '';
   };
 
-  // Render een uitgevouwen weekblok
+  // Render een uitgevouwen weekblok — per-medewerker tabel
   const renderOpenWeek = (jaar, week) => {
-    const t = wkTotals(jaar, week);
-    const hasData = KPIS.some(k => t[k] > 0);
-    const kpiCards = KPIS.map(k =>
-      '<div class="kpi-card" style="padding:10px 14px;">' +
-        '<div class="label">' + KPI_LABELS[k] + '</div>' +
-        '<div class="value" style="font-size:1.4rem;color:' + (k === 'starters' ? 'var(--success)' : 'var(--primary)') + ';">' + fmt(t[k], k === 'starters' ? 1 : 0) + '</div>' +
-      '</div>'
-    ).join('');
+    const isCurOrNext = (jaar === CUR.year && week === CUR.week) || (jaar === NEXT.year && week === NEXT.week);
+    const totals = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
+    let anyLive = false;
+
+    const bmArr = BMS.map(bm => {
+      const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
+      const isSaved = !!saved;
+      const vals = isSaved ? saved : getPipeCountsForWeek(bm.naam, week, jaar);
+      if (!isSaved) anyLive = true;
+      for (const k of KPIS) totals[k] += vals[k] || 0;
+      const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
+      if (!hasAny && !isCurOrNext) return null;
+      const status = isSaved
+        ? '<span style="color:var(--success);font-size:.76rem;" title="Opgeslagen">✔</span>'
+        : '<span style="color:var(--muted);font-size:.72rem;font-style:italic;" title="Nog niet opgeslagen — pipeline-stand">live</span>';
+      return '<tr style="border-bottom:1px solid var(--border);">' +
+        '<td style="padding:5px 8px 5px 0;font-weight:600;font-size:.82rem;white-space:nowrap;">' +
+          '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + bm.kleur + ';margin-right:5px;vertical-align:middle;"></span>' +
+          escHtml(bm.naam) +
+        '</td>' +
+        KPIS.map(k =>
+          '<td style="text-align:right;padding:5px 8px;font-size:.82rem;' +
+          (k === 'starters' ? 'color:var(--success);font-weight:700;' : '') + '">' +
+          fmt(vals[k] || 0, (k === 'starters' || k === 'contractvoorstellen') ? 1 : 0) +
+          '</td>'
+        ).join('') +
+        '<td style="text-align:center;padding:5px 6px;">' + status + '</td>' +
+      '</tr>';
+    }).filter(Boolean);
+
+    const hasData = KPIS.some(k => totals[k] > 0);
+
+    const headerRow =
+      '<tr style="color:var(--muted);font-size:.71rem;text-transform:uppercase;letter-spacing:.04em;">' +
+        '<th style="text-align:left;padding:3px 8px 7px 0;font-weight:600;">Medewerker</th>' +
+        ['Int','Bez','Aanb','Match','Contr','Start'].map(h =>
+          '<th style="text-align:right;padding:3px 8px 7px;font-weight:600;">' + h + '</th>'
+        ).join('') +
+        '<th></th>' +
+      '</tr>';
+
+    const totRow =
+      '<tr style="border-top:2px solid var(--border);">' +
+        '<td style="padding:6px 8px 4px 0;font-weight:700;font-size:.83rem;">Totaal</td>' +
+        KPIS.map(k =>
+          '<td style="text-align:right;padding:6px 8px 4px;font-weight:700;font-size:.83rem;' +
+          (k === 'starters' ? 'color:var(--success);' : '') + '">' +
+          fmt(totals[k], (k === 'starters' || k === 'contractvoorstellen') ? 1 : 0) +
+          '</td>'
+        ).join('') +
+        '<td></td>' +
+      '</tr>';
+
     return '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;">' +
-      '<div style="font-weight:700;font-size:.92rem;margin-bottom:' + (hasData ? '10px' : '6px') + ';">Week ' + week + ' · ' + jaar + weekBadge(jaar, week) + '</div>' +
-      (hasData
-        ? '<div class="kpi-grid" style="margin:0;">' + kpiCards + '</div>'
-        : '<div style="color:var(--muted);font-size:.82rem;">Nog geen invoer voor deze week.</div>') +
+      '<div style="font-weight:700;font-size:.92rem;margin-bottom:10px;">Week ' + week + ' · ' + jaar + weekBadge(jaar, week) + '</div>' +
+      '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
+        '<thead>' + headerRow + '</thead>' +
+        '<tbody>' + (bmArr.length
+          ? bmArr.join('')
+          : '<tr><td colspan="8" style="color:var(--muted);font-size:.82rem;padding:8px 0;">Nog geen invoer voor deze week.</td></tr>'
+        ) + '</tbody>' +
+        (hasData ? '<tfoot>' + totRow + '</tfoot>' : '') +
+      '</table></div>' +
+      (anyLive ? '<div style="font-size:.72rem;color:var(--muted);margin-top:8px;font-style:italic;">* "live" rijen zijn nog niet opgeslagen — starters worden pas zeker geteld na opslaan.</div>' : '') +
     '</div>';
   };
 
