@@ -2926,6 +2926,14 @@ function getKandidatenWeeks() {
 function renderKandidaten() {
   const weeks = getKandidatenWeeks();
   const canExclude = isProjKandEditor();
+  const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
+
+  // Kleur-instellingen per status
+  const KAND_STATUS = {
+    groen:  { bg: 'rgba(14,159,110,.13)',  border: '#0e9f6e', label: 'Afgerond' },
+    geel:   { bg: 'rgba(245,158,11,.15)',  border: '#f59e0b', label: 'RLDV-actie' },
+    oranje: { bg: 'rgba(249,115,22,.15)',  border: '#f97316', label: 'Nog 0' },
+  };
   const allIntakeCards = [];
   const excludedCards = [];
   // Alle Aanbieden-kaartjes van alle BM's (alle weken, niet alleen de
@@ -2963,13 +2971,30 @@ function renderKandidaten() {
       // Aanbieden-kaartjes (van iedere BM, elke week) bij elkaar opgeteld en
       // hier eenmalig genoteerd, niet per match herhaald.
       const aanbTotal = aanbTotalByNaam[normName(c.naam)] || 0;
-      return `<div class="pipe-card" style="cursor:default;position:relative;">
-        ${canExclude ? `<button class="kand-excl-btn" title="Uitsluiten van dit overzicht" onclick="kandidaatExcludeToggle('${c.bmNaam}','${c.id}', true)">✕</button>` : ''}
+      const sc = KAND_STATUS[c.kand_status] || null;
+      const cardStyle = sc
+        ? `cursor:default;position:relative;background:${sc.bg};border:2px solid ${sc.border};`
+        : 'cursor:default;position:relative;';
+      // Kleurknoppen (alleen voor managers)
+      const statusBtns = isManager ? `<div style="display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:7px;border-top:1px solid var(--border);">
+        ${Object.entries(KAND_STATUS).map(([key, s]) => {
+          const active = c.kand_status === key;
+          return `<button onclick="kandidaatSetStatus('${escApos(c.bmNaam)}','${c.id}','${key}')"
+            title="${s.label}"
+            style="width:18px;height:18px;border-radius:50%;background:${s.border};border:${active?'3px solid var(--card-bg, #fff)':'2px solid transparent'};outline:${active?'2px solid '+s.border:'none'};cursor:pointer;padding:0;flex-shrink:0;"></button>`;
+        }).join('')}
+        ${c.kand_status ? `<button onclick="kandidaatSetStatus('${escApos(c.bmNaam)}','${c.id}',null)"
+          title="Kleur verwijderen"
+          style="font-size:.7rem;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 5px;cursor:pointer;margin-left:2px;">✕</button>` : ''}
+      </div>` : '';
+      return `<div class="pipe-card" style="${cardStyle}">
+        ${canExclude ? `<button class="kand-excl-btn" title="Uitsluiten van dit overzicht" onclick="kandidaatExcludeToggle('${escApos(c.bmNaam)}','${c.id}', true)">✕</button>` : ''}
         <div class="card-naam">${escHtml(c.naam)}</div>
         ${metaHtml}
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
         <div class="card-sub" style="font-weight:700;color:var(--primary);">📄 Aanbiedingen: ${aanbTotal}</div>
         <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
+        ${statusBtns}
       </div>`;
     }).join('') : `<div class="card-sub" style="color:var(--muted);padding:8px 0;">Geen intakes deze week</div>`;
 
@@ -2993,6 +3018,12 @@ function renderKandidaten() {
     </div>
     <div class="norm-intro">
       Alle kandidaten die BM's en managers de afgelopen 10 weken als Intake hebben ingevoerd, per week op een rij. Bewerken doe je op het Pipeline-bord van de betreffende medewerker.
+      ${isManager ? `<span style="display:inline-flex;align-items:center;gap:10px;margin-left:16px;font-size:.8rem;">
+        <span style="font-weight:700;opacity:.8;">Kleur:</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#0e9f6e;"></span> Afgerond</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f59e0b;"></span> RLDV-actie</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f97316;"></span> Nog 0</span>
+      </span>` : ''}
     </div>
     ${weekSections}
     ${canExclude && excludedCards.length ? `
@@ -3023,6 +3054,24 @@ async function kandidaatExcludeToggle(bmNaam, cardId, exclude) {
   if (supa) {
     const { error } = await supa.from('pipeline_cards').update({ kandidaten_uitgesloten: exclude }).eq('id', cardId);
     if (error) console.error('Kandidaat uitsluiten/herstellen mislukt:', error);
+  }
+}
+
+// Sla kleurstatus op voor een kandidaat-kaart (alleen manager).
+// status = 'groen' | 'geel' | 'oranje' | null (reset)
+async function kandidaatSetStatus(bmNaam, cardId, status) {
+  if (!CURRENT_USER || CURRENT_USER.rol !== 'manager') return;
+  const cards = pipeLoad(bmNaam);
+  const idx = cards.findIndex(c => String(c.id) === String(cardId));
+  if (idx === -1) return;
+  cards[idx] = { ...cards[idx], kand_status: status || null };
+  pipeSave(bmNaam, cards);
+  render(); // direct bijwerken
+  if (supa) {
+    const { error } = await supa.from('pipeline_cards')
+      .update({ kand_status: status || null })
+      .eq('id', cardId);
+    if (error) console.error('Kandidaat status opslaan mislukt:', error);
   }
 }
 
@@ -3058,7 +3107,7 @@ async function pipeFetchAll() {
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten });
+    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten, kand_status: c.kand_status || null });
   });
   PIPE_CACHE = next;
 }
