@@ -958,6 +958,7 @@ function closeSidebar() {
 function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
+  try { localStorage.setItem('bt_last_tab', JSON.stringify(i)); } catch(_) {}
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
@@ -1332,7 +1333,6 @@ function renderMedewerkersOverzicht() {
         '<span class="meta-pill">\u{1F4C5} Stand t/m week ' + CUR.week + ', ' + year + '</span>' +
       '</div>' +
     '</div>' +
-    '<div class="norm-intro">Ranking op basis van <strong>% van het starters-jaardoel</strong> dat YTD behaald is, t.o.v. wat op dit punt in het jaar verwacht werd. De balk loopt van 0% tot 200%, met <strong>100% precies in het midden</strong> (streepje) &mdash; zo blijft overperformance ver boven 100% (\u{1F3C6}) ook echt zichtbaar. 🔴 tot 79% &middot; 🟡 80&ndash;95% &middot; 🟢 boven 95%.</div>' +
     '<div class="table-card"><table>' +
       '<thead><tr><th>#</th><th>Medewerker</th><th>Starters YTD</th><th>Verwacht YTD</th><th>Voortgang</th><th>% behaald</th><th>Jaardoel</th></tr></thead>' +
       '<tbody>' + rankRows + '</tbody>' +
@@ -1432,10 +1432,6 @@ function renderTeam() {
         <span class="meta-pill">🎯 Teamdoel: ${TOTAAL_DOEL} starters/jaar</span>
         <span class="meta-pill">📐 Ratio's o.b.v. laatste 26 weken</span>
       </div>
-    </div>
-    <div class="norm-intro">
-      <strong>Teamgemiddelde ratio's (laatste 26 weken):</strong><br>
-      ${r.intakes} intakes · ${r.bezoeken} bezoeken · ${r.aanbiedingen} aanbiedingen · ${r.matchgesprekken} matchgesprekken per starter.
     </div>
 
     <!-- Overige KPI's per week, alle medewerkers samen -->
@@ -1785,6 +1781,8 @@ function renderPlanVanAanpak(bm) {
   // Rechterkolom: deze week — terugblik + nieuwe afspraken (bewerkbaar, opslaan/wijzigen)
   const rightCol = `<div class="plan-col nieuw">
     <div class="plan-col-label">✍️ Nieuwe afspraken — week ${CUR.week} · ${CUR.year}</div>
+
+    ${!frozen ? _renderPvaRec(bm.naam, safeId) : ''}
 
     <div class="section-title" style="margin:0 0 8px">Terugblik (weekdoel vorige week)</div>
     ${planField(`pva-doel_vorige_week-${safeId}`, 'Noteer je doel van vorige week.', doelVorigeWeek, {disabled:frozen, placeholder:'Doel van vorige week…', bmNaam:bm.naam, field:'doel_vorige_week'})}
@@ -2234,8 +2232,22 @@ async function loadProfileAndStart() {
   }
   CURRENT_USER = profile;
   if (CURRENT_USER.rol === 'bm') {
+    // BM gaat altijd naar eigen tab
     const idx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
     currentTab = idx >= 0 ? idx : 0;
+  } else {
+    // Manager/backoffice/overige: herstel laatste tab uit localStorage
+    try {
+      const saved = JSON.parse(localStorage.getItem('bt_last_tab'));
+      if (saved !== null && saved !== undefined) {
+        const validStr = ['accounts','financieel','kandidaten','cvgen','plaatsing','gesprek','bezoek','medewerkers'];
+        if (validStr.includes(saved)) {
+          currentTab = saved;
+        } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved <= BMS.length + 1) {
+          currentTab = saved;
+        }
+      }
+    } catch(_) {}
   }
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-root').style.display = '';
@@ -5267,6 +5279,187 @@ function renderBezoekRecords() {
     </div>
     ${items}
   </div>`;
+}
+
+// ── PVA-Recorder (Plan van aanpak — opnemen + velden automatisch invullen) ────
+let PVA_REC = {}; // keyed by bm.naam
+
+function _getPvaRec(naam) {
+  if (!PVA_REC[naam]) PVA_REC[naam] = {
+    recording: false, analyzing: false,
+    mediaRecorder: null, audioChunks: [],
+    recordingTime: 0, timerInterval: null,
+    statusMsg: '', transcriptId: null, pollingTimer: null,
+    transcript: '',
+  };
+  return PVA_REC[naam];
+}
+
+function _renderPvaRec(bmNaam, safeId) {
+  const p = _getPvaRec(bmNaam);
+  const fmtTime = (s) => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+
+  if (p.recording) {
+    return `<div style="background:#fff3f3;border:1px solid #fca5a5;border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+      <span style="width:10px;height:10px;background:#e02424;border-radius:50%;animation:pulse 1s infinite;flex-shrink:0;"></span>
+      <span style="font-size:.84rem;font-weight:600;color:#c81e1e;">Opname loopt — ${fmtTime(p.recordingTime)}</span>
+      <button onclick="pvaRecStop('${escApos(bmNaam)}')" style="margin-left:auto;background:#e02424;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:.82rem;font-weight:700;cursor:pointer;">⏹ Stop &amp; Analyseer</button>
+    </div>`;
+  }
+  if (p.analyzing) {
+    return `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:.84rem;color:#92400e;">${escHtml(p.statusMsg || '⏳ Bezig…')}</span>
+    </div>`;
+  }
+  const doneMsg = p.transcript ? `<span style="font-size:.8rem;color:#15803d;">✅ Velden ingevuld vanuit opname — pas aan en sla op.</span>` : '';
+  return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <button onclick="pvaRecStart('${escApos(bmNaam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 15px;font-size:.83rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">🎙️ Opnemen via recorder</button>
+    ${doneMsg}
+  </div>`;
+}
+
+async function pvaRecStart(bmNaam) {
+  const p = _getPvaRec(bmNaam);
+  if (p.recording || p.analyzing) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = ['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+    p.mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    p.audioChunks = [];
+    p.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) p.audioChunks.push(e.data); };
+    p.mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(p.audioChunks, { type: p.mediaRecorder.mimeType || 'audio/webm' });
+      pvaRecUpload(bmNaam, blob, p.mediaRecorder.mimeType);
+    };
+    p.mediaRecorder.start(5000);
+    p.recording = true; p.statusMsg = ''; p.recordingTime = 0;
+    p.timerInterval = setInterval(() => { p.recordingTime++; renderBM(BMS.find(b=>b.naam===bmNaam)); }, 1000);
+    renderBM(BMS.find(b=>b.naam===bmNaam));
+  } catch(err) {
+    p.statusMsg = '⚠️ Microfoon niet beschikbaar: ' + err.message;
+    renderBM(BMS.find(b=>b.naam===bmNaam));
+  }
+}
+
+function pvaRecStop(bmNaam) {
+  const p = _getPvaRec(bmNaam);
+  if (p.timerInterval) { clearInterval(p.timerInterval); p.timerInterval = null; }
+  if (p.mediaRecorder && p.mediaRecorder.state !== 'inactive') p.mediaRecorder.stop();
+  p.recording = false;
+  p.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
+  p.analyzing = true;
+  renderBM(BMS.find(b=>b.naam===bmNaam));
+}
+
+async function pvaRecUpload(bmNaam, blob, mimeType) {
+  const p = _getPvaRec(bmNaam);
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const fd = new FormData();
+    const ext = (mimeType||'').includes('mp4')?'mp4':(mimeType||'').includes('ogg')?'ogg':'webm';
+    fd.append('audio', blob, 'pva.' + ext);
+    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-start', {
+      method: 'POST',
+      headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
+      body: fd,
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    p.transcriptId = data.transcript_id;
+    p.statusMsg = '⏳ Transcriptie loopt… (1–2 min)';
+    renderBM(BMS.find(b=>b.naam===bmNaam));
+    pvaRecPoll(bmNaam);
+  } catch(err) {
+    p.analyzing = false;
+    p.statusMsg = '⚠️ Fout: ' + err.message;
+    renderBM(BMS.find(b=>b.naam===bmNaam));
+  }
+}
+
+function pvaRecPoll(bmNaam) {
+  const p = _getPvaRec(bmNaam);
+  p.pollingTimer = setInterval(async () => {
+    if (p.transcript) { clearInterval(p.pollingTimer); p.pollingTimer = null; return; }
+    try {
+      const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+      const params = new URLSearchParams({ id: p.transcriptId });
+      const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-check?' + params.toString(), {
+        headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
+      });
+      const data = await res.json();
+      if (data.status === 'completed' || data.status === 'error') {
+        clearInterval(p.pollingTimer); p.pollingTimer = null;
+        if (data.transcript) {
+          p.transcript = data.transcript;
+          p.statusMsg = '⏳ Velden herkennen en invullen…';
+          renderBM(BMS.find(b=>b.naam===bmNaam));
+          pvaRecAnalyse(bmNaam);
+        } else {
+          p.analyzing = false;
+          p.statusMsg = '⚠️ Geen transcript ontvangen.';
+          renderBM(BMS.find(b=>b.naam===bmNaam));
+        }
+      } else if (data.status === 'pending' || data.status === 'processing') {
+        p.statusMsg = '⏳ Transcriptie loopt…';
+      }
+    } catch(_) {}
+  }, 5000);
+}
+
+async function pvaRecAnalyse(bmNaam) {
+  const p = _getPvaRec(bmNaam);
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/pva-analyse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
+      },
+      body: JSON.stringify({ transcript: p.transcript }),
+    });
+    const fields = await res.json();
+    p.analyzing = false;
+    p.statusMsg = '';
+    pvaRecFill(bmNaam, fields);
+  } catch(err) {
+    p.analyzing = false;
+    p.statusMsg = '⚠️ Fout bij veldherkenning: ' + err.message;
+    renderBM(BMS.find(b=>b.naam===bmNaam));
+  }
+}
+
+function pvaRecFill(bmNaam, fields) {
+  const safeId = bmNaam.replace(/\s+/g,'_');
+  const fill = (fieldKey, elId) => {
+    const val = fields[fieldKey];
+    if (!val) return;
+    const el = document.getElementById(elId);
+    if (el && !el.disabled) {
+      el.value = val;
+      el.dispatchEvent(new Event('input'));
+    }
+    // Also update PLAN_VA cache
+    let row = PLAN_VA.find(p2 => p2.bm_naam === bmNaam && p2.jaar === CUR.year && p2.week === CUR.week);
+    if (!row) { row = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }; PLAN_VA.push(row); }
+    if (val) row[fieldKey] = val;
+  };
+
+  if (fields.behaald === 'ja' || fields.behaald === 'nee') {
+    const rb = document.querySelector(`input[name="plan-behaald-${safeId}"][value="${fields.behaald}"]`);
+    if (rb && !rb.disabled) { rb.checked = true; rb.dispatchEvent(new Event('change')); }
+  }
+  fill('verklaring',      `pva-verklaring-${safeId}`);
+  fill('nieuw_weekdoel',  `pva-nieuw_weekdoel-${safeId}`);
+  fill('acties',          `pva-acties-${safeId}`);
+  fill('vacature_focus',  `pva-vacature_focus-${safeId}`);
+  fill('obstakel',        `pva-obstakel-${safeId}`);
+  fill('focuspunt',       `pva-focuspunt-${safeId}`);
+  fill('team_support',    `pva-team_support-${safeId}`);
+
+  pvaScheduleAutosave(bmNaam);
+  renderBM(BMS.find(b=>b.naam===bmNaam));
 }
 
 // ── BZK-Recorder (bedrijfsbezoek opnemen + verslag genereren via AI) ──────────
