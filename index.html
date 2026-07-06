@@ -993,6 +993,10 @@ function renderMedewerkersOverzicht() {
   const year   = getYear();
   const passed = periodsPassedInYear(year, 'week');
 
+  // KPI totalen: som van alle BM's (zelfde set als de ranking hieronder)
+  const allBmRows = BMS.flatMap(bm => filterData(bm.naam, year));
+  const teamYtd   = ytdTotals(allBmRows);
+
   const ranking = BMS.map(bm => {
     const rows      = filterData(bm.naam, year);
     const ytd       = ytdTotals(rows);
@@ -1032,6 +1036,16 @@ function renderMedewerkersOverzicht() {
     <div class="norm-intro">
       Ranking op basis van <strong>% van het starters-jaardoel</strong> dat YTD behaald is, t.o.v. wat op dit punt in het jaar verwacht werd. De balk loopt van 0% tot 200%, met <strong>100% precies in het midden</strong> (streepje) &mdash; zo blijft overperformance ver boven 100% (\u{1F3C6}) ook echt zichtbaar. 🔴 tot 79% &middot; 🟡 80&ndash;95% &middot; 🟢 boven 95%.
     </div>
+
+    <div class="section-title"><span>📊 KPI totalen team YTD ${year}</span></div>
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      ${KPIS.map(k => `<div class="kpi-card">
+        <div class="label">${KPI_LABELS[k]}</div>
+        <div class="value" style="color:${k==='starters'?'var(--success)':'var(--primary)'};">${fmt(teamYtd[k], k==='starters'?1:0)}</div>
+        <div class="sub">YTD t/m week ${CUR.week}</div>
+      </div>`).join('')}
+    </div>
+
     <div class="table-card"><table>
       <thead><tr>
         <th>#</th><th>Medewerker</th><th>Starters YTD</th><th>Verwacht YTD</th><th>Voortgang</th><th>% behaald</th><th>Jaardoel</th>
