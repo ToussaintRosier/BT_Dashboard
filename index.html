@@ -1015,6 +1015,7 @@ function renderBM(bm) {
       <button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">📝 Plan van aanpak</button>
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">🎯 Coaching</button>
       <button class="bm-subtab-btn ${bmSubTab==='motivatieladder'?'active':''}" onclick="selectBmSubTab('motivatieladder')">🪜 Motivatieladder</button>
+      <button class="bm-subtab-btn ${bmSubTab==='werkintensiteit'?'active':''}" onclick="selectBmSubTab('werkintensiteit')">⚡ Werkintensiteit</button>
     </div>
     <div id="bm-subtab-content"></div>
   </div>`;
@@ -1029,6 +1030,10 @@ function renderBM(bm) {
   }
   if (bmSubTab === 'motivatieladder') {
     document.getElementById('bm-subtab-content').innerHTML = renderMotivatieladder(bm);
+    return;
+  }
+  if (bmSubTab === 'werkintensiteit') {
+    document.getElementById('bm-subtab-content').innerHTML = renderWerkintensiteitsladder(bm);
     return;
   }
 
@@ -1944,6 +1949,139 @@ function renderMotivatieladder(bm) {
   }
   return `<div style="text-align:center">
     <img src="${MOTIVATIELADDER_IMG}" alt="Motivatieladder" style="max-width:100%;border-radius:var(--radius);border:1px solid var(--border);">
+  </div>`;
+}
+
+// ── Werkintensiteitsladder (per medewerker) ─────────────────────────────────
+function renderWerkintensiteitsladder(bm) {
+  if (!canView(bm.naam)) return '<div class="info-box blue">Geen rechten om dit te bekijken.</div>';
+
+  const NIVEAUS = [
+    {
+      nr: 5, naam: 'Maximale waarde', kleur: '#0e9f6e',
+      quote: 'Ik zorg dat iedere werkdag zo veel mogelijk waarde oplevert – voor mij \xe9n de ander.',
+      gedrag: [
+        'Denkt continu in verbetering',
+        'Verbetert processen en werkwijzen',
+        'Helpt collega’s productiever te worden',
+        'Deelt kennis en best practices',
+        'Draagt actief bij aan groei van de organisatie',
+        'Zet iedere minuut om in maximale waarde',
+      ],
+      impact: 'Continu verbeteren. Sterkere teams. Meer resultaat, zonder meer uren.',
+      brightech: 'Vermenigvuldigt impact en maakt anderen beter',
+    },
+    {
+      nr: 4, naam: 'Eigenaarschap', kleur: '#253151',
+      quote: 'Ik benut mijn werkdag maximaal en neem verantwoordelijkheid voor mijn resultaat.',
+      gedrag: [
+        'Werkt doelgericht en met hoog tempo',
+        'Zoekt actief naar vervolgacties',
+        'Rondt zaken direct af',
+        'Voorkomt onnodige stilstand',
+        'Lost knelpunten zelf op',
+        'Bereidt zaken vooruit',
+      ],
+      impact: 'Hoge productiviteit. Betrouwbare uitvoering. Weinig aansturing nodig.',
+      brightech: 'Neemt eigenaarschap en benut de dag maximaal',
+    },
+    {
+      nr: 3, naam: 'Productief', kleur: '#E87400',
+      quote: 'Ik voer mijn werkzaamheden goed en volgens afspraak uit.',
+      gedrag: [
+        'Plant werkzaamheden en houdt overzicht',
+        'Werkt geconcentreerd',
+        'Rondt taken af en haalt afspraken na',
+        'Stelt de juiste prioriteiten',
+        'Is goed aanspreekbaar en beschikbaar',
+      ],
+      impact: 'Voorspelbare resultaten. Betrouwbare basis. Goede voortgang.',
+      brightech: 'Is productief en levert wat is afgesproken',
+    },
+    {
+      nr: 2, naam: 'Bezig zijn', kleur: '#f59e0b',
+      quote: 'Ik ben druk, maar niet altijd effectief.',
+      gedrag: [
+        'Is de hele dag bezig',
+        'Springt van taak naar taak',
+        'Verliest regelmatig overzicht',
+        'Rondt zaken niet altijd af',
+        'Veel activiteit, wisselend resultaat',
+      ],
+      impact: 'Hoge inspanning. Gemiddeld rendement. Veel tijdverlies.',
+      brightech: 'Is druk bezig maar niet altijd effectief',
+    },
+    {
+      nr: 1, naam: 'Afwachten', kleur: '#e02424',
+      quote: 'Ik doe iets als iemand mij vraagt om iets te doen.',
+      gedrag: [
+        'Begint de dag zonder plan',
+        'Wacht op opdrachten',
+        'Laat werkzaamheden regelmatig liggen',
+        'Laat zich gemakkelijk afleiden',
+        'Heeft veel stilstand gedurende de dag',
+      ],
+      impact: 'Lage output. Veel aansturing nodig. Kansen blijven liggen.',
+      brightech: 'Laat kansen liggen en wacht af',
+    },
+  ];
+
+  const niveauHtml = NIVEAUS.map(n => `
+    <div style="display:flex;align-items:stretch;margin-bottom:10px;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(37,49,81,.1);">
+      <!-- Nummer + naam blok -->
+      <div style="background:${n.kleur};color:#fff;padding:16px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:90px;flex-shrink:0;text-align:center;">
+        <div style="font-size:1.8rem;font-weight:900;line-height:1;">${n.nr}</div>
+        <div style="font-size:.72rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-top:4px;line-height:1.2;">${escHtml(n.naam)}</div>
+      </div>
+      <!-- Inhoud -->
+      <div style="background:#fff;flex:1;padding:14px 16px;border:1px solid var(--border);border-left:none;border-radius:0 10px 10px 0;">
+        <div style="font-style:italic;font-size:.85rem;color:${n.kleur};font-weight:600;margin-bottom:10px;line-height:1.45;">„${escHtml(n.quote)}”</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Gedrag</div>
+            ${n.gedrag.map(g => `<div style="font-size:.81rem;line-height:1.5;padding:2px 0;display:flex;gap:6px;"><span style="color:${n.kleur};font-weight:700;flex-shrink:0;">✓</span>${escHtml(g)}</div>`).join('')}
+          </div>
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Impact op organisatie</div>
+            <div style="font-size:.84rem;line-height:1.6;color:var(--text);">${escHtml(n.impact)}</div>
+            <div style="margin-top:10px;padding:8px 10px;background:#f4f6f9;border-radius:6px;border-left:3px solid ${n.kleur};">
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Vertaling Brightech</div>
+              <div style="font-size:.82rem;color:var(--text);">${escHtml(n.brightech)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  return `<div style="margin-top:16px;">
+    <!-- Definitie -->
+    <div style="background:var(--primary);color:#fff;border-radius:var(--radius);padding:16px 20px;margin-bottom:18px;display:flex;gap:16px;align-items:flex-start;">
+      <div style="font-size:2rem;flex-shrink:0;">⚡</div>
+      <div>
+        <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Werkintensiteitsladder</div>
+        <div style="font-size:.85rem;line-height:1.65;opacity:.9;">
+          Werkintensiteit is de mate waarin je je werkdag benut om waarde te cre\xebren voor kandidaten, klanten, collega’s en Brightech.
+          Het gaat om <strong>focus, tempo, eigenaarschap en continu verbeteren</strong>.
+          Wij beoordelen werkintensiteit niet op uren, maar op impact.
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 niveaus -->
+    ${niveauHtml}
+
+    <!-- Slotboodschap -->
+    <div style="background:#F4CB3C;border-radius:var(--radius);padding:14px 20px;margin-top:6px;text-align:center;font-weight:700;font-size:.92rem;color:#16142e;">
+      ★ Hard werken = Slimmer werken, met focus, tempo en eigenaarschap.
+    </div>
+
+    <!-- De belangrijke vraag -->
+    <div class="chart-card" style="margin-top:14px;text-align:center;">
+      <h3 style="margin-bottom:10px;color:var(--primary);">De belangrijke vraag</h3>
+      <p style="font-size:.88rem;color:var(--muted);margin-bottom:8px;">Niet: <em>„Werk je hard genoeg?”</em></p>
+      <p style="font-size:.95rem;font-weight:700;color:var(--primary);margin-bottom:6px;">„Op welk niveau van werkintensiteit functioneer jij momenteel?”</p>
+      <p style="font-size:.95rem;font-weight:700;color:var(--primary);">„Welk gedrag laat jij zien waardoor we samen meer waarde cre\xebren?”</p>
+    </div>
   </div>`;
 }
 
