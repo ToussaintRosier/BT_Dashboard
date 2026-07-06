@@ -1086,7 +1086,7 @@ function renderMedewerkersOverzicht() {
             : '<span style="color:var(--success);font-size:.76rem;" title="Opgeslagen">✔</span>')
         : '<span style="color:var(--muted);font-size:.72rem;font-style:italic;" title="Nog niet opgeslagen — pipeline-stand">live</span>';
       return '<tr style="border-bottom:1px solid var(--border);">' +
-        '<td style="padding:5px 8px 5px 0;font-weight:600;font-size:.82rem;white-space:nowrap;">' +
+        '<td style="padding:5px 0;font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
           '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + bm.kleur + ';margin-right:5px;vertical-align:middle;"></span>' +
           escHtml(bm.naam) +
         '</td>' +
@@ -1102,9 +1102,22 @@ function renderMedewerkersOverzicht() {
 
     const hasData = KPIS.some(k => totals[k] > 0);
 
+    // Vaste kolombreedtes zodat alle weekblokken identiek uitlijnen
+    const colGroup =
+      '<colgroup>' +
+        '<col style="width:30%">' +   // Medewerker
+        '<col style="width:8%">' +    // Int
+        '<col style="width:8%">' +    // Bez
+        '<col style="width:10%">' +   // Aanb (iets breder voor 3-cijferige waarden)
+        '<col style="width:9%">' +    // Match
+        '<col style="width:9%">' +    // Contr
+        '<col style="width:10%">' +   // Start
+        '<col style="width:16%">' +   // Status-badge
+      '</colgroup>';
+
     const headerRow =
       '<tr style="color:var(--muted);font-size:.71rem;text-transform:uppercase;letter-spacing:.04em;">' +
-        '<th style="text-align:left;padding:3px 8px 7px 0;font-weight:600;">Medewerker</th>' +
+        '<th style="text-align:left;padding:3px 0 7px;font-weight:600;">Medewerker</th>' +
         ['Int','Bez','Aanb','Match','Contr','Start'].map(h =>
           '<th style="text-align:right;padding:3px 8px 7px;font-weight:600;">' + h + '</th>'
         ).join('') +
@@ -1113,7 +1126,7 @@ function renderMedewerkersOverzicht() {
 
     const totRow =
       '<tr style="border-top:2px solid var(--border);">' +
-        '<td style="padding:6px 8px 4px 0;font-weight:700;font-size:.83rem;">Totaal</td>' +
+        '<td style="padding:6px 0 4px;font-weight:700;font-size:.83rem;">Totaal</td>' +
         KPIS.map(k =>
           '<td style="text-align:right;padding:6px 8px 4px;font-weight:700;font-size:.83rem;' +
           (k === 'starters' ? 'color:var(--success);' : '') + '">' +
@@ -1125,7 +1138,8 @@ function renderMedewerkersOverzicht() {
 
     return '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;">' +
       '<div style="font-weight:700;font-size:.92rem;margin-bottom:10px;">Week ' + week + ' · ' + jaar + weekBadge(jaar, week) + '</div>' +
-      '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
+      '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+        colGroup +
         '<thead>' + headerRow + '</thead>' +
         '<tbody>' + (bmArr.length
           ? bmArr.join('')
