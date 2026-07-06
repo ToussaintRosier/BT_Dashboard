@@ -957,6 +957,7 @@ function closeSidebar() {
 }
 function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
+  gesprekSubView='recorder'; bezoekSubView='recorder';
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
@@ -4757,6 +4758,7 @@ function gesprekPoll() {
         GESPREK.result = data.analyse || null;
         GESPREK.analyzing = false;
         GESPREK.statusMsg = '✅ Analyse klaar!';
+        addGesprekRecord();
         renderGesprek();
       } else if (data.status === 'error' || data.error) {
         clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
@@ -4898,6 +4900,7 @@ function gesprekDownload(formaat) {
 
 function renderGesprek() {
   if (currentTab !== 'gesprek') return; // opname loopt door, maar UI niet overschrijven
+  if (gesprekSubView === 'records') { renderGesprekRecords(); return; }
   const g = GESPREK;
   const r = g.result;
 
@@ -4954,12 +4957,17 @@ function renderGesprek() {
       <button class="btn-secondary" onclick="gesprekNaarCvGenerator()" style="background:#eef2ff;border-color:var(--primary);color:var(--primary);">📄 → CV-generator</button>
     </div>` : '';
 
+  const _gesprekBadge = GESPREK_RECORDS.length > 0 ? `<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>` : '';
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
       <div class="person-name">🎙️ Recorder</div>
       <div class="person-meta">
         <span class="meta-pill">Sollicitatiegesprek opnemen &amp; automatisch analyseren</span>
       </div>
+    </div>
+    <div class="bm-subtabs" style="margin-bottom:16px;">
+      <button class="bm-subtab-btn active" onclick="">🎙️ Recorder</button>
+      <button class="bm-subtab-btn" onclick="gesprekSubView='records';renderGesprekRecords()">📋 Recente records${_gesprekBadge}</button>
     </div>
     <div class="info-box blue">ℹ️ Neem het gesprek op via de microfoon van je laptop. Na het stoppen worden de sprekers automatisch herkend en het gesprek geanalyseerd door AI. Informeer kandidaten dat het gesprek wordt opgenomen.</div>
 
@@ -5007,6 +5015,257 @@ function renderGesprek() {
     </div>
 
     ${resultHtml}
+  </div>`;
+}
+
+// ── Recente Records – opslag + beheer (localStorage, max 30) ─────────────────
+let gesprekSubView = 'recorder'; // 'recorder' | 'records'
+let bezoekSubView  = 'recorder'; // 'recorder' | 'records'
+let GESPREK_OPEN    = new Set();
+let BEZOEK_OPEN     = new Set();
+let GESPREK_SHOW_TR = new Set();
+let BEZOEK_SHOW_TR  = new Set();
+let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_records')||'[]').slice(0,30); } catch(_) { return []; } })();
+let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,30); } catch(_) { return []; } })();
+
+function _saveGesprekRec() { try { localStorage.setItem('bt_gesprek_records', JSON.stringify(GESPREK_RECORDS)); } catch(_) {} }
+function _saveBezoekRec()  { try { localStorage.setItem('bt_bezoek_records',  JSON.stringify(BEZOEK_RECORDS));  } catch(_) {} }
+
+function addGesprekRecord() {
+  const g = GESPREK; if (!g.result) return;
+  GESPREK_RECORDS.unshift({ id: Date.now(), datum: new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'}), naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript });
+  if (GESPREK_RECORDS.length > 30) GESPREK_RECORDS.length = 30;
+  _saveGesprekRec();
+}
+function addBezoekRecord() {
+  const b = BEZOEK; if (!b.result) return;
+  BEZOEK_RECORDS.unshift({ id: Date.now(), datum: new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'}), bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, result:b.result, transcript:b.transcript });
+  if (BEZOEK_RECORDS.length > 30) BEZOEK_RECORDS.length = 30;
+  _saveBezoekRec();
+}
+
+function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
+function toggleGesprekTranscript(id){ if(GESPREK_SHOW_TR.has(id))GESPREK_SHOW_TR.delete(id); else GESPREK_SHOW_TR.add(id); renderGesprek(); }
+function gesprekRecordVerwijder(id) { GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>r.id!==id); GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id); _saveGesprekRec(); renderGesprek(); }
+function gesprekRecordWisAlles()    { if(!confirm('Weet je zeker dat je alle gespreksverslagen wilt wissen?'))return; GESPREK_RECORDS=[]; GESPREK_OPEN.clear(); GESPREK_SHOW_TR.clear(); _saveGesprekRec(); renderGesprek(); }
+
+function toggleBezoekRecord(id)    { if(BEZOEK_OPEN.has(id))BEZOEK_OPEN.delete(id); else BEZOEK_OPEN.add(id); renderBezoekRecorder(); }
+function toggleBezoekTranscript(id){ if(BEZOEK_SHOW_TR.has(id))BEZOEK_SHOW_TR.delete(id); else BEZOEK_SHOW_TR.add(id); renderBezoekRecorder(); }
+function bezoekRecordVerwijder(id) { BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>r.id!==id); BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id); _saveBezoekRec(); renderBezoekRecorder(); }
+function bezoekRecordWisAlles()    { if(!confirm('Weet je zeker dat je alle bezoekverslagen wilt wissen?'))return; BEZOEK_RECORDS=[]; BEZOEK_OPEN.clear(); BEZOEK_SHOW_TR.clear(); _saveBezoekRec(); renderBezoekRecorder(); }
+
+// Per-record HTML builder + acties – Gesprek
+function _gesprekRecordHtml(rec) {
+  const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
+  const e=(s)=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const rij=(lbl,val)=>val?`<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${lbl}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>`:'';
+  return `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><title>Gespreksverslag${rec.naam?' – '+rec.naam:''}</title>
+<style>body{font-family:Arial,sans-serif;font-size:11pt;margin:2cm;color:#1a1a1a;line-height:1.5}h1{font-size:18pt;color:#253151;border-bottom:2px solid #253151;padding-bottom:8px;margin-bottom:4px}.meta{font-size:10pt;color:#666;margin-bottom:20px}h2{font-size:12pt;color:#253151;margin-top:20px;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:10.5pt}.sam{background:#f5f7fb;padding:12px 16px;border-radius:4px;line-height:1.65;font-size:10.5pt}.drie{display:table;width:100%;border-spacing:16px 0;margin:0 -16px}.dc{display:table-cell;vertical-align:top;width:33%}@media print{body{margin:1.5cm}@page{margin:1.5cm}}</style></head><body>
+<h1>Gespreksverslag</h1>
+<div class="meta">${rec.naam?`<strong>${e(rec.naam)}</strong>`:''}${rec.functie?` &mdash; ${e(rec.functie)}`:''} &nbsp;|&nbsp; ${rec.datum||''}</div>
+<h2>Samenvatting</h2><div class="sam">${e(r.samenvatting||'')}</div>
+<div class="drie" style="margin-top:20px;">
+  <div class="dc"><h2>Harde wensen</h2><table>${rij('Functie',hw.functie)}${rij('Regio',hw.regio)}${rij('Salaris',hw.salaris)}${rij('Werktijden',hw.werktijden)}${rij('Overige',hw.overige)}</table></div>
+  <div class="dc"><h2>Zachte factoren</h2><table>${rij('Drijfveren',zf.drijfveren)}${rij('Reden CV',zf.redenAchterCV)}${rij('Eigenschappen',zf.eigenschappen)}${rij('Pers. situatie',zf.persoonlijkeSituatie)}</table></div>
+  <div class="dc"><h2>Afspraken</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div>
+</div></body></html>`;
+}
+function gesprekRecordPrint(id) { const rec=GESPREK_RECORDS.find(r=>r.id===id); if(!rec)return; const w=window.open('','_blank'); w.document.write(_gesprekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
+function gesprekRecordDownload(id,fmt) {
+  const rec=GESPREK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const html=_gesprekRecordHtml(rec), naam=(rec.naam||'gespreksverslag').replace(/\s+/g,'_');
+  if(fmt==='word'){ const b=new Blob([html],{type:'application/msword'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=naam+'.doc'; a.click(); URL.revokeObjectURL(a.href); }
+  else { const w=window.open('','_blank'); w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
+}
+function gesprekRecordKopieer(id) {
+  const rec=GESPREK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const res=rec.result||{}, hw=res.hardeWensen||{}, zf=res.zachteFactoren||{};
+  const lines=['=== SOLLICITATIEGESPREK ===',res.samenvatting||'','','--- HARDE WENSEN ---',
+    hw.functie?'Functie: '+hw.functie:'', hw.regio?'Regio: '+hw.regio:'', hw.salaris?'Salaris: '+hw.salaris:'',
+    hw.werktijden?'Werktijden: '+hw.werktijden:'', hw.overige?'Overige: '+hw.overige:'',
+    '','--- ZACHTE FACTOREN ---',
+    zf.drijfveren?'Drijfveren: '+zf.drijfveren:'', zf.redenAchterCV?'Reden CV: '+zf.redenAchterCV:'',
+    zf.eigenschappen?'Eigenschappen: '+zf.eigenschappen:'', zf.persoonlijkeSituatie?'Pers. situatie: '+zf.persoonlijkeSituatie:'',
+    '','--- AFSPRAKEN ---',res.afspraken||''].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(lines).catch(()=>{});
+}
+
+// Per-record HTML builder + acties – Bezoek
+function _bezoekRecordHtml(rec) {
+  const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{};
+  const e=(s)=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const rij=(lbl,val)=>val?`<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${lbl}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>`:'';
+  return `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><title>Bezoekverslag${rec.bedrijf?' – '+rec.bedrijf:''}</title>
+<style>body{font-family:Arial,sans-serif;font-size:11pt;margin:2cm;color:#1a1a1a;line-height:1.5}h1{font-size:18pt;color:#253151;border-bottom:2px solid #E87400;padding-bottom:8px;margin-bottom:4px}.meta{font-size:10pt;color:#666;margin-bottom:20px}h2{font-size:12pt;color:#253151;margin-top:20px;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:10.5pt}.sam{background:#f5f7fb;padding:12px 16px;border-radius:4px;line-height:1.65;font-size:10.5pt}.drie{display:table;width:100%;border-spacing:16px 0;margin:0 -16px}.dc{display:table-cell;vertical-align:top;width:50%}.pot{background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:12px 16px;font-size:10.5pt;line-height:1.65}@media print{body{margin:1.5cm}@page{margin:1.5cm}}</style></head><body>
+<h1>🏢 Bezoekverslag</h1>
+<div class="meta">${rec.bedrijf?`<strong>${e(rec.bedrijf)}</strong>`:''}${rec.contactpersoon?` &mdash; ${e(rec.contactpersoon)}`:''} &nbsp;|&nbsp; ${rec.datum||''}</div>
+<h2>Samenvatting</h2><div class="sam">${e(r.samenvatting||'')}</div>
+<div class="drie" style="margin-top:20px;">
+  <div class="dc">
+    <h2>Bedrijfsprofiel</h2><table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table>
+    <h2 style="margin-top:16px;">Wervingsbehoefte</h2><table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table>
+  </div>
+  <div class="dc">
+    <h2>Huidige personeelssituatie</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie||'—')}</p>
+    <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p>
+  </div>
+</div>
+<h2 style="margin-top:20px;">Commercieel potentieel</h2><div class="pot">${e(r.commercieelePotentie||'—')}</div>
+</body></html>`;
+}
+function bezoekRecordPrint(id) { const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return; const w=window.open('','_blank'); w.document.write(_bezoekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
+function bezoekRecordDownload(id,fmt) {
+  const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const html=_bezoekRecordHtml(rec), naam=(rec.bedrijf||'bezoekverslag').replace(/\s+/g,'_');
+  if(fmt==='word'){ const b=new Blob([html],{type:'application/msword'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=naam+'.doc'; a.click(); URL.revokeObjectURL(a.href); }
+  else { const w=window.open('','_blank'); w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
+}
+function bezoekRecordKopieer(id) {
+  const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const res=rec.result||{}, bp=res.bedrijfsprofiel||{}, wb=res.wervingsbehoefte||{};
+  const lines=['=== BEZOEKVERSLAG ===',res.samenvatting||'','','--- BEDRIJFSPROFIEL ---',
+    bp.sector?'Sector: '+bp.sector:'', bp.omvang?'Omvang: '+bp.omvang:'', bp.activiteit?'Activiteit: '+bp.activiteit:'',
+    '','--- WERVINGSBEHOEFTE ---',
+    wb.functies?'Functies: '+wb.functies:'', wb.aantallen?'Aantallen: '+wb.aantallen:'', wb.profiel?'Profiel: '+wb.profiel:'', wb.urgentie?'Urgentie: '+wb.urgentie:'',
+    '','--- HUIDIGE SITUATIE ---',res.huidigePersoneelssituatie||'',
+    '','--- COMMERCIEEL POTENTIEEL ---',res.commercieelePotentie||'',
+    '','--- AFSPRAKEN ---',res.afspraken||''].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(lines).catch(()=>{});
+}
+
+// Records-weergave – Gesprek
+function renderGesprekRecords() {
+  if (currentTab !== 'gesprek') return;
+  const PT=(rows)=>`<table style="width:100%;border-collapse:collapse;font-size:.84rem;">${rows.filter(([,v])=>v).map(([k,v])=>`<tr><td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:4px 10px 4px 0;vertical-align:top;width:38%;">${escHtml(k)}</td><td style="padding:4px 0;line-height:1.5;">${escHtml(v)}</td></tr>`).join('')}</table>`;
+  const badge=GESPREK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>`:'';
+  const items=GESPREK_RECORDS.length===0
+    ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen gesprekken.</div>`
+    :GESPREK_RECORDS.map(rec=>{
+      const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
+      const open=GESPREK_OPEN.has(rec.id), showTr=GESPREK_SHOW_TR.has(rec.id);
+      const title=[rec.naam,rec.functie].filter(Boolean).join(' — ')||'Gesprek';
+      return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
+        <div onclick="toggleGesprekRecord(${rec.id})" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
+          <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
+          <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
+          <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          <span onclick="event.stopPropagation();gesprekRecordVerwijder(${rec.id})" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
+        </div>
+        ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
+          <div class="chart-card" style="padding:12px 14px;margin-bottom:12px;">
+            <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">📝 Samenvatting</div>
+            <p style="margin:0;line-height:1.7;font-size:.85rem;white-space:pre-wrap;">${escHtml(r.samenvatting||'—')}</p>
+          </div>
+          <div class="three-col" style="gap:10px;margin-bottom:12px;">
+            <div class="chart-card" style="padding:12px 14px;">
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">📋 Harde wensen</div>
+              ${PT([['Functie',hw.functie],['Regio',hw.regio],['Salaris',hw.salaris],['Werktijden',hw.werktijden],['Overige',hw.overige]])}
+            </div>
+            <div class="chart-card" style="padding:12px 14px;">
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💭 Zachte factoren</div>
+              ${PT([['Drijfveren',zf.drijfveren],['Reden CV',zf.redenAchterCV],['Eigenschappen',zf.eigenschappen],['Pers. situatie',zf.persoonlijkeSituatie]])}
+            </div>
+            <div class="chart-card" style="padding:12px 14px;">
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div>
+              <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${showTr&&rec.transcript?'10px':'0'};">
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordKopieer(${rec.id})">📋 Kopieer</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordPrint(${rec.id})">🖨️ Printen/PDF</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordDownload(${rec.id},'word')">📄 Word</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleGesprekTranscript(${rec.id})">📜 ${showTr?'Verberg':'Toon'} transcript</button>
+          </div>
+          ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
+        </div>`:''}
+      </div>`;
+    }).join('');
+  document.getElementById('main').innerHTML=`<div>
+    <div class="person-header">
+      <div class="person-name">🎙️ Recorder</div>
+      <div class="person-meta"><span class="meta-pill">Sollicitatiegesprek opnemen &amp; automatisch analyseren</span></div>
+    </div>
+    <div class="bm-subtabs" style="margin-bottom:16px;">
+      <button class="bm-subtab-btn" onclick="gesprekSubView='recorder';renderGesprek()">🎙️ Recorder</button>
+      <button class="bm-subtab-btn active" onclick="">📋 Recente records${badge}</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS.length} van max. 30 records — blijft bewaard na verversen</span>
+      ${GESPREK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="gesprekRecordWisAlles()">🗑 Alles wissen</button>`:''}
+    </div>
+    ${items}
+  </div>`;
+}
+
+// Records-weergave – Bezoek
+function renderBezoekRecords() {
+  if (currentTab !== 'bezoek') return;
+  const PT=(rows)=>`<table style="width:100%;border-collapse:collapse;font-size:.84rem;">${rows.filter(([,v])=>v).map(([k,v])=>`<tr><td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:4px 10px 4px 0;vertical-align:top;width:38%;">${escHtml(k)}</td><td style="padding:4px 0;line-height:1.5;">${escHtml(v)}</td></tr>`).join('')}</table>`;
+  const badge=BEZOEK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>`:'';
+  const items=BEZOEK_RECORDS.length===0
+    ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen bezoekverslagen.</div>`
+    :BEZOEK_RECORDS.map(rec=>{
+      const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{};
+      const open=BEZOEK_OPEN.has(rec.id), showTr=BEZOEK_SHOW_TR.has(rec.id);
+      const title=[rec.bedrijf,rec.contactpersoon].filter(Boolean).join(' — ')||'Bezoek';
+      return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
+        <div onclick="toggleBezoekRecord(${rec.id})" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
+          <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
+          <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
+          <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          <span onclick="event.stopPropagation();bezoekRecordVerwijder(${rec.id})" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
+        </div>
+        ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
+          <div class="chart-card" style="padding:12px 14px;margin-bottom:12px;">
+            <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">📝 Samenvatting</div>
+            <p style="margin:0;line-height:1.7;font-size:.85rem;white-space:pre-wrap;">${escHtml(r.samenvatting||'—')}</p>
+          </div>
+          <div class="two-col" style="gap:10px;margin-bottom:12px;">
+            <div class="chart-card" style="padding:12px 14px;">
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏭 Bedrijfsprofiel</div>
+              ${PT([['Sector',bp.sector],['Omvang',bp.omvang],['Activiteit',bp.activiteit]])}
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 6px;">📋 Wervingsbehoefte</div>
+              ${PT([['Functies',wb.functies],['Aantallen',wb.aantallen],['Profiel',wb.profiel],['Urgentie',wb.urgentie]])}
+            </div>
+            <div>
+              <div class="chart-card" style="padding:12px 14px;margin-bottom:10px;">
+                <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👥 Huidige personeelssituatie</div>
+                <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.huidigePersoneelssituatie||'—')}</p>
+              </div>
+              <div class="chart-card" style="padding:12px 14px;margin-bottom:10px;">
+                <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken &amp; vervolgacties</div>
+                <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p>
+              </div>
+              <div class="chart-card" style="padding:12px 14px;border-left:3px solid var(--success);">
+                <div style="font-size:.7rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Commercieel potentieel</div>
+                <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.commercieelePotentie||'—')}</p>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${showTr&&rec.transcript?'10px':'0'};">
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordKopieer(${rec.id})">📋 Kopieer</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordPrint(${rec.id})">🖨️ Printen/PDF</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordDownload(${rec.id},'word')">📄 Word</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleBezoekTranscript(${rec.id})">📜 ${showTr?'Verberg':'Toon'} transcript</button>
+          </div>
+          ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
+        </div>`:''}
+      </div>`;
+    }).join('');
+  document.getElementById('main').innerHTML=`<div>
+    <div class="person-header">
+      <div class="person-name">🏢 BZK-Recorder</div>
+      <div class="person-meta"><span class="meta-pill">Bedrijfsbezoek opnemen &amp; automatisch verslag maken</span></div>
+    </div>
+    <div class="bm-subtabs" style="margin-bottom:16px;">
+      <button class="bm-subtab-btn" onclick="bezoekSubView='recorder';renderBezoekRecorder()">🏢 Recorder</button>
+      <button class="bm-subtab-btn active" onclick="">📋 Recente records${badge}</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS.length} van max. 30 records — blijft bewaard na verversen</span>
+      ${BEZOEK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="bezoekRecordWisAlles()">🗑 Alles wissen</button>`:''}
+    </div>
+    ${items}
   </div>`;
 }
 
@@ -5107,6 +5366,7 @@ function bezoekPoll() {
         BEZOEK.result = data.analyse || null;
         BEZOEK.analyzing = false;
         BEZOEK.statusMsg = '✅ Verslag klaar!';
+        addBezoekRecord();
         renderBezoekRecorder();
       } else if (data.status === 'error' || data.error) {
         clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
@@ -5251,6 +5511,7 @@ function bezoekDownload(formaat) {
 
 function renderBezoekRecorder() {
   if (currentTab !== 'bezoek') return; // opname loopt door, maar UI niet overschrijven
+  if (bezoekSubView === 'records') { renderBezoekRecords(); return; }
   const b = BEZOEK;
   const r = b.result;
 
@@ -5312,12 +5573,17 @@ function renderBezoekRecorder() {
       <button class="btn-secondary" onclick="bezoekDownload('word')">📄 Download Word</button>
     </div>` : '';
 
+  const _bezoekBadge = BEZOEK_RECORDS.length > 0 ? `<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>` : '';
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
       <div class="person-name">🏢 BZK-Recorder</div>
       <div class="person-meta">
         <span class="meta-pill">Bedrijfsbezoek opnemen &amp; automatisch verslag maken</span>
       </div>
+    </div>
+    <div class="bm-subtabs" style="margin-bottom:16px;">
+      <button class="bm-subtab-btn active" onclick="">🏢 Recorder</button>
+      <button class="bm-subtab-btn" onclick="bezoekSubView='records';renderBezoekRecords()">📋 Recente records${_bezoekBadge}</button>
     </div>
     <div class="info-box blue">ℹ️ Neem het bezoekgesprek op via de microfoon van je laptop. Na het stoppen worden sprekers herkend en maakt AI automatisch een bezoekverslag. Informeer je gesprekspartner dat het gesprek wordt opgenomen.</div>
 
