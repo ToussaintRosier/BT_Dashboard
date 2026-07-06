@@ -460,6 +460,8 @@ const supa = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
   : null;
 
 let CURRENT_USER = null;   // profiel van de ingelogde gebruiker (rol, naam, bm_naam)
+let GESPREK_COACHING_RESULTS = {}; // keyed by record.id → { loading, result, error }
+let BEZOEK_COACHING_RESULTS  = {}; // keyed by record.id → { loading, result, error }
 let PIPE_CACHE   = {};     // pipeline-kaarten per BM, gevuld vanuit de database
 let PROJECTEN    = [];     // projectenlijst (geïmporteerd uit Excel), gevuld vanuit de database
 let PLAN_VA      = [];     // "Plan van aanpak" weekrijen per BM, gevuld vanuit de database
@@ -2347,6 +2349,49 @@ function computeCoachingData(bm) {
       trend[k] = { recent, ytdAvg: +ytdPerWk[k], delta: +(recent - ytdPerWk[k]).toFixed(1) };
     }
 
+    // ── Contractvoorstel conversies (26-weken basis) ──────────────────────────
+    const m2c  = r.matchgesprekken   ? +(r.contractvoorstellen / r.matchgesprekken   * 100).toFixed(1) : 0;
+    const c2s  = r.contractvoorstellen ? +(r.starters / r.contractvoorstellen * 100).toFixed(1) : 0;
+    const tm2c = tr.matchgesprekken  ? +(tr.contractvoorstellen / tr.matchgesprekken  * 100).toFixed(1) : 0;
+    const tc2s = tr.contractvoorstellen ? +(tr.starters / tr.contractvoorstellen * 100).toFixed(1) : 0;
+
+    // ── Consistentie (std.dev intakes afgelopen 8 weken) ──────────────────────
+    const rows8wk = RAW.filter(d => d.naam===bm.naam && d.jaar===CUR.year && d.week > CUR.week-8 && d.week <= CUR.week);
+    const intakeVals = rows8wk.map(d => d.intakes);
+    const intakeMean = intakeVals.length ? +(intakeVals.reduce((s,v)=>s+v,0)/intakeVals.length).toFixed(1) : 0;
+    const intakeStd  = intakeVals.length > 2
+      ? +(Math.sqrt(intakeVals.reduce((s,v)=>s+(v-intakeMean)**2,0)/intakeVals.length)).toFixed(1) : 0;
+
+    // ── Pipeline-aanvoer (huidige bezetting vroege fases) ─────────────────────
+    const pipeCards  = pipeLoad(bm.naam);
+    const pipeEarly  = pipeCards.filter(c => ['Intake','Aanbieding'].includes(c.stage)).length;
+
+    // ── Weken zonder starter ──────────────────────────────────────────────────
+    const lastStarterRow = RAW.filter(d => d.naam===bm.naam && d.starters > 0)
+      .sort((a,b) => a.jaar!==b.jaar ? b.jaar-a.jaar : b.week-a.week)[0];
+    const weeksSinceStar = lastStarterRow
+      ? Math.max(0,(CUR.year-lastStarterRow.jaar)*52 + CUR.week - lastStarterRow.week)
+      : (RAW.some(d=>d.naam===bm.naam) ? 52 : 0);
+
+    // ── Bezoeknorm-streak (aaneengesloten weken op norm) ──────────────────────
+    const sortedWks = RAW.filter(d => d.naam===bm.naam && d.jaar===CUR.year && d.week <= CUR.week)
+      .sort((a,b) => b.week-a.week);
+    let bezoekStreak = 0;
+    for (const w of sortedWks) {
+      if (w.bezoeken >= Math.max(1, norm.bezoeken * 0.9)) bezoekStreak++;
+      else break;
+    }
+
+    // ── Jaar-op-jaar vergelijking (zelfde weken vorig jaar) ───────────────────
+    const prevYearYtd = ytdTotals(RAW.filter(d => d.naam===bm.naam && d.jaar===CUR.year-1 && d.week <= CUR.week));
+    const prevYearWks = RAW.filter(d => d.naam===bm.naam && d.jaar===CUR.year-1 && d.week <= CUR.week).length;
+    const yoyDelta    = prevYearWks >= 4 ? +(ytd.starters - prevYearYtd.starters).toFixed(1) : null;
+
+    // ── Plan van aanpak opvolging (% behaald dit jaar) ────────────────────────
+    const pvaYtdRows  = PLAN_VA.filter(p => p.bm_naam===bm.naam && p.jaar===CUR.year && (p.behaald==='ja'||p.behaald==='nee'));
+    const pvaBehaald  = pvaYtdRows.filter(p => p.behaald==='ja').length;
+    const pvaPct      = pvaYtdRows.length >= 3 ? Math.round(pvaBehaald/pvaYtdRows.length*100) : null;
+
     // Generate coaching points
     const points = [];
 
@@ -2479,14 +2524,116 @@ function computeCoachingData(bm) {
       });
     }
 
-    // Limit to top 4 most important (red first, then orange, then green)
+    // 8. Contractvoorstel → Starter conversie
+    if (!isKAM && c2s > 0 && tc2s > 0 && c2s < tc2s * 0.65) {
+      points.push({ prio:'red', icon:'✍️', title:`Lage closing: contractvoorstel → starter (${c2s}% vs. team ${tc2s}%)`,
+        reason:`Contractvoorstellen worden beperkt omgezet. Bespreek wat er misgaat in de afrondingsfase — verwachtingen, salaris, of nazorg.` });
+    }
+    if (!isKAM && m2c > 0 && tm2c > 0 && m2c < tm2c * 0.65) {
+      points.push({ prio:'orange', icon:'📋', title:`Lage conversie match → contractvoorstel (${m2c}% vs. team ${tm2c}%)`,
+        reason:`Van elke 100 matchgesprekken leidt slechts ${m2c}% tot een voorstel. Stellen we eerder in het gesprek de verwachting scherp?` });
+    }
+
+    // 9. Pipeline-aanvoer als leading indicator
+    if (!isKAM && pipeEarly < 3 && ytd.starters > 0) {
+      points.push({ prio:'orange', icon:'🔭', title:`Dunne pipeline-aanvoer (${pipeEarly} kandidaat${pipeEarly===1?'':'en'} in intake/aanbieding)`,
+        reason:`Weinig kandidaten in de vroege fases voorspelt terugval in starters over 4–6 weken. Meer intakes nodig om de pipeline gevuld te houden.` });
+    }
+
+    // 10. Droge periode (weken zonder starter)
+    if (weeksSinceStar >= 5) {
+      points.push({ prio:'red', icon:'🏜️', title:`Geen starter in ${weeksSinceStar} weken`,
+        reason:`Bespreek samen waar het hapert: zit de blokkade in aanbieding, match of closing?` });
+    } else if (weeksSinceStar >= 3 && weeksSinceStar < 5) {
+      points.push({ prio:'orange', icon:'⏳', title:`Al ${weeksSinceStar} weken zonder starter`,
+        reason:`Nog net in de norm, maar aandacht gewenst. Welke kandidaten staan het dichtst bij een plaatsing?` });
+    }
+
+    // 11. Bezoeknorm-streak (positief)
+    if (bezoekStreak >= 4) {
+      points.push({ prio:'green', icon:'🔥', title:`${bezoekStreak} weken op rij bezoeknorm gehaald`,
+        reason:`Consistente klantactiviteit is de basis voor een goede opdrachtstroom. Goed volhouden!` });
+    }
+
+    // 12. Consistentie intakes
+    if (!isKAM && intakeStd > intakeMean * 0.7 && intakeMean > 0 && rows8wk.length >= 5) {
+      points.push({ prio:'orange', icon:'📊', title:`Wisselvallige intake-aantallen (std. ${intakeStd} vs. gem. ${intakeMean}/wk)`,
+        reason:`Grote week-tot-week schommelingen maken de funnel onvoorspelbaar. Stabiele activiteit levert betrouwbaardere resultaten.` });
+    }
+
+    // 13. Jaar-op-jaar
+    if (yoyDelta !== null && yoyDelta < -1.5) {
+      points.push({ prio:'orange', icon:'📆', title:`Achter op zelfde periode vorig jaar (${yoyDelta} starters)`,
+        reason:`${fmt(ytd.starters,1)} starters YTD vs. ${fmt(prevYearYtd.starters,1)} in dezelfde periode vorig jaar. Wat is er anders?` });
+    } else if (yoyDelta !== null && yoyDelta > 1.5) {
+      points.push({ prio:'green', icon:'📆', title:`Beter dan zelfde periode vorig jaar (+${yoyDelta} starters)`,
+        reason:`${fmt(ytd.starters,1)} starters YTD vs. ${fmt(prevYearYtd.starters,1)} vorig jaar. Wat werkt nu beter — vasthouden!` });
+    }
+
+    // 14. PVA opvolging
+    if (pvaPct !== null && pvaPct < 50) {
+      points.push({ prio:'orange', icon:'📝', title:`Weekdoelen regelmatig niet behaald (${pvaPct}% 'ja' dit jaar)`,
+        reason:`Zijn de doelen realistisch, of ontbreekt de uitvoering? Bespreek of bijstelling nodig is.` });
+    } else if (pvaPct !== null && pvaPct >= 80) {
+      points.push({ prio:'green', icon:'📝', title:`Weekdoelen goed nageleefd (${pvaPct}% behaald dit jaar)`,
+        reason:`Consistente doelstelling en opvolging — een sterk patroon om vast te houden.` });
+    }
+
+    // Limit: rood eerst, dan oranje, dan groen — max 7
     const sorted = [
       ...points.filter(p=>p.prio==='red'),
       ...points.filter(p=>p.prio==='orange'),
       ...points.filter(p=>p.prio==='green'),
-    ].slice(0, 5);
+    ].slice(0, 7);
 
-    return { bm, isKAM, ytd, expectedStarters, starterGap, starterPctOfDoel, i2a, a2m, m2s, ti2a, ta2m, tm2s, ytdPerWk, norm, trend, points: sorted, r26 };
+    return { bm, isKAM, ytd, expectedStarters, starterGap, starterPctOfDoel, i2a, a2m, m2s, ti2a, ta2m, tm2s, m2c, c2s, tm2c, tc2s, ytdPerWk, norm, trend, points: sorted, r26, pipeEarly, weeksSinceStar, bezoekStreak, yoyDelta, prevYearYtd, pvaPct };
+}
+
+function refreshCoachingTab() {
+  if (bmSubTab !== 'coaching') return;
+  const bm = typeof currentTab === 'number' ? BMS[currentTab] : null;
+  if (!bm) return;
+  document.getElementById('bm-subtab-content').innerHTML = renderBmCoachingTab(bm);
+}
+
+async function gesprekCoachAnalyse(id) {
+  const rec = GESPREK_RECORDS.find(r => r.id === id);
+  if (!rec || !rec.transcript) return;
+  GESPREK_COACHING_RESULTS[id] = { loading: true, result: null };
+  refreshCoachingTab();
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-coaching', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
+      body: JSON.stringify({ transcript: rec.transcript, type: 'itk' }),
+    });
+    const data = await res.json();
+    GESPREK_COACHING_RESULTS[id] = { loading: false, result: data.error ? null : data, error: data.error || null };
+  } catch(err) {
+    GESPREK_COACHING_RESULTS[id] = { loading: false, result: null, error: err.message };
+  }
+  refreshCoachingTab();
+}
+
+async function bezoekCoachAnalyse(id) {
+  const rec = BEZOEK_RECORDS.find(r => r.id === id);
+  if (!rec || !rec.transcript) return;
+  BEZOEK_COACHING_RESULTS[id] = { loading: true, result: null };
+  refreshCoachingTab();
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-coaching', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
+      body: JSON.stringify({ transcript: rec.transcript, type: 'bzk' }),
+    });
+    const data = await res.json();
+    BEZOEK_COACHING_RESULTS[id] = { loading: false, result: data.error ? null : data, error: data.error || null };
+  } catch(err) {
+    BEZOEK_COACHING_RESULTS[id] = { loading: false, result: null, error: err.message };
+  }
+  refreshCoachingTab();
 }
 
 function coachStatusEmoji(gap) {
@@ -2556,6 +2703,58 @@ function renderBmCoachingTab(bm) {
           ${d.points.filter(p=>p.prio==='red' || p.prio==='orange').slice(0,3).map(p=>`<li>${p.title.replace(/^\S+\s/, '')} — <em>${p.reason.split('.')[0]}.</em></li>`).join('') || '<li>Complimenten: alles loopt op schema. Bespreek hoe het momentum vast te houden.</li>'}
         </ul>
       </div>
+
+      ${(() => {
+        const gesprekMet = GESPREK_RECORDS.filter(r => r.transcript);
+        const bezoekMet  = BEZOEK_RECORDS.filter(r => r.transcript);
+        if (!gesprekMet.length && !bezoekMet.length) return '';
+
+        const recCard = (rec, type) => {
+          const cr = type === 'itk' ? GESPREK_COACHING_RESULTS[rec.id] : BEZOEK_COACHING_RESULTS[rec.id];
+          const title = type === 'itk'
+            ? ([rec.naam, rec.functie].filter(Boolean).join(' — ') || 'Sollicitatiegesprek')
+            : ([rec.bedrijf, rec.contactpersoon].filter(Boolean).join(' — ') || 'Bedrijfsbezoek');
+          const fnAnalyse = type === 'itk' ? `gesprekCoachAnalyse(${rec.id})` : `bezoekCoachAnalyse(${rec.id})`;
+          return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;">
+              <span style="font-size:.75rem;color:var(--muted);min-width:110px;flex-shrink:0;">${escHtml(rec.datum)}</span>
+              <span style="font-weight:600;font-size:.86rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+              ${!cr ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="${fnAnalyse}">🔍 Analyseer</button>` : ''}
+              ${cr && cr.loading ? `<span style="font-size:.8rem;color:var(--muted);flex-shrink:0;">⏳ Analyseren…</span>` : ''}
+            </div>
+            ${cr && !cr.loading && cr.result ? `
+            <div style="padding:12px 14px;border-top:1px solid var(--border);background:#fafafa;">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:0;">
+                <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 12px;">
+                  <div style="font-size:.68rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">✅ Wat ging goed</div>
+                  <p style="margin:0;font-size:.82rem;line-height:1.6;">${escHtml(cr.result.goedGedaan||'—')}</p>
+                </div>
+                <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px 12px;">
+                  <div style="font-size:.68rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">💡 Wat kan beter</div>
+                  <p style="margin:0;font-size:.82rem;line-height:1.6;">${escHtml(cr.result.kanBeter||'—')}</p>
+                </div>
+                <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:6px;padding:10px 12px;">
+                  <div style="font-size:.68rem;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">🎯 Ontwikkelpunt</div>
+                  <p style="margin:0;font-size:.82rem;line-height:1.6;">${escHtml(cr.result.ontwikkelpunt||'—')}</p>
+                </div>
+              </div>
+              ${cr.result.gespreksagenda ? `<div style="margin-top:8px;background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:.81rem;color:var(--text);line-height:1.55;">📌 <strong>Coachingsvraag:</strong> ${escHtml(cr.result.gespreksagenda)}</div>` : ''}
+            </div>` : ''}
+            ${cr && !cr.loading && cr.error ? `<div style="padding:8px 14px;border-top:1px solid var(--border);font-size:.82rem;color:#e02424;">⚠️ ${escHtml(cr.error)}</div>` : ''}
+          </div>`;
+        };
+
+        return `<div style="margin-top:24px;">
+          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Gesprekcoaching — analyse van opnames</div>
+          <div class="info-box blue" style="margin-bottom:12px;font-size:.83rem;">Klik op <strong>Analyseer</strong> om AI-feedback te ontvangen op een opgenomen gesprek: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht.</div>
+          ${gesprekMet.length ? `
+            <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">📋 Sollicitatiegesprekken</div>
+            ${gesprekMet.slice(0,5).map(r => recCard(r,'itk')).join('')}` : ''}
+          ${bezoekMet.length ? `
+            <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;margin-top:${gesprekMet.length?'12px':'0'};">🏢 Bedrijfsbezoeken</div>
+            ${bezoekMet.slice(0,5).map(r => recCard(r,'bzk')).join('')}` : ''}
+        </div>`;
+      })()}
     </div>
   `;
 }
