@@ -1060,8 +1060,6 @@ function renderBM(bm) {
 
   document.getElementById('bm-subtab-content').innerHTML = `
     ${renderPipeline(bm)}
-    ${renderNextWeekEntry(bm)}
-    ${renderWeeklyEntry(bm)}
 
     ${lowData?`<div class="info-box amber">⚠️ <strong>Beperkte data</strong> in laatste 26 weken voor ${bm.naam} (${fmt(ratios.totalStarters,1)} starters). Ratio's zijn een eerste indicatie.</div>`:''}
     <div class="norm-intro">
@@ -1697,6 +1695,19 @@ function renderNextWeekEntry(bm) {
 
 function unlockWeeklyEntry(bmNaam, week, year) {
   WEEKLY_EDIT_UNLOCKED.add(`${bmNaam}|${year}|${week}`);
+  render();
+}
+
+// Sla pipeline-aantallen direct op vanuit het pipeline-bord (geen invoervelden nodig).
+async function saveWeeklyEntryDirect(bmNaam, week, year) {
+  if (!supa || !CURRENT_USER) return;
+  const pipeCounts = getPipeCountsForWeek(bmNaam, week, year);
+  const payload = { bm_naam: bmNaam, jaar: year, week: week, ...pipeCounts, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
+  const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+  if (error) { alert('❌ Fout bij opslaan: ' + error.message); return; }
+  WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${year}|${week}`);
+  await loadKpiWeekly();
+  recomputeRatios();
   render();
 }
 
@@ -7556,8 +7567,8 @@ function renderPipeline(bm) {
   const bmE      = escApos(bm.naam);
   const editable = canEdit(bm.naam);
 
-  // Week rows
-  const rows = weeks.map(wk => {
+  // Week rows — nieuwste week bovenaan (reverse: volgend → huidig → vorige → -2 wkn)
+  const rows = [...weeks].reverse().map(wk => {
     const isCur   = wk.offset === 0;
     const isPast  = wk.offset < 0;
     const wkTag   = isCur ? 'huidig' : wk.offset === 1 ? 'volgend' : wk.offset === -1 ? 'vorige' : '-2 wkn';
@@ -7615,11 +7626,27 @@ function renderPipeline(bm) {
       </div>`;
     }).join('');
 
+    // Save/wijzigen button for current and next week (only for editable BMs)
+    const isNextWeek = wk.offset === 1;
+    let weekBtnHtml = '';
+    if (editable && (isCur || isNextWeek)) {
+      const lockKey     = `${bm.naam}|${wk.year}|${wk.week}`;
+      const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === wk.year && d.week === wk.week);
+      const frozen      = !!existingRow && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
+      const bBase = 'margin-top:5px;font-size:.65rem;font-weight:700;border-radius:5px;padding:3px 7px;cursor:pointer;white-space:nowrap;line-height:1.3;';
+      if (frozen) {
+        weekBtnHtml = `<span style="font-size:.65rem;color:#15803d;font-weight:700;margin-top:4px;">🔒</span><button onclick="unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bBase}background:#fff;color:var(--primary);border:1px solid var(--primary);">✏️ Wijzigen</button>`;
+      } else {
+        weekBtnHtml = `<button onclick="saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bBase}background:var(--primary);color:#fff;border:none;">🔒 Opslaan</button>`;
+      }
+    }
+
     return `<div class="pipe-row">
       <div class="pipe-week-label${isCur?' pipe-wk-now':isPast?' pipe-wk-past':''}">
         <span class="pipe-wk-num">W${wk.week}</span>
         <span class="pipe-wk-tag">${wkTag}<br/>${wk.year}</span>
         ${wkTotal > 0 ? `<span class="pipe-wk-total">${wkTotal}</span>` : ''}
+        ${weekBtnHtml}
       </div>
       ${cells}
     </div>`;
