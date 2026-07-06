@@ -115,6 +115,20 @@
   .acc-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
   .acc-text-input { width:100%; border:1px solid var(--border); border-radius:6px; padding:4px 5px; font-size:.76rem; color:var(--text); background:#fff; box-sizing:border-box; }
   .acc-select { border:1px solid var(--border); border-radius:6px; padding:6px 9px; font-size:.82rem; background:#fff; color:var(--text); cursor:pointer; width:130px; box-sizing:border-box; }
+  .acc-select-pill { border:1.5px solid var(--border); border-radius:20px; padding:5px 26px 5px 12px; font-size:.78rem; background:#fff; color:var(--text); cursor:pointer; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; outline:none; }
+  .acc-select-pill:focus { border-color:var(--primary); }
+  .filter-toolbar { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+  .filter-toolbar-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .filter-search-pill { padding:6px 12px 6px 32px; border:1.5px solid var(--border); border-radius:20px; font-size:.82rem; background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center; color:var(--text); min-width:200px; outline:none; box-sizing:border-box; }
+  .filter-search-pill:focus { border-color:var(--primary); }
+  .filter-sep { display:inline-block; width:1px; height:20px; background:var(--border); flex-shrink:0; align-self:center; }
+  .bool-chip { display:inline-flex; align-items:center; padding:4px 10px; border-radius:20px; font-size:.75rem; font-weight:700; cursor:pointer; border:1.5px solid; user-select:none; white-space:nowrap; transition:all .1s; }
+  .bool-chip-all { border-color:#d1d5db; background:#f9fafb; color:#6b7280; }
+  .bool-chip-all:hover { border-color:#9ca3af; background:#f3f4f6; }
+  .bool-chip-ja { border-color:#0e9f6e; background:#d1fae5; color:#065f46; }
+  .bool-chip-nee { border-color:#e02424; background:#fee2e2; color:#991b1b; }
+  .filter-reset-link { background:none; border:none; font-size:.75rem; color:var(--muted); cursor:pointer; padding:2px 4px; text-decoration:underline; white-space:nowrap; }
+  .filter-reset-link:hover { color:#e02424; }
   .acc-score-input { width:100%; border:1px solid var(--border); border-radius:6px; padding:4px 2px; font-size:.78rem; text-align:center; color:var(--text); background:#fff; box-sizing:border-box; }
   .acc-table { table-layout:fixed; width:100%; border-collapse:separate; border-spacing:0; }
   .acc-table thead th { white-space:normal; line-height:1.15; padding:6px 4px; font-size:.66rem; text-align:center; word-break:break-word; vertical-align:bottom; position:sticky; top:0; background:var(--card); box-shadow:0 1px 0 var(--border); z-index:2; }
@@ -3234,15 +3248,22 @@ function projFiltApply() {
   let list = overzichtRanges.slice();
   if (q) {
     const lq = q.toLowerCase();
-    list = list.filter(r =>
-      (r.naam||'').toLowerCase().includes(lq) ||
-      (r.opdrachtgever||'').toLowerCase().includes(lq)
-    );
+    list = list.filter(r => {
+      if ((r.naam||'').toLowerCase().includes(lq)) return true;
+      if ((r.opdrachtgever||'').toLowerCase().includes(lq)) return true;
+      const inits = projCollegaLoad(r.source, r.id);
+      return inits.some(init => init.toLowerCase().includes(lq));
+    });
   }
   if (sort) {
     list.sort((a, b) => {
-      let va = (sort === 'naam' ? (a.naam||'') : (a.opdrachtgever||'')).toLowerCase();
-      let vb = (sort === 'naam' ? (b.naam||'') : (b.opdrachtgever||'')).toLowerCase();
+      let va, vb;
+      if      (sort === 'naam')  { va = (a.naam||'').toLowerCase();          vb = (b.naam||'').toLowerCase(); }
+      else if (sort === 'opg')   { va = (a.opdrachtgever||'').toLowerCase(); vb = (b.opdrachtgever||'').toLowerCase(); }
+      else if (sort === 'start') { va = toISODate(a.begin)||'';              vb = toISODate(b.begin)||''; }
+      else if (sort === 'eind')  { va = toISODate(a.eind)||'';               vb = toISODate(b.eind)||''; }
+      else if (sort === 'defn')  { va = projDefEindLoad(a.source, a.id)||''; vb = projDefEindLoad(b.source, b.id)||''; }
+      else { va = ''; vb = ''; }
       return va < vb ? -dir : va > vb ? dir : 0;
     });
   }
@@ -3257,7 +3278,7 @@ function projFiltApply() {
 function projFiltSort(col) {
   if (window._projFilt.sort === col) window._projFilt.dir *= -1;
   else { window._projFilt.sort = col; window._projFilt.dir = 1; }
-  ['naam','opg'].forEach(c => {
+  ['naam','opg','start','eind','defn'].forEach(c => {
     const el = document.getElementById(`proj-sort-${c}`);
     if (!el) return;
     const active = window._projFilt.sort === c;
@@ -3286,7 +3307,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     ? `<span id="pr-eval-alert-${safeId}" title="Evaluatie vereist" style="color:#d97706;font-weight:900;font-size:.85rem;margin-left:2px;cursor:pointer;${anyDue?'':'display:none'}">!</span>`
     : '';
   const chipHtml = canEditProj
-    ? `<td style="padding:3px 6px;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
+    ? `<td style="padding:3px 8px;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
     : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
@@ -3436,7 +3457,7 @@ function renderPrognose() {
           return `<tr style="border-bottom:1px solid var(--border);">
             <td style="padding:5px 8px;"><strong>${escHtml(c.naam)}</strong></td>
             <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span class="badge badge-red" style="font-size:.65rem;">gedeeld 0,5</span>':''}</td>
-            <td style="padding:4px 6px;"><div id="${containerId}">${chips}</div></td>
+            <td style="padding:5px 8px;"><div id="${containerId}">${chips}</div></td>
             <td style="padding:5px 8px;white-space:nowrap;text-align:right;">
               ${canEditProj
                 ? `<button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
@@ -3452,7 +3473,7 @@ function renderPrognose() {
     <!-- Projecten overzicht: bewerkbaar -->
     <div class="section-title" style="padding-right:2px;">
       <span>Projecten overzicht</span>
-      <input id="proj-filter-q" type="text" placeholder="Zoek medewerker of opdrachtgever…"
+      <input id="proj-filter-q" type="text" placeholder="Zoek medewerker, opdrachtgever of initialen…"
         value="${(window._projFilt||{}).q||''}"
         oninput="window._projFilt.q=this.value;projFiltApply()"
         style="margin-left:auto;padding:3px 12px 3px 28px;font-size:.75rem;font-weight:400;letter-spacing:0;border:1.5px solid var(--border);border-radius:20px;background:#f8faff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>') no-repeat 8px center;color:var(--text);width:220px;outline:none;" />
@@ -3471,14 +3492,18 @@ function renderPrognose() {
           ? `<colgroup><col style="width:22%"><col style="width:16%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
           : `<colgroup><col style="width:26%"><col style="width:18%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind'), '<th></th>'].join('')
-          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind')].join('');
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
         // Pas huidig filter toe op de initiële render
         const fq = (window._projFilt||{}).q||'';
         let initList = overzichtRanges.slice();
         if (fq) {
           const lq = fq.toLowerCase();
-          initList = initList.filter(r => (r.naam||'').toLowerCase().includes(lq) || (r.opdrachtgever||'').toLowerCase().includes(lq));
+          initList = initList.filter(r => {
+            if ((r.naam||'').toLowerCase().includes(lq)) return true;
+            if ((r.opdrachtgever||'').toLowerCase().includes(lq)) return true;
+            return projCollegaLoad(r.source, r.id).some(init => init.toLowerCase().includes(lq));
+          });
         }
         const rows = initList.map(r => buildProjRow(r, canEditProj, nuVoorOverdue, nCols)).join('');
         return `<table style="width:100%;border-collapse:collapse;">${colgroup}<thead><tr style="border-bottom:2px solid var(--border);">${hdrCols}</tr></thead><tbody id="proj-tbody">${rows}</tbody></table>`;
@@ -4289,12 +4314,12 @@ function renderSalesLeadsHtml(subTabBtns) {
       </div>
     </details>`;
   };
-  const boolFilterHtml = (kind, label, current) => `
-    <select class="acc-select" onchange="slSetFilter('${kind}', this.value)">
-      <option value="" ${!current?'selected':''}>${escHtml(label)}: alle</option>
-      <option value="ja" ${current==='ja'?'selected':''}>${escHtml(label)}: ja</option>
-      <option value="nee" ${current==='nee'?'selected':''}>${escHtml(label)}: nee</option>
-    </select>`;
+  const boolChipHtml = (kind, label, current) => {
+    const next = current === '' ? 'ja' : current === 'ja' ? 'nee' : '';
+    const cls  = current === 'ja' ? 'bool-chip bool-chip-ja' : current === 'nee' ? 'bool-chip bool-chip-nee' : 'bool-chip bool-chip-all';
+    const txt  = current === 'ja' ? `✓ ${label}` : current === 'nee' ? `✗ ${label}` : label;
+    return `<span class="${cls}" onclick="slSetFilter('${kind}','${next}')" title="${escHtml(label)}: ${current||'alle'}">${txt}</span>`;
+  };
 
   const rows = sorted.map((s) => {
     const safeId = String(s.id).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -4377,21 +4402,28 @@ function renderSalesLeadsHtml(subTabBtns) {
     </div>
     <div class="info-box blue">ℹ️ Filter op vakgebied, regio, functietype, contactpersoon, status of voorwaarden om een harde selectie te maken. Klik op 🔍 Zoek om de vacaturepagina van een klant op te zoeken. Print de huidige selectie via 🖨️ Printen.</div>
     ${subTabBtns}
-    <div class="acc-toolbar">
-      <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(SL_SEARCH)}" onchange="slSetFilter('search', this.value)">
-      ${msFilterHtml('vakgebied', 'vakgebieden', vakgebiedOptions, SL_FILTER_VAKGEBIED)}
-      ${msFilterHtml('regio', "regio's", regioOptions, SL_FILTER_REGIO)}
-      ${msFilterHtml('cp', 'contactpersonen', cpOptions, SL_FILTER_CP)}
-      ${msFilterHtml('status', 'statussen', statusOptions, SL_FILTER_STATUS)}
-      ${msFilterHtml('voorw', 'voorwaarden', voorwOptions, SL_FILTER_VOORW)}
-      ${boolFilterHtml('sc', 'SC', SL_FILTER_SC)}
-      ${boolFilterHtml('monteur', 'Monteur', SL_FILTER_MONTEUR)}
-      ${boolFilterHtml('wvb', 'WVB', SL_FILTER_WVB)}
-      ${boolFilterHtml('eng', 'ENG', SL_FILTER_ENG)}
-      ${boolFilterHtml('pm', 'PM', SL_FILTER_PM)}
-      <button class="proj-del-btn" onclick="slResetFilters()">↺ Filters wissen</button>
-      <button class="proj-save-btn" onclick="slPrint()">🖨️ Printen</button>
-      ${canEditAccounts ? `<button class="proj-save-btn" onclick="slOpenNewModal()">+ Nieuwe lead</button>` : ''}
+    <div class="filter-toolbar">
+      <div class="filter-toolbar-row">
+        <input type="text" class="filter-search-pill" placeholder="Zoek op klantnaam…" value="${escHtml(SL_SEARCH)}" onchange="slSetFilter('search', this.value)">
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+          ${(SL_SEARCH||SL_FILTER_VAKGEBIED.length||SL_FILTER_REGIO.length||SL_FILTER_CP.length||SL_FILTER_STATUS.length||SL_FILTER_VOORW.length||SL_FILTER_SC||SL_FILTER_MONTEUR||SL_FILTER_WVB||SL_FILTER_ENG||SL_FILTER_PM) ? `<button class="filter-reset-link" onclick="slResetFilters()">↺ wis filters</button>` : ''}
+          <button class="proj-save-btn" style="padding:5px 12px;" onclick="slPrint()">🖨️ Printen</button>
+          ${canEditAccounts ? `<button class="proj-save-btn" style="padding:5px 14px;" onclick="slOpenNewModal()">+ Nieuwe lead</button>` : ''}
+        </div>
+      </div>
+      <div class="filter-toolbar-row">
+        ${msFilterHtml('vakgebied', 'vakgebieden', vakgebiedOptions, SL_FILTER_VAKGEBIED)}
+        ${msFilterHtml('regio', "regio's", regioOptions, SL_FILTER_REGIO)}
+        ${msFilterHtml('cp', 'contactpersonen', cpOptions, SL_FILTER_CP)}
+        ${msFilterHtml('status', 'statussen', statusOptions, SL_FILTER_STATUS)}
+        ${msFilterHtml('voorw', 'voorwaarden', voorwOptions, SL_FILTER_VOORW)}
+        <span class="filter-sep"></span>
+        ${boolChipHtml('sc', 'SC', SL_FILTER_SC)}
+        ${boolChipHtml('monteur', 'Monteur', SL_FILTER_MONTEUR)}
+        ${boolChipHtml('wvb', 'WVB', SL_FILTER_WVB)}
+        ${boolChipHtml('eng', 'ENG', SL_FILTER_ENG)}
+        ${boolChipHtml('pm', 'PM', SL_FILTER_PM)}
+      </div>
     </div>
     <div class="table-card" style="overflow:visible;">
       <table class="acc-table">
@@ -4526,17 +4558,22 @@ function renderStrategischeLeadsHtml(subTabBtns) {
     </div>
     <div class="info-box blue">${canEditAccounts ? 'ℹ️ Klik op ✏️ om een klant te bewerken. Wijzigingen blijven bevroren tot je op 💾 Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.' : 'ℹ️ Alleen-lezen overzicht.'}</div>
     ${subTabBtns}
-    <div class="acc-toolbar">
-      <input type="text" class="acc-text-input" style="width:auto;min-width:200px;" placeholder="🔍 Zoek op klantnaam…" value="${escHtml(ACC_SEARCH)}" onchange="accSetFilter('search', this.value)">
-      <select class="acc-select" onchange="accSetFilter('strat', this.value)">
-        <option value="" ${!ACC_FILTER_STRAT?'selected':''}>Alle Strat CP</option>
-        ${stratOptHtml}
-      </select>
-      <select class="acc-select" onchange="accSetFilter('op', this.value)">
-        <option value="" ${!ACC_FILTER_OP?'selected':''}>Alle OP CP</option>
-        ${opOptHtml}
-      </select>
-      ${canEditAccounts ? `<button class="proj-save-btn" onclick="accountsOpenNewModal()">+ Nieuwe klant</button>` : ''}
+    <div class="filter-toolbar">
+      <div class="filter-toolbar-row">
+        <input type="text" class="filter-search-pill" placeholder="Zoek op klantnaam…" value="${escHtml(ACC_SEARCH)}" onchange="accSetFilter('search', this.value)">
+        <select class="acc-select-pill" onchange="accSetFilter('strat', this.value)">
+          <option value="" ${!ACC_FILTER_STRAT?'selected':''}>Alle Strat CP</option>
+          ${stratOptHtml}
+        </select>
+        <select class="acc-select-pill" onchange="accSetFilter('op', this.value)">
+          <option value="" ${!ACC_FILTER_OP?'selected':''}>Alle OP CP</option>
+          ${opOptHtml}
+        </select>
+        ${(ACC_SEARCH||ACC_FILTER_STRAT||ACC_FILTER_OP) ? `<button class="filter-reset-link" onclick="accSetFilter('search','');accSetFilter('strat','');accSetFilter('op','')">↺ wis</button>` : ''}
+        <div style="margin-left:auto;">
+          ${canEditAccounts ? `<button class="proj-save-btn" style="padding:5px 14px;" onclick="accountsOpenNewModal()">+ Nieuwe klant</button>` : ''}
+        </div>
+      </div>
     </div>
     <div class="table-card" style="overflow:visible;">
       <table class="acc-table">
