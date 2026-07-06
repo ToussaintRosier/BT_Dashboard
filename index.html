@@ -712,14 +712,15 @@ function renderTabs() {
         <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
       </div>
       <div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek')?'active-cat':''}">
+        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}">
           <span style="cursor:pointer;flex:1;">🛠️ Tools</span>
           <span class="sidebar-caret ${toolsOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleTools(event)">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
           <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">📄 CV-generator</button>
           <button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">🎯 Matchmaker</button>
-          <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ Recorder</button>
+          <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ ITK-Recorder</button>
+          <button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">🏢 BZK-Recorder</button>
         </div>
       </div>`;
     return;
@@ -759,14 +760,15 @@ function renderTabs() {
       <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek')?'active-cat':''}">
+      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}">
         <span style="cursor:pointer;flex:1;">🛠️ Tools</span>
         <span class="sidebar-caret ${toolsOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleTools(event)">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
         <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">📄 CV-generator</button>
         <button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">🎯 Matchmaker</button>
-        <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ Recorder</button>
+        <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ ITK-Recorder</button>
+        <button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">🏢 BZK-Recorder</button>
       </div>
     </div>`;
 }
@@ -819,7 +821,7 @@ function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
-  if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek') toolsOpen = true;
+  if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   renderTabs(); render();
 }
 function selectBmSubTab(tab) { bmSubTab = tab; render(); }
@@ -1444,6 +1446,7 @@ function render() {
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
   if (currentTab === 'plaatsing') { renderPlaatsing(); return; }
   if (currentTab === 'gesprek') { renderGesprek(); return; }
+  if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
   else if (currentTab === BMS.length) renderTeam();
@@ -4843,6 +4846,361 @@ function renderGesprek() {
         <textarea id="gesprek-transcript" readonly
           style="width:100%;min-height:200px;font-size:.82rem;line-height:1.65;border:1px solid var(--border);border-radius:8px;padding:10px;background:#f8faff;color:var(--text);resize:vertical;font-family:monospace;"
           >${escHtml(g.transcript)}</textarea>` : ''}
+    </div>
+
+    ${resultHtml}
+  </div>`;
+}
+
+// ── BZK-Recorder (bedrijfsbezoek opnemen + verslag genereren via AI) ──────────
+
+let BEZOEK = {
+  bedrijf: '', contactpersoon: '', transcript: '',
+  recording: false, analyzing: false,
+  statusMsg: '', result: null,
+  transcriptId: null, pollingTimer: null,
+  mediaRecorder: null, audioChunks: [],
+  recordingTime: 0, timerInterval: null,
+};
+
+async function bezoekStart() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    BEZOEK.mediaRecorder = mr;
+    BEZOEK.audioChunks = [];
+    BEZOEK.recording = true;
+    BEZOEK.statusMsg = '';
+    BEZOEK.result = null;
+    BEZOEK.transcript = '';
+    BEZOEK.recordingTime = 0;
+    mr.ondataavailable = (e) => { if (e.data.size > 0) BEZOEK.audioChunks.push(e.data); };
+    mr.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(BEZOEK.audioChunks, { type: mr.mimeType || 'audio/webm' });
+      bezoekUpload(blob, mr.mimeType || 'audio/webm');
+    };
+    mr.start(1000);
+    BEZOEK.timerInterval = setInterval(() => { BEZOEK.recordingTime++; renderBezoekRecorder(); }, 1000);
+    renderBezoekRecorder();
+  } catch(err) {
+    BEZOEK.statusMsg = '⚠️ Microfoontoegang geweigerd: ' + err.message;
+    renderBezoekRecorder();
+  }
+}
+
+function bezoekStop() {
+  if (BEZOEK.timerInterval) { clearInterval(BEZOEK.timerInterval); BEZOEK.timerInterval = null; }
+  if (BEZOEK.mediaRecorder && BEZOEK.mediaRecorder.state !== 'inactive') {
+    BEZOEK.mediaRecorder.stop();
+  }
+  BEZOEK.recording = false;
+  BEZOEK.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
+  renderBezoekRecorder();
+}
+
+async function bezoekUpload(blob, mimeType) {
+  BEZOEK.analyzing = true;
+  renderBezoekRecorder();
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const fd = new FormData();
+    const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+    fd.append('audio', blob, 'bezoek.' + ext);
+    if (BEZOEK.bedrijf) fd.append('bedrijf', BEZOEK.bedrijf);
+    if (BEZOEK.contactpersoon) fd.append('contactpersoon', BEZOEK.contactpersoon);
+    const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-start', {
+      method: 'POST',
+      headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
+      body: fd,
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    BEZOEK.transcriptId = data.transcript_id;
+    BEZOEK.statusMsg = '⏳ Sprekers worden herkend en getranscribeerd… (1–3 min)';
+    renderBezoekRecorder();
+    bezoekPoll();
+  } catch(err) {
+    BEZOEK.analyzing = false;
+    BEZOEK.statusMsg = '⚠️ Fout: ' + err.message;
+    renderBezoekRecorder();
+  }
+}
+
+function bezoekPoll() {
+  BEZOEK.pollingTimer = setInterval(async () => {
+    try {
+      const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+      const params = new URLSearchParams({ id: BEZOEK.transcriptId });
+      if (BEZOEK.bedrijf) params.set('bedrijf', BEZOEK.bedrijf);
+      if (BEZOEK.contactpersoon) params.set('contactpersoon', BEZOEK.contactpersoon);
+      const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-check?' + params.toString(), {
+        headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
+      });
+      const data = await res.json();
+      if (data.status === 'completed') {
+        clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
+        BEZOEK.transcript = data.transcript || '';
+        BEZOEK.result = data.analyse || null;
+        BEZOEK.analyzing = false;
+        BEZOEK.statusMsg = '✅ Verslag klaar!';
+        renderBezoekRecorder();
+      } else if (data.status === 'error' || data.error) {
+        clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
+        BEZOEK.analyzing = false;
+        BEZOEK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt');
+        renderBezoekRecorder();
+      }
+    } catch(_) { /* keep polling on network error */ }
+  }, 5000);
+}
+
+function bezoekReset() {
+  if (BEZOEK.timerInterval) { clearInterval(BEZOEK.timerInterval); BEZOEK.timerInterval = null; }
+  if (BEZOEK.pollingTimer)  { clearInterval(BEZOEK.pollingTimer);  BEZOEK.pollingTimer  = null; }
+  if (BEZOEK.mediaRecorder && BEZOEK.mediaRecorder.state !== 'inactive') {
+    try { BEZOEK.mediaRecorder.stop(); } catch(_) {}
+  }
+  const bewaarBedrijf = BEZOEK.bedrijf;
+  const bewaarContact = BEZOEK.contactpersoon;
+  BEZOEK = {
+    bedrijf: bewaarBedrijf, contactpersoon: bewaarContact,
+    transcript: '', recording: false, analyzing: false,
+    statusMsg: '', result: null,
+    transcriptId: null, pollingTimer: null,
+    mediaRecorder: null, audioChunks: [],
+    recordingTime: 0, timerInterval: null,
+  };
+  renderBezoekRecorder();
+}
+
+function bezoekKopieer() {
+  const r = BEZOEK.result;
+  if (!r) return;
+  const lines = [
+    '=== BEZOEKVERSLAG ===',
+    r.samenvatting || '',
+    '',
+    '--- BEDRIJFSPROFIEL ---',
+    r.bedrijfsprofiel?.sector      ? 'Sector: '       + r.bedrijfsprofiel.sector      : '',
+    r.bedrijfsprofiel?.omvang      ? 'Omvang: '       + r.bedrijfsprofiel.omvang      : '',
+    r.bedrijfsprofiel?.activiteit  ? 'Activiteit: '   + r.bedrijfsprofiel.activiteit  : '',
+    '',
+    '--- WERVINGSBEHOEFTE ---',
+    r.wervingsbehoefte?.functies    ? 'Functies: '    + r.wervingsbehoefte.functies    : '',
+    r.wervingsbehoefte?.aantallen   ? 'Aantallen: '   + r.wervingsbehoefte.aantallen   : '',
+    r.wervingsbehoefte?.profiel     ? 'Profiel: '     + r.wervingsbehoefte.profiel     : '',
+    r.wervingsbehoefte?.urgentie    ? 'Urgentie: '    + r.wervingsbehoefte.urgentie    : '',
+    '',
+    '--- HUIDIGE SITUATIE ---',
+    r.huidigePersoneelssituatie || '',
+    '',
+    '--- COMMERCIEEL POTENTIEEL ---',
+    r.commercieelePotentie || '',
+    '',
+    '--- AFSPRAKEN ---',
+    r.afspraken || '',
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(lines).then(() => {
+    BEZOEK.statusMsg = '📋 Gekopieerd naar klembord!'; renderBezoekRecorder();
+    setTimeout(() => { BEZOEK.statusMsg = '✅ Verslag klaar!'; renderBezoekRecorder(); }, 2000);
+  });
+}
+
+function _bezoekBouwHtml(inclTranscript) {
+  const r = BEZOEK.result;
+  if (!r) return '';
+  const e = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const bp = r.bedrijfsprofiel || {};
+  const wb = r.wervingsbehoefte || {};
+  const bedrijf = BEZOEK.bedrijf || '';
+  const contact = BEZOEK.contactpersoon || '';
+  const datum = new Date().toLocaleDateString('nl-NL', { day:'2-digit', month:'long', year:'numeric' });
+  const rij = (label, val) => val ? `<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${label}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>` : '';
+  const transcriptBlok = inclTranscript && BEZOEK.transcript ? `
+    <h2 style="font-size:12pt;color:#253151;margin-top:24px;border-bottom:1px solid #ddd;padding-bottom:4px;">Transcriptie</h2>
+    <pre style="font-size:9pt;line-height:1.55;white-space:pre-wrap;background:#f9f9f9;padding:12px;border-radius:4px;font-family:monospace;">${e(BEZOEK.transcript)}</pre>` : '';
+  return `<!DOCTYPE html>
+<html lang="nl"><head><meta charset="UTF-8">
+<title>Bezoekverslag${bedrijf ? ' – ' + bedrijf : ''}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11pt; margin: 2cm; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 18pt; color: #253151; border-bottom: 2px solid #E87400; padding-bottom: 8px; margin-bottom: 4px; }
+  .meta { font-size: 10pt; color: #666; margin-bottom: 20px; }
+  h2 { font-size: 12pt; color: #253151; margin-top: 20px; margin-bottom: 6px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+  .samenvatting { background: #f5f7fb; padding: 12px 16px; border-radius: 4px; line-height: 1.65; font-size: 10.5pt; }
+  .drie { display: table; width: 100%; border-spacing: 16px 0; margin: 0 -16px; }
+  .drie-cel { display: table-cell; vertical-align: top; width: 50%; }
+  .potentie { background: #f0fdf4; border: 1px solid #86efac; border-radius: 4px; padding: 12px 16px; font-size: 10.5pt; line-height: 1.65; }
+  @media print { body { margin: 1.5cm; } @page { margin: 1.5cm; } }
+</style></head><body>
+<h1>🏢 Bezoekverslag</h1>
+<div class="meta">${bedrijf ? `<strong>${e(bedrijf)}</strong>` : ''}${contact ? ` &mdash; ${e(contact)}` : ''} &nbsp;|&nbsp; ${datum}</div>
+<h2>Samenvatting</h2>
+<div class="samenvatting">${e(r.samenvatting || '')}</div>
+<div class="drie" style="margin-top:20px;">
+  <div class="drie-cel">
+    <h2>Bedrijfsprofiel</h2>
+    <table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table>
+    <h2 style="margin-top:16px;">Wervingsbehoefte</h2>
+    <table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table>
+  </div>
+  <div class="drie-cel">
+    <h2>Huidige personeelssituatie</h2>
+    <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie || '—')}</p>
+    <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2>
+    <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken || '—')}</p>
+  </div>
+</div>
+<h2 style="margin-top:20px;">Commercieel potentieel</h2>
+<div class="potentie">${e(r.commercieelePotentie || '—')}</div>
+${transcriptBlok}
+</body></html>`;
+}
+
+function bezoekPrint() {
+  const html = _bezoekBouwHtml(true);
+  if (!html) return;
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function bezoekDownload(formaat) {
+  const html = _bezoekBouwHtml(formaat === 'word');
+  if (!html) return;
+  const naam = (BEZOEK.bedrijf || 'bezoekverslag').replace(/\s+/g, '_');
+  if (formaat === 'word') {
+    const blob = new Blob([html], { type: 'application/msword' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = naam + '.doc'; a.click(); URL.revokeObjectURL(a.href);
+  } else {
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
+}
+
+function renderBezoekRecorder() {
+  const b = BEZOEK;
+  const r = b.result;
+
+  const fmtTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  };
+
+  const profielTabel = (rows) => `<table style="width:100%;border-collapse:collapse;font-size:.86rem;">
+    ${rows.filter(([,v]) => v).map(([k,v]) => `<tr>
+      <td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:5px 10px 5px 0;vertical-align:top;width:38%;">${escHtml(k)}</td>
+      <td style="padding:5px 0;line-height:1.55;">${escHtml(v)}</td>
+    </tr>`).join('')}
+  </table>`;
+
+  const bp = r ? (r.bedrijfsprofiel  || {}) : {};
+  const wb = r ? (r.wervingsbehoefte || {}) : {};
+
+  const resultHtml = r ? `
+    <div class="chart-card" style="margin-bottom:14px;">
+      <h3 style="margin-bottom:8px;">📝 Samenvatting bezoek</h3>
+      <p style="line-height:1.7;white-space:pre-wrap;margin:0;">${escHtml(r.samenvatting || '')}</p>
+    </div>
+    <div class="two-col" style="margin-bottom:14px;gap:14px;">
+      <div class="chart-card">
+        <h3 style="margin-bottom:10px;">🏭 Bedrijfsprofiel</h3>
+        ${profielTabel([
+          ['Sector',     bp.sector],
+          ['Omvang',     bp.omvang],
+          ['Activiteit', bp.activiteit],
+        ])}
+        <h3 style="margin-top:14px;margin-bottom:10px;">📋 Wervingsbehoefte</h3>
+        ${profielTabel([
+          ['Functies',  wb.functies],
+          ['Aantallen', wb.aantallen],
+          ['Profiel',   wb.profiel],
+          ['Urgentie',  wb.urgentie],
+        ])}
+      </div>
+      <div>
+        <div class="chart-card" style="margin-bottom:14px;">
+          <h3 style="margin-bottom:10px;">👥 Huidige personeelssituatie</h3>
+          <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.huidigePersoneelssituatie || '—')}</p>
+        </div>
+        <div class="chart-card" style="margin-bottom:14px;">
+          <h3 style="margin-bottom:10px;">🤝 Afspraken &amp; vervolgacties</h3>
+          <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken || '—')}</p>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:14px;border-left:3px solid var(--success);">
+      <h3 style="margin-bottom:8px;color:var(--success);">💡 Commercieel potentieel</h3>
+      <p style="line-height:1.7;white-space:pre-wrap;margin:0;">${escHtml(r.commercieelePotentie || '—')}</p>
+    </div>
+    <div style="margin-top:4px;margin-bottom:18px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="proj-save-btn" onclick="bezoekKopieer()">📋 Kopieer naar klembord</button>
+      <button class="btn-secondary" onclick="bezoekPrint()">🖨️ Printen / PDF</button>
+      <button class="btn-secondary" onclick="bezoekDownload('word')">📄 Download Word</button>
+    </div>` : '';
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">🏢 BZK-Recorder</div>
+      <div class="person-meta">
+        <span class="meta-pill">Bedrijfsbezoek opnemen &amp; automatisch verslag maken</span>
+      </div>
+    </div>
+    <div class="info-box blue">ℹ️ Neem het bezoekgesprek op via de microfoon van je laptop. Na het stoppen worden sprekers herkend en maakt AI automatisch een bezoekverslag. Informeer je gesprekspartner dat het gesprek wordt opgenomen.</div>
+
+    <div class="chart-card" style="margin-bottom:14px;">
+      <div class="two-col" style="gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Bedrijfsnaam</label>
+          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Acme BV"
+            value="${escHtml(b.bedrijf)}" oninput="BEZOEK.bedrijf=this.value" ${b.recording||b.analyzing?'disabled':''}>
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Contactpersoon</label>
+          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Piet Janssen – HR-manager"
+            value="${escHtml(b.contactpersoon)}" oninput="BEZOEK.contactpersoon=this.value" ${b.recording||b.analyzing?'disabled':''}>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        ${!b.recording && !b.analyzing
+          ? `<button class="proj-save-btn" style="background:#0369a1;border-color:#0369a1;font-size:1rem;padding:10px 22px;"
+               onclick="bezoekStart()">🎙️ Start opname</button>`
+          : b.recording
+          ? `<button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:1rem;padding:10px 22px;"
+               onclick="bezoekStop()">⏹ Stop opname</button>
+             <span style="font-size:1.4rem;font-weight:700;color:#0369a1;font-variant-numeric:tabular-nums;">⏱ ${fmtTime(b.recordingTime)}</span>`
+          : `<button class="proj-save-btn" style="opacity:.6;cursor:default;" disabled>⏳ Verwerken…</button>`}
+        ${!b.recording && !b.analyzing && (b.result || b.transcript)
+          ? `<button class="btn-secondary" onclick="bezoekReset()">↺ Nieuw bezoek</button>`
+          : ''}
+        ${b.statusMsg ? `<span style="font-size:.85rem;color:var(--muted);">${escHtml(b.statusMsg)}</span>` : ''}
+      </div>
+
+      ${b.analyzing && !b.transcript ? `
+        <div style="text-align:center;padding:32px 0;color:var(--muted);">
+          <div style="font-size:1.5rem;margin-bottom:8px;">🎧</div>
+          <div style="font-size:.9rem;">Sprekers worden herkend en getranscribeerd…</div>
+          <div style="font-size:.78rem;margin-top:4px;opacity:.7;">Dit duurt ongeveer even lang als het gesprek zelf</div>
+        </div>` : ''}
+
+      ${b.transcript ? `
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Transcriptie</label>
+        <textarea id="bezoek-transcript" readonly
+          style="width:100%;min-height:200px;font-size:.82rem;line-height:1.65;border:1px solid var(--border);border-radius:8px;padding:10px;background:#f8faff;color:var(--text);resize:vertical;font-family:monospace;"
+          >${escHtml(b.transcript)}</textarea>` : ''}
     </div>
 
     ${resultHtml}
