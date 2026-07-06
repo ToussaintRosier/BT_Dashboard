@@ -2816,6 +2816,37 @@ function getCombinedProjectRanges() {
   return ranges;
 }
 
+// ── Collega-koppeling per project (localStorage) ─────────────────────────────
+// Initialen: eerste letter voornaam + eerste letter achternaam (tussenvoegingen
+// als van/de/den/der/het/ter/te/ten worden overgeslagen).
+function bmInitialen(naam) {
+  const TUSVV = new Set(['van','de','den','der','het','ter','te','ten','op','aan','voor','bij','uit','in','het',"'t"]);
+  const parts  = naam.trim().split(/\s+/);
+  const signif = parts.filter(p => !TUSVV.has(p.toLowerCase()));
+  if (!signif.length) return '?';
+  if (signif.length === 1) return signif[0][0].toUpperCase();
+  return (signif[0][0] + signif[signif.length - 1][0]).toUpperCase();
+}
+function projCollegaKey(src, id)    { return `bt_proj_collega_${src}_${id}`; }
+function projCollegaLoad(src, id)   { try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; } }
+function projCollegaSave(src, id, arr) { try { localStorage.setItem(projCollegaKey(src,id), JSON.stringify(arr)); } catch(_){} }
+function projCollegaToggle(src, id, init) {
+  const cur = projCollegaLoad(src, id);
+  const idx = cur.indexOf(init);
+  if (idx >= 0) cur.splice(idx, 1); else cur.push(init);
+  projCollegaSave(src, id, cur);
+  const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
+  const el = document.getElementById(`pr-collega-${safeId}`);
+  if (el) el.innerHTML = _collegaChips(src, id, cur);
+}
+function _collegaChips(src, id, selected) {
+  return BMS.map(b => {
+    const init = bmInitialen(b.naam);
+    const on   = selected.includes(init);
+    return `<span onclick="projCollegaToggle('${src}','${id}','${init}')" title="${b.naam}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.7rem;font-weight:700;cursor:pointer;border:1.5px solid ${on?'var(--primary)':'#d1d5db'};background:${on?'var(--primary-light)':'#f9fafb'};color:${on?'var(--primary)':'#6b7280'};margin:1px 2px;user-select:none;">${init}</span>`;
+  }).join('');
+}
+
 // Telt per ISO-week van een jaar hoeveel projecten actief zijn (begin <= weekeinde
 // en nog niet verwijderd vóór die week). Een verstreken (vermoedelijke) einddatum
 // stopt de telling NIET meer — alleen de "Verwijderen"-actie doet dat, en dan pas
@@ -3050,6 +3081,10 @@ async function saveProjectRangeDates(source, id, bmNaam) {
   const start  = document.getElementById(`pr-start-${safeId}`)?.value || null;
   const eind   = document.getElementById(`pr-eind-${safeId}`)?.value || null;
   const statusEl = document.getElementById(`pr-status-${safeId}`);
+  // Collega-selectie wordt al live in localStorage bijgehouden via projCollegaToggle;
+  // hier hoeven we alleen te bevestigen dat de opgeslagen waarde klopt.
+  const collegaEl = document.getElementById(`pr-collega-${safeId}`);
+  if (collegaEl) { /* chips zijn reeds opgeslagen via toggle — nothing extra to do */ }
   if (!supa) return;
   if (source === 'excel') {
     const { error } = await supa.from('projecten').update({ begin_ovk: start, einde_ovk: eind, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() }).eq('id', id);
@@ -3245,20 +3280,13 @@ function renderPrognose() {
       <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord uit pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = einddatum verstreken</div>
       ${(() => {
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
-        const hdr = canEditProj
-          ? `<tr style="border-bottom:2px solid var(--border);">
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Kandidaat</th>
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">BM · Opdrachtgever</th>
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Start</th>
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Eind</th>
-               <th></th>
-             </tr>`
-          : `<tr style="border-bottom:2px solid var(--border);">
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Kandidaat</th>
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">BM · Opdrachtgever</th>
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Start</th>
-               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Eind</th>
-             </tr>`;
+        const TH = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
+        const colgroup = canEditProj
+          ? `<colgroup><col style="width:22%"><col style="width:18%"><col style="width:auto"><col style="width:120px"><col style="width:120px"><col style="width:72px"></colgroup>`
+          : `<colgroup><col style="width:28%"><col style="width:22%"><col style="width:auto"><col style="width:110px"><col style="width:110px"></colgroup>`;
+        const hdrCols = canEditProj
+          ? [TH('Kandidaat'), TH('BM · Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Eind'), '<th></th>'].join('')
+          : [TH('Kandidaat'), TH('BM · Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Eind')].join('');
         const rows = overzichtRanges.map(r => {
           const safeId  = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
           const overdue = r.eind && r.eind < nuVoorOverdue;
@@ -3266,29 +3294,35 @@ function renderPrognose() {
           const src     = r.source === 'excel' ? '📄' : '🧩';
           const badge   = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
           const bg      = overdue ? 'background:#fef2f2;' : '';
+          const collega = projCollegaLoad(r.source, r.id);
+          const chipHtml = canEditProj
+            ? `<td style="padding:3px 6px;"><div id="pr-collega-${safeId}">${_collegaChips(r.source, r.id, collega)}</div></td>`
+            : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
           if (canEditProj) {
             const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
-              <td style="padding:4px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
-              <td style="padding:4px 8px;font-size:.78rem;color:var(--muted);">${meta}</td>
-              <td style="padding:4px 6px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${toISODate(r.begin)||''}" style="width:118px;padding:3px 4px;font-size:.78rem;" title="Begindatum"></td>
-              <td style="padding:4px 6px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:118px;padding:3px 4px;font-size:.78rem;" title="Einddatum"></td>
-              <td style="padding:4px 8px;white-space:nowrap;">
+              <td style="padding:5px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
+              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);white-space:nowrap;">${meta}</td>
+              ${chipHtml}
+              <td style="padding:5px 6px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${toISODate(r.begin)||''}" style="width:112px;padding:3px 4px;font-size:.78rem;" title="Begindatum"></td>
+              <td style="padding:5px 6px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:112px;padding:3px 4px;font-size:.78rem;" title="Einddatum"></td>
+              <td style="padding:5px 6px;white-space:nowrap;">
                 <button class="proj-save-btn" style="padding:3px 8px;font-size:.72rem;" onclick="saveProjectRangeDates(${args})" title="Opslaan">💾</button>
-                <button class="proj-del-btn" style="padding:3px 8px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
-                <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;margin-left:3px;"></span>
+                <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
+                <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;display:block;margin-top:2px;"></span>
               </td>
             </tr>`;
           } else {
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
-              <td style="padding:4px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
-              <td style="padding:4px 8px;font-size:.78rem;color:var(--muted);">${meta}</td>
-              <td style="padding:4px 8px;font-size:.78rem;">${toISODate(r.begin)||'–'}</td>
-              <td style="padding:4px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
+              <td style="padding:5px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
+              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${meta}</td>
+              ${chipHtml}
+              <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.begin)||'–'}</td>
+              <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
             </tr>`;
           }
         }).join('');
-        return `<table style="width:100%;border-collapse:collapse;"><thead>${hdr}</thead><tbody>${rows}</tbody></table>`;
+        return `<table style="width:100%;border-collapse:collapse;">${colgroup}<thead><tr style="border-bottom:2px solid var(--border);">${hdrCols}</tr></thead><tbody>${rows}</tbody></table>`;
       })()}
     </div>
   </div>`;
