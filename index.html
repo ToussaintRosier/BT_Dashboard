@@ -2849,12 +2849,37 @@ function projCollegaToggle(src, id, init, containerId) {
   const el = document.getElementById(containerId);
   if (el) el.innerHTML = _collegaChips(src, id, cur, containerId);
 }
+// Schakelt tussen compact (alleen geselecteerden) en volledig (alle chips)
+// voor pr-collega-* containers. Leest src/id uit data-attributen op het element.
+function projCollegaToggleEdit(containerId) {
+  window._projCollegaEditSet = window._projCollegaEditSet || new Set();
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const src = el.dataset.src, id = el.dataset.pid;
+  if (!src || !id) return;
+  const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
+  if (window._projCollegaEditSet.has(safeId)) window._projCollegaEditSet.delete(safeId);
+  else window._projCollegaEditSet.add(safeId);
+  const selected = projCollegaLoad(src, id);
+  el.innerHTML = _collegaChips(src, id, selected, containerId);
+}
 function _collegaChips(src, id, selected, containerId) {
-  return BMS.map(b => {
+  const safeId   = String(id).replace(/[^a-zA-Z0-9]/g, '');
+  // gc-collega-* (starters-goedkeuring) toont altijd alle chips; pr-collega-*
+  // toont alleen geselecteerden tenzij expliciet in edit-modus.
+  const isGC     = containerId.startsWith('gc-');
+  const editMode = isGC || (window._projCollegaEditSet || new Set()).has(safeId);
+  const chips    = BMS.map(b => {
     const init = bmInitialen(b.naam);
     const on   = selected.includes(init);
+    if (!editMode && !on) return '';
     return `<span onclick="projCollegaToggle('${src}','${id}','${init}','${containerId}')" title="${b.naam}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.7rem;font-weight:700;cursor:pointer;border:1.5px solid ${on?'var(--primary)':'#d1d5db'};background:${on?'var(--primary-light)':'#f9fafb'};color:${on?'var(--primary)':'#6b7280'};margin:1px 2px;user-select:none;">${init}</span>`;
   }).join('');
+  if (isGC) return chips;
+  const editBtn = editMode
+    ? `<span onclick="projCollegaToggleEdit('${containerId}')" title="Sluiten" style="display:inline-block;padding:2px 5px;border-radius:99px;font-size:.68rem;cursor:pointer;border:1.5px solid #e5e7eb;background:#f3f4f6;color:#6b7280;margin:1px 2px;">✗</span>`
+    : `<span onclick="projCollegaToggleEdit('${containerId}')" title="Collega's wijzigen" style="display:inline-block;padding:2px 6px;border-radius:99px;font-size:.68rem;cursor:pointer;border:1.5px dashed #d1d5db;background:#f9fafb;color:#9ca3af;margin:1px 2px;">＋</span>`;
+  return chips + editBtn;
 }
 
 // ── Definitieve einddatum (localStorage) — stopt telling in projectenlijn ────
@@ -2866,6 +2891,13 @@ function projDefEindSave(src, id, val)   { try { val ? localStorage.setItem(proj
 function projEvalKey(src, id)            { return `bt_proj_eval_${src}_${id}`; }
 function projEvalLoad(src, id)           { try { return JSON.parse(localStorage.getItem(projEvalKey(src,id))||'[]'); } catch(_){ return []; } }
 function projEvalSave(src, id, arr)      { try { localStorage.setItem(projEvalKey(src,id), JSON.stringify(arr)); } catch(_){} }
+
+// Toont/verbergt de evaluatierij (klik op naam van de medewerker).
+function projEvalToggle_vis(safeId) {
+  const row = document.getElementById(`pr-eval-row-${safeId}`);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? '' : 'none';
+}
 
 function projEvalToggle(src, id, idx) {
   const cur = projEvalLoad(src, id);
@@ -2881,19 +2913,22 @@ function projEvalToggle(src, id, idx) {
   chipsEl.innerHTML = _evalChips(src, id, ms, cur, safeId);
   const anyDue  = ms.some((m, j) => m.date <= today && !cur.includes(j));
   rowEl.style.background = anyDue ? '#fffbeb' : '#f8faff';
+  // Uitroepteken tonen/verbergen op basis van openstaande evaluaties
+  const alertEl = document.getElementById(`pr-eval-alert-${safeId}`);
+  if (alertEl) alertEl.style.display = anyDue ? '' : 'none';
 }
 
 function getEvalMilestones(startDate) {
   const fixed  = [[0,'Dag 1'],[30,'1 mnd'],[90,'3 mnd'],[180,'6 mnd'],[270,'9 mnd'],[365,'12 mnd']];
   const ms     = fixed.map(([d,lbl]) => ({ label:lbl, date: new Date(+startDate + d*86400000) }));
   let d = new Date(+startDate + 365*86400000);
-  let q = 5; let futureCount = 0;
+  let mnd = 15; let futureCount = 0;
   const today = new Date();
-  while (q <= 24) {
+  while (mnd <= 360) {
     d = new Date(+d + 91*86400000);
-    ms.push({ label:`Q${q}`, date: new Date(d) });
+    ms.push({ label:`${mnd} mnd`, date: new Date(d) });
     if (d > today) { futureCount++; if (futureCount >= 2) break; }
-    q++;
+    mnd += 3;
   }
   return ms;
 }
@@ -2918,7 +2953,7 @@ function renderEvalRow(src, id, startDateStr, nCols, safeId) {
   const ms      = getEvalMilestones(new Date(startDateStr));
   const anyDue  = ms.some((m, i) => m.date <= today && !checked.includes(i));
   const rowBg   = anyDue ? '#fffbeb' : '#f8faff';
-  return `<tr id="pr-eval-row-${safeId}" data-start="${startDateStr}" style="background:${rowBg};border-bottom:1px solid var(--border);">
+  return `<tr id="pr-eval-row-${safeId}" data-start="${startDateStr}" style="display:none;background:${rowBg};border-bottom:1px solid var(--border);">
     <td colspan="${nCols}" style="padding:2px 8px 6px 26px;">
       <div style="display:flex;gap:2px;flex-wrap:wrap;align-items:center;">
         <span style="font-size:.66rem;color:var(--muted);margin-right:4px;white-space:nowrap;">📋 Evaluatie:</span>
@@ -3189,6 +3224,97 @@ async function saveProjectRangeDates(source, id, bmNaam) {
   render();
 }
 
+// ── Projecten filter/sort (in-memory, geen effect op grafiek) ────────────────
+window._projFilt = window._projFilt || { q: '', sort: '', dir: 1 };
+
+function projFiltApply() {
+  if (!window._projOvCache) return;
+  const { overzichtRanges, canEditProj, nuVoorOverdue } = window._projOvCache;
+  const { q, sort, dir } = window._projFilt;
+  let list = overzichtRanges.slice();
+  if (q) {
+    const lq = q.toLowerCase();
+    list = list.filter(r =>
+      (r.naam||'').toLowerCase().includes(lq) ||
+      (r.opdrachtgever||'').toLowerCase().includes(lq)
+    );
+  }
+  if (sort) {
+    list.sort((a, b) => {
+      let va = (sort === 'naam' ? (a.naam||'') : (a.opdrachtgever||'')).toLowerCase();
+      let vb = (sort === 'naam' ? (b.naam||'') : (b.opdrachtgever||'')).toLowerCase();
+      return va < vb ? -dir : va > vb ? dir : 0;
+    });
+  }
+  const tbody = document.getElementById('proj-tbody');
+  if (!tbody) return;
+  const nCols = canEditProj ? 7 : 6;
+  tbody.innerHTML = list.length === 0
+    ? `<tr><td colspan="${nCols}" style="padding:10px;text-align:center;color:var(--muted);">Geen projecten gevonden.</td></tr>`
+    : list.map(r => buildProjRow(r, canEditProj, nuVoorOverdue, nCols)).join('');
+}
+
+function projFiltSort(col) {
+  if (window._projFilt.sort === col) window._projFilt.dir *= -1;
+  else { window._projFilt.sort = col; window._projFilt.dir = 1; }
+  ['naam','opg'].forEach(c => {
+    const el = document.getElementById(`proj-sort-${c}`);
+    if (!el) return;
+    const active = window._projFilt.sort === c;
+    el.textContent = active ? (window._projFilt.dir === 1 ? '▲' : '▼') : '↕';
+    el.style.opacity = active ? '1' : '.45';
+    el.style.color   = active ? 'var(--primary)' : '';
+  });
+  projFiltApply();
+}
+
+function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
+  const safeId      = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
+  const containerId = `pr-collega-${safeId}`;
+  const overdue     = r.eind && r.eind < nuVoorOverdue;
+  const src         = r.source === 'excel' ? '📄' : '🧩';
+  const badge       = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
+  const bg          = overdue ? 'background:#fef2f2;' : '';
+  const collega     = projCollegaLoadOrDefault(r.source, r.id, r.bm);
+  const defnVal     = projDefEindLoad(r.source, r.id);
+  const startStr    = toISODate(r.begin) || '';
+  const today       = new Date(); today.setHours(0,0,0,0);
+  const checked     = startStr ? projEvalLoad(r.source, r.id) : [];
+  const ms          = startStr ? getEvalMilestones(new Date(startStr)) : [];
+  const anyDue      = startStr && ms.some((m, i) => m.date <= today && !checked.includes(i));
+  const alertSpan   = startStr
+    ? `<span id="pr-eval-alert-${safeId}" title="Evaluatie vereist" style="color:#d97706;font-weight:900;font-size:.85rem;margin-left:2px;cursor:pointer;${anyDue?'':'display:none'}">!</span>`
+    : '';
+  const chipHtml = canEditProj
+    ? `<td style="padding:3px 6px;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
+    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
+  if (canEditProj) {
+    const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
+    return `<tr style="border-bottom:1px solid var(--border);${bg}">
+      <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
+      ${chipHtml}
+      <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
+      <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
+      <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-defn-${safeId}" value="${defnVal}" oninput="projDefEindSave('${r.source}','${r.id}',this.value)" style="width:104px;padding:3px 4px;font-size:.78rem;${defnVal?'border-color:#0e9f6e;':''}" title="Definitieve einddatum — stopt de telling in de projectenlijn"></td>
+      <td style="padding:5px 5px;white-space:nowrap;">
+        <button class="proj-save-btn" style="padding:3px 8px;font-size:.72rem;" onclick="saveProjectRangeDates(${args})" title="Opslaan">💾</button>
+        <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
+        <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;display:block;margin-top:2px;"></span>
+      </td>
+    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
+  } else {
+    return `<tr style="border-bottom:1px solid var(--border);${bg}">
+      <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
+      ${chipHtml}
+      <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
+      <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
+      <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
+    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
+  }
+}
+
 function renderPrognose() {
   const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
   // Alleen Yoël en Toussaint mogen hier daadwerkelijk iets wijzigen; iedereen
@@ -3290,56 +3416,6 @@ function renderPrognose() {
 
     ${!canEditProj ? '<div class="info-box blue">ℹ️ Alleen-lezen overzicht — wijzigingen (import, goedkeuring, datums) kunnen alleen Yoël en Toussaint doorvoeren.</div>' : ''}
 
-    <!-- Gap analyse -->
-    <div class="section-title">Gap-Analyse</div>
-    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-      <div class="kpi-card">
-        <div class="label">YTD gerealiseerd</div>
-        <div class="value" style="color:var(--success)">${ytdStarters}</div>
-        <div class="sub">starters t/m week ${maxWk}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="label">Huidig tempo (jaar-einde)</div>
-        <div class="value" style="color:${extrapolated>=TOTAAL_DOEL?'var(--success)':'var(--warn)'}">${extrapolated}</div>
-        <div class="sub">zonder nieuwe medewerkers</div>
-      </div>
-      <div class="kpi-card">
-        <div class="label">Groeiscenario (jaar-einde)</div>
-        <div class="value" style="color:var(--primary)">${growthYearEnd}</div>
-        <div class="sub">+ 1 hire/maand · ${hireWeeks.length} nieuwe medewerkers</div>
-      </div>
-      <div class="kpi-card">
-        <div class="label">Resterende gap naar ${JAAR_DOEL_AMBITIEUS}</div>
-        <div class="value" style="color:${gapToGoal2<=0?'var(--success)':'var(--danger)'}">${gapToGoal2 <= 0 ? '✓ gehaald' : gapToGoal2}</div>
-        <div class="sub">${gapToGoal2 <= 0 ? 'Doel haalbaar met dit scenario' : 'nog extra nodig bij groeiscenario'}</div>
-      </div>
-    </div>
-
-    <div class="info-box blue" style="margin-top:4px">
-      💡 Het groeiscenario gaat uit van <strong>${hireWeeks.length} nieuwe medewerkers</strong> die starten in
-      ${['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][curMonthIdx]}–dec ${year},
-      elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.
-    </div>
-
-    <!-- Projectenlijst: Excel-import (alleen Yoël/Toussaint) -->
-    ${canEditProj ? `
-    <div class="section-title">Projectenlijst (Excel-import)</div>
-    <div class="chart-card">
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
-        <label class="btn-secondary">
-          📂 Importeer Projectenlijst.xlsx
-          <input type="file" id="projecten-excel-input" accept=".xlsx,.xls" style="display:none" onchange="importProjectenExcel(this)">
-        </label>
-        <span id="projecten-import-status" class="sub"></span>
-        <span class="sub">${PROJECTEN.length} projecten in database</span>
-        <label class="btn-secondary">
-          📂 Importeer Begroting.xlsx
-          <input type="file" id="begroting-excel-input-prognose" accept=".xlsx,.xls" style="display:none" onchange="importBegrotingExcel(this)">
-        </label>
-        <span id="begroting-import-status" class="sub"></span>
-      </div>
-    </div>` : ''}
-
     <!-- Projectenlijn -->
     <div class="section-title">Projectenlijn — actieve projecten per week (${year})</div>
     <div class="chart-card">
@@ -3374,62 +3450,87 @@ function renderPrognose() {
     </div>
 
     <!-- Projecten overzicht: bewerkbaar -->
-    <div class="section-title">Projecten overzicht</div>
+    <div class="section-title" style="padding-right:2px;">
+      <span>Projecten overzicht</span>
+      <input id="proj-filter-q" type="text" placeholder="Zoek medewerker of opdrachtgever…"
+        value="${(window._projFilt||{}).q||''}"
+        oninput="window._projFilt.q=this.value;projFiltApply()"
+        style="margin-left:auto;padding:3px 12px 3px 28px;font-size:.75rem;font-weight:400;letter-spacing:0;border:1.5px solid var(--border);border-radius:20px;background:#f8faff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>') no-repeat 8px center;color:var(--text);width:220px;outline:none;" />
+      <span style="font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
+    </div>
     <div class="chart-card" style="padding:10px 14px;">
-      <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = verwachte einddatum verstreken &nbsp;·&nbsp; <strong>Def. eind</strong> = stopt tellen in projectenlijn</div>
+      <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = verwachte einddatum verstreken &nbsp;·&nbsp; <strong>Def. eind</strong> = stopt tellen in projectenlijn &nbsp;·&nbsp; klik op naam voor evaluatiecyclus</div>
       ${(() => {
+        window._projOvCache = { overzichtRanges, canEditProj, nuVoorOverdue };
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
-        const nCols  = canEditProj ? 7 : 6;
-        const TH     = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
+        const nCols    = canEditProj ? 7 : 6;
+        const TH       = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
+        const THSORT   = (txt, col) => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" onclick="projFiltSort('${col}')">
+          ${txt}<span id="proj-sort-${col}" style="font-size:.6rem;opacity:.45;margin-left:3px;">↕</span></th>`;
         const colgroup = canEditProj
           ? `<colgroup><col style="width:22%"><col style="width:16%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
           : `<colgroup><col style="width:26%"><col style="width:18%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [TH('Kandidaat'), TH('Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind'), '<th></th>'].join('')
-          : [TH('Kandidaat'), TH('Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind')].join('');
-        const rows = overzichtRanges.map(r => {
-          const safeId      = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
-          const containerId = `pr-collega-${safeId}`;
-          const overdue     = r.eind && r.eind < nuVoorOverdue;
-          const src         = r.source === 'excel' ? '📄' : '🧩';
-          const badge       = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
-          const bg          = overdue ? 'background:#fef2f2;' : '';
-          // Pre-fill collega from r.bm if nothing stored yet
-          const collega     = projCollegaLoadOrDefault(r.source, r.id, r.bm);
-          const defnVal     = projDefEindLoad(r.source, r.id);
-          const startStr    = toISODate(r.begin) || '';
-          const chipHtml    = canEditProj
-            ? `<td style="padding:3px 6px;"><div id="${containerId}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
-            : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
-          if (canEditProj) {
-            const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
-            return `<tr style="border-bottom:1px solid var(--border);${bg}">
-              <td style="padding:5px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
-              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${r.opdrachtgever||'—'}</td>
-              ${chipHtml}
-              <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
-              <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
-              <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-defn-${safeId}" value="${defnVal}" oninput="projDefEindSave('${r.source}','${r.id}',this.value)" style="width:104px;padding:3px 4px;font-size:.78rem;${defnVal?'border-color:#0e9f6e;':''}" title="Definitieve einddatum — stopt de telling in de projectenlijn"></td>
-              <td style="padding:5px 5px;white-space:nowrap;">
-                <button class="proj-save-btn" style="padding:3px 8px;font-size:.72rem;" onclick="saveProjectRangeDates(${args})" title="Opslaan">💾</button>
-                <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
-                <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;display:block;margin-top:2px;"></span>
-              </td>
-            </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
-          } else {
-            return `<tr style="border-bottom:1px solid var(--border);${bg}">
-              <td style="padding:5px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
-              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${r.opdrachtgever||'—'}</td>
-              ${chipHtml}
-              <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
-              <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
-              <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
-            </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
-          }
-        }).join('');
-        return `<table style="width:100%;border-collapse:collapse;">${colgroup}<thead><tr style="border-bottom:2px solid var(--border);">${hdrCols}</tr></thead><tbody>${rows}</tbody></table>`;
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind')].join('');
+        // Pas huidig filter toe op de initiële render
+        const fq = (window._projFilt||{}).q||'';
+        let initList = overzichtRanges.slice();
+        if (fq) {
+          const lq = fq.toLowerCase();
+          initList = initList.filter(r => (r.naam||'').toLowerCase().includes(lq) || (r.opdrachtgever||'').toLowerCase().includes(lq));
+        }
+        const rows = initList.map(r => buildProjRow(r, canEditProj, nuVoorOverdue, nCols)).join('');
+        return `<table style="width:100%;border-collapse:collapse;">${colgroup}<thead><tr style="border-bottom:2px solid var(--border);">${hdrCols}</tr></thead><tbody id="proj-tbody">${rows}</tbody></table>`;
       })()}
     </div>
+
+    <!-- Gap-Analyse + Groeiscenario + Import (onderaan) -->
+    <div class="section-title">Gap-Analyse</div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <div class="kpi-card">
+        <div class="label">YTD gerealiseerd</div>
+        <div class="value" style="color:var(--success)">${ytdStarters}</div>
+        <div class="sub">starters t/m week ${maxWk}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Huidig tempo (jaar-einde)</div>
+        <div class="value" style="color:${extrapolated>=TOTAAL_DOEL?'var(--success)':'var(--warn)'}">${extrapolated}</div>
+        <div class="sub">zonder nieuwe medewerkers</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Groeiscenario (jaar-einde)</div>
+        <div class="value" style="color:var(--primary)">${growthYearEnd}</div>
+        <div class="sub">+ 1 hire/maand · ${hireWeeks.length} nieuwe medewerkers</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Resterende gap naar ${JAAR_DOEL_AMBITIEUS}</div>
+        <div class="value" style="color:${gapToGoal2<=0?'var(--success)':'var(--danger)'}">${gapToGoal2 <= 0 ? '✓ gehaald' : gapToGoal2}</div>
+        <div class="sub">${gapToGoal2 <= 0 ? 'Doel haalbaar met dit scenario' : 'nog extra nodig bij groeiscenario'}</div>
+      </div>
+    </div>
+
+    <div class="info-box blue" style="margin-top:4px">
+      💡 Het groeiscenario gaat uit van <strong>${hireWeeks.length} nieuwe medewerkers</strong> die starten in
+      ${['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][curMonthIdx]}–dec ${year},
+      elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.
+    </div>
+
+    ${canEditProj ? `
+    <div class="section-title">Projectenlijst (Excel-import)</div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <label class="btn-secondary">📂 Importeer Projectenlijst.xlsx
+          <input type="file" id="projecten-excel-input" accept=".xlsx,.xls" style="display:none" onchange="importProjectenExcel(this)">
+        </label>
+        <span id="projecten-import-status" class="sub"></span>
+        <span class="sub">${PROJECTEN.length} projecten in database</span>
+        <label class="btn-secondary">📂 Importeer Begroting.xlsx
+          <input type="file" id="begroting-excel-input-prognose" accept=".xlsx,.xls" style="display:none" onchange="importBegrotingExcel(this)">
+        </label>
+        <span id="begroting-import-status" class="sub"></span>
+      </div>
+    </div>` : ''}
   </div>`;
 
   setTimeout(() => {
