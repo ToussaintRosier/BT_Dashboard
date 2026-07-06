@@ -1060,8 +1060,8 @@ function renderBM(bm) {
 
   document.getElementById('bm-subtab-content').innerHTML = `
     ${renderPipeline(bm)}
-    ${renderWeeklyEntry(bm)}
     ${renderNextWeekEntry(bm)}
+    ${renderWeeklyEntry(bm)}
 
     ${lowData?`<div class="info-box amber">⚠️ <strong>Beperkte data</strong> in laatste 26 weken voor ${bm.naam} (${fmt(ratios.totalStarters,1)} starters). Ratio's zijn een eerste indicatie.</div>`:''}
     <div class="norm-intro">
@@ -1675,11 +1675,15 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
     : '';
 
   return `<div class="week-actions" style="margin-bottom:16px;">
-    <h4>${icoon} ${titel} week ${week} · ${year}</h4>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-      ${fields}
-      ${actionBtn}
-      <span id="inv-status-${safeId}">${statusText}</span>
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:115px;">
+        <h4 style="margin:0;">${icoon} ${titel}<br><span style="font-size:.78rem;font-weight:600;color:var(--muted);">week ${week} · ${year}</span></h4>
+        ${actionBtn}
+        <span id="inv-status-${safeId}">${statusText}</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;flex:1;">
+        ${fields}
+      </div>
     </div>
   </div>`;
 }
@@ -3307,13 +3311,13 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     ? `<span id="pr-eval-alert-${safeId}" title="Evaluatie vereist" style="color:#d97706;font-weight:900;font-size:.85rem;margin-left:2px;cursor:pointer;${anyDue?'':'display:none'}">!</span>`
     : '';
   const chipHtml = canEditProj
-    ? `<td style="padding:3px 8px;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
-    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
+    ? `<td style="padding:3px 8px;text-align:center;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
+    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:center;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
       <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
-      <td style="padding:5px 8px;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
+      <td style="padding:5px 8px;text-align:center;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
@@ -3327,7 +3331,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
       <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
-      <td style="padding:5px 8px;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
+      <td style="padding:5px 8px;text-align:center;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
@@ -3440,7 +3444,7 @@ function renderPrognose() {
     <!-- Projectenlijn -->
     <div class="section-title">Projectenlijn — actieve projecten per week (${year})</div>
     <div class="chart-card">
-      <h3>🧮 Aantal gelijktijdig actieve projecten (Excel-import + akkoord-starters · blijft tellen tot expliciet verwijderd, ook na een verstreken einddatum) — gestippeld = begrote lijn</h3>
+      <h3>Projecten</h3>
       <div class="chart-wrap"><canvas id="chartProjLine"></canvas></div>
     </div>
 
@@ -3485,15 +3489,14 @@ function renderPrognose() {
         window._projOvCache = { overzichtRanges, canEditProj, nuVoorOverdue };
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
         const nCols    = canEditProj ? 7 : 6;
-        const TH       = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
-        const THSORT   = (txt, col) => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" onclick="projFiltSort('${col}')">
-          ${txt}<span id="proj-sort-${col}" style="font-size:.6rem;opacity:.45;margin-left:3px;">↕</span></th>`;
+        const TH       = (txt, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
+        const THSORT   = (txt, col, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" onclick="projFiltSort('${col}')">${txt}<span id="proj-sort-${col}" style="font-size:.6rem;opacity:.45;margin-left:3px;">↕</span></th>`;
         const colgroup = canEditProj
           ? `<colgroup><col style="width:22%"><col style="width:16%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
           : `<colgroup><col style="width:26%"><col style="width:18%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
-          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg'), TH('Collega\'s'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','center'), TH('Collega\'s','center'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','center'), TH('Collega\'s','center'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
         // Pas huidig filter toe op de initiële render
         const fq = (window._projFilt||{}).q||'';
         let initList = overzichtRanges.slice();
@@ -7622,10 +7625,8 @@ function renderPipeline(bm) {
     </div>`;
   }).join('');
 
-  const activeCount = cards.filter(c => weeks.some(wk => wk.week === c.week && wk.jaar === wk.year)).length;
-
   return `<div class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <span>🗂️ Kandidaten pipeline <span style="font-size:.78rem;font-weight:400;color:rgba(255,255,255,.6);margin-left:8px">${activeCount} kandidaten actief</span></span>
+    <span>🗂️ Kandidaten pipeline</span>
     <span style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:400;">
       <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
       ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
