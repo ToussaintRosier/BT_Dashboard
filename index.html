@@ -1029,10 +1029,17 @@ function renderMedewerkersOverzicht() {
     const t = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
     for (const bm of BMS) {
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
+      const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
       if (saved) {
-        for (const k of KPIS) t[k] += saved[k] || 0;
+        for (const k of KPIS) {
+          // Starters: neem het maximum van opgeslagen en pipeline, zodat een
+          // later toegevoegde starter alsnog meetelt ook als de BM al eerder
+          // had opgeslagen (met 0 starters).
+          t[k] += k === 'starters'
+            ? Math.max(saved[k] || 0, pipe[k] || 0)
+            : saved[k] || 0;
+        }
       } else {
-        const pipe = getPipeCountsForWeek(bm.naam, week, jaar);
         for (const k of KPIS) t[k] += pipe[k] || 0;
       }
     }
@@ -1063,13 +1070,20 @@ function renderMedewerkersOverzicht() {
     const bmArr = BMS.map(bm => {
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
       const isSaved = !!saved;
-      const vals = isSaved ? saved : getPipeCountsForWeek(bm.naam, week, jaar);
+      const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
+      // Gebruik opgeslagen waarden als basis; voor starters: neem het maximum
+      // zodat een later toegevoegde starter (na opslaan) alsnog meetelt.
+      const vals = isSaved ? { ...saved } : { ...pipe };
+      const staleStarters = isSaved && (pipe.starters || 0) > (saved.starters || 0);
+      if (staleStarters) vals.starters = pipe.starters || 0;
       if (!isSaved) anyLive = true;
       for (const k of KPIS) totals[k] += vals[k] || 0;
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
       if (!hasAny && !isCurOrNext) return null;
       const status = isSaved
-        ? '<span style="color:var(--success);font-size:.76rem;" title="Opgeslagen">✔</span>'
+        ? (staleStarters
+            ? '<span style="color:var(--warn);font-size:.75rem;" title="Invoer verouderd — pipeline toont meer starters; zet dit recht via Wijzigen + Opslaan">⚠️ opg.</span>'
+            : '<span style="color:var(--success);font-size:.76rem;" title="Opgeslagen">✔</span>')
         : '<span style="color:var(--muted);font-size:.72rem;font-style:italic;" title="Nog niet opgeslagen — pipeline-stand">live</span>';
       return '<tr style="border-bottom:1px solid var(--border);">' +
         '<td style="padding:5px 8px 5px 0;font-weight:600;font-size:.82rem;white-space:nowrap;">' +
