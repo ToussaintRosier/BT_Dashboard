@@ -3241,21 +3241,55 @@ function renderPrognose() {
 
     <!-- Projecten overzicht: bewerkbaar -->
     <div class="section-title">Projecten overzicht — begin-/einddatum aanpassen</div>
-    <div class="chart-card">
-      <div class="sub" style="margin-bottom:6px">📄 = uit Excel-import &nbsp; 🧩 = akkoord-starter uit pipeline &nbsp;·&nbsp; project blijft altijd meetellen in de projectenlijn totdat je op "Verwijderen" klikt &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = einddatum verstreken, vergeten op te schuiven?</div>
-      ${overzichtRanges.length === 0 ? '<div class="sub">Nog geen projecten.</div>' : overzichtRanges.map(r => {
-        const safeId  = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
-        const overdue = r.eind && r.eind < nuVoorOverdue;
-        return `<div class="proj-overview-row${overdue ? ' overdue' : ''}">
-          <div style="flex:1; min-width:200px"><strong>${r.naam}</strong> <span class="sub">${r.bm ? '· '+r.bm : ''}${r.opdrachtgever ? ' · '+r.opdrachtgever : ''} ${r.source==='excel'?'📄':'🧩'}</span>${overdue ? ' <span class="badge badge-red">einddatum verstreken</span>' : ''}</div>
-          ${canEditProj ? `
-          <input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${toISODate(r.begin) || ''}" title="Begindatum">
-          <input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind) || ''}" title="Einddatum (informatief — project blijft meetellen totdat verwijderd)">
-          <button class="proj-save-btn" onclick="saveProjectRangeDates('${r.source}','${r.id}',${r.bmNaam ? `'${r.bmNaam}'` : 'null'})">💾 Opslaan</button>
-          <button class="proj-del-btn" onclick="deleteProjectRange('${r.source}','${r.id}',${r.bmNaam ? `'${r.bmNaam}'` : 'null'})">🗑️ Verwijderen</button>
-          <span class="sub" id="pr-status-${safeId}"></span>` : `<span class="sub">${toISODate(r.begin) || '–'} t/m ${toISODate(r.eind) || '–'}</span>`}
-        </div>`;
-      }).join('')}
+    <div class="chart-card" style="padding:10px 14px;">
+      <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord uit pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = einddatum verstreken</div>
+      ${(() => {
+        if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
+        const hdr = canEditProj
+          ? `<tr style="border-bottom:2px solid var(--border);">
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Kandidaat</th>
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">BM · Opdrachtgever</th>
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Start</th>
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Eind</th>
+               <th></th>
+             </tr>`
+          : `<tr style="border-bottom:2px solid var(--border);">
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Kandidaat</th>
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">BM · Opdrachtgever</th>
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Start</th>
+               <th style="text-align:left;padding:4px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">Eind</th>
+             </tr>`;
+        const rows = overzichtRanges.map(r => {
+          const safeId  = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
+          const overdue = r.eind && r.eind < nuVoorOverdue;
+          const meta    = [r.bm, r.opdrachtgever].filter(Boolean).join(' · ');
+          const src     = r.source === 'excel' ? '📄' : '🧩';
+          const badge   = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
+          const bg      = overdue ? 'background:#fef2f2;' : '';
+          if (canEditProj) {
+            const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
+            return `<tr style="border-bottom:1px solid var(--border);${bg}">
+              <td style="padding:4px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
+              <td style="padding:4px 8px;font-size:.78rem;color:var(--muted);">${meta}</td>
+              <td style="padding:4px 6px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${toISODate(r.begin)||''}" style="width:118px;padding:3px 4px;font-size:.78rem;" title="Begindatum"></td>
+              <td style="padding:4px 6px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:118px;padding:3px 4px;font-size:.78rem;" title="Einddatum"></td>
+              <td style="padding:4px 8px;white-space:nowrap;">
+                <button class="proj-save-btn" style="padding:3px 8px;font-size:.72rem;" onclick="saveProjectRangeDates(${args})" title="Opslaan">💾</button>
+                <button class="proj-del-btn" style="padding:3px 8px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
+                <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;margin-left:3px;"></span>
+              </td>
+            </tr>`;
+          } else {
+            return `<tr style="border-bottom:1px solid var(--border);${bg}">
+              <td style="padding:4px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
+              <td style="padding:4px 8px;font-size:.78rem;color:var(--muted);">${meta}</td>
+              <td style="padding:4px 8px;font-size:.78rem;">${toISODate(r.begin)||'–'}</td>
+              <td style="padding:4px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
+            </tr>`;
+          }
+        }).join('');
+        return `<table style="width:100%;border-collapse:collapse;"><thead>${hdr}</thead><tbody>${rows}</tbody></table>`;
+      })()}
     </div>
   </div>`;
 
