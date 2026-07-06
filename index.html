@@ -2820,47 +2820,128 @@ function getCombinedProjectRanges() {
 // Initialen: eerste letter voornaam + eerste letter achternaam (tussenvoegingen
 // als van/de/den/der/het/ter/te/ten worden overgeslagen).
 function bmInitialen(naam) {
-  const TUSVV = new Set(['van','de','den','der','het','ter','te','ten','op','aan','voor','bij','uit','in','het',"'t"]);
+  const TUSVV = new Set(['van','de','den','der','het','ter','te','ten','op','aan','voor','bij','uit','in',"'t"]);
   const parts  = naam.trim().split(/\s+/);
   const signif = parts.filter(p => !TUSVV.has(p.toLowerCase()));
   if (!signif.length) return '?';
   if (signif.length === 1) return signif[0][0].toUpperCase();
   return (signif[0][0] + signif[signif.length - 1][0]).toUpperCase();
 }
-function projCollegaKey(src, id)    { return `bt_proj_collega_${src}_${id}`; }
-function projCollegaLoad(src, id)   { try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; } }
+function projCollegaKey(src, id)       { return `bt_proj_collega_${src}_${id}`; }
+function projCollegaLoad(src, id)      { try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; } }
 function projCollegaSave(src, id, arr) { try { localStorage.setItem(projCollegaKey(src,id), JSON.stringify(arr)); } catch(_){} }
-function projCollegaToggle(src, id, init) {
+// Laad collega's; als nog niets opgeslagen, pre-fill vanuit bmField (bijv. "GS/LK")
+function projCollegaLoadOrDefault(src, id, bmField) {
+  const stored = projCollegaLoad(src, id);
+  if (stored.length > 0) return stored;
+  if (!bmField) return [];
+  const parsed = bmField.split('/').map(s => s.trim()).filter(s => /^[A-Z]{1,4}$/.test(s));
+  if (parsed.length) { projCollegaSave(src, id, parsed); return parsed; }
+  return [];
+}
+// containerId = het DOM-element dat de chips bevat (zodat goedkeur + overzicht
+// dezelfde toggle-functie kunnen gebruiken met een andere container-id).
+function projCollegaToggle(src, id, init, containerId) {
   const cur = projCollegaLoad(src, id);
   const idx = cur.indexOf(init);
   if (idx >= 0) cur.splice(idx, 1); else cur.push(init);
   projCollegaSave(src, id, cur);
-  const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
-  const el = document.getElementById(`pr-collega-${safeId}`);
-  if (el) el.innerHTML = _collegaChips(src, id, cur);
+  const el = document.getElementById(containerId);
+  if (el) el.innerHTML = _collegaChips(src, id, cur, containerId);
 }
-function _collegaChips(src, id, selected) {
+function _collegaChips(src, id, selected, containerId) {
   return BMS.map(b => {
     const init = bmInitialen(b.naam);
     const on   = selected.includes(init);
-    return `<span onclick="projCollegaToggle('${src}','${id}','${init}')" title="${b.naam}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.7rem;font-weight:700;cursor:pointer;border:1.5px solid ${on?'var(--primary)':'#d1d5db'};background:${on?'var(--primary-light)':'#f9fafb'};color:${on?'var(--primary)':'#6b7280'};margin:1px 2px;user-select:none;">${init}</span>`;
+    return `<span onclick="projCollegaToggle('${src}','${id}','${init}','${containerId}')" title="${b.naam}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.7rem;font-weight:700;cursor:pointer;border:1.5px solid ${on?'var(--primary)':'#d1d5db'};background:${on?'var(--primary-light)':'#f9fafb'};color:${on?'var(--primary)':'#6b7280'};margin:1px 2px;user-select:none;">${init}</span>`;
   }).join('');
 }
 
-// Telt per ISO-week van een jaar hoeveel projecten actief zijn (begin <= weekeinde
-// en nog niet verwijderd vóór die week). Een verstreken (vermoedelijke) einddatum
-// stopt de telling NIET meer — alleen de "Verwijderen"-actie doet dat, en dan pas
-// vanaf de week van verwijderen (eerdere/historische weken blijven meegeteld).
+// ── Definitieve einddatum (localStorage) — stopt telling in projectenlijn ────
+function projDefEindKey(src, id)         { return `bt_proj_defn_${src}_${id}`; }
+function projDefEindLoad(src, id)        { return localStorage.getItem(projDefEindKey(src,id)) || ''; }
+function projDefEindSave(src, id, val)   { try { val ? localStorage.setItem(projDefEindKey(src,id), val) : localStorage.removeItem(projDefEindKey(src,id)); } catch(_){} }
+
+// ── Evaluatie-checkboxen (localStorage) — index van afgevinkte momenten ─────
+function projEvalKey(src, id)            { return `bt_proj_eval_${src}_${id}`; }
+function projEvalLoad(src, id)           { try { return JSON.parse(localStorage.getItem(projEvalKey(src,id))||'[]'); } catch(_){ return []; } }
+function projEvalSave(src, id, arr)      { try { localStorage.setItem(projEvalKey(src,id), JSON.stringify(arr)); } catch(_){} }
+
+function projEvalToggle(src, id, idx) {
+  const cur = projEvalLoad(src, id);
+  const i   = cur.indexOf(idx);
+  if (i >= 0) cur.splice(i, 1); else cur.push(idx);
+  projEvalSave(src, id, cur);
+  const safeId  = String(id).replace(/[^a-zA-Z0-9]/g, '');
+  const chipsEl = document.getElementById(`pr-eval-chips-${safeId}`);
+  const rowEl   = document.getElementById(`pr-eval-row-${safeId}`);
+  if (!chipsEl || !rowEl) return;
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const ms      = getEvalMilestones(new Date(rowEl.dataset.start));
+  chipsEl.innerHTML = _evalChips(src, id, ms, cur, safeId);
+  const anyDue  = ms.some((m, j) => m.date <= today && !cur.includes(j));
+  rowEl.style.background = anyDue ? '#fffbeb' : '#f8faff';
+}
+
+function getEvalMilestones(startDate) {
+  const fixed  = [[0,'Dag 1'],[30,'1 mnd'],[90,'3 mnd'],[180,'6 mnd'],[270,'9 mnd'],[365,'12 mnd']];
+  const ms     = fixed.map(([d,lbl]) => ({ label:lbl, date: new Date(+startDate + d*86400000) }));
+  let d = new Date(+startDate + 365*86400000);
+  let q = 5; let futureCount = 0;
+  const today = new Date();
+  while (q <= 24) {
+    d = new Date(+d + 91*86400000);
+    ms.push({ label:`Q${q}`, date: new Date(d) });
+    if (d > today) { futureCount++; if (futureCount >= 2) break; }
+    q++;
+  }
+  return ms;
+}
+
+function _evalChips(src, id, milestones, checked, safeId) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  return milestones.map((m, i) => {
+    const due = m.date <= today, done = checked.includes(i);
+    const dStr = toISODate(m.date);
+    let st, lbl;
+    if (done)     { st='background:#d1fae5;border-color:#0e9f6e;color:#065f46;';                 lbl='✓ '+m.label; }
+    else if (due) { st='background:#fef3c7;border-color:#d97706;color:#92400e;font-weight:700;'; lbl='⚡ '+m.label; }
+    else          { st='background:#f9fafb;border-color:#e5e7eb;color:#9ca3af;';                 lbl=m.label; }
+    return `<span onclick="projEvalToggle('${src}','${id}',${i})" title="${dStr}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.68rem;border:1.5px solid;cursor:pointer;${st}margin:1px;">${lbl}</span>`;
+  }).join('');
+}
+
+function renderEvalRow(src, id, startDateStr, nCols, safeId) {
+  if (!startDateStr) return '';
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const checked = projEvalLoad(src, id);
+  const ms      = getEvalMilestones(new Date(startDateStr));
+  const anyDue  = ms.some((m, i) => m.date <= today && !checked.includes(i));
+  const rowBg   = anyDue ? '#fffbeb' : '#f8faff';
+  return `<tr id="pr-eval-row-${safeId}" data-start="${startDateStr}" style="background:${rowBg};border-bottom:1px solid var(--border);">
+    <td colspan="${nCols}" style="padding:2px 8px 6px 26px;">
+      <div style="display:flex;gap:2px;flex-wrap:wrap;align-items:center;">
+        <span style="font-size:.66rem;color:var(--muted);margin-right:4px;white-space:nowrap;">📋 Evaluatie:</span>
+        <span id="pr-eval-chips-${safeId}">${_evalChips(src, id, ms, checked, safeId)}</span>
+      </div>
+    </td>
+  </tr>`;
+}
+
+// Telt per ISO-week van een jaar hoeveel projecten actief zijn. Stopt bij
+// verwijderd_op of bij een definitieve einddatum (localStorage).
 function countActiveProjectsPerWeek(year) {
   const ranges = getCombinedProjectRanges();
   const counts = [];
   for (let w = 1; w <= 52; w++) {
     const weekStart = isoWeekStartDate(year, w);
-    const weekEnd    = new Date(weekStart); weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+    const weekEnd   = new Date(weekStart); weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
     let n = 0;
     for (const r of ranges) {
       if (r.begin > weekEnd) continue;
       if (r.verwijderdOp && r.verwijderdOp < weekStart) continue;
+      const defnStr = projDefEindLoad(r.source, r.id);
+      if (defnStr && new Date(defnStr) < weekStart) continue;
       n++;
     }
     counts.push(n);
@@ -3050,6 +3131,12 @@ async function deleteProjectRange(source, id, bmNaam) {
 // daar nog aan te passen. Niet akkoord: kaart wordt definitief en blijvend verwijderd
 // (geen historie te bewaren, want hij heeft nooit meegeteld als actief project).
 async function pipeSetGoedkeuring(bmNaam, cardId, status) {
+  if (status === 'akkoord') {
+    if (projCollegaLoad('pipeline', cardId).length === 0) {
+      alert('Selecteer eerst de initialen van de betrokken collega(\'s) voordat je akkoord geeft.');
+      return;
+    }
+  }
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
 
@@ -3262,64 +3349,82 @@ function renderPrognose() {
 
     <!-- Starters goedkeuring -->
     <div class="section-title">Starters-goedkeuring (fase Starter)</div>
-    <div class="chart-card">
-      <div class="sub" style="margin-bottom:6px">✅ Akkoord = direct opnemen in Projecten overzicht (start vandaag, datums daar aan te passen) &nbsp;·&nbsp; ❌ Niet akkoord = kandidaat definitief verwijderen &nbsp;·&nbsp; na beoordelen verdwijnt de kandidaat uit deze lijst.</div>
-      ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : starterCards.map(c => {
-        return `<div class="proj-overview-row">
-          <div style="flex:1; min-width:160px"><strong>${c.naam}</strong> <span class="sub">(${c.bmNaam}${c.opdrachtgever ? ' · ' + escHtml(c.opdrachtgever) : ''}${c.gedeeld ? ' · gedeeld (0,5)' : ''})</span></div>
-          ${canEditProj ? `
-          <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
-          <button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>` : '<span class="sub">Alleen-lezen</span>'}
-        </div>`;
-      }).join('')}
+    <div class="chart-card" style="padding:10px 14px;">
+      <div class="sub" style="margin-bottom:8px;font-size:.75rem;">✅ Akkoord = opnemen in Projecten overzicht (start vandaag, datums aan te passen) &nbsp;·&nbsp; ❌ Niet akkoord = definitief verwijderen &nbsp;·&nbsp; <span style="color:var(--danger);font-weight:600;">Collega's zijn verplicht voor akkoord.</span></div>
+      ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : (() => {
+        const TH = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">${txt}</th>`;
+        const rows = starterCards.map(c => {
+          const safeId      = String(c.id).replace(/[^a-zA-Z0-9]/g,'');
+          const containerId = `gc-collega-${safeId}`;
+          const chips       = _collegaChips('pipeline', c.id, projCollegaLoad('pipeline', c.id), containerId);
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:5px 8px;"><strong>${escHtml(c.naam)}</strong></td>
+            <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span class="badge badge-red" style="font-size:.65rem;">gedeeld 0,5</span>':''}</td>
+            <td style="padding:4px 6px;"><div id="${containerId}">${chips}</div></td>
+            <td style="padding:5px 8px;white-space:nowrap;text-align:right;">
+              ${canEditProj
+                ? `<button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
+                   <button class="goedkeur-btn" style="margin-left:4px;" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>`
+                : '<span class="sub">Alleen-lezen</span>'}
+            </td>
+          </tr>`;
+        }).join('');
+        return `<table style="width:100%;border-collapse:collapse;"><colgroup><col style="width:28%"><col style="width:22%"><col style="width:auto"><col style="width:220px"></colgroup><thead><tr style="border-bottom:2px solid var(--border);">${TH('Kandidaat')}${TH('Opdrachtgever')}${TH('Collega\'s — verplicht')}<th></th></tr></thead><tbody>${rows}</tbody></table>`;
+      })()}
     </div>
 
     <!-- Projecten overzicht: bewerkbaar -->
-    <div class="section-title">Projecten overzicht — begin-/einddatum aanpassen</div>
+    <div class="section-title">Projecten overzicht</div>
     <div class="chart-card" style="padding:10px 14px;">
-      <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord uit pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = einddatum verstreken</div>
+      <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = verwachte einddatum verstreken &nbsp;·&nbsp; <strong>Def. eind</strong> = stopt tellen in projectenlijn</div>
       ${(() => {
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
-        const TH = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
+        const nCols  = canEditProj ? 7 : 6;
+        const TH     = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
         const colgroup = canEditProj
-          ? `<colgroup><col style="width:22%"><col style="width:18%"><col style="width:auto"><col style="width:120px"><col style="width:120px"><col style="width:72px"></colgroup>`
-          : `<colgroup><col style="width:28%"><col style="width:22%"><col style="width:auto"><col style="width:110px"><col style="width:110px"></colgroup>`;
+          ? `<colgroup><col style="width:22%"><col style="width:16%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
+          : `<colgroup><col style="width:26%"><col style="width:18%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [TH('Kandidaat'), TH('BM · Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Eind'), '<th></th>'].join('')
-          : [TH('Kandidaat'), TH('BM · Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Eind')].join('');
+          ? [TH('Kandidaat'), TH('Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind'), '<th></th>'].join('')
+          : [TH('Kandidaat'), TH('Opdrachtgever'), TH('Collega\'s'), TH('Start'), TH('Verwacht eind'), TH('Def. eind')].join('');
         const rows = overzichtRanges.map(r => {
-          const safeId  = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
-          const overdue = r.eind && r.eind < nuVoorOverdue;
-          const meta    = [r.bm, r.opdrachtgever].filter(Boolean).join(' · ');
-          const src     = r.source === 'excel' ? '📄' : '🧩';
-          const badge   = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
-          const bg      = overdue ? 'background:#fef2f2;' : '';
-          const collega = projCollegaLoad(r.source, r.id);
-          const chipHtml = canEditProj
-            ? `<td style="padding:3px 6px;"><div id="pr-collega-${safeId}">${_collegaChips(r.source, r.id, collega)}</div></td>`
+          const safeId      = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
+          const containerId = `pr-collega-${safeId}`;
+          const overdue     = r.eind && r.eind < nuVoorOverdue;
+          const src         = r.source === 'excel' ? '📄' : '🧩';
+          const badge       = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
+          const bg          = overdue ? 'background:#fef2f2;' : '';
+          // Pre-fill collega from r.bm if nothing stored yet
+          const collega     = projCollegaLoadOrDefault(r.source, r.id, r.bm);
+          const defnVal     = projDefEindLoad(r.source, r.id);
+          const startStr    = toISODate(r.begin) || '';
+          const chipHtml    = canEditProj
+            ? `<td style="padding:3px 6px;"><div id="${containerId}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
             : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
           if (canEditProj) {
             const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:5px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
-              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);white-space:nowrap;">${meta}</td>
+              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${r.opdrachtgever||'—'}</td>
               ${chipHtml}
-              <td style="padding:5px 6px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${toISODate(r.begin)||''}" style="width:112px;padding:3px 4px;font-size:.78rem;" title="Begindatum"></td>
-              <td style="padding:5px 6px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:112px;padding:3px 4px;font-size:.78rem;" title="Einddatum"></td>
-              <td style="padding:5px 6px;white-space:nowrap;">
+              <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
+              <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
+              <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-defn-${safeId}" value="${defnVal}" oninput="projDefEindSave('${r.source}','${r.id}',this.value)" style="width:104px;padding:3px 4px;font-size:.78rem;${defnVal?'border-color:#0e9f6e;':''}" title="Definitieve einddatum — stopt de telling in de projectenlijn"></td>
+              <td style="padding:5px 5px;white-space:nowrap;">
                 <button class="proj-save-btn" style="padding:3px 8px;font-size:.72rem;" onclick="saveProjectRangeDates(${args})" title="Opslaan">💾</button>
                 <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
                 <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;display:block;margin-top:2px;"></span>
               </td>
-            </tr>`;
+            </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
           } else {
             return `<tr style="border-bottom:1px solid var(--border);${bg}">
               <td style="padding:5px 8px;"><strong style="font-size:.83rem;">${r.naam}</strong> <span style="font-size:.72rem;">${src}</span>${badge}</td>
-              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${meta}</td>
+              <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${r.opdrachtgever||'—'}</td>
               ${chipHtml}
-              <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.begin)||'–'}</td>
+              <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
               <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
-            </tr>`;
+              <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
+            </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
           }
         }).join('');
         return `<table style="width:100%;border-collapse:collapse;">${colgroup}<thead><tr style="border-bottom:2px solid var(--border);">${hdrCols}</tr></thead><tbody>${rows}</tbody></table>`;
