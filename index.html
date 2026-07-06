@@ -4740,6 +4740,8 @@ async function gesprekUpload(blob, mimeType) {
 
 function gesprekPoll() {
   GESPREK.pollingTimer = setInterval(async () => {
+    // Guard: al een resultaat? Timer stoppen, niets meer doen.
+    if (GESPREK.result) { clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null; return; }
     try {
       const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
       const params = new URLSearchParams({ id: GESPREK.transcriptId });
@@ -4867,7 +4869,7 @@ ${transcriptBlok}
 }
 
 function gesprekPrint() {
-  const html = _gesprekBouwHtml(true);
+  const html = _gesprekBouwHtml(false); // nooit transcript meesturen
   if (!html) return;
   const win = window.open('', '_blank');
   win.document.write(html);
@@ -4877,7 +4879,7 @@ function gesprekPrint() {
 }
 
 function gesprekDownload(formaat) {
-  const html = _gesprekBouwHtml(formaat === 'word');
+  const html = _gesprekBouwHtml(false); // nooit transcript meesturen
   if (!html) return;
   const naam = (GESPREK.naam || 'gespreksverslag').replace(/\s+/g, '_');
   if (formaat === 'word') {
@@ -5088,6 +5090,8 @@ async function bezoekUpload(blob, mimeType) {
 
 function bezoekPoll() {
   BEZOEK.pollingTimer = setInterval(async () => {
+    // Guard: al een resultaat? Timer stoppen, niets meer doen.
+    if (BEZOEK.result) { clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null; return; }
     try {
       const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
       const params = new URLSearchParams({ id: BEZOEK.transcriptId });
@@ -5219,7 +5223,7 @@ ${transcriptBlok}
 }
 
 function bezoekPrint() {
-  const html = _bezoekBouwHtml(true);
+  const html = _bezoekBouwHtml(false); // nooit transcript meesturen
   if (!html) return;
   const win = window.open('', '_blank');
   win.document.write(html);
@@ -5229,7 +5233,7 @@ function bezoekPrint() {
 }
 
 function bezoekDownload(formaat) {
-  const html = _bezoekBouwHtml(formaat === 'word');
+  const html = _bezoekBouwHtml(false); // nooit transcript meesturen
   if (!html) return;
   const naam = (BEZOEK.bedrijf || 'bezoekverslag').replace(/\s+/g, '_');
   if (formaat === 'word') {
