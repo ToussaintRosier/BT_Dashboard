@@ -4792,7 +4792,7 @@ async function accountsSaveRow(id) {
     op_cp:    textOrNull(getVal('opcp')),
     voorwaarden_bekend: getVal('voorw') || null,
     actief_aanbieden:   getVal('actief') || null,
-    notitie:  textOrNull(getVal('notitie')),
+    notitie:  (() => { const el = document.getElementById(`acc-top11-${safeId}`); return el && el.checked ? 'top11' : null; })(),
   };
   ACC_SCORE_FIELDS.forEach(([f]) => { updates[f] = clampScore(getVal('score-' + f)); });
 
@@ -4846,7 +4846,7 @@ function accountsOpenNewModal() {
   document.getElementById('acc-modal-opcp').value = '';
   document.getElementById('acc-modal-voorw').value = '';
   document.getElementById('acc-modal-actief').value = '';
-  document.getElementById('acc-modal-notitie').value = '';
+  document.getElementById('acc-modal-notitie').checked = false;
   document.getElementById('acc-modal').classList.add('open');
   setTimeout(() => document.getElementById('acc-modal-naam').focus(), 50);
 }
@@ -4867,7 +4867,7 @@ async function accountsConfirmNew() {
     op_cp: textOrNull(document.getElementById('acc-modal-opcp').value),
     voorwaarden_bekend: document.getElementById('acc-modal-voorw').value || null,
     actief_aanbieden: document.getElementById('acc-modal-actief').value || null,
-    notitie: textOrNull(document.getElementById('acc-modal-notitie').value),
+    notitie: document.getElementById('acc-modal-notitie').checked ? 'top11' : null,
   };
   ACC_SCORE_FIELDS.forEach(([f]) => {
     const el = document.getElementById(`acc-modal-score-${f}`);
@@ -5283,6 +5283,45 @@ function renderAccountplannenHtml(subTabBtns) {
   </div>`;
 }
 
+
+async function kamMaakAccountplan(naam) {
+  // Controleer of er al een accountplan bestaat voor deze klant
+  const existing = ACCOUNTPLAN_RECORDS.find(r => (r.opdrachtgever||'').toLowerCase() === (naam||'').toLowerCase());
+  if (existing) {
+    ACCOUNTPLAN_OPEN.add(String(existing.id));
+    ACCOUNT_SUBTAB = 'accountplan';
+    window._apLoaded = true;
+    renderAccounts();
+    return;
+  }
+  const now = new Date().toISOString();
+  const rec = {
+    opdrachtgever: naam || 'Naamloos',
+    primaire_activiteit:'', plan_jaar:'', doelen_strategie:'', branche:'',
+    fte:'', locatie:'', factor:'', inleentermijn:'', cao_bedrijf:'',
+    fase:'', kernfuncties:'', actuele_vacatures:'', verwachte_vacatures:'',
+    sollicitatie_procedure:'', concurrenten:'',
+    swot_strengths:'', swot_weaknesses:'', swot_opportunities:'', swot_threats:'', confrontatiematrix:'',
+    gewenste_relatie:'', huidige_relatie_score:'', wat_gaat_goed:'', verbeterpunten:'', relatie_verslaglegging:'',
+    huidige_doelen:'', acties:'', positieve_resultaten:'', obstakels:'', vervolgstap:'', resultaat_beoogd:'', succesmetingen:'',
+    contactpersonen:[], dmu:[], checklist:{},
+    created_at: now, updated_at: now,
+    created_by: CURRENT_USER?.id || null,
+  };
+  if (supa) {
+    try {
+      const { data, error } = await supa.from('accountplannen').insert(rec).select().single();
+      if (!error && data) { rec.id = data.id; rec.created_at = data.created_at; rec.updated_at = data.updated_at; }
+      else rec.id = 'local-' + Date.now();
+    } catch(e) { rec.id = 'local-' + Date.now(); }
+  } else { rec.id = 'local-' + Date.now(); }
+  ACCOUNTPLAN_RECORDS.unshift(rec);
+  ACCOUNTPLAN_OPEN.add(String(rec.id));
+  ACCOUNT_SUBTAB = 'accountplan';
+  window._apLoaded = true;
+  renderAccounts();
+}
+
 function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
 
 function renderAccounts() {
@@ -5415,7 +5454,11 @@ function slWebsiteSearchUrl(naam) {
 
 function slFilteredList() {
   return SALES_LEADS_CACHE.filter(s => {
-    if (SL_SEARCH && !(s.naam || '').toLowerCase().includes(SL_SEARCH.toLowerCase())) return false;
+    if (SL_SEARCH) {
+      const _q = SL_SEARCH.toLowerCase();
+      const _hay = [s.naam, s.vakgebied, s.regio, s.contactpersoon, s.status, s.voorwaarden_bekend].filter(Boolean).join(' ').toLowerCase();
+      if (!_hay.includes(_q)) return false;
+    }
     if (SL_FILTER_VAKGEBIED.length && !SL_FILTER_VAKGEBIED.includes(s.vakgebied || '')) return false;
     if (SL_FILTER_REGIO.length && !SL_FILTER_REGIO.includes(s.regio || '')) return false;
     if (SL_FILTER_CP.length && !SL_FILTER_CP.includes(s.contactpersoon || '')) return false;
@@ -5617,6 +5660,7 @@ function renderSalesLeadsHtml(subTabBtns) {
   const rows = sorted.map((s) => {
     const safeId = String(s.id).replace(/[^a-zA-Z0-9_-]/g, '_');
     const editing = SL_EDIT_UNLOCKED.has(String(s.id));
+    const rowStyle = (!editing && s.voorwaarden_bekend === 'ja') ? 'background:#f0fdf4;' : '';
 
     const naamCell = editing
       ? `<input type="text" id="sl-naam-${safeId}" class="acc-text-input" value="${escHtml(s.naam||'')}">`
@@ -5670,7 +5714,8 @@ function renderSalesLeadsHtml(subTabBtns) {
            <button class="proj-del-btn" onclick="slDeleteRow('${s.id}')" title="Verwijderen">🗑️</button>
          </div>`;
 
-    return `<tr>
+    const slDateCell = `<span style="color:var(--muted);font-size:.78rem;white-space:nowrap;">${fmtAccDate(s.updated_at)}</span>`;
+    return `<tr style="${rowStyle}">
       <td class="acc-td-left">${naamCell}</td>
       <td>${vakgebiedCell}</td>
       <td>${regioCell}</td>
@@ -5678,6 +5723,7 @@ function renderSalesLeadsHtml(subTabBtns) {
       <td>${cpCell}</td>
       <td>${statusCell}</td>
       <td>${voorwCell}</td>
+      <td>${slDateCell}</td>
       <td>${websiteCell}</td>
       <td>${actionsCell}</td>
     </tr>`;
@@ -5697,7 +5743,7 @@ function renderSalesLeadsHtml(subTabBtns) {
     ${subTabBtns}
     <div class="filter-toolbar">
       <div class="filter-toolbar-row">
-        <input type="text" class="filter-search-pill" placeholder="Zoek op klantnaam…" value="${escHtml(SL_SEARCH)}" onchange="slSetFilter('search', this.value)">
+        <input type="text" class="filter-search-pill" placeholder="Zoek op naam, vakgebied, regio, status…" value="${escHtml(SL_SEARCH)}" oninput="slSetFilter('search', this.value)" style="min-width:260px;">
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
           ${(SL_SEARCH||SL_FILTER_VAKGEBIED.length||SL_FILTER_REGIO.length||SL_FILTER_CP.length||SL_FILTER_STATUS.length||SL_FILTER_VOORW.length||SL_FILTER_SC||SL_FILTER_MONTEUR||SL_FILTER_WVB||SL_FILTER_ENG||SL_FILTER_PM) ? `<button class="filter-reset-link" onclick="slResetFilters()">↺ wis filters</button>` : ''}
           <button class="proj-save-btn" style="padding:5px 12px;" onclick="slPrint()">🖨️ Printen</button>
@@ -5719,7 +5765,15 @@ function renderSalesLeadsHtml(subTabBtns) {
       </div>
     </div>
     <div class="table-card" style="overflow:visible;">
-      <table class="acc-table">
+      <table class="acc-table" style="table-layout:auto;">
+        <colgroup>
+          <col style="min-width:180px;">
+          <col style="width:58px;"><col style="width:58px;">
+          <col style="width:48px;"><col style="width:48px;"><col style="width:48px;"><col style="width:48px;"><col style="width:48px;"><col style="width:60px;">
+          <col style="width:52px;"><col style="width:90px;">
+          <col style="width:100px;"><col style="width:90px;">
+          <col style="width:62px;"><col style="width:50px;">
+        </colgroup>
         <thead><tr>
           ${slTh('naam','Klant','acc-th-left')}
           ${slTh('vakgebied','Vakgebied')}
@@ -5728,6 +5782,7 @@ function renderSalesLeadsHtml(subTabBtns) {
           ${slTh('contactpersoon','Contactpersoon')}
           ${slTh('status','Status')}
           ${slTh('voorwaarden_bekend','Voorwaarden bekend')}
+          ${slTh('updated_at','Gewijzigd')}
           <th>Website</th>
           <th></th>
         </tr></thead>
@@ -5770,7 +5825,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
 
   const stratOptHtml = stratOptions.map(o => `<option value="${escHtml(o)}" ${ACC_FILTER_STRAT===o?'selected':''}>${escHtml(o)}</option>`).join('');
   const opOptHtml     = opOptions.map(o => `<option value="${escHtml(o)}" ${ACC_FILTER_OP===o?'selected':''}>${escHtml(o)}</option>`).join('');
-  const scoreHeaders  = ACC_SCORE_FIELDS.map(([,label]) => `<th title="${escHtml(label)}">${escHtml(label)}</th>`).join('');
+  const scoreHeaders  = ACC_SCORE_FIELDS.map(([,label]) => `<th title="${escHtml(label)}" style="font-size:.72rem;white-space:nowrap;">${escHtml(label)}</th>`).join('');
 
   const rows = sorted.map((a) => {
     const safeId  = String(a.id).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -5811,9 +5866,13 @@ function renderStrategischeLeadsHtml(subTabBtns) {
            <option value="nee" ${a.actief_aanbieden==='nee'?'selected':''}>Nee</option>
          </select>`
       : (a.actief_aanbieden==='ja' ? `<span class="badge badge-green">Ja</span>` : a.actief_aanbieden==='nee' ? `<span class="badge badge-red">Nee</span>` : `<span style="color:var(--muted);">—</span>`);
-    const notitieCell = editing
-      ? `<input type="text" id="acc-notitie-${safeId}" class="acc-text-input" value="${escHtml(a.notitie||'')}">`
-      : (a.notitie ? escHtml(a.notitie) : `<span style="color:var(--muted);">—</span>`);
+    const top11Cell = editing
+      ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;justify-content:center;">
+           <input type="checkbox" id="acc-top11-${safeId}" ${a.notitie==='top11'?'checked':''}
+             style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;">
+           <span style="font-size:.78rem;font-weight:600;">Top 11</span>
+         </label>`
+      : (a.notitie==='top11' ? `<span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #fde68a;">⭐ Top 11</span>` : `<span style="color:var(--muted);">—</span>`);
 
     const actionsCell = !canEditAccounts
       ? ''
@@ -5825,6 +5884,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
       : `<div class="acc-actions-cell">
            <button class="acc-edit-btn" onclick="accountsStartEdit('${a.id}')" title="Wijzigen">✏️</button>
            <button class="proj-del-btn" onclick="accountsDeleteRow('${a.id}')" title="Verwijderen">🗑️</button>
+           <button class="acc-edit-btn" onclick="kamMaakAccountplan('${escApos(a.naam||'')}')" title="Accountplan maken">📋</button>
          </div>`;
 
     return `<tr class="${editing ? '' : tier}">
@@ -5836,7 +5896,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
       <td>${lastModCell}</td>
       <td>${voorwCell}</td>
       <td>${actiefCell}</td>
-      <td class="acc-td-left">${notitieCell}</td>
+      <td style="text-align:center;">${top11Cell}</td>
       <td>${actionsCell}</td>
     </tr>`;
   }).join('');
@@ -5869,7 +5929,15 @@ function renderStrategischeLeadsHtml(subTabBtns) {
       </div>
     </div>
     <div class="table-card" style="overflow:visible;">
-      <table class="acc-table">
+      <table class="acc-table" style="table-layout:auto;">
+        <colgroup>
+          <col style="min-width:180px;">
+          <col style="width:58px;"><col style="width:58px;">
+          <col style="width:48px;"><col style="width:48px;"><col style="width:48px;"><col style="width:48px;"><col style="width:48px;"><col style="width:60px;">
+          <col style="width:52px;"><col style="width:90px;">
+          <col style="width:100px;"><col style="width:90px;">
+          <col style="width:62px;"><col style="width:50px;">
+        </colgroup>
         <thead><tr>
           ${kamTh('naam','Klant','acc-th-left')}
           ${kamTh('strat_cp','Strat CP')}
@@ -5879,7 +5947,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
           ${kamTh('updated_at','Laatste wijziging')}
           ${kamTh('voorwaarden_bekend','Voorwaarden bekend')}
           ${kamTh('actief_aanbieden','Actief aanbieden')}
-          <th class="acc-th-left">Notitie</th>
+          <th style="text-align:center;">⭐ Top 11</th>
           <th></th>
         </tr></thead>
         <tbody>${rows || `<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:24px;">Geen klanten gevonden.</td></tr>`}</tbody>
@@ -9703,7 +9771,10 @@ function pipeDelete(bmNaam, cardId) {
         <option value="nee">Nee</option>
       </select>
     </div>
-    <textarea id="acc-modal-notitie" placeholder="Notitie (optioneel)" rows="2"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer;margin:4px 0 10px;">
+      <input type="checkbox" id="acc-modal-notitie" style="width:16px;height:16px;accent-color:var(--primary);">
+      Markeren als Top 11 klant
+    </label>
     <div class="pipe-modal-btns">
       <button class="pipe-modal-cancel" onclick="accountsCloseNewModal()">Annuleren</button>
       <button class="pipe-modal-ok" onclick="accountsConfirmNew()">Invoeren</button>
