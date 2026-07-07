@@ -3849,6 +3849,7 @@ function renderAanmeldForm() {
       <button onclick="hrmDownloadAanmeld()" style="${btnBase}background:var(--primary);color:#fff;border:none;">⬇️ PDF downloaden</button>
       <button onclick="hrmWordAanmeld()"     style="${btnBase}background:var(--primary);color:#fff;border:none;">📄 Word downloaden</button>
       <button onclick="hrmMailtoAanmeld()"   style="${btnBase}background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);">📧 Versturen via e-mail</button>
+      <button onclick="hrmResetAanmeld()"    style="${btnBase}background:#fff;color:#dc2626;border:1.5px solid #fca5a5;">🗑 Formulier leegmaken</button>
       <span style="font-size:.72rem;color:var(--muted);">Gegevens worden automatisch opgeslagen.</span>
     </div>
     <div style="${g2}">
@@ -4020,18 +4021,26 @@ function hrmWordAanmeld() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function hrmResetAanmeld() {
+  if (!confirm('Weet je zeker dat je het volledige aanmeldformulier wilt leegmaken?\n\nAlle ingevulde gegevens worden gewist. Dit kan niet ongedaan worden gemaakt.')) return;
+  localStorage.removeItem('bt_aanmeld_data');
+  renderHrmBackoffice();
+}
+
 function hrmMailtoAanmeld() {
   const missing = aanmeldValidate();
   if (missing.length) { alert('Vul eerst alle verplichte velden in:\n\n• ' + missing.join('\n• ')); return; }
   const d = aanmeldLoad();
   const v = k => d[k] ? String(d[k]) : '—';
-  const bruto = parseFloat(d.bruto_maand || 0) || 0;
+  const tarief100 = parseFloat(d.tarief_100 || 0) || 0;
+  const overwCount = Math.max(1, parseInt(d.overw_count || 1));
   let overwText = '';
-  for (let i = 1; i <= 5; i++) {
-    const pct = d[`overw_pct_${i}`];
-    if (pct) {
-      const tar = bruto ? (bruto * parseFloat(pct) / 100).toFixed(2) : '—';
-      overwText += `\nOverwerk ${i}: ${pct}% → € ${tar}`;
+  for (let i = 1; i <= overwCount; i++) {
+    const pct   = d[`overw_pct_${i}`];
+    const omsch = d[`overw_omsch_${i}`] || '';
+    if (pct || omsch) {
+      const tar = tarief100 && pct ? (tarief100 * parseFloat(pct) / 100).toFixed(2) : '—';
+      overwText += `\nOverwerk ${i} (${omsch}): ${pct||'?'}% → € ${tar}`;
     }
   }
   const bodyLines = [
@@ -6013,9 +6022,10 @@ async function gesprekUpload(blob, mimeType) {
         upsert: false,
       });
       if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
-      const { data: urlData } = supa.storage.from('recordings').getPublicUrl(storagePath);
+      const { data: urlData, error: signErr } = await supa.storage.from('recordings').createSignedUrl(storagePath, 86400);
+      if (signErr) throw new Error('URL genereren mislukt: ' + signErr.message);
       GESPREK._storagePath = storagePath;
-      fd.append('audio_url', urlData.publicUrl);
+      fd.append('audio_url', urlData.signedUrl);
     } else {
       fd.append('audio', blob, 'opname.' + ext);
     }
@@ -6711,9 +6721,30 @@ async function pvaRecUpload(bmNaam, blob, mimeType) {
   const p = _getPvaRec(bmNaam);
   try {
     const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-    const fd = new FormData();
     const ext = (mimeType||'').includes('mp4')?'mp4':(mimeType||'').includes('ogg')?'ogg':'webm';
-    fd.append('audio', blob, 'pva.' + ext);
+    const fd = new FormData();
+
+    // Grote bestanden (>5 MB) eerst naar Supabase Storage uploaden
+    const LARGE = 5 * 1024 * 1024;
+    if (supa && blob.size > LARGE) {
+      p.statusMsg = '⏳ Audio uploaden naar server… (even geduld)';
+      renderBM(BMS.find(b=>b.naam===bmNaam));
+      const storagePath = 'pva/' + Date.now() + '.' + ext;
+      const { error: upErr } = await supa.storage.from('recordings').upload(storagePath, blob, {
+        contentType: mimeType || 'audio/webm',
+        upsert: false,
+      });
+      if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
+      const { data: urlData, error: signErr } = await supa.storage.from('recordings').createSignedUrl(storagePath, 86400);
+      if (signErr) throw new Error('URL genereren mislukt: ' + signErr.message);
+      p._storagePath = storagePath;
+      fd.append('audio_url', urlData.signedUrl);
+    } else {
+      fd.append('audio', blob, 'pva.' + ext);
+    }
+
+    p.statusMsg = '⏳ Transcriptie wordt gestart…';
+    renderBM(BMS.find(b=>b.naam===bmNaam));
     const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-start', {
       method: 'POST',
       headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
@@ -6887,9 +6918,10 @@ async function bezoekUpload(blob, mimeType) {
         upsert: false,
       });
       if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
-      const { data: urlData } = supa.storage.from('recordings').getPublicUrl(storagePath);
+      const { data: urlData, error: signErr } = await supa.storage.from('recordings').createSignedUrl(storagePath, 86400);
+      if (signErr) throw new Error('URL genereren mislukt: ' + signErr.message);
       BEZOEK._storagePath = storagePath;
-      fd.append('audio_url', urlData.publicUrl);
+      fd.append('audio_url', urlData.signedUrl);
     } else {
       fd.append('audio', blob, 'bezoek.' + ext);
     }
