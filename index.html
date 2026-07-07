@@ -3091,7 +3091,11 @@ function getBegroteLijnPerWeek(year) {
   return out;
 }
 
-// ── Excel-import van de Projectenlijst (Projectnr / Kandidaat / BM / Opdrachtgever / Begin OVK / Einde OVK) ──
+// ── Excel-import van de Projectenlijst ──────────────────────────────────────
+// Ondersteunt twee formaten:
+// • Basis (Begin OVK / Einde OVK aanwezig): schrijft naar Supabase-tabel projecten
+// • Uitgebreid (Salaris 2026 / Eindejaarsuitkering aanwezig): schrijft contractdata
+//   naar localStorage (gematcht op projectnr → project-UUID)
 async function importProjectenExcel(inputEl) {
   const statusEl = document.getElementById('projecten-import-status');
   const file = inputEl.files?.[0];
@@ -3104,28 +3108,51 @@ async function importProjectenExcel(inputEl) {
     const ws   = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
 
-    // Flexibele kolomherkenning (hoofdletterongevoelig, met/zonder ':')
-    const norm = s => String(s).toLowerCase().replace(/[^a-z]/g, '');
-    const pick = (row, ...names) => {
+    // Genormaliseerde kolomherkenning (hoofdletterongevoelig, alleen letters)
+    const norm  = s => String(s).toLowerCase().replace(/[^a-z]/g, '');
+    const normN = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); // behoud cijfers
+    const pick  = (row, ...names) => {
       for (const key of Object.keys(row)) {
         if (names.includes(norm(key))) return row[key];
       }
       return null;
     };
+    // Directe opzoeker op exacte kolomnaam (voor kolommen met cijfers/tekens)
+    const exact = (row, colName) => {
+      if (colName in row) return row[colName];
+      // fallback: normN-matching
+      const target = normN(colName);
+      for (const key of Object.keys(row)) {
+        if (normN(key) === target) return row[key];
+      }
+      return null;
+    };
+    // Formatteer getal naar max 2 decimalen, lege string bij null/undefined
+    const fmtN = v => (v == null || v === '') ? '' : String(+(parseFloat(v).toFixed(2)));
 
+    // Detecteer of dit het uitgebreide formaat is (met financiële kolommen)
+    const firstRow = rows[0] || {};
+    const hasFinData = 'Salaris 2026' in firstRow || 'Eindejaarsuitkering' in firstRow;
+    const hasOvkData = rows.some(r => pick(r, 'beginovk'));
+
+    // ── Stap 1: upsert basisvelden naar Supabase ─────────────────────────────
     const payload = rows.map(row => {
       const projectnr = pick(row, 'projectnr');
       if (!projectnr) return null;
-      return {
+      const base = {
         projectnr:     +projectnr,
         kandidaat:     String(pick(row, 'kandidaat') || '').trim(),
         bm:            String(pick(row, 'bm') || '').trim(),
         opdrachtgever: String(pick(row, 'opdrachtgever') || '').trim(),
-        begin_ovk:     toISODate(pick(row, 'beginovk')),
-        einde_ovk:     toISODate(pick(row, 'eindeovk')),
         updated_by:    CURRENT_USER?.id,
         updated_at:    new Date().toISOString(),
       };
+      // Alleen OVK-datums toevoegen als ze aanwezig zijn in dit bestand
+      if (hasOvkData) {
+        base.begin_ovk = toISODate(pick(row, 'beginovk'));
+        base.einde_ovk = toISODate(pick(row, 'eindeovk'));
+      }
+      return base;
     }).filter(Boolean);
 
     if (!payload.length) { if (statusEl) statusEl.textContent = '❌ Geen geldige rijen gevonden in het bestand.'; return; }
@@ -3134,7 +3161,46 @@ async function importProjectenExcel(inputEl) {
     if (error) { if (statusEl) statusEl.textContent = '❌ Importeren mislukt: ' + error.message; return; }
 
     await loadProjecten();
-    if (statusEl) statusEl.textContent = `✅ ${payload.length} projecten geïmporteerd/bijgewerkt.`;
+
+    // ── Stap 2: sla contractdata op in Supabase (uitgebreid formaat) ──────────
+    // Alleen voor projecten die al bestaan (UPDATE, geen INSERT van nieuwe rijen).
+    let contractCount = 0;
+    if (hasFinData) {
+      for (const row of rows) {
+        const projectnr = pick(row, 'projectnr');
+        if (!projectnr) continue;
+        const proj = PROJECTEN.find(p => +p.projectnr === +projectnr);
+        if (!proj) continue; // niet in DB → overslaan
+        const allinRaw = String(exact(row, 'All-in?') || '').toLowerCase().trim();
+        const obj = {
+          contract:    String(exact(row, 'Contractvorm:')       || '').trim(),
+          cao:         String(exact(row, 'CAO:')               || '').trim(),
+          salaris_bpm: fmtN(exact(row, 'Salaris 2026')),
+          wtta:        fmtN(exact(row, 'WTTA-Projecttoeslag')),
+          tarief:      fmtN(exact(row, 'Tarief 2026')),
+          allin:       allinRaw === 'ja' ? 'Ja' : allinRaw === 'nee' ? 'Nee' : '',
+          verlof:      fmtN(exact(row, 'Verlof')),
+          adv:         fmtN(exact(row, 'ADV')),
+          comp:        fmtN(exact(row, 'Compensatie:')),
+          kostprijs:   fmtN(exact(row, 'Kostprijs:')),
+          grondslag:   fmtN(exact(row, 'Grondslag')),
+          vergoeding:  fmtN(exact(row, 'Vergoedingen:')),
+          frequentie:  String(exact(row, 'Frequentie:') || '').trim(),
+          marge:       fmtN(exact(row, 'Marge:')),
+          marge_pct:   fmtN(exact(row, 'Marge%:')),
+          uren:        fmtN(exact(row, 'Uren:')),
+          marge_pw:    fmtN(exact(row, 'Marge p wk:')),
+          eju:         String(exact(row, 'Eindejaarsuitkering') || '').trim(),
+        };
+        projContractSave('excel', proj.id, obj); // schrijft naar Supabase + lokale cache
+        contractCount++;
+      }
+    }
+
+    const msg = hasFinData
+      ? `✅ ${payload.length} projecten bijgewerkt · ${contractCount} contractgegevens naar Supabase gestuurd.`
+      : `✅ ${payload.length} projecten geïmporteerd/bijgewerkt.`;
+    if (statusEl) statusEl.textContent = msg;
     inputEl.value = '';
     render();
   } catch (e) {
@@ -3546,10 +3612,17 @@ function renderHrmBackoffice() {
     body = renderAanmeldForm();
   }
 
-  el.innerHTML = `<div style="padding:18px 20px;max-width:1100px;">
-    <div class="section-title" style="margin:0 0 16px;">🗂️ HRM / Backoffice</div>
-    ${subTabBar}
-    ${body}
+  el.innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">🗂️ HRM / Backoffice</div>
+      <div class="person-meta">
+        <span class="meta-pill">👤 ${CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '—'}</span>
+      </div>
+    </div>
+    <div style="padding:18px 20px;max-width:1100px;">
+      ${subTabBar}
+      ${body}
+    </div>
   </div>`;
 }
 // ── Aanmeldformulier: helpers + form render ───────────────────────────────────
@@ -3704,7 +3777,7 @@ function renderAanmeldForm() {
     ${missingBanner}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
       <button onclick="hrmDownloadAanmeld()" style="${btnBase}background:var(--primary);color:#fff;border:none;">⬇️ PDF downloaden</button>
-      <button onclick="hrmWordAanmeld()"     style="${btnBase}background:#1a7f37;color:#fff;border:none;">📄 Word downloaden</button>
+      <button onclick="hrmWordAanmeld()"     style="${btnBase}background:var(--primary);color:#fff;border:none;">📄 Word downloaden</button>
       <button onclick="hrmMailtoAanmeld()"   style="${btnBase}background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);">📧 Versturen via e-mail</button>
       <span style="font-size:.72rem;color:var(--muted);">Gegevens worden automatisch opgeslagen.</span>
     </div>
@@ -7786,25 +7859,116 @@ function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
 // ── Contract-velden (localStorage) per project ───────────────────────────────
 const CONTRACT_FIELDS = [
   {key:'projectnr',  label:'Projectnr',    type:'text',    w:'70px'},
-  {key:'contract',   label:'Contract',     type:'select',  w:'90px', opts:['','Bepaald','Onbepaald','Oproep','Uitzend']},
-  {key:'salaris_bpm',label:'Salaris (BPM)',type:'number',  w:'80px'},
-  {key:'wtta',       label:'WTTA-toeslag', type:'number',  w:'76px'},
-  {key:'tarief',     label:'Tarief',       type:'number',  w:'66px'},
+  {key:'cao',        label:'CAO',          type:'text',    w:'150px'},
+  {key:'contract',   label:'Contractvorm', type:'select',  w:'90px', opts:['','OT','Fase 3','Bepaald','Onbepaald','Oproep','Uitzend']},
+  {key:'salaris_bpm',label:'Salaris (BPM)',type:'number',  w:'84px'},
+  {key:'wtta',       label:'WTTA',         type:'number',  w:'66px'},
+  {key:'tarief',     label:'Tarief 2026',  type:'number',  w:'72px'},
   {key:'allin',      label:'All-in?',      type:'select',  w:'58px', opts:['','Ja','Nee']},
   {key:'verlof',     label:'Verlof',       type:'number',  w:'54px'},
   {key:'adv',        label:'ADV',          type:'number',  w:'50px'},
   {key:'comp',       label:'Compensatie',  type:'number',  w:'80px'},
-  {key:'kostprijs',  label:'Kostprijs',    type:'number',  w:'70px'},
+  {key:'kostprijs',  label:'Kostprijs',    type:'number',  w:'72px'},
   {key:'grondslag',  label:'Grondslag',    type:'number',  w:'72px'},
   {key:'vergoeding', label:'Vergoeding',   type:'number',  w:'76px'},
-  {key:'frequentie', label:'Frequentie',   type:'select',  w:'80px', opts:['','Maandelijks','4-wekelijks','Wekelijks']},
+  {key:'frequentie', label:'Frequentie',   type:'select',  w:'84px', opts:['','per dag','per week','Maandelijks','4-wekelijks','Wekelijks']},
   {key:'marge',      label:'Marge',        type:'number',  w:'60px'},
+  {key:'marge_pct',  label:'Marge%',       type:'number',  w:'58px'},
   {key:'uren',       label:'Uren',         type:'number',  w:'54px'},
+  {key:'marge_pw',   label:'M/week',       type:'number',  w:'68px'},
+  {key:'eju',        label:'EJU',          type:'text',    w:'220px'},
   {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
 ];
 function projContractKey(src, id) { return `bt_proj_contract_${src}_${id}`; }
-function projContractLoad(src, id) { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}'); } catch(_){ return {}; } }
-function projContractSave(src, id, obj) { try { localStorage.setItem(projContractKey(src,id), JSON.stringify(obj)); } catch(_){} }
+
+// Laadt contractdata:
+//   src='excel'    → uit PROJECTEN-cache (Supabase), bonus via localStorage
+//   src='pipeline' → volledig localStorage
+function projContractLoad(src, id) {
+  if (src === 'excel') {
+    const p = PROJECTEN.find(x => String(x.id) === String(id));
+    if (!p) return {};
+    const lsBonus = (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
+    return {
+      projectnr:   String(p.projectnr   ?? ''),
+      cao:         String(p.cao          ?? ''),
+      contract:    String(p.contractvorm ?? ''),
+      salaris_bpm: p.salaris_bpm  != null ? String(p.salaris_bpm)  : '',
+      wtta:        p.wtta         != null ? String(p.wtta)         : '',
+      tarief:      p.tarief_2026  != null ? String(p.tarief_2026)  : '',
+      allin:       String(p.allin        ?? ''),
+      verlof:      p.verlof       != null ? String(p.verlof)       : '',
+      adv:         p.adv          != null ? String(p.adv)          : '',
+      comp:        p.compensatie  != null ? String(p.compensatie)  : '',
+      kostprijs:   p.kostprijs    != null ? String(p.kostprijs)    : '',
+      grondslag:   p.grondslag    != null ? String(p.grondslag)    : '',
+      vergoeding:  p.vergoeding   != null ? String(p.vergoeding)   : '',
+      frequentie:  String(p.frequentie   ?? ''),
+      marge:       p.marge        != null ? String(p.marge)        : '',
+      marge_pct:   p.marge_pct    != null ? String(p.marge_pct)    : '',
+      uren:        p.uren         != null ? String(p.uren)         : '',
+      marge_pw:    p.marge_pw     != null ? String(p.marge_pw)     : '',
+      eju:         String(p.eju          ?? ''),
+      bonus:       lsBonus,
+    };
+  }
+  try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}'); } catch(_){ return {}; }
+}
+
+// Slaat contractdata op:
+//   src='excel'    → Supabase UPDATE (fire-and-forget) + lokale cache bijwerken; bonus in localStorage
+//   src='pipeline' → localStorage
+function projContractSave(src, id, obj) {
+  if (src === 'excel') {
+    // Bonus is niet in DB — bewaar apart in localStorage
+    try {
+      const ls = JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}');
+      ls.bonus = obj.bonus || '';
+      localStorage.setItem(projContractKey(src,id), JSON.stringify(ls));
+    } catch(_) {}
+    if (!supa) return;
+    const n = v => (v !== '' && v != null) ? +v : null;
+    const updates = {
+      cao:          obj.cao        || null,
+      contractvorm: obj.contract   || null,
+      salaris_bpm:  n(obj.salaris_bpm),
+      wtta:         n(obj.wtta),
+      tarief_2026:  n(obj.tarief),
+      allin:        obj.allin      || null,
+      verlof:       n(obj.verlof),
+      adv:          n(obj.adv),
+      compensatie:  n(obj.comp),
+      kostprijs:    n(obj.kostprijs),
+      grondslag:    n(obj.grondslag),
+      vergoeding:   n(obj.vergoeding),
+      frequentie:   obj.frequentie || null,
+      marge:        n(obj.marge),
+      marge_pct:    n(obj.marge_pct),
+      uren:         n(obj.uren),
+      marge_pw:     n(obj.marge_pw),
+      eju:          obj.eju        || null,
+      updated_at:   new Date().toISOString(),
+    };
+    supa.from('projecten').update(updates).eq('id', id).then(({ error }) => {
+      if (error) { console.error('Contract opslaan mislukt:', error); return; }
+      // Lokale cache direct bijwerken zodat herrender klopt
+      const p = PROJECTEN.find(x => String(x.id) === String(id));
+      if (p) Object.assign(p, {
+        cao: updates.cao, contractvorm: updates.contractvorm,
+        salaris_bpm: updates.salaris_bpm, wtta: updates.wtta,
+        tarief_2026: updates.tarief_2026, allin: updates.allin,
+        verlof: updates.verlof, adv: updates.adv, compensatie: updates.compensatie,
+        kostprijs: updates.kostprijs, grondslag: updates.grondslag,
+        vergoeding: updates.vergoeding, frequentie: updates.frequentie,
+        marge: updates.marge, marge_pct: updates.marge_pct,
+        uren: updates.uren, marge_pw: updates.marge_pw, eju: updates.eju,
+      });
+    });
+    return;
+  }
+  try { localStorage.setItem(projContractKey(src,id), JSON.stringify(obj)); } catch(_) {}
+}
+
 function projContractSet(src, id, key, val) {
   const d = projContractLoad(src, id);
   d[key] = val;
