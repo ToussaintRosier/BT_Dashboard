@@ -496,7 +496,6 @@ let SL_FILTER_SC = '', SL_FILTER_MONTEUR = '', SL_FILTER_WVB = '', SL_FILTER_ENG
 let SL_OPEN_DROPDOWN = null; // welke multi-select filterdropdown nu open staat (blijft open na her-render bij aanvinken)
 let SL_SORT_COL = 'naam', SL_SORT_DIR = 1;   // RLDV: actieve sorteerkolom + richting (1=asc,-1=desc)
 let ACC_SORT_COL = 'score', ACC_SORT_DIR = -1; // KAM: standaard score hoog→laag
-
 // Sluit een open Sales Leads-filterdropdown als er buiten geklikt wordt.
 document.addEventListener('click', (e) => {
   document.querySelectorAll('details.ms-dropdown[open]').forEach(d => {
@@ -4903,6 +4902,387 @@ async function accountsDeleteRow(id) {
 
 // Sub-tab dispatcher: Sales Leads (eerste/standaard) en Strategische Leads
 // (tweede, het oorspronkelijke klant-scorecard-overzicht, ongewijzigd qua inhoud).
+// ── ACCOUNTPLAN (KAM) ────────────────────────────────────────────────────────
+let ACCOUNTPLAN_RECORDS = [];
+let ACCOUNTPLAN_OPEN    = new Set();
+let _apSaveTimers       = {};
+
+const AP_CHECKLIST_ITEMS = [
+  "Kennismaking en actuele zoekvraag inzichtelijk",
+  "Werkwijze rondom CV's delen afgesproken",
+  "DMU inzichtelijk",
+  "1e CV's gedeeld",
+  "1e matchgesprek bijgewoond",
+  "Inzichtelijk hoe matchgesprek verloopt",
+  "Sollicitatieprocedure helder",
+  "Voorstel inleenvoorwaarden uitgebracht (geen raamovk)",
+  "Inleenvoorwaarden geaccepteerd",
+  "1e medewerker geplaatst",
+  "Evalueren eerste plaatsing / huidige samenwerking",
+  "Gesprek m.b.t. verbetering samenwerking",
+  "Meer dan 1 medewerkers geplaatst",
+  "Exclusiviteit",
+  "Introductie andere afdeling(en)",
+];
+
+function apSafeId(id) { return String(id).replace(/[^a-zA-Z0-9]/g, ''); }
+function apFmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('nl-NL', {day:'2-digit', month:'long', year:'numeric'});
+}
+
+async function apLoadAll() {
+  if (!supa) return;
+  try {
+    const { data, error } = await supa.from('accountplannen').select('*').order('updated_at', { ascending: false });
+    if (!error && data) ACCOUNTPLAN_RECORDS = data.map(r => ({
+      ...r,
+      contactpersonen: Array.isArray(r.contactpersonen) ? r.contactpersonen : [],
+      dmu:             Array.isArray(r.dmu)             ? r.dmu             : [],
+      checklist:       (r.checklist && typeof r.checklist === 'object') ? r.checklist : {},
+    }));
+  } catch(e) { console.error('Accountplan laden:', e); }
+}
+
+function apFieldChange(id, field, value) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  rec[field] = value;
+  const badge = document.getElementById('ap-save-badge-' + apSafeId(id));
+  if (badge) badge.textContent = '● Opslaan…';
+  clearTimeout(_apSaveTimers[id]);
+  _apSaveTimers[id] = setTimeout(() => apSaveToSupa(id), 700);
+}
+
+async function apSaveToSupa(id) {
+  if (!supa) return;
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  const payload = { ...rec, updated_at: new Date().toISOString() };
+  try {
+    const { error } = await supa.from('accountplannen').upsert(payload, { onConflict: 'id' });
+    if (!error) {
+      rec.updated_at = payload.updated_at;
+      const badge = document.getElementById('ap-save-badge-' + apSafeId(id));
+      if (badge) { badge.textContent = '✓ Opgeslagen'; setTimeout(() => { if(badge) badge.textContent = ''; }, 2500); }
+      const dateEl = document.getElementById('ap-date-' + apSafeId(id));
+      if (dateEl) dateEl.textContent = 'Bijgewerkt: ' + apFmtDate(rec.updated_at);
+    }
+  } catch(e) { console.error('Accountplan opslaan:', e); }
+}
+
+async function apNew() {
+  const naam = prompt('Naam opdrachtgever / bedrijf:');
+  if (!naam || !naam.trim()) return;
+  const now = new Date().toISOString();
+  const rec = {
+    opdrachtgever: naam.trim(),
+    primaire_activiteit:'', plan_jaar:'', doelen_strategie:'', branche:'',
+    fte:'', locatie:'', factor:'', inleentermijn:'', cao_bedrijf:'',
+    fase:'', kernfuncties:'', actuele_vacatures:'', verwachte_vacatures:'',
+    sollicitatie_procedure:'', concurrenten:'',
+    swot_strengths:'', swot_weaknesses:'', swot_opportunities:'', swot_threats:'', confrontatiematrix:'',
+    gewenste_relatie:'', huidige_relatie_score:'', wat_gaat_goed:'', verbeterpunten:'', relatie_verslaglegging:'',
+    huidige_doelen:'', acties:'', positieve_resultaten:'', obstakels:'', vervolgstap:'', resultaat_beoogd:'', succesmetingen:'',
+    contactpersonen:[], dmu:[], checklist:{},
+    created_at: now, updated_at: now,
+    created_by: CURRENT_USER?.id || null,
+  };
+  if (supa) {
+    try {
+      const { data, error } = await supa.from('accountplannen').insert(rec).select().single();
+      if (!error && data) { rec.id = data.id; rec.created_at = data.created_at; rec.updated_at = data.updated_at; }
+    } catch(e) { rec.id = 'local-' + Date.now(); }
+  } else {
+    rec.id = 'local-' + Date.now();
+  }
+  ACCOUNTPLAN_RECORDS.unshift(rec);
+  ACCOUNTPLAN_OPEN.add(String(rec.id));
+  renderAccounts();
+}
+
+async function apDelete(id) {
+  if (!confirm('Weet je zeker dat je dit accountplan wilt verwijderen?')) return;
+  ACCOUNTPLAN_RECORDS = ACCOUNTPLAN_RECORDS.filter(r => String(r.id) !== String(id));
+  ACCOUNTPLAN_OPEN.delete(String(id));
+  if (supa) { try { await supa.from('accountplannen').delete().eq('id', id); } catch(e) {} }
+  renderAccounts();
+}
+
+function apToggle(id) {
+  const sid = String(id);
+  if (ACCOUNTPLAN_OPEN.has(sid)) ACCOUNTPLAN_OPEN.delete(sid);
+  else ACCOUNTPLAN_OPEN.add(sid);
+  renderAccounts();
+}
+
+// Checklist
+function apChecklistChange(id, key, value) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  if (!rec.checklist) rec.checklist = {};
+  rec.checklist[key] = value;
+  apFieldChange(id, 'checklist', rec.checklist);
+}
+
+// Contactpersonen
+function apContactChange(id, idx, field, value) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  if (!rec.contactpersonen) rec.contactpersonen = [];
+  if (!rec.contactpersonen[idx]) rec.contactpersonen[idx] = {};
+  rec.contactpersonen[idx][field] = value;
+  apFieldChange(id, 'contactpersonen', rec.contactpersonen);
+}
+function apContactAdd(id) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  if (!rec.contactpersonen) rec.contactpersonen = [];
+  rec.contactpersonen.push({ naam:'', functie:'' });
+  apFieldChange(id, 'contactpersonen', rec.contactpersonen);
+  renderAccounts();
+}
+function apContactRemove(id, idx) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  rec.contactpersonen.splice(idx, 1);
+  apFieldChange(id, 'contactpersonen', rec.contactpersonen);
+  renderAccounts();
+}
+
+// DMU
+function apDmuChange(id, idx, field, value) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  if (!rec.dmu) rec.dmu = [];
+  if (!rec.dmu[idx]) rec.dmu[idx] = {};
+  rec.dmu[idx][field] = value;
+  apFieldChange(id, 'dmu', rec.dmu);
+}
+function apDmuAdd(id) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  if (!rec.dmu) rec.dmu = [];
+  rec.dmu.push({ naam:'', functie:'', rol:'' });
+  apFieldChange(id, 'dmu', rec.dmu);
+  renderAccounts();
+}
+function apDmuRemove(id, idx) {
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  rec.dmu.splice(idx, 1);
+  apFieldChange(id, 'dmu', rec.dmu);
+  renderAccounts();
+}
+
+// ── Helper renderers ─────────────────────────────────────────────────────────
+function _apLabel(txt) {
+  return `<div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${escHtml(txt)}</div>`;
+}
+function _apInp(id, field, val, placeholder, w) {
+  return `<input type="text" value="${escHtml(String(val||''))}" placeholder="${escHtml(placeholder||'')}" style="width:${w||'100%'};padding:5px 8px;font-size:.83rem;border:1px solid var(--border);border-radius:4px;box-sizing:border-box;" onchange="apFieldChange('${id}','${field}',this.value)" oninput="apFieldChange('${id}','${field}',this.value)">`;
+}
+function _apTxt(id, field, val, placeholder) {
+  return `<textarea rows="4" placeholder="${escHtml(placeholder||'')}" style="width:100%;padding:6px 8px;font-size:.83rem;border:1px solid var(--border);border-radius:4px;resize:vertical;font-family:inherit;line-height:1.5;box-sizing:border-box;" onchange="apFieldChange('${id}','${field}',this.value)" oninput="apFieldChange('${id}','${field}',this.value)">${escHtml(String(val||''))}</textarea>`;
+}
+function _apSection(icon, title, content) {
+  return `<div style="margin-bottom:20px;">
+    <div style="font-size:.78rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--primary-light);padding-bottom:5px;margin-bottom:12px;">${icon} ${escHtml(title)}</div>
+    ${content}
+  </div>`;
+}
+
+// ── Hoofd-render ─────────────────────────────────────────────────────────────
+function renderAccountplannenHtml(subTabBtns) {
+  // Laad eenmalig vanuit Supabase
+  if (!window._apLoaded) {
+    window._apLoaded = true;
+    apLoadAll().then(() => { if (ACCOUNT_SUBTAB === 'accountplan') renderAccounts(); });
+  }
+
+  const planRows = ACCOUNTPLAN_RECORDS.map(rec => {
+    const sid    = apSafeId(rec.id);
+    const isOpen = ACCOUNTPLAN_OPEN.has(String(rec.id));
+
+    const header = `
+      <div onclick="apToggle('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none;background:${isOpen?'var(--primary-light)':'#fff'};">
+        <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${isOpen?90:0}deg);transition:transform .15s;">▶</span>
+        <strong style="flex:1;font-size:.88rem;">${escHtml(rec.opdrachtgever)}</strong>
+        <span id="ap-save-badge-${sid}" style="font-size:.72rem;color:var(--primary);margin-right:8px;"></span>
+        <span id="ap-date-${sid}" style="font-size:.75rem;color:var(--muted);white-space:nowrap;">Bijgewerkt: ${escHtml(apFmtDate(rec.updated_at))}</span>
+        <span onclick="event.stopPropagation();apDelete('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 8px;margin-left:4px;" title="Verwijder plan">🗑</span>
+      </div>`;
+
+    if (!isOpen) return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;overflow:hidden;">${header}</div>`;
+
+    // ── Sectie 1: Bedrijfsprofiel ───────────────────────────────────────────
+    const contactRows = (rec.contactpersonen||[]).map((c,i) => `
+      <tr>
+        <td style="padding:3px 6px;"><input type="text" value="${escHtml(c.naam||'')}" placeholder="Naam" style="width:100%;padding:4px 6px;font-size:.82rem;border:1px solid var(--border);border-radius:3px;" onchange="apContactChange('${rec.id}',${i},'naam',this.value)"></td>
+        <td style="padding:3px 6px;"><input type="text" value="${escHtml(c.functie||'')}" placeholder="Functie / rol" style="width:100%;padding:4px 6px;font-size:.82rem;border:1px solid var(--border);border-radius:3px;" onchange="apContactChange('${rec.id}',${i},'functie',this.value)"></td>
+        <td style="padding:3px 4px;width:28px;text-align:center;"><span onclick="apContactRemove('${rec.id}',${i})" style="cursor:pointer;color:#e02424;font-size:.82rem;">✕</span></td>
+      </tr>`).join('');
+
+    const contactTable = `
+      <table style="width:100%;border-collapse:collapse;font-size:.83rem;margin-bottom:6px;">
+        <thead><tr>
+          <th style="text-align:left;padding:3px 6px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border);">Naam</th>
+          <th style="text-align:left;padding:3px 6px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border);">Functie / rol</th>
+          <th style="border-bottom:1px solid var(--border);"></th>
+        </tr></thead>
+        <tbody>${contactRows||'<tr><td colspan="3" style="padding:6px;font-size:.8rem;color:var(--muted);">Nog geen contactpersonen.</td></tr>'}</tbody>
+      </table>
+      <button onclick="apContactAdd('${rec.id}')" style="font-size:.75rem;padding:3px 10px;background:transparent;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--primary);">+ Contactpersoon toevoegen</button>`;
+
+    const dmuRows = (rec.dmu||[]).map((d,i) => `
+      <tr>
+        <td style="padding:3px 6px;"><input type="text" value="${escHtml(d.naam||'')}" placeholder="Naam" style="width:100%;padding:4px 6px;font-size:.82rem;border:1px solid var(--border);border-radius:3px;" onchange="apDmuChange('${rec.id}',${i},'naam',this.value)"></td>
+        <td style="padding:3px 6px;"><input type="text" value="${escHtml(d.functie||'')}" placeholder="Functie" style="width:100%;padding:4px 6px;font-size:.82rem;border:1px solid var(--border);border-radius:3px;" onchange="apDmuChange('${rec.id}',${i},'functie',this.value)"></td>
+        <td style="padding:3px 6px;"><input type="text" value="${escHtml(d.rol||'')}" placeholder="Money / Authority / User" style="width:100%;padding:4px 6px;font-size:.82rem;border:1px solid var(--border);border-radius:3px;" onchange="apDmuChange('${rec.id}',${i},'rol',this.value)"></td>
+        <td style="padding:3px 4px;width:28px;text-align:center;"><span onclick="apDmuRemove('${rec.id}',${i})" style="cursor:pointer;color:#e02424;font-size:.82rem;">✕</span></td>
+      </tr>`).join('');
+
+    const dmuTable = `
+      <table style="width:100%;border-collapse:collapse;font-size:.83rem;margin-bottom:6px;">
+        <thead><tr>
+          <th style="text-align:left;padding:3px 6px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border);">Naam</th>
+          <th style="text-align:left;padding:3px 6px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border);">Functie</th>
+          <th style="text-align:left;padding:3px 6px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border);">Rol (money / authority / user)</th>
+          <th style="border-bottom:1px solid var(--border);"></th>
+        </tr></thead>
+        <tbody>${dmuRows||'<tr><td colspan="4" style="padding:6px;font-size:.8rem;color:var(--muted);">Nog geen DMU-leden.</td></tr>'}</tbody>
+      </table>
+      <button onclick="apDmuAdd('${rec.id}')" style="font-size:.75rem;padding:3px 10px;background:transparent;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--primary);">+ DMU-lid toevoegen</button>`;
+
+    const s1 = _apSection('🏢','Bedrijfsprofiel', `
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Naam bedrijf')}${_apInp(rec.id,'opdrachtgever',rec.opdrachtgever,'Bedrijfsnaam')}</div>
+        <div>${_apLabel('Branche')}${_apInp(rec.id,'branche',rec.branche,'bijv. Hightech')}</div>
+        <div>${_apLabel('FTE werkzaam (+/-)')}${_apInp(rec.id,'fte',rec.fte,'bijv. 150 FTE')}</div>
+        <div>${_apLabel('Locatie')}${_apInp(rec.id,'locatie',rec.locatie,'Adres / stad')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Factor')}${_apInp(rec.id,'factor',rec.factor,'bijv. 2.83')}</div>
+        <div>${_apLabel('Inleentermijn')}${_apInp(rec.id,'inleentermijn',rec.inleentermijn,'bijv. 2000 gewerkte uren')}</div>
+        <div>${_apLabel('CAO bedrijf')}${_apInp(rec.id,'cao_bedrijf',rec.cao_bedrijf,'bijv. Grootmetaal')}</div>
+      </div>
+      <div style="margin-bottom:12px;">${_apLabel('Primaire bedrijfsactiviteit')}${_apTxt(rec.id,'primaire_activiteit',rec.primaire_activiteit,'Beschrijving activiteiten, klantengroepen, omvang...')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Plan huidig jaar')}${_apTxt(rec.id,'plan_jaar',rec.plan_jaar,'Groeistrategie, verwachte aantallen...')}</div>
+        <div>${_apLabel('Doelen / strategie (langere termijn)')}${_apTxt(rec.id,'doelen_strategie',rec.doelen_strategie,'Omzetdoelen, marktpositie, partnership...')}</div>
+      </div>
+      <div style="margin-bottom:12px;">${_apLabel('Fase samenwerking')}${_apInp(rec.id,'fase',rec.fase,'bijv. Eerste plaatsing, Raamovereenkomst, Preferred supplier')}</div>
+      <div style="margin-bottom:14px;">${_apLabel('Contactpersonen')}${contactTable}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Kernfuncties aanwezig')}${_apTxt(rec.id,'kernfuncties',rec.kernfuncties,'Directe / indirecte functies...')}</div>
+        <div>${_apLabel('Actuele vacatures')}${_apTxt(rec.id,'actuele_vacatures',rec.actuele_vacatures,'Huidige openstaande rollen...')}</div>
+        <div>${_apLabel('Verwachte vacatures')}${_apTxt(rec.id,'verwachte_vacatures',rec.verwachte_vacatures,'Komende periode...')}</div>
+      </div>
+      <div style="margin-bottom:12px;">${_apLabel('Sollicitatieprocedure')}${_apTxt(rec.id,'sollicitatie_procedure',rec.sollicitatie_procedure,'Hoe verloopt het proces bij dit bedrijf?')}</div>
+      <div style="margin-bottom:14px;">${_apLabel('DMU (Decision Making Unit)')}${dmuTable}</div>
+      <div>${_apLabel('Concurrenten & bureaus')}${_apTxt(rec.id,'concurrenten',rec.concurrenten,'Welke bureaus, factoren, preferred suppliers, concurrentiepositie...')}</div>
+    `);
+
+    // ── Sectie 2: Checklist ─────────────────────────────────────────────────
+    const checkOpts = ['Ja','Nee','Deels','n.v.t.'];
+    const checkRows = AP_CHECKLIST_ITEMS.map((item, i) => {
+      const key = 'cl_' + i;
+      const val = (rec.checklist||{})[key] || '';
+      const dotColor = val==='Ja'?'#16a34a':val==='Nee'?'#e02424':val==='Deels'?'#d97706':'#9ca3af';
+      const opts = ['<option value=""></option>', ...checkOpts.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`)].join('');
+      return `<tr style="border-bottom:1px solid #f3f4f6;">
+        <td style="padding:5px 8px;font-size:.83rem;">${escHtml(item)}</td>
+        <td style="padding:5px 8px;width:110px;">
+          <select onchange="apChecklistChange('${rec.id}','${key}',this.value)" style="padding:3px 6px;font-size:.82rem;border:1px solid var(--border);border-radius:4px;color:${dotColor};font-weight:600;">${opts}</select>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const s2 = _apSection('✅','Checklist onboarding', `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border);">Stap</th>
+          <th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;border-bottom:2px solid var(--border);width:110px;">Status</th>
+        </tr></thead>
+        <tbody>${checkRows}</tbody>
+      </table>`);
+
+    // ── Sectie 3: SWOT ──────────────────────────────────────────────────────
+    const s3 = _apSection('📊','Concurrentie & SWOT', `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px;">
+          <div style="font-size:.72rem;font-weight:700;color:#16a34a;margin-bottom:6px;text-transform:uppercase;">💪 Strengths</div>
+          ${_apTxt(rec.id,'swot_strengths',rec.swot_strengths,'S1: ...\nS2: ...\nS3: ...')}
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:10px;">
+          <div style="font-size:.72rem;font-weight:700;color:#e02424;margin-bottom:6px;text-transform:uppercase;">⚠️ Weaknesses</div>
+          ${_apTxt(rec.id,'swot_weaknesses',rec.swot_weaknesses,'Z1: ...\nZ2: ...')}
+        </div>
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:10px;">
+          <div style="font-size:.72rem;font-weight:700;color:#2563eb;margin-bottom:6px;text-transform:uppercase;">🚀 Opportunities</div>
+          ${_apTxt(rec.id,'swot_opportunities',rec.swot_opportunities,'K1: ...\nK2: ...\nK3: ...')}
+        </div>
+        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:10px;">
+          <div style="font-size:.72rem;font-weight:700;color:#d97706;margin-bottom:6px;text-transform:uppercase;">🛡️ Threats</div>
+          ${_apTxt(rec.id,'swot_threats',rec.swot_threats,'B1: ...\nB2: ...')}
+        </div>
+      </div>
+      <div>${_apLabel('Confrontatiematrix')}${_apTxt(rec.id,'confrontatiematrix',rec.confrontatiematrix,'1. Sterkte × Kans: ...\n2. Sterkte × Bedreiging: ...\n3. Onze sterkte vs. bedreiging 1, 2, 3: ...')}</div>`);
+
+    // ── Sectie 4: Relatie ───────────────────────────────────────────────────
+    const s4 = _apSection('🤝','Meten & verbeteren van de relatie', `
+      <div style="display:grid;grid-template-columns:1fr 90px;gap:10px;align-items:start;margin-bottom:12px;">
+        <div>${_apLabel('Gewenste relatie / samenwerking vanuit klant')}${_apTxt(rec.id,'gewenste_relatie',rec.gewenste_relatie,'Wat wil de klant bereiken met de samenwerking?')}</div>
+        <div>${_apLabel('Relatiescore (1-10)')}
+          <input type="text" value="${escHtml(rec.huidige_relatie_score||'')}" placeholder="bijv. 8" style="width:80px;padding:5px 8px;font-size:1.1rem;font-weight:700;text-align:center;border:1px solid var(--border);border-radius:4px;" onchange="apFieldChange('${rec.id}','huidige_relatie_score',this.value)" oninput="apFieldChange('${rec.id}','huidige_relatie_score',this.value)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Wat gaat goed?')}${_apTxt(rec.id,'wat_gaat_goed',rec.wat_gaat_goed,'Wat waardeert de klant in de samenwerking?')}</div>
+        <div>${_apLabel('Verbeterpunten')}${_apTxt(rec.id,'verbeterpunten',rec.verbeterpunten,'Wat kan er beter?')}</div>
+      </div>
+      <div>${_apLabel('Verslaglegging periodiek strategisch gesprek')}${_apTxt(rec.id,'relatie_verslaglegging',rec.relatie_verslaglegging,'Aantekeningen strategisch gesprek (om de 6 maanden)...')}</div>`);
+
+    // ── Sectie 5: Doelen & Acties ───────────────────────────────────────────
+    const s5 = _apSection('🎯','Doelen, acties & resultaat', `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Huidige doelen')}${_apTxt(rec.id,'huidige_doelen',rec.huidige_doelen,'Doelen voor komende periode...')}</div>
+        <div>${_apLabel('Acties')}${_apTxt(rec.id,'acties',rec.acties,'1. Wekelijks recruitment...\n2. Formaliseren samenwerking...')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>${_apLabel('Positieve resultaten')}${_apTxt(rec.id,'positieve_resultaten',rec.positieve_resultaten,'Behaalde resultaten...')}</div>
+        <div>${_apLabel('Obstakels')}${_apTxt(rec.id,'obstakels',rec.obstakels,'Welke belemmeringen zijn er?')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div>${_apLabel('Vervolgstap')}${_apTxt(rec.id,'vervolgstap',rec.vervolgstap,'Volgende concrete stap...')}</div>
+        <div>${_apLabel('Beoogd resultaat')}${_apTxt(rec.id,'resultaat_beoogd',rec.resultaat_beoogd,'Wat willen we bereiken?')}</div>
+        <div>${_apLabel('Succesmetingen')}${_apTxt(rec.id,'succesmetingen',rec.succesmetingen,'Hoe meten we succes?')}</div>
+      </div>`);
+
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
+      ${header}
+      <div style="padding:18px 20px;border-top:1px solid var(--border);background:#fafbfd;">
+        ${s1}${s2}${s3}${s4}${s5}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div>
+    <div class="person-header">
+      <div class="person-name">📋 Accountmanagement</div>
+      <div class="person-meta"><span class="meta-pill">Key Accountmanagement — klantprofielen &amp; strategie</span></div>
+    </div>
+    ${subTabBtns}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <span style="font-size:.83rem;color:var(--muted);">${ACCOUNTPLAN_RECORDS.length} accountplan${ACCOUNTPLAN_RECORDS.length!==1?'nen':''}</span>
+      <button onclick="apNew()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:.83rem;font-weight:700;cursor:pointer;">+ Nieuw accountplan</button>
+    </div>
+    ${ACCOUNTPLAN_RECORDS.length===0
+      ? '<div style="text-align:center;padding:50px;color:var(--muted);">Nog geen accountplannen. Klik op <strong>+ Nieuw accountplan</strong> om te beginnen.</div>'
+      : planRows}
+  </div>`;
+}
+
 function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
 
 function renderAccounts() {
@@ -4916,8 +5296,11 @@ function renderAccounts() {
     <div class="bm-subtabs">
       ${subTabBtn('sales', '📡 RLDV')}
       ${subTabBtn('strategisch', '🎯 Key Accountmanagement (KAM)')}
+      ${subTabBtn('accountplan', '📋 Accountplan (KAM)')}
     </div>`;
-  const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns) : renderSalesLeadsHtml(subTabBtns);
+  const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns)
+             : ACCOUNT_SUBTAB === 'accountplan'  ? renderAccountplannenHtml(subTabBtns)
+             : renderSalesLeadsHtml(subTabBtns);
   document.getElementById('main').innerHTML = body;
 }
 
