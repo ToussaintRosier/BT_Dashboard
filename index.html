@@ -4359,6 +4359,7 @@ function renderPrognose() {
       <span style="font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
         ${isHrmEditor() ? `<button onclick="projFreezeAll()" style="font-size:.7rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">💾 Alles opslaan</button>` : ''}
+        <button onclick="projExportExcel()" style="font-size:.7rem;padding:3px 10px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">⬇️ Exporteer Excel</button>
         <button onclick="projSluitAlle()" style="font-size:.7rem;padding:3px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">✕ Alles sluiten</button>
       </span>
     </div>
@@ -8297,6 +8298,80 @@ let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier'
 function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
 
 // ── Contract-velden (localStorage) per project ───────────────────────────────
+
+// ── Projecten Excel-export ───────────────────────────────────────────────────
+function projExportExcel() {
+  const ranges = getCombinedProjectRanges().filter(r => !r.verwijderdOp);
+  if (!ranges.length) { alert('Geen projecten om te exporteren.'); return; }
+
+  const fmtDate = d => d ? d.toLocaleDateString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+  const fmtNum  = v => (v !== '' && v != null && v !== undefined) ? parseFloat(v) : '';
+  const fmtPct  = v => (v !== '' && v != null && v !== undefined) ? Math.round(parseFloat(v) * 10000) / 100 : '';
+
+  const header = [
+    'Naam', 'BM', 'Opdrachtgever', "Collega's", 'Begin', 'Eind',
+    'Projectnr', 'CAO', 'Contractvorm', 'All-in?',
+    'Salaris BPM (€)', 'WTTA (€)', 'Tarief 2026 (€)',
+    'Verlof (dgn)', 'ADV (dgn)', 'Comp (%)',
+    'Kostprijs (€)', 'Grondslag (€)', 'Vergoeding (€)', 'Frequentie',
+    'Marge (€)', 'Marge (%)', 'Uren/wk', 'Marge/week (€)', 'EJU'
+  ];
+
+  const dataRows = ranges.map(r => {
+    const cd = projContractLoad(r.source, r.id);
+    const collegas = projCollegaLoad(r.source, r.id).join(', ');
+    return [
+      r.naam || '',
+      r.bm   || '',
+      r.opdrachtgever || '',
+      collegas,
+      fmtDate(r.begin),
+      fmtDate(r.eind),
+      cd.projectnr  || '',
+      cd.cao        || '',
+      cd.contract   || '',
+      cd.allin      || '',
+      fmtNum(cd.salaris_bpm),
+      fmtNum(cd.wtta),
+      fmtNum(cd.tarief),
+      fmtNum(cd.verlof),
+      fmtNum(cd.adv),
+      fmtPct(cd.comp),
+      fmtNum(cd.kostprijs),
+      fmtNum(cd.grondslag),
+      fmtNum(cd.vergoeding),
+      cd.frequentie || '',
+      fmtNum(cd.marge),
+      fmtPct(cd.marge_pct),
+      fmtNum(cd.uren),
+      fmtNum(cd.marge_pw),
+      cd.eju || '',
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+  ws['!cols'] = [
+    {wch:24},{wch:16},{wch:24},{wch:12},{wch:12},{wch:12},
+    {wch:10},{wch:14},{wch:12},{wch:8},
+    {wch:16},{wch:12},{wch:14},
+    {wch:12},{wch:10},{wch:10},
+    {wch:14},{wch:14},{wch:14},{wch:12},
+    {wch:12},{wch:10},{wch:10},{wch:14},{wch:40}
+  ];
+
+  // Koptijl vet + achtergrond
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const cell = ws[XLSX.utils.encode_cell({r:0, c:C})];
+    if (cell) cell.s = { font:{bold:true}, fill:{fgColor:{rgb:'253151'}}, alignment:{horizontal:'center'} };
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Projecten');
+  const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');
+  XLSX.writeFile(wb, `Projecten_export_${datum}.xlsx`);
+}
+
 const CONTRACT_FIELDS = [
   {key:'projectnr',  label:'Projectnr',    type:'text',    w:'70px'},
   {key:'cao',        label:'CAO',          type:'text',    w:'150px'},
