@@ -3683,12 +3683,33 @@ function aanmeldDayToggle(week, day) {
   aanmeldSet(key, cur);
 }
 function aanmeldOvertCalc() {
-  const bruto = parseFloat(aanmeldLoad().bruto_maand || 0) || 0;
-  for (let i = 1; i <= 5; i++) {
-    const pct = parseFloat(aanmeldLoad()[`overw_pct_${i}`] || 0) || 0;
+  const d = aanmeldLoad();
+  const base = parseFloat(d.tarief_100 || 0) || 0;
+  const count = Math.max(1, parseInt(d.overw_count || 1));
+  for (let i = 1; i <= count; i++) {
+    const pct = parseFloat(d[`overw_pct_${i}`] || 0) || 0;
     const el  = document.getElementById(`overw_tarief_${i}`);
-    if (el) el.value = (bruto > 0 && pct > 0) ? (bruto * pct / 100).toFixed(2) : '';
+    if (el) el.value = (base > 0 && pct > 0) ? (base * pct / 100).toFixed(2) : '';
   }
+}
+function aanmeldAddOverwRow() {
+  const d = aanmeldLoad();
+  const cur = Math.max(1, parseInt(d.overw_count || 1));
+  aanmeldSet('overw_count', Math.min(cur + 1, 15));
+  renderHrmBackoffice();
+}
+function aanmeldRemoveOverwRow(i) {
+  const d = aanmeldLoad();
+  const count = Math.max(1, parseInt(d.overw_count || 1));
+  // Shift rows down
+  for (let j = i; j < count; j++) {
+    aanmeldSet(`overw_omsch_${j}`, d[`overw_omsch_${j+1}`] || '');
+    aanmeldSet(`overw_pct_${j}`,   d[`overw_pct_${j+1}`]   || '');
+  }
+  aanmeldSet(`overw_omsch_${count}`, '');
+  aanmeldSet(`overw_pct_${count}`,   '');
+  aanmeldSet('overw_count', Math.max(1, count - 1));
+  renderHrmBackoffice();
 }
 
 const AANMELD_CHECKLIST = [
@@ -3756,8 +3777,6 @@ function aanmeldValidate() {
   for (const [key, label] of Object.entries(AANMELD_REQUIRED)) {
     if (!d[key] || String(d[key]).trim() === '') missing.push(label);
   }
-  if (!(d.arb_even  || []).length) missing.push('Arbeidspatroon – Even week (minstens 1 dag)');
-  if (!(d.arb_oneven|| []).length) missing.push('Arbeidspatroon – Oneven week (minstens 1 dag)');
   return missing; // lege array = alles ingevuld
 }
 
@@ -3766,9 +3785,7 @@ function renderAanmeldForm() {
   const v   = k => escHtml(String(d[k] ?? ''));
   const missingNow = aanmeldValidate();
   const missingSet = new Set(Object.keys(AANMELD_REQUIRED).filter(k => !d[k] || String(d[k]).trim() === ''));
-  if (!(d.arb_even  || []).length) missingSet.add('arb_even');
-  if (!(d.arb_oneven|| []).length) missingSet.add('arb_oneven');
-  const stI = 'width:100%;box-sizing:border-box;padding:4px 7px;font-size:.78rem;border-radius:4px;background:#fff;';
+  const stI = 'width:100%;box-sizing:border-box;padding:4px 7px;font-size:.78rem;border-radius:4px;background:#fff;color:#111;';
   const fld = (key, label, type = 'text', opts = null) => {
     const req = key in AANMELD_REQUIRED;
     const bad = req && missingSet.has(key);
@@ -3776,36 +3793,47 @@ function renderAanmeldForm() {
     const reqMark = req ? `<span style="color:#ef4444;margin-left:1px;">*</span>` : '';
     let inp;
     if (type === 'select') {
-      const os = (opts||[]).map(o => `<option value="${escHtml(o)}" ${o===(d[key]||'')?'selected':''}>${escHtml(o)||'—'}</option>`).join('');
+      const cur = String(d[key] ?? '');
+      const os = (opts||[]).map(o => `<option value="${escHtml(o)}" ${o===cur?'selected':''}>${escHtml(o)||'—'}</option>`).join('');
       inp = `<select style="${stI}${bdr}" onchange="aanmeldSet('${key}',this.value)">${os}</select>`;
     } else if (type === 'textarea') {
       inp = `<textarea style="${stI}${bdr}min-height:56px;resize:vertical;" oninput="aanmeldSet('${key}',this.value)">${v(key)}</textarea>`;
     } else {
       inp = `<input type="${type}" value="${v(key)}" style="${stI}${bdr}" oninput="aanmeldSet('${key}',this.value)">`;
     }
-    return `<div><label style="font-size:.68rem;color:#fff;display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
+    return `<div><label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
   };
   const sec  = t => `<div style="grid-column:1/-1;background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-top:10px;">${t}</div>`;
   const days = ['ma','di','wo','do','vrij','zat','zon'];
   const evenDays   = d.arb_even   || [];
   const onevenDays = d.arb_oneven || [];
   const dayChk = (week, list) => days.map(dy =>
-    `<label style="display:inline-flex;align-items:center;gap:2px;font-size:.74rem;cursor:pointer;margin-right:6px;"><input type="checkbox" ${list.includes(dy)?'checked':''} onchange="aanmeldDayToggle('${week}','${dy}')"> ${dy}</label>`
+    `<label style="display:inline-flex;align-items:center;gap:2px;font-size:.74rem;cursor:pointer;margin-right:6px;color:var(--text);"><input type="checkbox" ${list.includes(dy)?'checked':''} onchange="aanmeldDayToggle('${week}','${dy}')"> ${dy}</label>`
   ).join('');
 
-  const bruto    = parseFloat(d.bruto_maand || 0) || 0;
-  const overwRows = [1,2,3,4,5].map(i => {
-    const pct = d[`overw_pct_${i}`] ?? '';
-    const tar = bruto && pct ? (bruto * parseFloat(pct) / 100).toFixed(2) : '';
+  const tarief100 = parseFloat(d.tarief_100 || 0) || 0;
+  const overwCount = Math.max(1, parseInt(d.overw_count || 1));
+  const stCell = 'padding:3px 4px;';
+  const stInp  = 'padding:3px 5px;font-size:.73rem;border:1px solid var(--border);border-radius:3px;background:#fff;color:#111;';
+  const overwRows = Array.from({length: overwCount}, (_, idx) => {
+    const i   = idx + 1;
+    const omsch = escHtml(String(d[`overw_omsch_${i}`] ?? ''));
+    const pct   = escHtml(String(d[`overw_pct_${i}`]   ?? ''));
+    const tar   = tarief100 && pct ? (tarief100 * parseFloat(pct) / 100).toFixed(2) : '';
+    const reqBdr = !omsch ? 'border:1.5px solid #ef4444;' : 'border:1px solid var(--border);';
     return `<tr>
-      <td style="padding:2px 6px;font-size:.73rem;color:var(--muted);">Overwerk ${i}</td>
-      <td style="padding:2px 4px;"><input type="number" value="${escHtml(String(pct))}" placeholder="%" oninput="aanmeldSet('overw_pct_${i}',this.value);aanmeldOvertCalc()" style="width:68px;padding:3px 5px;font-size:.73rem;border:1px solid var(--border);border-radius:3px;"></td>
-      <td style="padding:2px 4px;"><input type="number" id="overw_tarief_${i}" value="${escHtml(String(tar))}" readonly placeholder="auto" style="width:90px;padding:3px 5px;font-size:.73rem;border:1px solid var(--border);border-radius:3px;background:#f5f5f5;color:var(--muted);"></td>
+      <td style="${stCell}font-size:.72rem;color:var(--muted);white-space:nowrap;">Overwerk ${i}</td>
+      <td style="${stCell}width:220px;"><input type="text" value="${omsch}" placeholder="Omschrijving overwerk *" oninput="aanmeldSet('overw_omsch_${i}',this.value)" style="${stInp}${reqBdr}width:100%;box-sizing:border-box;"></td>
+      <td style="${stCell}"><input type="number" value="${pct}" placeholder="%" oninput="aanmeldSet('overw_pct_${i}',this.value);aanmeldOvertCalc()" style="${stInp}width:64px;"></td>
+      <td style="${stCell}font-size:.71rem;color:var(--muted);">%</td>
+      <td style="${stCell}"><input type="text" id="overw_tarief_${i}" value="${escHtml(String(tar))}" readonly placeholder="auto" style="${stInp}width:88px;background:#f5f5f5;color:var(--muted);"></td>
+      <td style="${stCell}font-size:.71rem;color:var(--muted);">€/u</td>
+      ${overwCount > 1 ? `<td style="${stCell}"><button onclick="aanmeldRemoveOverwRow(${i})" title="Rij verwijderen" style="border:none;background:transparent;cursor:pointer;color:#ef4444;font-size:.85rem;padding:0 4px;">✕</button></td>` : '<td></td>'}
     </tr>`;
   }).join('');
 
   const checkRows = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
-    `<tr><td style="padding:3px 8px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem;"><input type="checkbox" ${d[key]?'checked':''} onchange="aanmeldSet('${key}',this.checked)"> ${lbl}</label></td><td style="padding:3px 8px;text-align:right;font-size:.68rem;color:var(--muted);white-space:nowrap;">${who}</td></tr>`
+    `<tr><td style="padding:3px 8px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem;color:var(--text);"><input type="checkbox" ${d[key]?'checked':''} onchange="aanmeldSet('${key}',this.checked)"> ${lbl}</label></td><td style="padding:3px 8px;text-align:right;font-size:.68rem;color:var(--muted);white-space:nowrap;">${who}</td></tr>`
   ).join('');
 
   const g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start;';
@@ -3815,7 +3843,7 @@ function renderAanmeldForm() {
         ⚠️ Nog <strong>${missingNow.length}</strong> verplicht ${missingNow.length===1?'veld':'velden'} open — formulier kan nog niet worden geëxporteerd of verstuurd.
        </div>`
     : `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:7px;padding:8px 12px;font-size:.75rem;color:#15803d;margin-bottom:10px;">✅ Alle verplichte velden zijn ingevuld.</div>`;
-  return `<div style="max-width:820px;">
+  return `<div style="max-width:860px;">
     ${missingBanner}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
       <button onclick="hrmDownloadAanmeld()" style="${btnBase}background:var(--primary);color:#fff;border:none;">⬇️ PDF downloaden</button>
@@ -3850,26 +3878,33 @@ function renderAanmeldForm() {
       ${fld('deeltijd_pct','Deeltijd %','number')}
       ${fld('arb_uren_dag','Arbeidspatroon in uren per dag','number')}
       <div style="grid-column:1/-1;">
-        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Even week<span style="color:#ef4444;margin-left:1px;">*</span></label>
-        <div style="padding:4px 6px;border-radius:4px;${missingSet.has('arb_even')?'border:1.5px solid #ef4444;':'border:1px solid transparent;'}">${dayChk('even', evenDays)}</div>
+        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Even week <span style="color:var(--muted);font-style:italic;">(optioneel)</span></label>
+        <div style="padding:4px 6px;border-radius:4px;border:1px solid transparent;">${dayChk('even', evenDays)}</div>
       </div>
       <div style="grid-column:1/-1;">
-        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Oneven week<span style="color:#ef4444;margin-left:1px;">*</span></label>
-        <div style="padding:4px 6px;border-radius:4px;${missingSet.has('arb_oneven')?'border:1.5px solid #ef4444;':'border:1px solid transparent;'}">${dayChk('oneven', onevenDays)}</div>
+        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Oneven week <span style="color:var(--muted);font-style:italic;">(optioneel)</span></label>
+        <div style="padding:4px 6px;border-radius:4px;border:1px solid transparent;">${dayChk('oneven', onevenDays)}</div>
       </div>
 
-      ${sec('💰 Bruto per maand & Overwerk')}
+      ${sec('💰 Salaris & Tarief')}
       ${fld('bruto_maand','Bruto per maand (€)','number')}
-      <div></div>
+      ${fld('tarief_100','Tarief 100% (€)','number')}
+
+      ${sec('⏰ Overwerk')}
       <div style="grid-column:1/-1;">
-        <table style="border-collapse:collapse;">
+        <table style="border-collapse:collapse;width:100%;">
           <thead><tr>
-            <th style="padding:2px 6px;text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;">Overwerk</th>
-            <th style="padding:2px 4px;text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;">Percentage (%)</th>
-            <th style="padding:2px 4px;text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;">Tarief (automatisch)</th>
+            <th style="padding:2px 6px;text-align:left;font-size:.67rem;color:var(--muted);font-weight:600;"></th>
+            <th style="padding:2px 4px;text-align:left;font-size:.67rem;color:var(--muted);font-weight:600;">Omschrijving *</th>
+            <th style="padding:2px 4px;text-align:left;font-size:.67rem;color:var(--muted);font-weight:600;">Percentage</th>
+            <th></th>
+            <th style="padding:2px 4px;text-align:left;font-size:.67rem;color:var(--muted);font-weight:600;">Tarief (auto)</th>
+            <th></th>
+            <th></th>
           </tr></thead>
-          <tbody>${overwRows}</tbody>
+          <tbody id="overw-tbody">${overwRows}</tbody>
         </table>
+        <button onclick="aanmeldAddOverwRow()" style="margin-top:6px;padding:4px 12px;font-size:.73rem;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:5px;cursor:pointer;">＋ Overwerk toevoegen</button>
       </div>
 
       ${sec('🚗 Vergoedingen')}
@@ -3883,7 +3918,6 @@ function renderAanmeldForm() {
       ${fld('vca_plichtig','VCA plichtig?','select',['','Nee','Basis','VOL'])}
       ${fld('firmapas_benodigd','Firmapas benodigd','select',['','Ja','Nee'])}
       ${fld('betalingstermijn','Betalingstermijn')}
-      ${fld('tarief_100','Tarief 100% (€)','number')}
       ${fld('berekening_tarief','Berekening 100% tarief')}
       ${fld('berekening_reiskosten','Berekening reiskosten')}
       ${fld('accordering_uren','Accordering uren door')}
@@ -3901,13 +3935,15 @@ function renderAanmeldForm() {
 
 function _aanmeldBuildHtml(d, forPrint) {
   const v = k => d[k] ? escHtml(String(d[k])) : '—';
-  const bruto = parseFloat(d.bruto_maand || 0) || 0;
+  const tarief100 = parseFloat(d.tarief_100 || 0) || 0;
+  const overwCount = Math.max(1, parseInt(d.overw_count || 1));
   let overwHtml = '';
-  for (let i = 1; i <= 5; i++) {
-    const pct = d[`overw_pct_${i}`];
-    if (pct) {
-      const tar = bruto ? (bruto * parseFloat(pct) / 100).toFixed(2) : '—';
-      overwHtml += `<tr><td style="padding:2px 8px;">Overwerk ${i}</td><td style="padding:2px 8px;">${escHtml(String(pct))}%</td><td style="padding:2px 8px;">€ ${tar}</td></tr>`;
+  for (let i = 1; i <= overwCount; i++) {
+    const pct   = d[`overw_pct_${i}`];
+    const omsch = d[`overw_omsch_${i}`] || '';
+    if (pct || omsch) {
+      const tar = tarief100 && pct ? (tarief100 * parseFloat(pct) / 100).toFixed(2) : '—';
+      overwHtml += `<tr><td style="padding:2px 8px;">Overwerk ${i}</td><td style="padding:2px 8px;">${escHtml(omsch)}</td><td style="padding:2px 8px;">${escHtml(String(pct||''))}%</td><td style="padding:2px 8px;">€ ${tar}</td></tr>`;
     }
   }
   const checkHtml = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
@@ -3940,7 +3976,7 @@ function _aanmeldBuildHtml(d, forPrint) {
   <h2>Bruto per maand &amp; Overwerk</h2>
   <table>
     <tr><td class="lb">Bruto per maand</td><td class="vl">€ ${v('bruto_maand')}</td><td></td><td></td></tr>
-    ${overwHtml ? `<tr><td colspan="4" style="padding-top:4px;"><table style="border-collapse:collapse;font-size:10pt;"><thead><tr><th style="padding:2px 8px;text-align:left;color:#555;">Overwerk</th><th style="padding:2px 8px;text-align:left;color:#555;">%</th><th style="padding:2px 8px;text-align:left;color:#555;">Tarief</th></tr></thead><tbody>${overwHtml}</tbody></table></td></tr>` : ''}
+    ${overwHtml ? `<tr><td colspan="4" style="padding-top:4px;"><table style="border-collapse:collapse;font-size:10pt;"><thead><tr><th style="padding:2px 8px;text-align:left;color:#555;">Overwerk</th><th style="padding:2px 8px;text-align:left;color:#555;">Omschrijving</th><th style="padding:2px 8px;text-align:left;color:#555;">%</th><th style="padding:2px 8px;text-align:left;color:#555;">Tarief</th></tr></thead><tbody>${overwHtml}</tbody></table></td></tr>` : ''}
   </table>
   <h2>Vergoedingen</h2>
   <table>
