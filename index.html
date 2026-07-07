@@ -3042,6 +3042,24 @@ function projContractWijzigen(src, id, safeId) {
   projContractFrozenSave(src, id, false);
   _refreshContractRow(safeId);
 }
+function projSluitAlle() {
+  document.querySelectorAll('[id^="pr-eval-row-"],[id^="pr-contract-row-"]').forEach(tr => {
+    tr.style.display = 'none';
+  });
+}
+function projFreezeAll() {
+  if (!confirm('Alle contractgegevens opslaan?\n\nAlle open rijen worden vergrendeld. Klik daarna op "Wijzigen" om een rij aan te passen.')) return;
+  document.querySelectorAll('[id^="pr-contract-row-"]').forEach(tr => {
+    const { src, id } = tr.dataset;
+    if (!src || !id) return;
+    const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
+    if (!projContractFrozenLoad(src, id)) {
+      projContractFrozenSave(src, id, true);
+      _refreshContractRow(safeId);
+    }
+  });
+  projSluitAlle();
+}
 function _refreshContractRow(safeId) {
   const tr = document.getElementById(`pr-contract-row-${safeId}`);
   if (!tr) return;
@@ -3801,7 +3819,7 @@ function renderAanmeldForm() {
     } else {
       inp = `<input type="${type}" value="${v(key)}" style="${stI}${bdr}" oninput="aanmeldSet('${key}',this.value)">`;
     }
-    return `<div><label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
+    return `<div><label style="font-size:.68rem;color:#fff;display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
   };
   const sec  = t => `<div style="grid-column:1/-1;background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-top:10px;">${t}</div>`;
   const days = ['ma','di','wo','do','vrij','zat','zon'];
@@ -4247,6 +4265,10 @@ function renderPrognose() {
         oninput="window._projFilt.q=this.value;projFiltApply()"
         style="margin-left:12px;padding:3px 12px 3px 28px;font-size:.75rem;font-weight:400;letter-spacing:0;border:1.5px solid var(--border);border-radius:20px;background:#f8faff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>') no-repeat 8px center;color:var(--text);width:440px;outline:none;" />
       <span style="font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+        ${isHrmEditor() ? `<button onclick="projFreezeAll()" style="font-size:.7rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">💾 Alles opslaan</button>` : ''}
+        <button onclick="projSluitAlle()" style="font-size:.7rem;padding:3px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">✕ Alles sluiten</button>
+      </span>
     </div>
     <div class="chart-card" style="padding:10px 14px;">
       <div class="sub" style="margin-bottom:8px;font-size:.75rem;">📄 Excel-import &nbsp;·&nbsp; 🧩 akkoord pipeline &nbsp;·&nbsp; <span style="color:#e02424;font-weight:700">rood</span> = verwachte einddatum verstreken &nbsp;·&nbsp; <strong>Def. eind</strong> = stopt tellen in projectenlijn &nbsp;·&nbsp; klik op naam voor evaluatiecyclus</div>
@@ -8099,7 +8121,7 @@ const CONTRACT_FIELDS = [
   {key:'marge_pct',  label:'Marge%',       type:'number',  w:'58px'},
   {key:'uren',       label:'Uren',         type:'number',  w:'54px'},
   {key:'marge_pw',   label:'M/week',       type:'number',  w:'68px'},
-  {key:'eju',        label:'EJU',          type:'text',    w:'220px'},
+  {key:'eju',        label:'EJU',          type:'text',    w:'300px'},
   {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
 ];
 function projContractKey(src, id) { return `bt_proj_contract_${src}_${id}`; }
