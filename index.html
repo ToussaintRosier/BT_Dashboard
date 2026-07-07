@@ -6623,25 +6623,11 @@ async function gesprekUpload(blob, mimeType) {
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
     const fd = new FormData();
 
-    // Grote bestanden (>5 MB) eerst naar Supabase Storage uploaden,
-    // daarna de publieke URL doorsturen naar de Edge Function.
-    const LARGE = 5 * 1024 * 1024;
-    if (supa && blob.size > LARGE) {
-      GESPREK.statusMsg = '⏳ Audio uploaden naar server… (even geduld)';
-      renderGesprek();
-      const storagePath = 'gesprek/' + Date.now() + '.' + ext;
-      const { error: upErr } = await supa.storage.from('recordings').upload(storagePath, blob, {
-        contentType: mimeType || 'audio/webm',
-        upsert: false,
-      });
-      if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
-      const { data: urlData, error: signErr } = await supa.storage.from('recordings').createSignedUrl(storagePath, 86400);
-      if (signErr) throw new Error('URL genereren mislukt: ' + signErr.message);
-      GESPREK._storagePath = storagePath;
-      fd.append('audio_url', urlData.signedUrl);
-    } else {
-      fd.append('audio', blob, 'opname.' + ext);
-    }
+    // Audio altijd direct als blob meesturen; de Edge Function streamt dit
+    // door naar AssemblyAI via chunked transfer (geen Storage-bucket nodig).
+    GESPREK.statusMsg = '⏳ Audio uploaden… (even geduld bij lange opnames)';
+    renderGesprek();
+    fd.append('audio', blob, 'opname.' + ext);
     if (GESPREK.naam) fd.append('naam', GESPREK.naam);
     if (GESPREK.functie) fd.append('functie', GESPREK.functie);
 
@@ -7018,11 +7004,6 @@ function addGesprekRecord() {
   if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
   _saveGesprekRec();
   _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum }, g.result, g.transcript);
-  // Ruim het tijdelijke audio-bestand op uit Storage
-  if (g._storagePath && supa) {
-    supa.storage.from('recordings').remove([g._storagePath]).catch(() => {});
-    delete g._storagePath;
-  }
 }
 function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
@@ -7031,10 +7012,6 @@ function addBezoekRecord() {
   if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
   _saveBezoekRec();
   _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, datum }, b.result, b.transcript);
-  if (b._storagePath && supa) {
-    supa.storage.from('recordings').remove([b._storagePath]).catch(() => {});
-    delete b._storagePath;
-  }
 }
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
@@ -7379,24 +7356,10 @@ async function pvaRecUpload(bmNaam, blob, mimeType) {
     const ext = (mimeType||'').includes('mp4')?'mp4':(mimeType||'').includes('ogg')?'ogg':'webm';
     const fd = new FormData();
 
-    // Grote bestanden (>5 MB) eerst naar Supabase Storage uploaden
-    const LARGE = 5 * 1024 * 1024;
-    if (supa && blob.size > LARGE) {
-      p.statusMsg = '⏳ Audio uploaden naar server… (even geduld)';
-      renderBM(BMS.find(b=>b.naam===bmNaam));
-      const storagePath = 'pva/' + Date.now() + '.' + ext;
-      const { error: upErr } = await supa.storage.from('recordings').upload(storagePath, blob, {
-        contentType: mimeType || 'audio/webm',
-        upsert: false,
-      });
-      if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
-      const { data: urlData, error: signErr } = await supa.storage.from('recordings').createSignedUrl(storagePath, 86400);
-      if (signErr) throw new Error('URL genereren mislukt: ' + signErr.message);
-      p._storagePath = storagePath;
-      fd.append('audio_url', urlData.signedUrl);
-    } else {
-      fd.append('audio', blob, 'pva.' + ext);
-    }
+    // Audio altijd direct als blob meesturen (geen Storage-bucket nodig).
+    p.statusMsg = '⏳ Audio uploaden… (even geduld bij lange opnames)';
+    renderBM(BMS.find(b=>b.naam===bmNaam));
+    fd.append('audio', blob, 'pva.' + ext);
 
     p.statusMsg = '⏳ Transcriptie wordt gestart…';
     renderBM(BMS.find(b=>b.naam===bmNaam));
@@ -7583,25 +7546,10 @@ async function bezoekUpload(blob, mimeType) {
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
     const fd = new FormData();
 
-    // Grote bestanden (>5 MB) eerst naar Supabase Storage uploaden,
-    // daarna de publieke URL doorsturen naar de Edge Function.
-    const LARGE = 5 * 1024 * 1024;
-    if (supa && blob.size > LARGE) {
-      BEZOEK.statusMsg = '⏳ Audio uploaden naar server… (even geduld)';
-      renderBezoekRecorder();
-      const storagePath = 'bezoek/' + Date.now() + '.' + ext;
-      const { error: upErr } = await supa.storage.from('recordings').upload(storagePath, blob, {
-        contentType: mimeType || 'audio/webm',
-        upsert: false,
-      });
-      if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
-      const { data: urlData, error: signErr } = await supa.storage.from('recordings').createSignedUrl(storagePath, 86400);
-      if (signErr) throw new Error('URL genereren mislukt: ' + signErr.message);
-      BEZOEK._storagePath = storagePath;
-      fd.append('audio_url', urlData.signedUrl);
-    } else {
-      fd.append('audio', blob, 'bezoek.' + ext);
-    }
+    // Audio altijd direct als blob meesturen (geen Storage-bucket nodig).
+    BEZOEK.statusMsg = '⏳ Audio uploaden… (even geduld bij lange opnames)';
+    renderBezoekRecorder();
+    fd.append('audio', blob, 'bezoek.' + ext);
     if (BEZOEK.bedrijf) fd.append('bedrijf', BEZOEK.bedrijf);
     if (BEZOEK.contactpersoon) fd.append('contactpersoon', BEZOEK.contactpersoon);
 
