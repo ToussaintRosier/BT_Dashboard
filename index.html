@@ -6798,7 +6798,12 @@ async function pvaRecStart(bmNaam) {
     };
     p.mediaRecorder.start(5000);
     p.recording = true; p.statusMsg = ''; p.recordingTime = 0;
-    p.timerInterval = setInterval(() => { p.recordingTime++; renderBM(BMS.find(b=>b.naam===bmNaam)); }, 1000);
+    p.timerInterval = setInterval(() => {
+      p.recordingTime++;
+      // Alleen herrenderen als de gebruiker nog op dit BM-tabblad staat
+      const bm = BMS.find(b => b.naam === bmNaam);
+      if (bm && currentTab === BMS.indexOf(bm)) renderBM(bm);
+    }, 1000);
     renderBM(BMS.find(b=>b.naam===bmNaam));
   } catch(err) {
     p.statusMsg = '⚠️ Microfoon niet beschikbaar: ' + err.message;
@@ -6878,12 +6883,14 @@ function pvaRecPoll(bmNaam) {
         if (data.transcript) {
           p.transcript = data.transcript;
           p.statusMsg = '⏳ Velden herkennen en invullen…';
-          renderBM(BMS.find(b=>b.naam===bmNaam));
+          const _bm1 = BMS.find(b=>b.naam===bmNaam);
+          if (_bm1 && currentTab === BMS.indexOf(_bm1)) renderBM(_bm1);
           pvaRecAnalyse(bmNaam);
         } else {
           p.analyzing = false;
           p.statusMsg = '⚠️ Geen transcript ontvangen.';
-          renderBM(BMS.find(b=>b.naam===bmNaam));
+          const _bm2 = BMS.find(b=>b.naam===bmNaam);
+          if (_bm2 && currentTab === BMS.indexOf(_bm2)) renderBM(_bm2);
         }
       } else if (data.status === 'pending' || data.status === 'processing') {
         p.statusMsg = '⏳ Transcriptie loopt…';
@@ -6943,8 +6950,28 @@ function pvaRecFill(bmNaam, fields) {
   fill('focuspunt',       `pva-focuspunt-${safeId}`);
   fill('team_support',    `pva-team_support-${safeId}`);
 
+  // Direct opslaan naar Supabase — omzeilt de frozen/vergrendeld-check van pvaAutosave,
+  // zodat recorder-data altijd wordt bewaard ook als de week al een bestaande rij heeft.
+  if (supa && CURRENT_USER) {
+    const pvRow = PLAN_VA.find(r => r.bm_naam === bmNaam && r.jaar === CUR.year && r.week === CUR.week);
+    const pvPayload = {
+      ...(pvRow || {}),
+      bm_naam: bmNaam, jaar: CUR.year, week: CUR.week,
+      updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
+    };
+    supa.from('plan_van_aanpak').upsert(pvPayload, { onConflict: 'bm_naam,jaar,week' })
+      .then(({ error }) => {
+        if (error) console.error('PVA recorder opslaan mislukt:', error);
+        else {
+          // Week ontgrendelen zodat vervolgbewerkingen ook autosaven
+          WEEKLY_EDIT_UNLOCKED.add(`plan|${bmNaam}|${CUR.year}|${CUR.week}`);
+        }
+      });
+  }
+
   pvaScheduleAutosave(bmNaam);
-  renderBM(BMS.find(b=>b.naam===bmNaam));
+  const _bm3 = BMS.find(b=>b.naam===bmNaam);
+  if (_bm3 && currentTab === BMS.indexOf(_bm3)) renderBM(_bm3);
 }
 
 // ── BZK-Recorder (bedrijfsbezoek opnemen + verslag genereren via AI) ──────────
