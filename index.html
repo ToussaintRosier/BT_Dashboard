@@ -3026,33 +3026,74 @@ function renderEvalRow(src, id, startDateStr, nCols, safeId) {
   </tr>`;
 }
 
+// ── Contract frozen state ─────────────────────────────────────────────────────
+function projContractFrozenKey(src, id) { return `bt_proj_frozen_${src}_${id}`; }
+function projContractFrozenLoad(src, id) { return localStorage.getItem(projContractFrozenKey(src, id)) === '1'; }
+function projContractFrozenSave(src, id, val) {
+  if (val) localStorage.setItem(projContractFrozenKey(src, id), '1');
+  else localStorage.removeItem(projContractFrozenKey(src, id));
+}
+function projContractFreeze(src, id, safeId) {
+  if (!confirm('Contractgegevens opslaan?\n\nKlik daarna op "Wijzigen" om aanpassingen te doen.')) return;
+  projContractFrozenSave(src, id, true);
+  _refreshContractRow(safeId);
+}
+function projContractWijzigen(src, id, safeId) {
+  projContractFrozenSave(src, id, false);
+  _refreshContractRow(safeId);
+}
+function _refreshContractRow(safeId) {
+  const tr = document.getElementById(`pr-contract-row-${safeId}`);
+  if (!tr) return;
+  const { src, id } = tr.dataset;
+  const ncols = +tr.dataset.ncols;
+  const wasVisible = tr.style.display !== 'none';
+  const tmp = document.createElement('tbody');
+  tmp.innerHTML = renderContractRow(src, id, ncols, safeId);
+  const newTr = tmp.firstElementChild;
+  if (!newTr) return;
+  if (wasVisible) newTr.style.display = '';
+  tr.replaceWith(newTr);
+}
+
 // ── Contract-veldenrij (uitvouwbaar, naast eval-rij) ─────────────────────────
 function renderContractRow(src, id, nCols, safeId) {
-  const data     = projContractLoad(src, id);
-  const editable = isHrmEditor();
+  const data    = projContractLoad(src, id);
+  const canEdit = isHrmEditor();
+  const frozen  = projContractFrozenLoad(src, id);
+  const editable = canEdit && !frozen;
   const cells = CONTRACT_FIELDS.map(f => {
-    const val  = data[f.key] ?? '';
-    const stIn = `font-size:.68rem;padding:1px 3px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${editable?'#fff':'#f9fafb'};`;
+    const val   = String(data[f.key] ?? '').trim();
+    const bgCol = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
+    const stIn  = `font-size:.68rem;padding:1px 3px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgCol};${frozen?'color:#555;':''}`;
     if (!editable) {
-      return `<span style="${stIn}display:inline-block;color:${val?'var(--text)':'var(--muted)'};">${escHtml(String(val||'—'))}</span>`;
+      return `<span style="${stIn}display:inline-block;">${escHtml(val||'—')}</span>`;
     }
     if (f.type === 'select') {
-      const opts = (f.opts||[]).map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'–'}</option>`).join('');
+      const optsArr = [...(f.opts||[])];
+      if (val && !optsArr.includes(val)) optsArr.splice(1, 0, val); // toon onbekende waarden altijd
+      const opts = optsArr.map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'–'}</option>`).join('');
       return `<select onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">${opts}</select>`;
     }
-    return `<input type="${f.type}" value="${escHtml(String(val))}" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
+    return `<input type="${f.type}" value="${escHtml(val)}" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
   });
   const headerRow = CONTRACT_FIELDS.map(f =>
     `<span style="font-size:.6rem;color:var(--muted);display:inline-block;width:${f.w};text-align:center;box-sizing:border-box;">${f.label}</span>`
   ).join('');
-  return `<tr id="pr-contract-row-${safeId}" style="display:none;border-bottom:1px solid var(--border);background:#f0f4ff;">
+  const btnHtml = canEdit ? `<div style="display:flex;flex-direction:column;gap:4px;justify-content:center;padding-left:10px;flex-shrink:0;">
+      ${!frozen
+        ? `<button onclick="projContractFreeze('${src}','${id}','${safeId}')" style="font-size:.68rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">💾 Opslaan</button>`
+        : `<button onclick="projContractWijzigen('${src}','${id}','${safeId}')" style="font-size:.68rem;padding:3px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">✏️ Wijzigen</button>`}
+    </div>` : '';
+  return `<tr id="pr-contract-row-${safeId}" data-src="${src}" data-id="${id}" data-ncols="${nCols}" style="display:none;border-bottom:1px solid var(--border);background:${frozen?'#e8ecf2':'#f0f4ff'};${frozen?'opacity:.85;':''}">
     <td colspan="${nCols}" style="padding:2px 8px 5px 26px;">
-      <div style="font-size:.6rem;color:var(--muted);margin-bottom:1px;white-space:nowrap;">📑 Contractgegevens:</div>
+      <div style="font-size:.6rem;color:var(--muted);margin-bottom:1px;white-space:nowrap;">📑 Contractgegevens:${frozen?' 🔒 (opgeslagen)':''}</div>
       <div style="display:flex;gap:3px;flex-wrap:nowrap;overflow-x:auto;align-items:flex-start;">
         <div>
           <div style="display:flex;gap:3px;margin-bottom:2px;">${headerRow}</div>
           <div style="display:flex;gap:3px;">${cells.join('')}</div>
         </div>
+        ${btnHtml}
       </div>
     </td>
   </tr>`;
@@ -3485,7 +3526,7 @@ function projFiltApply() {
   }
   const tbody = document.getElementById('proj-tbody');
   if (!tbody) return;
-  const nCols = canEditProj ? 7 : 6;
+  const nCols = canEditProj ? 8 : 7;
   tbody.innerHTML = list.length === 0
     ? `<tr><td colspan="${nCols}" style="padding:10px;text-align:center;color:var(--muted);">Geen projecten gevonden.</td></tr>`
     : list.map(r => buildProjRow(r, canEditProj, nuVoorOverdue, nCols)).join('');
@@ -3522,9 +3563,10 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   const alertSpan   = startStr
     ? `<span id="pr-eval-alert-${safeId}" title="Evaluatie vereist" style="color:#d97706;font-weight:900;font-size:.85rem;margin-left:2px;cursor:pointer;${anyDue?'':'display:none'}">!</span>`
     : '';
+  const klikTd = `<td style="padding:3px 6px;text-align:center;vertical-align:middle;white-space:nowrap;"><span onclick="projEvalToggle_vis('${safeId}')" style="font-size:.6rem;color:var(--muted);cursor:pointer;opacity:.7;user-select:none;display:inline-block;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:var(--card);">▼ detail</span></td>`;
   const chipHtml = canEditProj
-    ? `<td style="padding:3px 8px;text-align:left;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div><span onclick="projEvalToggle_vis('${safeId}')" style="font-size:.6rem;color:var(--muted);cursor:pointer;opacity:.55;white-space:nowrap;margin-left:2px;user-select:none;">▼ klik hier</span></td>`
-    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:left;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}<br><span onclick="projEvalToggle_vis('${safeId}')" style="font-size:.6rem;color:var(--muted);cursor:pointer;opacity:.55;font-weight:400;user-select:none;">▼ klik hier</span></td>`;
+    ? `<td style="padding:3px 8px;text-align:left;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>${klikTd}`
+    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:left;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>${klikTd}`;
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
@@ -3741,7 +3783,7 @@ function renderAanmeldForm() {
     } else {
       inp = `<input type="${type}" value="${v(key)}" style="${stI}${bdr}" oninput="aanmeldSet('${key}',this.value)">`;
     }
-    return `<div><label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
+    return `<div><label style="font-size:.68rem;color:#fff;display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
   };
   const sec  = t => `<div style="grid-column:1/-1;background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-top:10px;">${t}</div>`;
   const days = ['ma','di','wo','do','vrij','zat','zon'];
@@ -4166,15 +4208,15 @@ function renderPrognose() {
       ${(() => {
         window._projOvCache = { overzichtRanges, canEditProj, nuVoorOverdue };
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
-        const nCols    = canEditProj ? 7 : 6;
+        const nCols    = canEditProj ? 8 : 7;
         const TH       = (txt, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
         const THSORT   = (txt, col, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" onclick="projFiltSort('${col}')">${txt}<span id="proj-sort-${col}" style="font-size:.6rem;opacity:.45;margin-left:3px;">↕</span></th>`;
         const colgroup = canEditProj
-          ? `<colgroup><col style="width:22%"><col style="width:16%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
-          : `<colgroup><col style="width:26%"><col style="width:18%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
+          ? `<colgroup><col style="width:20%"><col style="width:14%"><col style="width:auto"><col style="width:56px"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
+          : `<colgroup><col style="width:24%"><col style="width:16%"><col style="width:auto"><col style="width:56px"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
-          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), '<th></th>', THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), '<th></th>', THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
         // Pas huidig filter toe op de initiële render
         const fq = (window._projFilt||{}).q||'';
         let initList = overzichtRanges.slice();
@@ -5585,7 +5627,10 @@ function cvGenFillSequentialMultilineHtml(xml, placeholder, htmlValues) {
     const pIdx = result.indexOf(placeholder);
     if (pIdx === -1 || i >= htmlValues.length) break;
     const html = String(htmlValues[i++] || '');
-    const runStart = result.lastIndexOf('<w:r', pIdx);
+    // Zoek run-start: gebruik '<w:r>' of '<w:r ' om te voorkomen dat '<w:rPr>' matcht
+    const rA = result.lastIndexOf('<w:r>', pIdx);
+    const rB = result.lastIndexOf('<w:r ', pIdx);
+    const runStart = Math.max(rA, rB);
     const runEnd   = result.indexOf('</w:r>', pIdx);
     if (runStart === -1 || runEnd === -1) {
       // Geen run gevonden: simpele tekst-vervanging als fallback.
@@ -5917,12 +5962,32 @@ async function gesprekUpload(blob, mimeType) {
   renderGesprek();
   try {
     const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-    const fd = new FormData();
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-    fd.append('audio', blob, 'opname.' + ext);
+    const fd = new FormData();
+
+    // Grote bestanden (>5 MB) eerst naar Supabase Storage uploaden,
+    // daarna de publieke URL doorsturen naar de Edge Function.
+    const LARGE = 5 * 1024 * 1024;
+    if (supa && blob.size > LARGE) {
+      GESPREK.statusMsg = '⏳ Audio uploaden naar server… (even geduld)';
+      renderGesprek();
+      const storagePath = 'gesprek/' + Date.now() + '.' + ext;
+      const { error: upErr } = await supa.storage.from('recordings').upload(storagePath, blob, {
+        contentType: mimeType || 'audio/webm',
+        upsert: false,
+      });
+      if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
+      const { data: urlData } = supa.storage.from('recordings').getPublicUrl(storagePath);
+      GESPREK._storagePath = storagePath;
+      fd.append('audio_url', urlData.publicUrl);
+    } else {
+      fd.append('audio', blob, 'opname.' + ext);
+    }
     if (GESPREK.naam) fd.append('naam', GESPREK.naam);
     if (GESPREK.functie) fd.append('functie', GESPREK.functie);
 
+    GESPREK.statusMsg = '⏳ Transcriptie wordt gestart…';
+    renderGesprek();
     const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-start', {
       method: 'POST',
       headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
@@ -6102,6 +6167,11 @@ function gesprekDownload(formaat) {
 
 function renderGesprek() {
   if (currentTab !== 'gesprek') return; // opname loopt door, maar UI niet overschrijven
+  // Laad gedeelde verslagen eenmalig bij het openen van de tab
+  if (!_gesprekRecsLoaded && !GESPREK.recording && !GESPREK.analyzing) {
+    _gesprekRecsLoaded = true;
+    loadGesprekRecordsFromDb();
+  }
   if (gesprekSubView === 'records') { renderGesprekRecords(); return; }
   const g = GESPREK;
   const r = g.result;
@@ -6227,23 +6297,82 @@ let GESPREK_OPEN    = new Set();
 let BEZOEK_OPEN     = new Set();
 let GESPREK_SHOW_TR = new Set();
 let BEZOEK_SHOW_TR  = new Set();
-let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_records')||'[]').slice(0,30); } catch(_) { return []; } })();
-let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,30); } catch(_) { return []; } })();
+let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_records')||'[]').slice(0,50); } catch(_) { return []; } })();
+let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,50); } catch(_) { return []; } })();
+let _gesprekRecsLoaded = false;
+let _bezoekRecsLoaded  = false;
 
 function _saveGesprekRec() { try { localStorage.setItem('bt_gesprek_records', JSON.stringify(GESPREK_RECORDS)); } catch(_) {} }
 function _saveBezoekRec()  { try { localStorage.setItem('bt_bezoek_records',  JSON.stringify(BEZOEK_RECORDS));  } catch(_) {} }
 
+// Sla een verslag op in Supabase zodat alle collega's het kunnen zien
+async function _saveVerslagToSupa(type, meta, result, transcript) {
+  if (!supa) return;
+  try { await supa.from('verslagen').insert({ type, meta, result, transcript }); } catch(_) {}
+}
+
+// Laad alle verslagen van dit type uit Supabase (gedeeld tussen collega's)
+async function _loadVerlagenFromSupa(type) {
+  if (!supa) return null;
+  try {
+    const { data } = await supa.from('verslagen').select('*').eq('type', type)
+      .order('created_at', { ascending: false }).limit(50);
+    return data || null;
+  } catch(_) { return null; }
+}
+
+async function loadGesprekRecordsFromDb() {
+  const rows = await _loadVerlagenFromSupa('gesprek');
+  if (!rows || !rows.length) return;
+  const fmt = { day:'2-digit', month:'long', year:'numeric' };
+  GESPREK_RECORDS = rows.map(r => ({
+    id: r.id,
+    datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
+    naam: r.meta?.naam || '', functie: r.meta?.functie || '',
+    result: r.result, transcript: r.transcript,
+  }));
+  _saveGesprekRec();
+  if (currentTab === 'gesprek') renderGesprek();
+}
+
+async function loadBezoekRecordsFromDb() {
+  const rows = await _loadVerlagenFromSupa('bezoek');
+  if (!rows || !rows.length) return;
+  const fmt = { day:'2-digit', month:'long', year:'numeric' };
+  BEZOEK_RECORDS = rows.map(r => ({
+    id: r.id,
+    datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
+    bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
+    result: r.result, transcript: r.transcript,
+  }));
+  _saveBezoekRec();
+  if (currentTab === 'bezoek') renderBezoekRecorder();
+}
+
 function addGesprekRecord() {
   const g = GESPREK; if (!g.result) return;
-  GESPREK_RECORDS.unshift({ id: Date.now(), datum: new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'}), naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript });
-  if (GESPREK_RECORDS.length > 30) GESPREK_RECORDS.length = 30;
+  const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
+  GESPREK_RECORDS.unshift({ id: Date.now(), datum, naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript });
+  if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
   _saveGesprekRec();
+  _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum }, g.result, g.transcript);
+  // Ruim het tijdelijke audio-bestand op uit Storage
+  if (g._storagePath && supa) {
+    supa.storage.from('recordings').remove([g._storagePath]).catch(() => {});
+    delete g._storagePath;
+  }
 }
 function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
-  BEZOEK_RECORDS.unshift({ id: Date.now(), datum: new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'}), bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, result:b.result, transcript:b.transcript });
-  if (BEZOEK_RECORDS.length > 30) BEZOEK_RECORDS.length = 30;
+  const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
+  BEZOEK_RECORDS.unshift({ id: Date.now(), datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, result:b.result, transcript:b.transcript });
+  if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
   _saveBezoekRec();
+  _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, datum }, b.result, b.transcript);
+  if (b._storagePath && supa) {
+    supa.storage.from('recordings').remove([b._storagePath]).catch(() => {});
+    delete b._storagePath;
+  }
 }
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
@@ -6707,11 +6836,32 @@ async function bezoekUpload(blob, mimeType) {
   renderBezoekRecorder();
   try {
     const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-    const fd = new FormData();
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-    fd.append('audio', blob, 'bezoek.' + ext);
+    const fd = new FormData();
+
+    // Grote bestanden (>5 MB) eerst naar Supabase Storage uploaden,
+    // daarna de publieke URL doorsturen naar de Edge Function.
+    const LARGE = 5 * 1024 * 1024;
+    if (supa && blob.size > LARGE) {
+      BEZOEK.statusMsg = '⏳ Audio uploaden naar server… (even geduld)';
+      renderBezoekRecorder();
+      const storagePath = 'bezoek/' + Date.now() + '.' + ext;
+      const { error: upErr } = await supa.storage.from('recordings').upload(storagePath, blob, {
+        contentType: mimeType || 'audio/webm',
+        upsert: false,
+      });
+      if (upErr) throw new Error('Storage upload mislukt: ' + upErr.message);
+      const { data: urlData } = supa.storage.from('recordings').getPublicUrl(storagePath);
+      BEZOEK._storagePath = storagePath;
+      fd.append('audio_url', urlData.publicUrl);
+    } else {
+      fd.append('audio', blob, 'bezoek.' + ext);
+    }
     if (BEZOEK.bedrijf) fd.append('bedrijf', BEZOEK.bedrijf);
     if (BEZOEK.contactpersoon) fd.append('contactpersoon', BEZOEK.contactpersoon);
+
+    BEZOEK.statusMsg = '⏳ Transcriptie wordt gestart…';
+    renderBezoekRecorder();
     const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-start', {
       method: 'POST',
       headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
@@ -6894,6 +7044,11 @@ function bezoekDownload(formaat) {
 
 function renderBezoekRecorder() {
   if (currentTab !== 'bezoek') return; // opname loopt door, maar UI niet overschrijven
+  // Laad gedeelde verslagen eenmalig bij het openen van de tab
+  if (!_bezoekRecsLoaded && !BEZOEK.recording && !BEZOEK.analyzing) {
+    _bezoekRecsLoaded = true;
+    loadBezoekRecordsFromDb();
+  }
   if (bezoekSubView === 'records') { renderBezoekRecords(); return; }
   const b = BEZOEK;
   const r = b.result;
