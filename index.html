@@ -6495,13 +6495,16 @@ let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_
 let _gesprekRecsLoaded = false;
 let _bezoekRecsLoaded  = false;
 
+function gesprekHerlaadRecords() { _gesprekRecsLoaded = false; loadGesprekRecordsFromDb(); }
+function bezoekHerlaadRecords()  { _bezoekRecsLoaded  = false; loadBezoekRecordsFromDb();  }
+
 function _saveGesprekRec() { try { localStorage.setItem('bt_gesprek_records', JSON.stringify(GESPREK_RECORDS)); } catch(_) {} }
 function _saveBezoekRec()  { try { localStorage.setItem('bt_bezoek_records',  JSON.stringify(BEZOEK_RECORDS));  } catch(_) {} }
 
 // Sla een verslag op in Supabase zodat alle collega's het kunnen zien
 async function _saveVerslagToSupa(type, meta, result, transcript) {
   if (!supa) return;
-  try { await supa.from('verslagen').insert({ type, meta, result, transcript }); } catch(_) {}
+  try { await supa.from('verslagen').insert({ type, meta, result, transcript, created_by: CURRENT_USER?.id || null }); } catch(_) {}
 }
 
 // Laad alle verslagen van dit type uit Supabase (gedeeld tussen collega's)
@@ -6570,13 +6573,41 @@ function addBezoekRecord() {
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
 function toggleGesprekTranscript(id){ if(GESPREK_SHOW_TR.has(id))GESPREK_SHOW_TR.delete(id); else GESPREK_SHOW_TR.add(id); renderGesprek(); }
-function gesprekRecordVerwijder(id) { GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>r.id!==id); GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id); _saveGesprekRec(); renderGesprek(); }
-function gesprekRecordWisAlles()    { if(!confirm('Weet je zeker dat je alle gespreksverslagen wilt wissen?'))return; GESPREK_RECORDS=[]; GESPREK_OPEN.clear(); GESPREK_SHOW_TR.clear(); _saveGesprekRec(); renderGesprek(); }
+function gesprekRecordVerwijder(id) {
+  GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>String(r.id)!==String(id));
+  GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
+  _saveGesprekRec();
+  if (supa && typeof id === 'string' && id.includes('-')) {
+    supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{});
+  }
+  renderGesprek();
+}
+function gesprekRecordWisAlles() {
+  if(!confirm('Weet je zeker dat je alle gespreksverslagen wilt wissen? (Verwijdert ook van de gedeelde server)'))return;
+  const ids = GESPREK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
+  GESPREK_RECORDS=[]; GESPREK_OPEN.clear(); GESPREK_SHOW_TR.clear(); _saveGesprekRec();
+  if (supa && ids.length) ids.forEach(id=>supa.from('verslagen').delete().eq('id',id).then(()=>{}).catch(()=>{}));
+  renderGesprek();
+}
 
 function toggleBezoekRecord(id)    { if(BEZOEK_OPEN.has(id))BEZOEK_OPEN.delete(id); else BEZOEK_OPEN.add(id); renderBezoekRecorder(); }
 function toggleBezoekTranscript(id){ if(BEZOEK_SHOW_TR.has(id))BEZOEK_SHOW_TR.delete(id); else BEZOEK_SHOW_TR.add(id); renderBezoekRecorder(); }
-function bezoekRecordVerwijder(id) { BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>r.id!==id); BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id); _saveBezoekRec(); renderBezoekRecorder(); }
-function bezoekRecordWisAlles()    { if(!confirm('Weet je zeker dat je alle bezoekverslagen wilt wissen?'))return; BEZOEK_RECORDS=[]; BEZOEK_OPEN.clear(); BEZOEK_SHOW_TR.clear(); _saveBezoekRec(); renderBezoekRecorder(); }
+function bezoekRecordVerwijder(id) {
+  BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>String(r.id)!==String(id));
+  BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id);
+  _saveBezoekRec();
+  if (supa && typeof id === 'string' && id.includes('-')) {
+    supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{});
+  }
+  renderBezoekRecorder();
+}
+function bezoekRecordWisAlles() {
+  if(!confirm('Weet je zeker dat je alle bezoekverslagen wilt wissen? (Verwijdert ook van de gedeelde server)'))return;
+  const ids = BEZOEK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
+  BEZOEK_RECORDS=[]; BEZOEK_OPEN.clear(); BEZOEK_SHOW_TR.clear(); _saveBezoekRec();
+  if (supa && ids.length) ids.forEach(id=>supa.from('verslagen').delete().eq('id',id).then(()=>{}).catch(()=>{}));
+  renderBezoekRecorder();
+}
 
 // Per-record HTML builder + acties – Gesprek
 function _gesprekRecordHtml(rec) {
@@ -6669,11 +6700,11 @@ function renderGesprekRecords() {
       const open=GESPREK_OPEN.has(rec.id), showTr=GESPREK_SHOW_TR.has(rec.id);
       const title=[rec.naam,rec.functie].filter(Boolean).join(' — ')||'Gesprek';
       return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
-        <div onclick="toggleGesprekRecord(${rec.id})" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
+        <div onclick="toggleGesprekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
-          <span onclick="event.stopPropagation();gesprekRecordVerwijder(${rec.id})" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
+          <span onclick="event.stopPropagation();gesprekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
           <div class="chart-card" style="padding:12px 14px;margin-bottom:12px;">
@@ -6695,10 +6726,10 @@ function renderGesprekRecords() {
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${showTr&&rec.transcript?'10px':'0'};">
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordKopieer(${rec.id})">📋 Kopieer</button>
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordPrint(${rec.id})">🖨️ Printen/PDF</button>
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordDownload(${rec.id},'word')">📄 Word</button>
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleGesprekTranscript(${rec.id})">📜 ${showTr?'Verberg':'Toon'} transcript</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordKopieer('${rec.id}')">📋 Kopieer</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordPrint('${rec.id}')">🖨️ Printen/PDF</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordDownload('${rec.id}','word')">📄 Word</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleGesprekTranscript('${rec.id}')">📜 ${showTr?'Verberg':'Toon'} transcript</button>
           </div>
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
@@ -6714,8 +6745,11 @@ function renderGesprekRecords() {
       <button class="bm-subtab-btn active" onclick="">📋 Recente records${badge}</button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS.length} van max. 30 records — blijft bewaard na verversen</span>
-      ${GESPREK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="gesprekRecordWisAlles()">🗑 Alles wissen</button>`:''}
+      <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS.length} records — gedeeld tussen collega's</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="gesprekHerlaadRecords()">🔄 Herlaad</button>
+        ${GESPREK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="gesprekRecordWisAlles()">🗑 Alles wissen</button>`:''}
+      </div>
     </div>
     ${items}
   </div>`;
@@ -6733,11 +6767,11 @@ function renderBezoekRecords() {
       const open=BEZOEK_OPEN.has(rec.id), showTr=BEZOEK_SHOW_TR.has(rec.id);
       const title=[rec.bedrijf,rec.contactpersoon].filter(Boolean).join(' — ')||'Bezoek';
       return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
-        <div onclick="toggleBezoekRecord(${rec.id})" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
+        <div onclick="toggleBezoekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
-          <span onclick="event.stopPropagation();bezoekRecordVerwijder(${rec.id})" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
+          <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
           <div class="chart-card" style="padding:12px 14px;margin-bottom:12px;">
@@ -6767,10 +6801,10 @@ function renderBezoekRecords() {
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${showTr&&rec.transcript?'10px':'0'};">
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordKopieer(${rec.id})">📋 Kopieer</button>
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordPrint(${rec.id})">🖨️ Printen/PDF</button>
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordDownload(${rec.id},'word')">📄 Word</button>
-            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleBezoekTranscript(${rec.id})">📜 ${showTr?'Verberg':'Toon'} transcript</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordKopieer('${rec.id}')">📋 Kopieer</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordPrint('${rec.id}')">🖨️ Printen/PDF</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordDownload('${rec.id}','word')">📄 Word</button>
+            <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleBezoekTranscript('${rec.id}')">📜 ${showTr?'Verberg':'Toon'} transcript</button>
           </div>
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
@@ -6786,8 +6820,11 @@ function renderBezoekRecords() {
       <button class="bm-subtab-btn active" onclick="">📋 Recente records${badge}</button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS.length} van max. 30 records — blijft bewaard na verversen</span>
-      ${BEZOEK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="bezoekRecordWisAlles()">🗑 Alles wissen</button>`:''}
+      <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS.length} records — gedeeld tussen collega's</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="bezoekHerlaadRecords()">🔄 Herlaad</button>
+        ${BEZOEK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="bezoekRecordWisAlles()">🗑 Alles wissen</button>`:''}
+      </div>
     </div>
     ${items}
   </div>`;
