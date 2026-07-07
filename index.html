@@ -884,7 +884,7 @@ function renderTabs() {
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel')?'active-cat':''}">
+      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel'||currentTab==='hrm')?'active-cat':''}">
         <span style="cursor:pointer;flex:1;">🏛️ Management</span>
         <span class="sidebar-caret ${managementOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleManagement(event)">▶</span>
       </div>
@@ -892,6 +892,7 @@ function renderTabs() {
         <button class="sidebar-item ${currentTab===teamIdx?'active':''}" onclick="selectTab(${teamIdx})">📊 Team Resultaten</button>
         <button class="sidebar-item ${currentTab===prognoseIdx?'active':''}" onclick="selectTab(${prognoseIdx})">📈 Projecten</button>
         <button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">💰 Financieel</button>
+        <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">🗂️ HRM/Backoffice</button>
       </div>
     </div>
     <div class="sidebar-cat">
@@ -977,7 +978,7 @@ function selectTab(i) {
   gesprekSubView='recorder'; bezoekSubView='recorder';
   try { localStorage.setItem('bt_last_tab', JSON.stringify(i)); } catch(_) {}
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
-  if (i === 'financieel' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
+  if (i === 'financieel' || i === 'hrm' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   closeSidebar();
   renderTabs(); render();
@@ -1352,7 +1353,7 @@ function renderMedewerkersOverzicht() {
       '<thead><tr><th>#</th><th>Medewerker</th><th>Starters YTD</th><th>Verwacht YTD</th><th>Voortgang</th><th>% behaald</th><th>Jaardoel</th></tr></thead>' +
       '<tbody>' + rankRows + '</tbody>' +
     '</table></div>' +
-    '<div class="section-title" style="margin-top:28px;"><span>📊 KPI\'s per week — teamtotaal</span></div>' +
+    '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">📊 KPI\'s per week — teamtotaal</span></div>' +
     alwaysOpen.map(w => renderOpenWeek(w.year, w.week)).join('') +
     collapsible.map(w => renderClosedWeek(w.year, w.week)).join('') +
   '</div>';
@@ -1589,6 +1590,11 @@ function render() {
     renderFinancieel();
     return;
   }
+  if (currentTab === 'hrm') {
+    if (!CURRENT_USER || (CURRENT_USER.rol !== 'manager' && CURRENT_USER.rol !== 'backoffice')) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+    renderHrmBackoffice();
+    return;
+  }
   if (currentTab === 'kandidaten') { renderKandidaten(); return; }
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
   if (currentTab === 'plaatsing') { renderPlaatsing(); return; }
@@ -1664,7 +1670,7 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
     ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">🔒 Bevroren &amp; opgeslagen voor deze week</span>`
     : '';
 
-  return `<div class="week-actions" style="margin-bottom:16px;">
+  return `<div class="week-actions" style="margin-bottom:16px;${frozen ? 'background:rgba(240,253,244,0.55);border-radius:10px;padding:6px 8px;' : ''}">
     <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:115px;">
         <h4 style="margin:0;">${icoon} ${titel}<br><span style="font-size:.78rem;font-weight:600;color:var(--muted);">week ${week} · ${year}</span></h4>
@@ -2262,7 +2268,7 @@ async function loadProfileAndStart() {
     try {
       const saved = JSON.parse(localStorage.getItem('bt_last_tab'));
       if (saved !== null && saved !== undefined) {
-        const validStr = ['accounts','financieel','kandidaten','cvgen','plaatsing','gesprek','bezoek','medewerkers'];
+        const validStr = ['accounts','financieel','hrm','kandidaten','cvgen','plaatsing','gesprek','bezoek','medewerkers'];
         if (validStr.includes(saved)) {
           currentTab = saved;
         } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved <= BMS.length + 1) {
@@ -2915,9 +2921,11 @@ function projEvalSave(src, id, arr)      { try { localStorage.setItem(projEvalKe
 
 // Toont/verbergt de evaluatierij (klik op naam van de medewerker).
 function projEvalToggle_vis(safeId) {
-  const row = document.getElementById(`pr-eval-row-${safeId}`);
-  if (!row) return;
-  row.style.display = row.style.display === 'none' ? '' : 'none';
+  const evalRow     = document.getElementById(`pr-eval-row-${safeId}`);
+  const contractRow = document.getElementById(`pr-contract-row-${safeId}`);
+  const show = evalRow?.style.display === 'none' ? '' : 'none';
+  if (evalRow)     evalRow.style.display     = show;
+  if (contractRow) contractRow.style.display = show;
 }
 
 function projEvalToggle(src, id, idx) {
@@ -2954,7 +2962,9 @@ function getEvalMilestones(startDate) {
   return ms;
 }
 
-function _evalChips(src, id, milestones, checked, safeId) {
+// readonly=true → chips tonen maar niet klikbaar (Projecten-view)
+// hrmMode=true  → chips klikken via hrmEvalToggle (HRM/Backoffice view, met Salesforce popup)
+function _evalChips(src, id, milestones, checked, safeId, readonly, hrmMode) {
   const today = new Date(); today.setHours(0,0,0,0);
   return milestones.map((m, i) => {
     const due = m.date <= today, done = checked.includes(i);
@@ -2963,8 +2973,40 @@ function _evalChips(src, id, milestones, checked, safeId) {
     if (done)     { st='background:#d1fae5;border-color:#0e9f6e;color:#065f46;';                 lbl='✓ '+m.label; }
     else if (due) { st='background:#fef3c7;border-color:#d97706;color:#92400e;font-weight:700;'; lbl='⚡ '+m.label; }
     else          { st='background:#f9fafb;border-color:#e5e7eb;color:#9ca3af;';                 lbl=m.label; }
-    return `<span onclick="projEvalToggle('${src}','${id}',${i})" title="${dStr}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.68rem;border:1.5px solid;cursor:pointer;${st}margin:1px;">${lbl}</span>`;
+    const clickFn = hrmMode
+      ? `hrmEvalToggle('${src}','${id}',${i})`
+      : readonly ? '' : `projEvalToggle('${src}','${id}',${i})`;
+    const cursorSt = (readonly && !hrmMode) ? 'cursor:default;' : 'cursor:pointer;';
+    return `<span ${clickFn?`onclick="${clickFn}"`:''}  title="${dStr}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.68rem;border:1.5px solid;${cursorSt}${st}margin:1px;">${lbl}</span>`;
   }).join('');
+}
+
+// Salesforce-popup bij afvinken in HRM/Backoffice
+function hrmEvalToggle(src, id, idx) {
+  if (!isHrmEditor()) { alert('Alleen Annyck Nelissen, Toussaint Rosier of Jannik van Rijt mag evaluaties afvinken.'); return; }
+  const cur   = projEvalLoad(src, id);
+  const isDone = cur.includes(idx);
+  if (isDone) {
+    // Uitvinken: geen bevestiging nodig
+    const i = cur.indexOf(idx); cur.splice(i, 1);
+    projEvalSave(src, id, cur);
+    renderHrmBackoffice();
+    return;
+  }
+  // Aanvinken: Salesforce-bevestiging vereist
+  const modal = document.getElementById('hrm-salesforce-modal');
+  if (modal) { modal.dataset.src = src; modal.dataset.id = id; modal.dataset.idx = idx; modal.style.display = 'flex'; }
+}
+function hrmEvalConfirm(yes) {
+  const modal = document.getElementById('hrm-salesforce-modal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  if (!yes) return; // Nee → geen afvinken
+  const { src, id, idx } = modal.dataset;
+  const cur = projEvalLoad(src, id);
+  if (!cur.includes(+idx)) cur.push(+idx);
+  projEvalSave(src, id, cur);
+  renderHrmBackoffice();
 }
 
 function renderEvalRow(src, id, startDateStr, nCols, safeId) {
@@ -2978,7 +3020,39 @@ function renderEvalRow(src, id, startDateStr, nCols, safeId) {
     <td colspan="${nCols}" style="padding:2px 8px 6px 26px;">
       <div style="display:flex;gap:2px;flex-wrap:wrap;align-items:center;">
         <span style="font-size:.66rem;color:var(--muted);margin-right:4px;white-space:nowrap;">📋 Evaluatie:</span>
-        <span id="pr-eval-chips-${safeId}">${_evalChips(src, id, ms, checked, safeId)}</span>
+        <span id="pr-eval-chips-${safeId}">${_evalChips(src, id, ms, checked, safeId, true, false)}</span>
+      </div>
+    </td>
+  </tr>`;
+}
+
+// ── Contract-veldenrij (uitvouwbaar, naast eval-rij) ─────────────────────────
+function renderContractRow(src, id, nCols, safeId) {
+  const data     = projContractLoad(src, id);
+  const editable = isHrmEditor();
+  const cells = CONTRACT_FIELDS.map(f => {
+    const val  = data[f.key] ?? '';
+    const stIn = `font-size:.68rem;padding:1px 3px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${editable?'#fff':'#f9fafb'};`;
+    if (!editable) {
+      return `<span style="${stIn}display:inline-block;color:${val?'var(--text)':'var(--muted)'};">${escHtml(String(val||'—'))}</span>`;
+    }
+    if (f.type === 'select') {
+      const opts = (f.opts||[]).map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'–'}</option>`).join('');
+      return `<select onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">${opts}</select>`;
+    }
+    return `<input type="${f.type}" value="${escHtml(String(val))}" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
+  });
+  const headerRow = CONTRACT_FIELDS.map(f =>
+    `<span style="font-size:.6rem;color:var(--muted);display:inline-block;width:${f.w};text-align:center;box-sizing:border-box;">${f.label}</span>`
+  ).join('');
+  return `<tr id="pr-contract-row-${safeId}" style="display:none;border-bottom:1px solid var(--border);background:#f0f4ff;">
+    <td colspan="${nCols}" style="padding:2px 8px 5px 26px;">
+      <div style="font-size:.6rem;color:var(--muted);margin-bottom:1px;white-space:nowrap;">📑 Contractgegevens:</div>
+      <div style="display:flex;gap:3px;flex-wrap:nowrap;overflow-x:auto;align-items:flex-start;">
+        <div>
+          <div style="display:flex;gap:3px;margin-bottom:2px;">${headerRow}</div>
+          <div style="display:flex;gap:3px;">${cells.join('')}</div>
+        </div>
       </div>
     </td>
   </tr>`;
@@ -3192,6 +3266,9 @@ async function pipeSetGoedkeuring(bmNaam, cardId, status) {
       alert('Selecteer eerst de initialen van de betrokken collega(\'s) voordat je akkoord geeft.');
       return;
     }
+    // Verplichte contractvelden popup vóór akkoord
+    showContractModal(bmNaam, cardId);
+    return;
   }
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
@@ -3213,6 +3290,72 @@ async function pipeSetGoedkeuring(bmNaam, cardId, status) {
     if (error) { alert('Bijwerken mislukt: ' + error.message); return; }
   }
   if (card) { card.goedkeuring = status; card.start_datum = startDatum; }
+  pipeSave(bmNaam, cards);
+  render();
+}
+
+// ── Contract-modal: verplichte invulstap vóór akkoord ────────────────────────
+function showContractModal(bmNaam, cardId) {
+  const modal = document.getElementById('hrm-contract-modal');
+  if (!modal) { _pipeGoedkeuringAkkoordProceed(bmNaam, cardId); return; }
+  modal.dataset.bmNaam = bmNaam;
+  modal.dataset.cardId = cardId;
+  const data     = projContractLoad('pipeline', cardId);
+  const editable = isHrmEditor();
+  const fields   = CONTRACT_FIELDS.filter(f => f.key !== 'bonus');
+  const formHtml = fields.map(f => {
+    const val  = data[f.key] ?? '';
+    const stIn = `font-size:.78rem;padding:4px 6px;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:4px;`;
+    let input;
+    if (!editable) {
+      input = `<div style="${stIn}background:#f9fafb;min-height:28px;color:${val?'var(--text)':'var(--muted)'};">${escHtml(String(val||'—'))}</div>`;
+    } else if (f.type === 'select') {
+      const opts = (f.opts||[]).map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'–'}</option>`).join('');
+      input = `<select id="cm-field-${f.key}" style="${stIn}">${opts}</select>`;
+    } else {
+      input = `<input type="${f.type}" id="cm-field-${f.key}" value="${escHtml(String(val))}" style="${stIn}">`;
+    }
+    return `<div style="flex:1;min-width:${f.w};max-width:130px;">
+      <label style="font-size:.65rem;color:var(--muted);display:block;margin-bottom:2px;">${f.label}</label>
+      ${input}
+    </div>`;
+  }).join('');
+  document.getElementById('hrm-contract-modal-fields').innerHTML = formHtml;
+  modal.style.display = 'flex';
+}
+function contractModalConfirm() {
+  const modal = document.getElementById('hrm-contract-modal');
+  if (!modal) return;
+  const bmNaam = modal.dataset.bmNaam;
+  const cardId = modal.dataset.cardId;
+  if (isHrmEditor()) {
+    const data   = projContractLoad('pipeline', cardId);
+    const fields = CONTRACT_FIELDS.filter(f => f.key !== 'bonus');
+    for (const f of fields) {
+      const el = document.getElementById(`cm-field-${f.key}`);
+      if (el) data[f.key] = el.value;
+    }
+    projContractSave('pipeline', cardId, data);
+  }
+  modal.style.display = 'none';
+  _pipeGoedkeuringAkkoordProceed(bmNaam, cardId);
+}
+function contractModalCancel() {
+  const modal = document.getElementById('hrm-contract-modal');
+  if (modal) modal.style.display = 'none';
+}
+async function _pipeGoedkeuringAkkoordProceed(bmNaam, cardId) {
+  const cards = pipeLoad(bmNaam);
+  const card  = cards.find(c => c.id === cardId);
+  const startDatum = card?.start_datum || toISODate(new Date());
+  if (supa) {
+    const { error } = await supa.from('pipeline_cards').update({
+      goedkeuring: 'akkoord', start_datum: startDatum,
+      updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString()
+    }).eq('id', cardId);
+    if (error) { alert('Bijwerken mislukt: ' + error.message); return; }
+  }
+  if (card) { card.goedkeuring = 'akkoord'; card.start_datum = startDatum; }
   pipeSave(bmNaam, cards);
   render();
 }
@@ -3330,7 +3473,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
         <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
         <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;display:block;margin-top:2px;"></span>
       </td>
-    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
+    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId)}`;
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
       <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
@@ -3339,8 +3482,381 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
       <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
-    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}`;
+    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId)}`;
   }
+}
+
+// ── HRM/Backoffice pagina ─────────────────────────────────────────────────────
+function renderHrmBackoffice() {
+  const el = document.getElementById('main');
+  if (!el) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const subTabBtn = (t, label) => {
+    const active = HRM_SUBTAB === t;
+    return `<button onclick="selectHrmSubTab('${t}')" style="padding:8px 18px;font-size:.82rem;font-weight:${active?'700':'500'};border:none;background:none;border-bottom:${active?'2px solid var(--primary)':'2px solid transparent'};color:${active?'var(--primary)':'var(--muted)'};cursor:pointer;margin-bottom:-2px;">${label}</button>`;
+  };
+  const subTabBar = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
+    ${subTabBtn('evaluatie','📋 Evaluatiebeheer')}
+    ${subTabBtn('aanmeldformulier','📝 Aanmeldformulier')}
+  </div>`;
+
+  let body = '';
+  if (HRM_SUBTAB === 'evaluatie') {
+    const ranges = getCombinedProjectRanges().filter(r => {
+      if (!r.begin) return false;
+      if (r.verwijderdOp && r.verwijderdOp < today) return false;
+      const startStr = toISODate(r.begin);
+      if (!startStr) return false;
+      const checked = projEvalLoad(r.source, r.id);
+      const ms = getEvalMilestones(new Date(startStr));
+      return ms.some((m, i) => m.date <= today && !checked.includes(i));
+    });
+
+    if (!ranges.length) {
+      body = `<p style="color:var(--muted);font-size:.88rem;padding:12px 0;">✅ Geen evaluaties vereist op dit moment.</p>`;
+    } else {
+      const rows = ranges.map(r => {
+        const safeId   = `hrm${String(r.id).replace(/[^a-zA-Z0-9]/g, '')}`;
+        const startStr = toISODate(r.begin) || '';
+        const checked  = projEvalLoad(r.source, r.id);
+        const ms       = getEvalMilestones(new Date(startStr));
+        const chips    = _evalChips(r.source, r.id, ms, checked, safeId, false, true);
+        return `<tr style="border-bottom:1px solid var(--border);background:#fffbeb;">
+          <td style="padding:6px 10px;font-size:.82rem;font-weight:700;">${escHtml(r.naam||'—')}</td>
+          <td style="padding:6px 10px;font-size:.78rem;color:var(--muted);">${escHtml(r.bm||'—')}</td>
+          <td style="padding:6px 10px;font-size:.78rem;">${escHtml(r.opdrachtgever||'—')}</td>
+          <td style="padding:6px 10px;font-size:.75rem;">${startStr||'—'}</td>
+          <td style="padding:6px 10px;">${chips}</td>
+        </tr>`;
+      }).join('');
+      body = `<div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+          <thead>
+            <tr style="background:var(--primary-light);border-bottom:2px solid var(--border);">
+              <th style="padding:6px 10px;text-align:left;font-size:.72rem;color:var(--primary);">Kandidaat</th>
+              <th style="padding:6px 10px;text-align:left;font-size:.72rem;color:var(--primary);">BM</th>
+              <th style="padding:6px 10px;text-align:left;font-size:.72rem;color:var(--primary);">Opdrachtgever</th>
+              <th style="padding:6px 10px;text-align:left;font-size:.72rem;color:var(--primary);">Startdatum</th>
+              <th style="padding:6px 10px;text-align:left;font-size:.72rem;color:var(--primary);">Evaluatiemomenten</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+  } else {
+    body = renderAanmeldForm();
+  }
+
+  el.innerHTML = `<div style="padding:18px 20px;max-width:1100px;">
+    <h2 style="margin:0 0 16px;font-size:1.05rem;font-weight:800;color:var(--text);">🗂️ HRM / Backoffice</h2>
+    ${subTabBar}
+    ${body}
+  </div>`;
+}
+// ── Aanmeldformulier: helpers + form render ───────────────────────────────────
+function aanmeldLoad() {
+  try { return JSON.parse(localStorage.getItem('bt_aanmeld_data') || '{}'); } catch(_) { return {}; }
+}
+function aanmeldSet(key, val) {
+  const d = aanmeldLoad(); d[key] = val;
+  try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(d)); } catch(_) {}
+}
+function aanmeldDayToggle(week, day) {
+  const d = aanmeldLoad(), key = `arb_${week}`;
+  const cur = d[key] || [];
+  const idx = cur.indexOf(day);
+  if (idx >= 0) cur.splice(idx, 1); else cur.push(day);
+  aanmeldSet(key, cur);
+}
+function aanmeldOvertCalc() {
+  const bruto = parseFloat(aanmeldLoad().bruto_maand || 0) || 0;
+  for (let i = 1; i <= 5; i++) {
+    const pct = parseFloat(aanmeldLoad()[`overw_pct_${i}`] || 0) || 0;
+    const el  = document.getElementById(`overw_tarief_${i}`);
+    if (el) el.value = (bruto > 0 && pct > 0) ? (bruto * pct / 100).toFixed(2) : '';
+  }
+}
+
+const AANMELD_CHECKLIST = [
+  ['Projectenlijst invullen',                     'checklist_1',  'AN'],
+  ['e-UUR plaatsing aangemaakt + looncomponent',  'checklist_2',  'AN'],
+  ['Aanmelding salarisadministratie',             'checklist_3',  'JvR'],
+  ['Map in administratiemail',                    'checklist_4',  'AN'],
+  ['Toevoegen urenschema facturatie',             'checklist_5',  'AN'],
+  ['Toevoegen urenschema verloning',              'checklist_6',  'AN'],
+  ['Welkomsmail verstuurd',                       'checklist_7',  'JvR'],
+  ['Toevoegen evaluatiecyclus',                   'checklist_8',  'JvR'],
+  ['Toevoegen verzuim bestand',                   'checklist_9',  'AN/JvR'],
+  ['Eindejaarsuitkering of bonus? Lijst invullen','checklist_10', 'AN'],
+  ['Telefoonnummer opgeslagen',                   'checklist_11', 'AN/JvR'],
+  ['Excel bestand tarieven overwerk invullen',    'checklist_12', 'AN/JvR'],
+  ['Salesforce bijwerken indien nieuwe cao',      'checklist_13', 'JvR'],
+  ['Salesforce bijwerken 13de maand',             'checklist_14', 'JvR'],
+  ['Toevoegen aan activiteitenoverzicht',         'checklist_15', 'AN/JvR'],
+  ['Moneybird inrichten + koppeling e-UUR',       'checklist_16', 'AN'],
+];
+
+function renderAanmeldForm() {
+  const d   = aanmeldLoad();
+  const v   = k => escHtml(String(d[k] ?? ''));
+  const stI = 'width:100%;box-sizing:border-box;padding:4px 7px;font-size:.78rem;border:1px solid var(--border);border-radius:4px;background:#fff;';
+  const fld = (key, label, type = 'text', opts = null) => {
+    let inp;
+    if (type === 'select') {
+      const os = (opts||[]).map(o => `<option value="${escHtml(o)}" ${o===(d[key]||'')?'selected':''}>${escHtml(o)||'—'}</option>`).join('');
+      inp = `<select style="${stI}" onchange="aanmeldSet('${key}',this.value)">${os}</select>`;
+    } else if (type === 'textarea') {
+      inp = `<textarea style="${stI}min-height:56px;resize:vertical;" oninput="aanmeldSet('${key}',this.value)">${v(key)}</textarea>`;
+    } else {
+      inp = `<input type="${type}" value="${v(key)}" style="${stI}" oninput="aanmeldSet('${key}',this.value)">`;
+    }
+    return `<div><label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:2px;">${label}</label>${inp}</div>`;
+  };
+  const sec  = t => `<div style="grid-column:1/-1;background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-top:10px;">${t}</div>`;
+  const days = ['ma','di','wo','do','vrij','zat','zon'];
+  const evenDays   = d.arb_even   || [];
+  const onevenDays = d.arb_oneven || [];
+  const dayChk = (week, list) => days.map(dy =>
+    `<label style="display:inline-flex;align-items:center;gap:2px;font-size:.74rem;cursor:pointer;margin-right:6px;"><input type="checkbox" ${list.includes(dy)?'checked':''} onchange="aanmeldDayToggle('${week}','${dy}')"> ${dy}</label>`
+  ).join('');
+
+  const bruto    = parseFloat(d.bruto_maand || 0) || 0;
+  const overwRows = [1,2,3,4,5].map(i => {
+    const pct = d[`overw_pct_${i}`] ?? '';
+    const tar = bruto && pct ? (bruto * parseFloat(pct) / 100).toFixed(2) : '';
+    return `<tr>
+      <td style="padding:2px 6px;font-size:.73rem;color:var(--muted);">Overwerk ${i}</td>
+      <td style="padding:2px 4px;"><input type="number" value="${escHtml(String(pct))}" placeholder="%" oninput="aanmeldSet('overw_pct_${i}',this.value);aanmeldOvertCalc()" style="width:68px;padding:3px 5px;font-size:.73rem;border:1px solid var(--border);border-radius:3px;"></td>
+      <td style="padding:2px 4px;"><input type="number" id="overw_tarief_${i}" value="${escHtml(String(tar))}" readonly placeholder="auto" style="width:90px;padding:3px 5px;font-size:.73rem;border:1px solid var(--border);border-radius:3px;background:#f5f5f5;color:var(--muted);"></td>
+    </tr>`;
+  }).join('');
+
+  const checkRows = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
+    `<tr><td style="padding:3px 8px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem;"><input type="checkbox" ${d[key]?'checked':''} onchange="aanmeldSet('${key}',this.checked)"> ${lbl}</label></td><td style="padding:3px 8px;text-align:right;font-size:.68rem;color:var(--muted);white-space:nowrap;">${who}</td></tr>`
+  ).join('');
+
+  const g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start;';
+  return `<div style="max-width:820px;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+      <button onclick="hrmDownloadAanmeld()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;">⬇️ PDF downloaden</button>
+      <button onclick="hrmMailtoAanmeld()" style="padding:8px 18px;background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;">📧 Versturen via e-mail</button>
+      <span style="font-size:.72rem;color:var(--muted);">Gegevens worden automatisch opgeslagen.</span>
+    </div>
+    <div style="${g2}">
+      ${sec('👤 Persoonlijke gegevens')}
+      ${fld('naam_achternaam','Voornaam en achternaam')}
+      ${fld('voorletters','Voorletters')}
+      ${fld('geslacht','M/V','select',['','M','V'])}
+      ${fld('roepnaam','Roepnaam/voornaam')}
+      ${fld('telefoon','Telefoon','tel')}
+      ${fld('email','E-mailadres','email')}
+      ${fld('noodcontact','Contact in noodgevallen')}
+      ${fld('functie','Functie omschrijving')}
+      ${fld('cao_opdrachtgever','CAO Opdrachtgever')}
+      <div></div>
+      ${fld('adres','Adres')}
+      ${fld('postcode_woonplaats','Postcode / Woonplaats')}
+      ${fld('geb_datum','Geboortedatum','date')}
+      ${fld('nationaliteit','Nationaliteit')}
+      ${fld('auto_zaak','Auto van de zaak','select',['','Ja','Nee'])}
+      ${fld('bsn','BSN / Sofi-nummer')}
+      ${fld('burg_staat','Burgelijke staat','select',['','Gehuwd','Ongehuwd','Samenwonend','Gescheiden','Weduwe(naar)'])}
+      ${fld('id_bewijs','Soort ID-bewijs','select',['','Paspoort','Identiteitskaart','Rijbewijs'])}
+      ${fld('nr_id','Nr. ID')}
+      ${fld('bankrekening','Bankrekeningnummer')}
+      ${fld('datum_dienst','Datum in dienst','date')}
+      ${fld('datum_uitdienst','Vermoedelijke datum uit dienst','date')}
+      ${fld('deeltijd_pct','Deeltijd %','number')}
+      ${fld('arb_uren_dag','Arbeidspatroon in uren per dag','number')}
+      <div style="grid-column:1/-1;">
+        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Even week</label>
+        <div style="padding:4px 0;">${dayChk('even', evenDays)}</div>
+      </div>
+      <div style="grid-column:1/-1;">
+        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Oneven week</label>
+        <div style="padding:4px 0;">${dayChk('oneven', onevenDays)}</div>
+      </div>
+
+      ${sec('💰 Bruto per maand & Overwerk')}
+      ${fld('bruto_maand','Bruto per maand (€)','number')}
+      <div></div>
+      <div style="grid-column:1/-1;">
+        <table style="border-collapse:collapse;">
+          <thead><tr>
+            <th style="padding:2px 6px;text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;">Overwerk</th>
+            <th style="padding:2px 4px;text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;">Percentage (%)</th>
+            <th style="padding:2px 4px;text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;">Tarief (automatisch)</th>
+          </tr></thead>
+          <tbody>${overwRows}</tbody>
+        </table>
+      </div>
+
+      ${sec('🚗 Vergoedingen')}
+      ${fld('reiskosten_dag','Reiskosten per dag (€)','number')}
+      ${fld('vergoeding_overige','Overige vergoeding')}
+      ${fld('loonheffingskorting','Loonheffingskorting','select',['','Ja','Nee'])}
+      <div></div>
+
+      ${sec('🏢 Opdrachtgever')}
+      ${fld('opdrachtgever_naam','Naam opdrachtgever')}
+      ${fld('vca_plichtig','VCA plichtig?','select',['','Nee','Basis','VOL'])}
+      ${fld('firmapas_benodigd','Firmapas benodigd','select',['','Ja','Nee'])}
+      ${fld('betalingstermijn','Betalingstermijn')}
+      ${fld('tarief_100','Tarief 100% (€)','number')}
+      ${fld('berekening_tarief','Berekening 100% tarief')}
+      ${fld('berekening_reiskosten','Berekening reiskosten')}
+      ${fld('accordering_uren','Accordering uren door')}
+      ${fld('email_facturatie','Emailadres facturatie','email')}
+      ${fld('cao_contact','Wie benaderen voor CAO wijzigingen?')}
+    </div>
+
+    <div style="margin-top:14px;">
+      <div style="background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-bottom:6px;">✅ Administratie checklist</div>
+      <table style="width:100%;border-collapse:collapse;">${checkRows}</table>
+      <div style="margin-top:10px;">${fld('overig_afspraken','Overig afspraken','textarea')}</div>
+    </div>
+  </div>`;
+}
+
+function hrmDownloadAanmeld() {
+  const d = aanmeldLoad();
+  const v = k => d[k] ? escHtml(String(d[k])) : '—';
+  const bruto = parseFloat(d.bruto_maand || 0) || 0;
+  let overwHtml = '';
+  for (let i = 1; i <= 5; i++) {
+    const pct = d[`overw_pct_${i}`];
+    if (pct) {
+      const tar = bruto ? (bruto * parseFloat(pct) / 100).toFixed(2) : '—';
+      overwHtml += `<tr><td style="padding:2px 8px;">Overwerk ${i}</td><td style="padding:2px 8px;">${escHtml(String(pct))}%</td><td style="padding:2px 8px;">€ ${tar}</td></tr>`;
+    }
+  }
+  const checkHtml = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
+    `<tr><td style="padding:3px 8px;">${d[key] ? '☑' : '☐'} ${lbl}</td><td style="padding:3px 8px;text-align:right;color:#666;">${who}</td></tr>`
+  ).join('');
+  const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
+  <title>Aanmeldformulier – ${v('naam_achternaam')}</title>
+  <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;color:#111;}h1{font-size:13pt;color:#1a56db;margin-bottom:4px;}h2{font-size:10.5pt;background:#eff6ff;color:#1a56db;padding:4px 8px;margin:14px 0 5px;border-radius:3px;}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10pt;}.lb{color:#555;width:38%;}.vl{font-weight:500;}@media print{body{margin:8mm;}button{display:none;}}</style>
+  </head><body>
+  <h1>📋 Aanmeldformulier Brightech 2026</h1>
+  <p style="color:#555;font-size:10pt;margin-bottom:10px;">Kandidaat: <strong>${v('naam_achternaam')}</strong> &nbsp;|&nbsp; Datum in dienst: <strong>${v('datum_dienst')}</strong></p>
+  <h2>Persoonlijke gegevens</h2>
+  <table>
+    <tr><td class="lb">Voornaam en achternaam</td><td class="vl">${v('naam_achternaam')}</td><td class="lb">Voorletters</td><td class="vl">${v('voorletters')}</td></tr>
+    <tr><td class="lb">M/V</td><td class="vl">${v('geslacht')}</td><td class="lb">Roepnaam</td><td class="vl">${v('roepnaam')}</td></tr>
+    <tr><td class="lb">Telefoon</td><td class="vl">${v('telefoon')}</td><td class="lb">E-mailadres</td><td class="vl">${v('email')}</td></tr>
+    <tr><td class="lb">Contact noodgevallen</td><td class="vl">${v('noodcontact')}</td><td class="lb">Functie</td><td class="vl">${v('functie')}</td></tr>
+    <tr><td class="lb">CAO Opdrachtgever</td><td class="vl">${v('cao_opdrachtgever')}</td><td class="lb">Adres</td><td class="vl">${v('adres')}</td></tr>
+    <tr><td class="lb">Postcode/Woonplaats</td><td class="vl">${v('postcode_woonplaats')}</td><td class="lb">Geboortedatum</td><td class="vl">${v('geb_datum')}</td></tr>
+    <tr><td class="lb">Nationaliteit</td><td class="vl">${v('nationaliteit')}</td><td class="lb">Auto van de zaak</td><td class="vl">${v('auto_zaak')}</td></tr>
+    <tr><td class="lb">BSN/Sofi-nummer</td><td class="vl">${v('bsn')}</td><td class="lb">Burgelijke staat</td><td class="vl">${v('burg_staat')}</td></tr>
+    <tr><td class="lb">Soort ID-bewijs</td><td class="vl">${v('id_bewijs')}</td><td class="lb">Nr. ID</td><td class="vl">${v('nr_id')}</td></tr>
+    <tr><td class="lb">Bankrekeningnummer</td><td class="vl">${v('bankrekening')}</td><td class="lb">Datum in dienst</td><td class="vl">${v('datum_dienst')}</td></tr>
+    <tr><td class="lb">Datum uit dienst</td><td class="vl">${v('datum_uitdienst')}</td><td class="lb">Deeltijd %</td><td class="vl">${v('deeltijd_pct')}</td></tr>
+    <tr><td class="lb">Arb. uren per dag</td><td class="vl">${v('arb_uren_dag')}</td><td></td><td></td></tr>
+    <tr><td class="lb">Even week</td><td class="vl" colspan="3">${(d.arb_even||[]).join(', ')||'—'}</td></tr>
+    <tr><td class="lb">Oneven week</td><td class="vl" colspan="3">${(d.arb_oneven||[]).join(', ')||'—'}</td></tr>
+  </table>
+  <h2>Bruto per maand &amp; Overwerk</h2>
+  <table>
+    <tr><td class="lb">Bruto per maand</td><td class="vl">€ ${v('bruto_maand')}</td><td></td><td></td></tr>
+    ${overwHtml ? `<tr><td colspan="4" style="padding-top:4px;"><table style="border-collapse:collapse;font-size:10pt;"><thead><tr><th style="padding:2px 8px;text-align:left;color:#555;">Overwerk</th><th style="padding:2px 8px;text-align:left;color:#555;">%</th><th style="padding:2px 8px;text-align:left;color:#555;">Tarief</th></tr></thead><tbody>${overwHtml}</tbody></table></td></tr>` : ''}
+  </table>
+  <h2>Vergoedingen</h2>
+  <table>
+    <tr><td class="lb">Reiskosten per dag</td><td class="vl">€ ${v('reiskosten_dag')}</td><td class="lb">Overige</td><td class="vl">${v('vergoeding_overige')}</td></tr>
+    <tr><td class="lb">Loonheffingskorting</td><td class="vl">${v('loonheffingskorting')}</td><td></td><td></td></tr>
+  </table>
+  <h2>Opdrachtgever</h2>
+  <table>
+    <tr><td class="lb">Naam opdrachtgever</td><td class="vl">${v('opdrachtgever_naam')}</td><td class="lb">VCA plichtig</td><td class="vl">${v('vca_plichtig')}</td></tr>
+    <tr><td class="lb">Firmapas benodigd</td><td class="vl">${v('firmapas_benodigd')}</td><td class="lb">Betalingstermijn</td><td class="vl">${v('betalingstermijn')}</td></tr>
+    <tr><td class="lb">Tarief 100%</td><td class="vl">€ ${v('tarief_100')}</td><td class="lb">Berekening tarief</td><td class="vl">${v('berekening_tarief')}</td></tr>
+    <tr><td class="lb">Berekening reiskosten</td><td class="vl">${v('berekening_reiskosten')}</td><td class="lb">Accordering uren door</td><td class="vl">${v('accordering_uren')}</td></tr>
+    <tr><td class="lb">Email facturatie</td><td class="vl">${v('email_facturatie')}</td><td class="lb">CAO contact</td><td class="vl">${v('cao_contact')}</td></tr>
+  </table>
+  <h2>Administratie checklist</h2>
+  <table>${checkHtml}</table>
+  ${d.overig_afspraken ? `<h2>Overig afspraken</h2><p style="font-size:10pt;">${escHtml(String(d.overig_afspraken)).replace(/\n/g,'<br>')}</p>` : ''}
+  <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`;
+  const win = window.open('', '_blank', 'width=820,height=900');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+function hrmMailtoAanmeld() {
+  const d = aanmeldLoad();
+  const v = k => d[k] ? String(d[k]) : '—';
+  const bruto = parseFloat(d.bruto_maand || 0) || 0;
+  let overwText = '';
+  for (let i = 1; i <= 5; i++) {
+    const pct = d[`overw_pct_${i}`];
+    if (pct) {
+      const tar = bruto ? (bruto * parseFloat(pct) / 100).toFixed(2) : '—';
+      overwText += `\nOverwerk ${i}: ${pct}% → € ${tar}`;
+    }
+  }
+  const bodyLines = [
+    'AANMELDFORMULIER BRIGHTECH 2026',
+    '========================================',
+    '',
+    'PERSOONLIJKE GEGEVENS',
+    `Naam: ${v('naam_achternaam')}`,
+    `Voorletters: ${v('voorletters')}`,
+    `M/V: ${v('geslacht')}`,
+    `Roepnaam: ${v('roepnaam')}`,
+    `Telefoon: ${v('telefoon')}`,
+    `E-mail: ${v('email')}`,
+    `Contact noodgevallen: ${v('noodcontact')}`,
+    `Functie: ${v('functie')}`,
+    `CAO Opdrachtgever: ${v('cao_opdrachtgever')}`,
+    `Adres: ${v('adres')}`,
+    `Postcode/Woonplaats: ${v('postcode_woonplaats')}`,
+    `Geboortedatum: ${v('geb_datum')}`,
+    `Nationaliteit: ${v('nationaliteit')}`,
+    `Auto van de zaak: ${v('auto_zaak')}`,
+    `BSN/Sofi-nummer: ${v('bsn')}`,
+    `Burgelijke staat: ${v('burg_staat')}`,
+    `Soort ID-bewijs: ${v('id_bewijs')}`,
+    `Nr. ID: ${v('nr_id')}`,
+    `Bankrekeningnummer: ${v('bankrekening')}`,
+    `Datum in dienst: ${v('datum_dienst')}`,
+    `Datum uit dienst: ${v('datum_uitdienst')}`,
+    `Deeltijd %: ${v('deeltijd_pct')}`,
+    `Arb. uren per dag: ${v('arb_uren_dag')}`,
+    `Even week: ${(d.arb_even||[]).join(', ')||'—'}`,
+    `Oneven week: ${(d.arb_oneven||[]).join(', ')||'—'}`,
+    '',
+    'BRUTO PER MAAND & OVERWERK',
+    `Bruto per maand: € ${v('bruto_maand')}`,
+    overwText,
+    '',
+    'VERGOEDINGEN',
+    `Reiskosten per dag: € ${v('reiskosten_dag')}`,
+    `Overige: ${v('vergoeding_overige')}`,
+    `Loonheffingskorting: ${v('loonheffingskorting')}`,
+    '',
+    'OPDRACHTGEVER',
+    `Naam: ${v('opdrachtgever_naam')}`,
+    `VCA plichtig: ${v('vca_plichtig')}`,
+    `Firmapas benodigd: ${v('firmapas_benodigd')}`,
+    `Betalingstermijn: ${v('betalingstermijn')}`,
+    `Tarief 100%: € ${v('tarief_100')}`,
+    `Berekening tarief: ${v('berekening_tarief')}`,
+    `Berekening reiskosten: ${v('berekening_reiskosten')}`,
+    `Accordering uren door: ${v('accordering_uren')}`,
+    `Email facturatie: ${v('email_facturatie')}`,
+    `CAO contact: ${v('cao_contact')}`,
+    '',
+    'ADMINISTRATIE CHECKLIST',
+    ...AANMELD_CHECKLIST.map(([lbl, key, who]) => `${d[key] ? '[x]' : '[ ]'} ${lbl} (${who})`),
+    '',
+    'OVERIG AFSPRAKEN',
+    v('overig_afspraken'),
+  ];
+  const subject = `Aanmeldformulier – ${v('naam_achternaam')}`;
+  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
 }
 
 function renderPrognose() {
@@ -7115,7 +7631,7 @@ function renderPeriodeToolbar(years) {
         ${granulariteitBtn('kwartaal', 'Kwartaal')}
         ${granulariteitBtn('maand', 'Maand')}
         ${granulariteitBtn('week', 'Week')}
-        ${periodeSelectHtml ? `<span style="border-left:2px solid var(--muted);padding-left:10px;margin-left:2px;display:flex;align-items:center;gap:6px;"><span class="sub">Kies:</span>${periodeSelectHtml}</span>` : ''}
+        ${periodeSelectHtml ? `<span style="border-left:2px solid var(--muted);padding-left:10px;margin-left:2px;display:flex;align-items:center;gap:6px;"><span class="sub" style="white-space:nowrap;font-weight:700;">Kies periode ▾</span>${periodeSelectHtml.replace('<select ', '<select style="border:2px solid var(--primary);border-radius:6px;padding:4px 8px;font-size:.82rem;font-weight:600;background:var(--primary-light);color:var(--primary);cursor:pointer;" ')}</span>` : ''}
       </div>
     </div>`;
 }
@@ -7168,6 +7684,45 @@ function sortRankingRows(rows) {
 }
 
 function toggleVervallenCollapse() { VERV_COLLAPSED = !VERV_COLLAPSED; renderFinancieel(); }
+
+// ── HRM/Backoffice helpers ────────────────────────────────────────────────────
+// Bepaalt wie contractvelden en evaluatie-checkboxen mag bewerken in HRM-context
+function isHrmEditor() {
+  if (!CURRENT_USER) return false;
+  const n = CURRENT_USER.bm_naam || '';
+  return n === 'Annyck Nelissen' || n === 'Toussaint Rosier' || n === 'Jannik van Rijt';
+}
+// State voor HRM sub-tab
+let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier'
+function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
+
+// ── Contract-velden (localStorage) per project ───────────────────────────────
+const CONTRACT_FIELDS = [
+  {key:'projectnr',  label:'Projectnr',    type:'text',    w:'70px'},
+  {key:'contract',   label:'Contract',     type:'select',  w:'90px', opts:['','Bepaald','Onbepaald','Oproep','Uitzend']},
+  {key:'salaris_bpm',label:'Salaris (BPM)',type:'number',  w:'80px'},
+  {key:'wtta',       label:'WTTA-toeslag', type:'number',  w:'76px'},
+  {key:'tarief',     label:'Tarief',       type:'number',  w:'66px'},
+  {key:'allin',      label:'All-in?',      type:'select',  w:'58px', opts:['','Ja','Nee']},
+  {key:'verlof',     label:'Verlof',       type:'number',  w:'54px'},
+  {key:'adv',        label:'ADV',          type:'number',  w:'50px'},
+  {key:'comp',       label:'Compensatie',  type:'number',  w:'80px'},
+  {key:'kostprijs',  label:'Kostprijs',    type:'number',  w:'70px'},
+  {key:'grondslag',  label:'Grondslag',    type:'number',  w:'72px'},
+  {key:'vergoeding', label:'Vergoeding',   type:'number',  w:'76px'},
+  {key:'frequentie', label:'Frequentie',   type:'select',  w:'80px', opts:['','Maandelijks','4-wekelijks','Wekelijks']},
+  {key:'marge',      label:'Marge',        type:'number',  w:'60px'},
+  {key:'uren',       label:'Uren',         type:'number',  w:'54px'},
+  {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
+];
+function projContractKey(src, id) { return `bt_proj_contract_${src}_${id}`; }
+function projContractLoad(src, id) { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}'); } catch(_){ return {}; } }
+function projContractSave(src, id, obj) { try { localStorage.setItem(projContractKey(src,id), JSON.stringify(obj)); } catch(_){} }
+function projContractSet(src, id, key, val) {
+  const d = projContractLoad(src, id);
+  d[key] = val;
+  projContractSave(src, id, d);
+}
 
 function selectRankingSort(key) {
   if (RANKING_SORT_KEY === key) {
@@ -7246,7 +7801,7 @@ function renderFinancieel() {
           ${granulariteitBtn('kwartaal', 'Kwartaal')}
           ${granulariteitBtn('maand', 'Maand')}
           ${granulariteitBtn('week', 'Week')}
-          ${periodeSelectHtml ? `<span style="border-left:2px solid var(--muted);padding-left:10px;margin-left:2px;display:flex;align-items:center;gap:6px;"><span class="sub">Kies:</span>${periodeSelectHtml}</span>` : ''}
+          ${periodeSelectHtml ? `<span style="border-left:2px solid var(--muted);padding-left:10px;margin-left:2px;display:flex;align-items:center;gap:6px;"><span class="sub" style="white-space:nowrap;font-weight:700;">Kies periode ▾</span>${periodeSelectHtml.replace('<select ', '<select style="border:2px solid var(--primary);border-radius:6px;padding:4px 8px;font-size:.82rem;font-weight:600;background:var(--primary-light);color:var(--primary);cursor:pointer;" ')}</span>` : ''}
         </div>
       </div>
       <div class="kpi-grid" style="margin-bottom:14px;">
@@ -7626,33 +8181,34 @@ function renderPipeline(bm) {
     // Save/wijzigen button in the week label — for all 4 weeks when editable
     const isNextWeek = wk.offset === 1;
     let weekBtnHtml = '';
+    let weekFrozen = false;
     if (editable) {
       const lockKey     = `${bm.naam}|${wk.year}|${wk.week}`;
       const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === wk.year && d.week === wk.week);
       const frozen      = !!existingRow && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
+      weekFrozen = frozen;
       // Compact button style that fits within the 68px column
       const bBase = 'display:block;width:calc(100% - 6px);box-sizing:border-box;margin-top:4px;font-size:.58rem;font-weight:700;border-radius:5px;padding:2px 3px;cursor:pointer;text-align:center;line-height:1.5;';
       if (frozen) {
         weekBtnHtml = `<button onclick="unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bBase}background:#fff;color:var(--primary);border:1px solid var(--primary);" title="Wijzigen">✏️ Wijzig</button>`;
-      } else if (isCur || isNextWeek) {
+      } else {
         weekBtnHtml = `<button onclick="saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bBase}background:var(--primary);color:#fff;border:none;" title="Opslaan">🔒 Opsl.</button>`;
       }
     }
 
     return `<div class="pipe-row">
-      <div class="pipe-week-label${isCur?' pipe-wk-now':isPast?' pipe-wk-past':''}">
+      <div class="pipe-week-label${isCur?' pipe-wk-now':isPast?' pipe-wk-past':''}"${weekFrozen ? ' style="background:rgba(240,253,244,0.45);"' : ''}>
         <span class="pipe-wk-num">W${wk.week}</span>
         <span class="pipe-wk-tag">${wkTag}<br/>${wk.year}</span>
-        ${wkTotal > 0 ? `<span class="pipe-wk-total">${wkTotal}</span>` : ''}
         ${weekBtnHtml}
       </div>
       ${cells}
     </div>`;
   }).join('');
 
-  return `<div class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+  return `<div class="section-title" style="display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px">
     <span>🗂️ Kandidaten pipeline</span>
-    <span style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:400;">
+    <span style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:400;margin-left:0;">
       <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
       ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
       <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
@@ -8042,6 +8598,31 @@ function pipeDelete(bmNaam, cardId) {
     </div>
   </div>
 </div>
+<!-- ── HRM Salesforce-verificatie modal ───────────────────────────────────── -->
+<div id="hrm-salesforce-modal" class="pipe-modal-overlay" style="display:none;">
+  <div class="pipe-modal" style="max-width:380px;text-align:center;">
+    <h4 style="margin-bottom:8px;">📋 Salesforce verificatie</h4>
+    <p style="font-size:.88rem;color:var(--text);margin-bottom:20px;">Is het evaluatieverslag ingevoerd in Salesforce?</p>
+    <div class="pipe-modal-btns" style="justify-content:center;">
+      <button class="pipe-modal-cancel" onclick="hrmEvalConfirm(false)">Nee</button>
+      <button class="pipe-modal-ok" onclick="hrmEvalConfirm(true)">Ja</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Contract-modal (bij akkoord geven) ────────────────────────────────── -->
+<div id="hrm-contract-modal" class="pipe-modal-overlay" style="display:none;" onclick="if(event.target===this)contractModalCancel()">
+  <div class="pipe-modal" style="max-width:720px;width:95vw;">
+    <h4 style="margin-bottom:6px;">📑 Contractgegevens invullen</h4>
+    <p class="pipe-modal-sub" style="margin-bottom:14px;">Vul de contractvelden in voordat akkoord gegeven wordt. U kunt deze gegevens later aanpassen in de projectenregel.</p>
+    <div id="hrm-contract-modal-fields" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+    <div class="pipe-modal-btns">
+      <button class="pipe-modal-cancel" onclick="contractModalCancel()">Annuleren</button>
+      <button class="pipe-modal-ok" onclick="contractModalConfirm()">Akkoord geven</button>
+    </div>
+  </div>
+</div>
+
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
