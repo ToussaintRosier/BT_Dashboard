@@ -3457,13 +3457,13 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     ? `<span id="pr-eval-alert-${safeId}" title="Evaluatie vereist" style="color:#d97706;font-weight:900;font-size:.85rem;margin-left:2px;cursor:pointer;${anyDue?'':'display:none'}">!</span>`
     : '';
   const chipHtml = canEditProj
-    ? `<td style="padding:3px 8px;text-align:left;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
-    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:left;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
+    ? `<td style="padding:3px 8px;text-align:left;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div><span onclick="projEvalToggle_vis('${safeId}')" style="font-size:.6rem;color:var(--muted);cursor:pointer;opacity:.55;white-space:nowrap;margin-left:2px;user-select:none;">▼ klik hier</span></td>`
+    : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:left;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}<br><span onclick="projEvalToggle_vis('${safeId}')" style="font-size:.6rem;color:var(--muted);cursor:pointer;opacity:.55;font-weight:400;user-select:none;">▼ klik hier</span></td>`;
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
       <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
-      <td style="padding:5px 8px;text-align:center;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
+      <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
@@ -3477,7 +3477,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
       <td style="padding:5px 8px;"><strong style="font-size:.83rem;cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
-      <td style="padding:5px 8px;text-align:center;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
+      <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
@@ -3492,10 +3492,7 @@ function renderHrmBackoffice() {
   if (!el) return;
   const today = new Date(); today.setHours(0,0,0,0);
 
-  const subTabBtn = (t, label) => {
-    const active = HRM_SUBTAB === t;
-    return `<button onclick="selectHrmSubTab('${t}')" style="padding:8px 18px;font-size:.82rem;font-weight:${active?'700':'500'};border:none;background:none;border-bottom:${active?'2px solid var(--primary)':'2px solid transparent'};color:${active?'var(--primary)':'var(--muted)'};cursor:pointer;margin-bottom:-2px;">${label}</button>`;
-  };
+  const subTabBtn = (t, label) => `<button class="bm-subtab-btn ${HRM_SUBTAB===t?'active':''}" onclick="selectHrmSubTab('${t}')">${label}</button>`;
   const subTabBar = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
     ${subTabBtn('evaluatie','📋 Evaluatiebeheer')}
     ${subTabBtn('aanmeldformulier','📝 Aanmeldformulier')}
@@ -3550,7 +3547,7 @@ function renderHrmBackoffice() {
   }
 
   el.innerHTML = `<div style="padding:18px 20px;max-width:1100px;">
-    <h2 style="margin:0 0 16px;font-size:1.05rem;font-weight:800;color:var(--text);">🗂️ HRM / Backoffice</h2>
+    <div class="section-title" style="margin:0 0 16px;">🗂️ HRM / Backoffice</div>
     ${subTabBar}
     ${body}
   </div>`;
@@ -3598,21 +3595,80 @@ const AANMELD_CHECKLIST = [
   ['Moneybird inrichten + koppeling e-UUR',       'checklist_16', 'AN'],
 ];
 
+// Verplichte velden aanmeldformulier (alles behalve checklist + overig_afspraken)
+const AANMELD_REQUIRED = {
+  naam_achternaam:      'Voornaam en achternaam',
+  voorletters:          'Voorletters',
+  geslacht:             'M/V',
+  roepnaam:             'Roepnaam',
+  telefoon:             'Telefoon',
+  email:                'E-mailadres',
+  noodcontact:          'Contact in noodgevallen',
+  functie:              'Functie omschrijving',
+  cao_opdrachtgever:    'CAO Opdrachtgever',
+  adres:                'Adres',
+  postcode_woonplaats:  'Postcode / Woonplaats',
+  geb_datum:            'Geboortedatum',
+  nationaliteit:        'Nationaliteit',
+  auto_zaak:            'Auto van de zaak',
+  bsn:                  'BSN / Sofi-nummer',
+  burg_staat:           'Burgelijke staat',
+  id_bewijs:            'Soort ID-bewijs',
+  nr_id:                'Nr. ID',
+  bankrekening:         'Bankrekeningnummer',
+  datum_dienst:         'Datum in dienst',
+  datum_uitdienst:      'Vermoedelijke datum uit dienst',
+  deeltijd_pct:         'Deeltijd %',
+  arb_uren_dag:         'Arbeidspatroon uren per dag',
+  bruto_maand:          'Bruto per maand',
+  reiskosten_dag:       'Reiskosten per dag',
+  loonheffingskorting:  'Loonheffingskorting',
+  opdrachtgever_naam:   'Naam opdrachtgever',
+  vca_plichtig:         'VCA plichtig',
+  firmapas_benodigd:    'Firmapas benodigd',
+  betalingstermijn:     'Betalingstermijn',
+  tarief_100:           'Tarief 100%',
+  berekening_tarief:    'Berekening 100% tarief',
+  berekening_reiskosten:'Berekening reiskosten',
+  accordering_uren:     'Accordering uren door',
+  email_facturatie:     'Emailadres facturatie',
+  cao_contact:          'Wie benaderen voor CAO wijzigingen',
+};
+
+function aanmeldValidate() {
+  const d = aanmeldLoad();
+  const missing = [];
+  for (const [key, label] of Object.entries(AANMELD_REQUIRED)) {
+    if (!d[key] || String(d[key]).trim() === '') missing.push(label);
+  }
+  if (!(d.arb_even  || []).length) missing.push('Arbeidspatroon – Even week (minstens 1 dag)');
+  if (!(d.arb_oneven|| []).length) missing.push('Arbeidspatroon – Oneven week (minstens 1 dag)');
+  return missing; // lege array = alles ingevuld
+}
+
 function renderAanmeldForm() {
   const d   = aanmeldLoad();
   const v   = k => escHtml(String(d[k] ?? ''));
-  const stI = 'width:100%;box-sizing:border-box;padding:4px 7px;font-size:.78rem;border:1px solid var(--border);border-radius:4px;background:#fff;';
+  const missingNow = aanmeldValidate();
+  const missingSet = new Set(Object.keys(AANMELD_REQUIRED).filter(k => !d[k] || String(d[k]).trim() === ''));
+  if (!(d.arb_even  || []).length) missingSet.add('arb_even');
+  if (!(d.arb_oneven|| []).length) missingSet.add('arb_oneven');
+  const stI = 'width:100%;box-sizing:border-box;padding:4px 7px;font-size:.78rem;border-radius:4px;background:#fff;';
   const fld = (key, label, type = 'text', opts = null) => {
+    const req = key in AANMELD_REQUIRED;
+    const bad = req && missingSet.has(key);
+    const bdr = bad ? 'border:1.5px solid #ef4444;' : 'border:1px solid var(--border);';
+    const reqMark = req ? `<span style="color:#ef4444;margin-left:1px;">*</span>` : '';
     let inp;
     if (type === 'select') {
       const os = (opts||[]).map(o => `<option value="${escHtml(o)}" ${o===(d[key]||'')?'selected':''}>${escHtml(o)||'—'}</option>`).join('');
-      inp = `<select style="${stI}" onchange="aanmeldSet('${key}',this.value)">${os}</select>`;
+      inp = `<select style="${stI}${bdr}" onchange="aanmeldSet('${key}',this.value)">${os}</select>`;
     } else if (type === 'textarea') {
-      inp = `<textarea style="${stI}min-height:56px;resize:vertical;" oninput="aanmeldSet('${key}',this.value)">${v(key)}</textarea>`;
+      inp = `<textarea style="${stI}${bdr}min-height:56px;resize:vertical;" oninput="aanmeldSet('${key}',this.value)">${v(key)}</textarea>`;
     } else {
-      inp = `<input type="${type}" value="${v(key)}" style="${stI}" oninput="aanmeldSet('${key}',this.value)">`;
+      inp = `<input type="${type}" value="${v(key)}" style="${stI}${bdr}" oninput="aanmeldSet('${key}',this.value)">`;
     }
-    return `<div><label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:2px;">${label}</label>${inp}</div>`;
+    return `<div><label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:2px;">${label}${reqMark}</label>${inp}</div>`;
   };
   const sec  = t => `<div style="grid-column:1/-1;background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-top:10px;">${t}</div>`;
   const days = ['ma','di','wo','do','vrij','zat','zon'];
@@ -3638,10 +3694,18 @@ function renderAanmeldForm() {
   ).join('');
 
   const g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start;';
+  const btnBase = 'padding:8px 18px;border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;';
+  const missingBanner = missingNow.length
+    ? `<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:7px;padding:8px 12px;font-size:.75rem;color:#dc2626;margin-bottom:10px;">
+        ⚠️ Nog <strong>${missingNow.length}</strong> verplicht ${missingNow.length===1?'veld':'velden'} open — formulier kan nog niet worden geëxporteerd of verstuurd.
+       </div>`
+    : `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:7px;padding:8px 12px;font-size:.75rem;color:#15803d;margin-bottom:10px;">✅ Alle verplichte velden zijn ingevuld.</div>`;
   return `<div style="max-width:820px;">
+    ${missingBanner}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
-      <button onclick="hrmDownloadAanmeld()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;">⬇️ PDF downloaden</button>
-      <button onclick="hrmMailtoAanmeld()" style="padding:8px 18px;background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;">📧 Versturen via e-mail</button>
+      <button onclick="hrmDownloadAanmeld()" style="${btnBase}background:var(--primary);color:#fff;border:none;">⬇️ PDF downloaden</button>
+      <button onclick="hrmWordAanmeld()"     style="${btnBase}background:#1a7f37;color:#fff;border:none;">📄 Word downloaden</button>
+      <button onclick="hrmMailtoAanmeld()"   style="${btnBase}background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);">📧 Versturen via e-mail</button>
       <span style="font-size:.72rem;color:var(--muted);">Gegevens worden automatisch opgeslagen.</span>
     </div>
     <div style="${g2}">
@@ -3671,12 +3735,12 @@ function renderAanmeldForm() {
       ${fld('deeltijd_pct','Deeltijd %','number')}
       ${fld('arb_uren_dag','Arbeidspatroon in uren per dag','number')}
       <div style="grid-column:1/-1;">
-        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Even week</label>
-        <div style="padding:4px 0;">${dayChk('even', evenDays)}</div>
+        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Even week<span style="color:#ef4444;margin-left:1px;">*</span></label>
+        <div style="padding:4px 6px;border-radius:4px;${missingSet.has('arb_even')?'border:1.5px solid #ef4444;':'border:1px solid transparent;'}">${dayChk('even', evenDays)}</div>
       </div>
       <div style="grid-column:1/-1;">
-        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Oneven week</label>
-        <div style="padding:4px 0;">${dayChk('oneven', onevenDays)}</div>
+        <label style="font-size:.68rem;color:var(--muted);display:block;margin-bottom:4px;">Arbeidspatroon – Oneven week<span style="color:#ef4444;margin-left:1px;">*</span></label>
+        <div style="padding:4px 6px;border-radius:4px;${missingSet.has('arb_oneven')?'border:1.5px solid #ef4444;':'border:1px solid transparent;'}">${dayChk('oneven', onevenDays)}</div>
       </div>
 
       ${sec('💰 Bruto per maand & Overwerk')}
@@ -3720,8 +3784,7 @@ function renderAanmeldForm() {
   </div>`;
 }
 
-function hrmDownloadAanmeld() {
-  const d = aanmeldLoad();
+function _aanmeldBuildHtml(d, forPrint) {
   const v = k => d[k] ? escHtml(String(d[k])) : '—';
   const bruto = parseFloat(d.bruto_maand || 0) || 0;
   let overwHtml = '';
@@ -3735,11 +3798,12 @@ function hrmDownloadAanmeld() {
   const checkHtml = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
     `<tr><td style="padding:3px 8px;">${d[key] ? '☑' : '☐'} ${lbl}</td><td style="padding:3px 8px;text-align:right;color:#666;">${who}</td></tr>`
   ).join('');
-  const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
+  const printScript = forPrint ? `<script>window.onload=function(){window.print();}<\/script>` : '';
+  return `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
   <title>Aanmeldformulier – ${v('naam_achternaam')}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;color:#111;}h1{font-size:13pt;color:#1a56db;margin-bottom:4px;}h2{font-size:10.5pt;background:#eff6ff;color:#1a56db;padding:4px 8px;margin:14px 0 5px;border-radius:3px;}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10pt;}.lb{color:#555;width:38%;}.vl{font-weight:500;}@media print{body{margin:8mm;}button{display:none;}}</style>
+  <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;color:#111;}h1{font-size:13pt;color:#1a56db;margin-bottom:4px;}h2{font-size:10.5pt;background:#eff6ff;color:#1a56db;padding:4px 8px;margin:14px 0 5px;border-radius:3px;}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10pt;}.lb{color:#555;width:38%;}.vl{font-weight:500;}@media print{body{margin:8mm;}}</style>
   </head><body>
-  <h1>📋 Aanmeldformulier Brightech 2026</h1>
+  <h1>Aanmeldformulier Brightech 2026</h1>
   <p style="color:#555;font-size:10pt;margin-bottom:10px;">Kandidaat: <strong>${v('naam_achternaam')}</strong> &nbsp;|&nbsp; Datum in dienst: <strong>${v('datum_dienst')}</strong></p>
   <h2>Persoonlijke gegevens</h2>
   <table>
@@ -3779,13 +3843,35 @@ function hrmDownloadAanmeld() {
   <h2>Administratie checklist</h2>
   <table>${checkHtml}</table>
   ${d.overig_afspraken ? `<h2>Overig afspraken</h2><p style="font-size:10pt;">${escHtml(String(d.overig_afspraken)).replace(/\n/g,'<br>')}</p>` : ''}
-  <script>window.onload=function(){window.print();}<\/script>
+  ${printScript}
   </body></html>`;
+}
+function hrmDownloadAanmeld() {
+  const missing = aanmeldValidate();
+  if (missing.length) { alert('Vul eerst alle verplichte velden in:\n\n• ' + missing.join('\n• ')); return; }
+  const d = aanmeldLoad();
+  const html = _aanmeldBuildHtml(d, true);
   const win = window.open('', '_blank', 'width=820,height=900');
   if (win) { win.document.write(html); win.document.close(); }
 }
+function hrmWordAanmeld() {
+  const missing = aanmeldValidate();
+  if (missing.length) { alert('Vul eerst alle verplichte velden in:\n\n• ' + missing.join('\n• ')); return; }
+  const d = aanmeldLoad();
+  const html = _aanmeldBuildHtml(d, false);
+  const blob = new Blob([html], { type: 'application/msword' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const naam = (d.naam_achternaam || 'kandidaat').replace(/\s+/g, '_');
+  a.href = url; a.download = `Aanmeldformulier_${naam}.doc`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function hrmMailtoAanmeld() {
+  const missing = aanmeldValidate();
+  if (missing.length) { alert('Vul eerst alle verplichte velden in:\n\n• ' + missing.join('\n• ')); return; }
   const d = aanmeldLoad();
   const v = k => d[k] ? String(d[k]) : '—';
   const bruto = parseFloat(d.bruto_maand || 0) || 0;
@@ -3999,7 +4085,7 @@ function renderPrognose() {
       <input id="proj-filter-q" type="text" placeholder="Zoek medewerker, opdrachtgever of initialen…"
         value="${(window._projFilt||{}).q||''}"
         oninput="window._projFilt.q=this.value;projFiltApply()"
-        style="margin-left:auto;padding:3px 12px 3px 28px;font-size:.75rem;font-weight:400;letter-spacing:0;border:1.5px solid var(--border);border-radius:20px;background:#f8faff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>') no-repeat 8px center;color:var(--text);width:220px;outline:none;" />
+        style="margin-left:12px;padding:3px 12px 3px 28px;font-size:.75rem;font-weight:400;letter-spacing:0;border:1.5px solid var(--border);border-radius:20px;background:#f8faff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>') no-repeat 8px center;color:var(--text);width:440px;outline:none;" />
       <span style="font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
     </div>
     <div class="chart-card" style="padding:10px 14px;">
@@ -4014,8 +4100,8 @@ function renderPrognose() {
           ? `<colgroup><col style="width:22%"><col style="width:16%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
           : `<colgroup><col style="width:26%"><col style="width:18%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','center'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
-          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','center'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
         // Pas huidig filter toe op de initiële render
         const fq = (window._projFilt||{}).q||'';
         let initList = overzichtRanges.slice();
@@ -7689,8 +7775,9 @@ function toggleVervallenCollapse() { VERV_COLLAPSED = !VERV_COLLAPSED; renderFin
 // Bepaalt wie contractvelden en evaluatie-checkboxen mag bewerken in HRM-context
 function isHrmEditor() {
   if (!CURRENT_USER) return false;
-  const n = CURRENT_USER.bm_naam || '';
-  return n === 'Annyck Nelissen' || n === 'Toussaint Rosier' || n === 'Jannik van Rijt';
+  const allowed = ['Annyck Nelissen', 'Toussaint Rosier', 'Jannik van Rijt'];
+  const match = v => allowed.some(a => (v || '').includes(a));
+  return match(CURRENT_USER.bm_naam) || match(CURRENT_USER.naam);
 }
 // State voor HRM sub-tab
 let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier'
