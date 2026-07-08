@@ -99,6 +99,9 @@
   .info-box { border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; font-size:.84rem; line-height:1.6; }
   .info-box.amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
   .info-box.blue  { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+  .info-tip-btn { display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#1a56db;color:#fff;font-size:.72rem;font-weight:700;border:none;cursor:pointer;line-height:1;padding:0;flex-shrink:0;font-style:normal; }
+  .info-tip-btn:hover { background:#1447bd; }
+  .info-tip-panel { background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 14px;font-size:.83rem;color:#1e40af;line-height:1.5;margin-top:-4px;margin-bottom:12px; }
   .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:.75rem; font-weight:700; }
   .badge-green  { background:#d1fae5; color:#065f46; }
   .badge-blue   { background:#dbeafe; color:#1e40af; }
@@ -1341,6 +1344,11 @@ async function beheerVernieuwen() {
   setTimeout(() => { BEHEER_VERNIEUWD_TS = 0; renderBeheer(); }, 2500);
 }
 
+function toggleInfoTip(id) {
+  const el = document.getElementById(id);
+  if (el) el.hidden = !el.hidden;
+}
+
 async function beheerInviteVerstuur() {
   const msg = document.getElementById('inv-msg');
   if (msg) msg.textContent = '⏳ Uitnodiging versturen…';
@@ -1584,8 +1592,8 @@ function renderBM(bm) {
       </div>
     </div>
 
-    <div class="section-title">Norm vs. gem. YTD per ${pLabel} (${year})</div>
-    <div class="info-box blue">📌 <strong>Actueel gemiddelde</strong> = YTD totaal ÷ ${passed} ${pLabel==='week'?'weken':'maanden'} verstreken in ${year}.</div>
+    <div class="section-title">Norm vs. gem. YTD per ${pLabel} (${year}) <button class="info-tip-btn" onclick="toggleInfoTip('itip-ytd-tbl')" title="Uitleg">ℹ</button></div>
+    <div id="itip-ytd-tbl" class="info-tip-panel" hidden>📌 <strong>Actueel gemiddelde</strong> = YTD totaal ÷ ${passed} ${pLabel==='week'?'weken':'maanden'} verstreken in ${year}.</div>
     <div class="table-card"><table>
       <thead><tr><th>KPI</th><th>Ratio (26 wkn)</th><th>Norm/${pLabel}</th><th>Gem. YTD</th><th>Score</th></tr></thead>
       <tbody>${ratioTable}</tbody>
@@ -3262,13 +3270,8 @@ function renderBmCoachingTab(bm) {
 
       <div style="margin-bottom:14px">
         ${d.isKAM ? `
-        <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Bezoeken & starters (geen standaard funnel)</div>
-        <div class="info-box blue" style="margin-bottom:0">
-          ℹ️ ${d.bm.naam.split(' ')[0]} opereert als Key Accountmanager buiten de standaard BM-funnel.
-          Starters komen primair via netwerk, commerciële relaties en directe accountmanagement —
-          niet via de intake→aanbieding→match keten. Daarom geen funnelanalyse; norm is
-          ${fmt(d.norm.bezoeken,1)} bezoeken/week en ${d.bm.doel} starters/jaar.
-        </div>
+        <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Bezoeken & starters (geen standaard funnel) <button class="info-tip-btn" onclick="toggleInfoTip('itip-kam-funnel')" title="Uitleg">ℹ</button></div>
+        <div id="itip-kam-funnel" class="info-tip-panel" hidden>${d.bm.naam.split(' ')[0]} opereert als Key Accountmanager buiten de standaard BM-funnel. Starters komen primair via netwerk, commerciële relaties en directe accountmanagement — niet via de intake→aanbieding→match keten. Daarom geen funnelanalyse; norm is ${fmt(d.norm.bezoeken,1)} bezoeken/week en ${d.bm.doel} starters/jaar.</div>
         ` : `
         <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Funnelanalyse (laatste 26 weken)</div>
         <div class="funnel-row">
@@ -3345,8 +3348,8 @@ function renderBmCoachingTab(bm) {
         };
 
         return `<div style="margin-top:24px;">
-          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Gesprekcoaching — analyse van opnames</div>
-          <div class="info-box blue" style="margin-bottom:12px;font-size:.83rem;">Klik op <strong>Analyseer</strong> om AI-feedback te ontvangen op een opgenomen gesprek: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht.</div>
+          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Gesprekcoaching — analyse van opnames <button class="info-tip-btn" onclick="toggleInfoTip('itip-gesprekcoaching')" title="Uitleg">ℹ</button></div>
+          <div id="itip-gesprekcoaching" class="info-tip-panel" hidden>Klik op <strong>Analyseer</strong> om AI-feedback te ontvangen op een opgenomen gesprek: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht.</div>
           ${gesprekMet.length ? `
             <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">📋 Sollicitatiegesprekken</div>
             ${gesprekMet.slice(0,5).map(r => recCard(r,'itk')).join('')}` : ''}
@@ -5448,7 +5451,7 @@ function renderPrognose() {
     </div>
 
     <!-- Gap-Analyse + Groeiscenario + Import (onderaan) -->
-    <div class="section-title">Gap-Analyse</div>
+    <div class="section-title">Gap-Analyse <button class="info-tip-btn" onclick="toggleInfoTip('itip-gap-analyse')" title="Uitleg">ℹ</button></div>
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="kpi-card">
         <div class="label">YTD gerealiseerd</div>
@@ -5472,11 +5475,7 @@ function renderPrognose() {
       </div>
     </div>
 
-    <div class="info-box blue" style="margin-top:4px">
-      💡 Het groeiscenario gaat uit van <strong>${hireWeeks.length} nieuwe medewerkers</strong> die starten in
-      ${['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][curMonthIdx]}–dec ${year},
-      elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.
-    </div>
+    <div id="itip-gap-analyse" class="info-tip-panel" hidden>💡 Het groeiscenario gaat uit van <strong>${hireWeeks.length} nieuwe medewerkers</strong> die starten in ${['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][curMonthIdx]}–dec ${year}, elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.</div>
 
     ${canEditProj ? `
     <div class="section-title">Projectenlijst (Excel-import)</div>
@@ -6790,9 +6789,10 @@ function renderSalesLeadsHtml(subTabBtns) {
       <div class="person-meta">
         <span class="meta-pill">📋 ${list.length} klanten</span>
         <span class="meta-pill">🔍 ${filtered.length} getoond</span>
+        <button class="info-tip-btn" onclick="toggleInfoTip('itip-rldv')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div class="info-box blue">ℹ️ Filter op vakgebied, regio, functietype, contactpersoon, status of voorwaarden om een harde selectie te maken. Klik op 🔍 Zoek om de vacaturepagina van een klant op te zoeken. Print de huidige selectie via 🖨️ Printen.</div>
+    <div id="itip-rldv" class="info-tip-panel" hidden>Filter op vakgebied, regio, functietype, contactpersoon, status of voorwaarden om een harde selectie te maken. Klik op 🔍 Zoek om de vacaturepagina van een klant op te zoeken. Print de huidige selectie via 🖨️ Printen.</div>
     ${subTabBtns}
     <div class="filter-toolbar">
       <div class="filter-toolbar-row">
@@ -6964,9 +6964,10 @@ function renderStrategischeLeadsHtml(subTabBtns) {
       <div class="person-meta">
         <span class="meta-pill">📋 ${list.length} klanten</span>
         <span class="meta-pill">🔍 ${filtered.length} getoond</span>
+        ${canEditAccounts ? '<button class="info-tip-btn" onclick="toggleInfoTip(\'itip-kam-edit\')" title="Uitleg">ℹ</button>' : ''}
       </div>
     </div>
-    <div class="info-box blue">${canEditAccounts ? 'ℹ️ Klik op ✏️ om een klant te bewerken. Wijzigingen blijven bevroren tot je op 💾 Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.' : 'ℹ️ Alleen-lezen overzicht.'}</div>
+    ${canEditAccounts ? '<div id="itip-kam-edit" class="info-tip-panel" hidden>Klik op ✏️ om een klant te bewerken. Wijzigingen blijven bevroren tot je op 💾 Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.</div>' : ''}
     ${subTabBtns}
     <div class="filter-toolbar">
       <div class="filter-toolbar-row">
@@ -7537,9 +7538,10 @@ function renderCvGenerator() {
       <div class="person-name">📄 CV-generator</div>
       <div class="person-meta">
         <span class="meta-pill">Van CV naar commercieel Word-CV in onze huisstijl</span>
+        <button class="info-tip-btn" onclick="toggleInfoTip('itip-cv-gen')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div class="info-box blue">ℹ️ Vul eerst de basisgegevens van de kandidaat in, upload daarna het CV (.docx of .pdf). De tool leest de tekst uit, genereert met AI een feitelijke indruk van de kandidaat, en zet alles samen in het huisstijl-Word-bestand dat je kunt downloaden.</div>
+    <div id="itip-cv-gen" class="info-tip-panel" hidden>Vul eerst de basisgegevens van de kandidaat in, upload daarna het CV (.docx of .pdf). De tool leest de tekst uit, genereert met AI een feitelijke indruk van de kandidaat, en zet alles samen in het huisstijl-Word-bestand dat je kunt downloaden.</div>
 
     <div class="table-card" style="padding:16px;margin-bottom:14px;">
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:10px;">Stap 1 — Kandidaatgegevens</div>
@@ -8048,13 +8050,14 @@ function renderGesprek() {
       <div class="person-name">🎙️ Recorder</div>
       <div class="person-meta">
         <span class="meta-pill">Sollicitatiegesprek opnemen &amp; automatisch analyseren</span>
+        <button class="info-tip-btn" onclick="toggleInfoTip('itip-itk-rec')" title="Uitleg">ℹ</button>
       </div>
     </div>
+    <div id="itip-itk-rec" class="info-tip-panel" hidden>Neem het gesprek op via de microfoon van je laptop. Na het stoppen worden de sprekers automatisch herkend en het gesprek geanalyseerd door AI. Informeer kandidaten dat het gesprek wordt opgenomen.</div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
       <button class="bm-subtab-btn active" onclick="">🎙️ Recorder</button>
       <button class="bm-subtab-btn" onclick="gesprekSubView='records';renderGesprekRecords();gesprekHerlaadRecords()">📋 Recente records${_gesprekBadge}</button>
     </div>
-    <div class="info-box blue">ℹ️ Neem het gesprek op via de microfoon van je laptop. Na het stoppen worden de sprekers automatisch herkend en het gesprek geanalyseerd door AI. Informeer kandidaten dat het gesprek wordt opgenomen.</div>
 
     <div class="chart-card" style="margin-bottom:14px;">
       <div class="two-col" style="gap:12px;margin-bottom:14px;">
@@ -8986,13 +8989,14 @@ function renderBezoekRecorder() {
       <div class="person-name">🏢 BZK-Recorder</div>
       <div class="person-meta">
         <span class="meta-pill">Bedrijfsbezoek opnemen &amp; automatisch verslag maken</span>
+        <button class="info-tip-btn" onclick="toggleInfoTip('itip-bzk-rec')" title="Uitleg">ℹ</button>
       </div>
     </div>
+    <div id="itip-bzk-rec" class="info-tip-panel" hidden>Neem het bezoekgesprek op via de microfoon van je laptop. Na het stoppen worden sprekers herkend en maakt AI automatisch een bezoekverslag. Informeer je gesprekspartner dat het gesprek wordt opgenomen.</div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
       <button class="bm-subtab-btn active" onclick="">🏢 Recorder</button>
       <button class="bm-subtab-btn" onclick="bezoekSubView='records';renderBezoekRecords();bezoekHerlaadRecords()">📋 Recente records${_bezoekBadge}</button>
     </div>
-    <div class="info-box blue">ℹ️ Neem het bezoekgesprek op via de microfoon van je laptop. Na het stoppen worden sprekers herkend en maakt AI automatisch een bezoekverslag. Informeer je gesprekspartner dat het gesprek wordt opgenomen.</div>
 
     <div class="chart-card" style="margin-bottom:14px;">
       <div class="two-col" style="gap:12px;margin-bottom:14px;">
@@ -9095,9 +9099,10 @@ function renderPlaatsing() {
       <div class="person-name">🎯 Matchmaker</div>
       <div class="person-meta">
         <span class="meta-pill">Zoek bedrijven die actief werven voor dit kandidaatprofiel</span>
+        <button class="info-tip-btn" onclick="toggleInfoTip('itip-plaatsing')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div class="info-box blue">ℹ️ Vul het kandidaatprofiel in en klik op "Zoek vacatures". Claude zoekt live op Nederlandse jobboards (Indeed, Werken.nl, Jobbird, limburgvac.nl e.a.) en geeft een lijst van bedrijven die actief werven voor dit profiel — inclusief vacaturelinks en contactpersonen.</div>
+    <div id="itip-plaatsing" class="info-tip-panel" hidden>Vul het kandidaatprofiel in en klik op "Zoek vacatures". Claude zoekt live op Nederlandse jobboards (Indeed, Werken.nl, Jobbird, limburgvac.nl e.a.) en geeft een lijst van bedrijven die actief werven voor dit profiel — inclusief vacaturelinks en contactpersonen.</div>
 
     <div class="table-card" style="padding:16px;margin-bottom:14px;">
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:12px;">Kandidaatprofiel</div>
