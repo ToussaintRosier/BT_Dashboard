@@ -1037,6 +1037,11 @@ function renderBeheer() {
   // Edit-formulier (inline, onder de tabel) voor geselecteerd profiel
   const editProfiel = BEHEER_EDIT_ID ? BEHEER_PROFIELEN.find(p => p.id === BEHEER_EDIT_ID) : null;
   const profNaamEdit = editProfiel ? (editProfiel.bm_naam || editProfiel.naam) : '';
+  // Huidige handmatige norm-override (null = automatisch berekend)
+  const normOverrideRij = editProfiel
+    ? (BEHEER_DOELEN.find(d => d.naam === profNaamEdit && d.jaar === huidigJaar)?.norm_override || null)
+    : null;
+  const normOverrideVan = normOverrideRij?._van ? normOverrideRij._van.slice(0,10) : '';
   const editFormHtml = editProfiel ? `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:20px;">
       <div style="font-size:1.05rem;font-weight:700;margin-bottom:14px;color:var(--text);">✏️ Bewerken: ${escHtml(editProfiel.naam)}</div>
@@ -1066,6 +1071,46 @@ function renderBeheer() {
         <div>
           <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Einddatum <span style="color:var(--text-muted);font-size:.75rem;">(leeg = actief)</span></label>
           <input id="beh-einddatum" type="date" value="${escHtml(editProfiel.einddatum||'')}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div id="beh-norm-wrap" style="grid-column:1/-1;${(editProfiel.rol==='bm'||editProfiel.rol==='kam')?'':'display:none;'}padding:12px;background:var(--primary-light);border-radius:8px;border:1px solid var(--border);">
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:8px;font-weight:600;">Norm-instelling</label>
+          <div style="display:flex;gap:24px;margin-bottom:10px;font-size:.82rem;">
+            <label style="cursor:pointer;display:flex;align-items:center;gap:6px;">
+              <input type="radio" name="beh-norm-modus" value="auto" ${!normOverrideRij?'checked':''} onchange="beheerNormToggle()">
+              Automatisch (berekend uit output)
+            </label>
+            <label style="cursor:pointer;display:flex;align-items:center;gap:6px;">
+              <input type="radio" name="beh-norm-modus" value="handmatig" ${normOverrideRij?'checked':''} onchange="beheerNormToggle()">
+              Handmatig invoeren
+            </label>
+          </div>
+          <div id="beh-norm-fields" style="${normOverrideRij?'':'display:none;'}display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:6px;">
+            <div>
+              <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Ingangsdatum</label>
+              <input id="beh-norm-van" type="date" value="${normOverrideVan}" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Intakes/wk</label>
+              <input id="beh-norm-intakes" type="number" step="0.1" min="0" value="${normOverrideRij?.intakes??''}" placeholder="auto" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Bezoeken/wk</label>
+              <input id="beh-norm-bezoeken" type="number" step="0.1" min="0" value="${normOverrideRij?.bezoeken??''}" placeholder="auto" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Aanbiedingen/wk</label>
+              <input id="beh-norm-aanbiedingen" type="number" step="0.5" min="0" value="${normOverrideRij?.aanbiedingen??''}" placeholder="auto" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Matchgespr./wk</label>
+              <input id="beh-norm-matchgesprekken" type="number" step="0.1" min="0" value="${normOverrideRij?.matchgesprekken??''}" placeholder="auto" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Contractvoorstel/wk</label>
+              <input id="beh-norm-contractvoorstellen" type="number" step="0.1" min="0" value="${normOverrideRij?.contractvoorstellen??''}" placeholder="auto" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;box-sizing:border-box;">
+            </div>
+          </div>
+          <div style="font-size:.72rem;color:var(--text-muted);">Waarden zijn per week. Leeg laten = automatisch berekend vanuit historische ratio's.</div>
         </div>
       </div>
       <div id="beh-edit-msg" style="margin-top:10px;font-size:.82rem;"></div>
@@ -1157,8 +1202,25 @@ function renderBeheer() {
 // Toon/verberg jaardoel-veld op basis van geselecteerde rol (edit)
 function beheerEditRolToggle() {
   const rol = document.getElementById('beh-rol')?.value;
+  const isBmKam = rol === 'bm' || rol === 'kam';
   const wrap = document.getElementById('beh-jaardoel-wrap');
-  if (wrap) wrap.style.display = (rol === 'bm' || rol === 'kam') ? '' : 'none';
+  if (wrap) wrap.style.display = isBmKam ? '' : 'none';
+  const normWrap = document.getElementById('beh-norm-wrap');
+  if (normWrap) normWrap.style.display = isBmKam ? '' : 'none';
+}
+function beheerNormToggle() {
+  const modus = document.querySelector('input[name="beh-norm-modus"]:checked')?.value;
+  const fields = document.getElementById('beh-norm-fields');
+  if (fields) fields.style.display = modus === 'handmatig' ? 'grid' : 'none';
+}
+
+// Geeft bm.normFix terug als de ingangsdatum verstreken is, anders undefined.
+// refDate: JS Date om te vergelijken (standaard vandaag).
+function activeNormFix(bm, refDate) {
+  if (!bm || !bm.normFix) return undefined;
+  if (!bm.normFixVan) return bm.normFix;   // geen datum → altijd actief
+  const ref = refDate || new Date();
+  return ref >= bm.normFixVan ? bm.normFix : undefined;
 }
 
 // Toon/verberg jaardoel-veld op basis van geselecteerde rol (invite)
@@ -1198,16 +1260,33 @@ async function beheerSaveProfiel(profielId) {
     const huidigJaar  = new Date().getFullYear();
     const profNaam    = naam; // we gebruiken naam als profiel_naam voor doelen
 
+    // Handmatige norm-override uitlezen (alleen voor BM/KAM)
+    let normOverride = null;
+    if (rol === 'bm' || rol === 'kam') {
+      const normModus = document.querySelector('input[name="beh-norm-modus"]:checked')?.value || 'auto';
+      if (normModus === 'handmatig') {
+        const obj = {};
+        // Ingangsdatum opslaan als _van
+        const vanVal = document.getElementById('beh-norm-van')?.value;
+        if (vanVal) obj._van = vanVal;
+        for (const k of ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen']) {
+          const v = parseFloat(document.getElementById('beh-norm-' + k)?.value);
+          if (!isNaN(v) && v >= 0) obj[k] = v;
+        }
+        if (Object.keys(obj).length > 0) normOverride = obj;
+      }
+    }
+
     // Update profiel
     const { error: pErr } = await supa.from('profiles').update({
       naam, email: email||null, rol, begindatum, einddatum
     }).eq('id', profielId);
     if (pErr) throw new Error(pErr.message);
 
-    // Update jaardoel (alleen voor BM/KAM)
+    // Update jaardoel + norm_override (alleen voor BM/KAM)
     if (rol === 'bm' || rol === 'kam') {
       const { error: dErr } = await supa.from('doelen').upsert(
-        { naam: profNaam, jaar: huidigJaar, jaardoel },
+        { naam: profNaam, jaar: huidigJaar, jaardoel, norm_override: normOverride },
         { onConflict: 'naam,jaar' }
       );
       if (dErr) throw new Error(dErr.message);
@@ -1328,7 +1407,7 @@ function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 function renderBM(bm) {
   const year   = getYear();
   const ratios = INDIVIDUAL_RATIOS[bm.naam];
-  const norm   = normPerPeriod(bm.doel, ratios, view, bm.normFix, bm.doelStartFraction);
+  const norm   = normPerPeriod(bm.doel, ratios, view, activeNormFix(bm), bm.doelStartFraction);
   const rows   = filterData(bm.naam, year);
   const agg    = aggregateByPeriod(rows, view);
   const ytd    = ytdTotals(rows);
@@ -1581,7 +1660,7 @@ function renderMedewerkersOverzicht() {
       for (const k of KPIS) totals[k] += vals[k] || 0;
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
       if (!hasAny && !isCurOrNext) return null;
-      const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', bm.normFix, bm.doelStartFraction);
+      const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', activeNormFix(bm), bm.doelStartFraction);
       const status = isSaved
         ? (staleStarters
             ? '<span style="color:var(--warn);font-size:.75rem;" title="Invoer verouderd — pipeline toont meer starters; zet dit recht via Wijzigen + Opslaan">⚠️ opg.</span>'
@@ -2601,8 +2680,25 @@ async function loadBeheerData() {
       }
     }
 
+    // Als profiel geen begindatum heeft, bewaar doelStartFraction uit hardcoded BMS
+    // (bijv. Robin Farnes: start 1 juli → doelStartFraction: 26/52 hardcoded)
+    if (!bm.doelStartFraction && bestaandBMS?.doelStartFraction) {
+      bm.doelStartFraction = bestaandBMS.doelStartFraction;
+    }
+
     // DoelCurve: bewaar uit de huidige BMS als die er al in staat (veiligheidsnet)
     if (bestaandBMS?.doelCurve) bm.doelCurve = bestaandBMS.doelCurve;
+
+    // Handmatige norm-override uit de doelen-tabel toepassen als bm.normFix
+    const doelRijNorm = BEHEER_DOELEN.find(d => d.naam === naam && d.jaar === huidigJaar);
+    if (doelRijNorm?.norm_override && Object.keys(doelRijNorm.norm_override).length > 0) {
+      // _van is de ingangsdatum; haal het uit de normFix zodat het geen KPI-waarde wordt
+      const { _van, ...kpiOverrides } = doelRijNorm.norm_override;
+      if (_van) bm.normFixVan = new Date(_van);
+      if (Object.keys(kpiOverrides).length > 0) {
+        bm.normFix = { ...(bm.normFix || {}), ...kpiOverrides };
+      }
+    }
 
     nieuweBMS.push(bm);
   }
@@ -2785,7 +2881,7 @@ function computeCoachingData(bm) {
     for (const k of KPIS) ytdPerWk[k] = +(ytd[k] / wksYTD).toFixed(1);
 
     // Norm per week
-    const norm = normPerPeriod(bm.doel, r26, 'week', bm.normFix, bm.doelStartFraction);
+    const norm = normPerPeriod(bm.doel, r26, 'week', activeNormFix(bm), bm.doelStartFraction);
 
     // Recent trend (last 4 wks vs YTD avg)
     const trend = {};
@@ -3340,7 +3436,7 @@ async function analyseerAgenda(bmNaam) {
   // KPI actuals voor geselecteerde week
   const weekRow = RAW.find(r => r.naam === bmNaam && r.jaar === selYear && r.week === selWeek) || null;
   const ratiosInd = INDIVIDUAL_RATIOS[bmNaam] || TEAM_RATIOS;
-  const norm = normPerPeriod(bm.doel, ratiosInd, 'week', bm.normFix, bm.doelStartFraction);
+  const norm = normPerPeriod(bm.doel, ratiosInd, 'week', activeNormFix(bm), bm.doelStartFraction);
 
   // Trend: laatste 4 weken
   const recentRows = bmRows.slice(0, 4).map(r => ({
