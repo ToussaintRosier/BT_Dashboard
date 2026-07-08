@@ -739,7 +739,7 @@ function barColor(p)    { return p>=100?'var(--over)':p>=90?'var(--success)':p>=
 // zodat overperformance boven 100% ook echt zichtbaar wordt als extra voortgang
 // voorbij het midden, in plaats van een balk die al bij 100% "vol" lijkt.
 function pctWide(p)        { return Math.max(0, Math.min(200, p)) / 2; }
-function barColorWide(p)   { return p<=79?'var(--danger)':p<=95?'var(--warn)':'var(--success)'; }
+function barColorWide(p)   { return p<=69?'var(--danger)':p<=94?'var(--warn)':'var(--success)'; }
 
 function filterData(naam, year) {
   return RAW.filter(d => (!naam || d.naam===naam) && d.jaar===year);
@@ -1415,8 +1415,12 @@ function renderBM(bm) {
   const passed = periodsPassedInYear(year, view);
   // Effectieve gewerkte periodes: voor nieuwe BMs (< 26 wkn data) vanaf eerste datarij,
   // niet vanaf jan 1 — anders krijg je bv. 44 intakes / 28 weken = 1.6 i.p.v. 44/19 = 2.3
+  // Fallback: als er nog geen data is maar doelStartFraction wél (begindatum in Beheer),
+  // leid de startweek daaruit af zodat de noemer ook vóór eerste datarij al klopt.
   const _ytdEersteRij = rows.slice().sort((a,b) => a.week - b.week)[0];
-  const _ytdStartWk   = _ytdEersteRij ? _ytdEersteRij.week : 1;
+  const _ytdStartWk   = _ytdEersteRij
+    ? _ytdEersteRij.week
+    : (bm.doelStartFraction ? Math.round(bm.doelStartFraction * 52) + 1 : 1);
   const gewerktePeriodes = view==='week' ? Math.max(1, passed - (_ytdStartWk - 1)) : passed;
   const ytdAvg = {};
   for (const k of KPIS) ytdAvg[k] = +(ytd[k] / gewerktePeriodes).toFixed(2);
@@ -1491,7 +1495,6 @@ function renderBM(bm) {
   document.getElementById('bm-subtab-content').innerHTML = `
     ${renderPipeline(bm)}
 
-    ${lowData?`<div class="info-box amber">⚠️ <strong>Beperkte data</strong> in laatste 26 weken voor ${bm.naam} (${fmt(ratios.totalStarters,1)} starters). Ratio's zijn een eerste indicatie.</div>`:''}
     <div class="norm-intro" style="margin-top:28px;">
       <strong>Individuele ratio's (laatste 26 weken, ${ratios.weeksUsed} weekrecords):</strong>
       ${fmt(ratios.intakes,2)} intakes · ${fmt(ratios.bezoeken,2)} bezoeken ·
@@ -2895,9 +2898,12 @@ function computeCoachingData(bm) {
     const tm2s  = tr.matchgesprekken ? +(tr.starters / tr.matchgesprekken * 100).toFixed(1)  : 0;
 
     // YTD averages per week: gebruik effectieve gewerkte weken (vanaf eerste datarij),
-    // niet alle verstreken weken in het jaar (anders worden nieuwe BMs benadeeld)
+    // niet alle verstreken weken in het jaar (anders worden nieuwe BMs benadeeld).
+    // Fallback op doelStartFraction (begindatum in Beheer) als er nog geen data is.
     const _coachEersteRij = rowsYTD.slice().sort((a,b) => a.week - b.week)[0];
-    const _coachStartWk   = _coachEersteRij ? _coachEersteRij.week : 1;
+    const _coachStartWk   = _coachEersteRij
+      ? _coachEersteRij.week
+      : (bm.doelStartFraction ? Math.round(bm.doelStartFraction * 52) + 1 : 1);
     const wksYTD = Math.max(1, (periodsPassedInYear(year, 'week') || 1) - (_coachStartWk - 1));
     const ytdPerWk = {};
     for (const k of KPIS) ytdPerWk[k] = +(ytd[k] / wksYTD).toFixed(1);
