@@ -2795,11 +2795,55 @@ function simpleMarkdown(t) {
   const lines = t.split('\n');
   const out = [];
   let inList = false;
+  let inTable = false;
+  let tableRows = [];
+
+  const flushTable = () => {
+    if (!tableRows.length) return;
+    // First row = header, second row = separator (skip), rest = data
+    const [headerRow, , ...dataRows] = tableRows;
+    const cols = (headerRow || '').split('|').map(c => c.trim()).filter(c => c !== '');
+    let html = '<div style="overflow-x:auto;margin:10px 0;"><table style="width:100%;border-collapse:collapse;font-size:.82rem;">';
+    html += '<thead><tr>' + cols.map(c =>
+      `<th style="padding:6px 10px;background:rgba(255,255,255,.12);color:var(--text);font-weight:700;text-align:left;border-bottom:2px solid rgba(255,255,255,.25);">${c.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</th>`
+    ).join('') + '</tr></thead>';
+    html += '<tbody>';
+    dataRows.forEach((row, ri) => {
+      const cells = row.split('|').map(c => c.trim()).filter(c => c !== '');
+      const bg = ri % 2 === 0 ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.08)';
+      html += '<tr style="background:' + bg + ';">' + cells.map((c, ci) => {
+        const styled = c.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+        // Color-code afwijkings-cel (bevat + of -)
+        let extra = '';
+        if (ci === 3) { // Afwijking kolom
+          if (/^[\-−]/.test(c) || c.includes('%-') || c.includes('-%') || /-\d/.test(c)) extra = 'color:#f87171;font-weight:700;';
+          else if (/^\+/.test(c) || c.includes('%+') || /\+\d/.test(c)) extra = 'color:#4ade80;font-weight:700;';
+        }
+        return `<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,.08);${extra}">${styled}</td>`;
+      }).join('') + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    out.push(html);
+    tableRows = [];
+    inTable = false;
+  };
+
   for (let line of lines) {
-    // Escape HTML (AI-output bevat geen angle brackets, maar voor veiligheid)
+    // Escape HTML
     line = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     // Bold
     line = line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+
+    // Pipe table detection
+    if (/^\s*\|/.test(line)) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      inTable = true;
+      tableRows.push(line.trim());
+      continue;
+    } else if (inTable) {
+      flushTable();
+    }
+
     if (/^## /.test(line)) {
       if (inList) { out.push('</ul>'); inList = false; }
       out.push('<h3 style="font-size:.95rem;font-weight:700;margin:18px 0 6px;color:var(--text);">' + line.replace(/^## /,'') + '</h3>');
@@ -2817,6 +2861,7 @@ function simpleMarkdown(t) {
       out.push('<p style="margin:3px 0;">' + line + '</p>');
     }
   }
+  if (inTable) flushTable();
   if (inList) out.push('</ul>');
   return out.join('');
 }
@@ -3092,7 +3137,7 @@ function renderAgendaAnalyse(bm) {
         <label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">
           Week voor KPI-vergelijking
         </label>
-        <select style="padding:7px 12px;border:1px solid var(--border);border-radius:6px;font-size:.87rem;background:#fff;"
+        <select style="padding:7px 12px;border:1px solid var(--border);border-radius:6px;font-size:.87rem;background:#fff;color:#1e293b;"
                 onchange="agendaSelectWeek('${escHtml(bm.naam)}',this.value)">
           ${weekOptions || `<option value="${defaultKey}">W${CUR.week} ${CUR.year}</option>`}
         </select>
