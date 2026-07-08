@@ -476,6 +476,7 @@ const supa = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
 let CURRENT_USER = null;   // profiel van de ingelogde gebruiker (rol, naam, bm_naam)
 let GESPREK_COACHING_RESULTS = {}; // keyed by record.id → { loading, result, error }
 let BEZOEK_COACHING_RESULTS  = {}; // keyed by record.id → { loading, result, error }
+const AGENDA_STATE = {};           // keyed by naam → { imagePreview, imageB64, imageMime, imageName, loading, result, error, selectedWeekKey }
 let PIPE_CACHE   = {};     // pipeline-kaarten per BM, gevuld vanuit de database
 let PROJECTEN    = [];     // projectenlijst (geïmporteerd uit Excel), gevuld vanuit de database
 let PLAN_VA      = [];     // "Plan van aanpak" weekrijen per BM, gevuld vanuit de database
@@ -1053,6 +1054,7 @@ function renderBM(bm) {
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">🎯 Coaching</button>
       <button class="bm-subtab-btn ${bmSubTab==='motivatieladder'?'active':''}" onclick="selectBmSubTab('motivatieladder')">🪜 Motivatieladder</button>
       <button class="bm-subtab-btn ${bmSubTab==='werkintensiteit'?'active':''}" onclick="selectBmSubTab('werkintensiteit')">⚡ Werkintensiteit</button>
+      <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">📅 Agenda Analyse</button>
     </div>
     <div id="bm-subtab-content"></div>
   </div>`;
@@ -1071,6 +1073,10 @@ function renderBM(bm) {
   }
   if (bmSubTab === 'werkintensiteit') {
     document.getElementById('bm-subtab-content').innerHTML = renderWerkintensiteitsladder(bm);
+    return;
+  }
+  if (bmSubTab === 'agenda') {
+    document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(bm);
     return;
   }
 
@@ -2777,6 +2783,255 @@ function renderBmCoachingTab(bm) {
             ${bezoekMet.slice(0,5).map(r => recCard(r,'bzk')).join('')}` : ''}
         </div>`;
       })()}
+    </div>
+  `;
+}
+
+// ── Agenda Analyse ────────────────────────────────────────────────────────────
+
+// Eenvoudige markdown → HTML converter voor AI-analyseteksten
+function simpleMarkdown(t) {
+  if (!t) return '';
+  const lines = t.split('\n');
+  const out = [];
+  let inList = false;
+  for (let line of lines) {
+    // Escape HTML (AI-output bevat geen angle brackets, maar voor veiligheid)
+    line = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Bold
+    line = line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    if (/^## /.test(line)) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push('<h3 style="font-size:.95rem;font-weight:700;margin:18px 0 6px;color:var(--text);">' + line.replace(/^## /,'') + '</h3>');
+    } else if (/^### /.test(line)) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push('<h4 style="font-size:.88rem;font-weight:700;margin:12px 0 4px;color:var(--text);">' + line.replace(/^### /,'') + '</h4>');
+    } else if (/^- /.test(line)) {
+      if (!inList) { out.push('<ul style="margin:6px 0 6px 20px;padding:0;">'); inList = true; }
+      out.push('<li style="margin:3px 0;">' + line.replace(/^- /,'') + '</li>');
+    } else if (line.trim() === '') {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push('<div style="height:6px;"></div>');
+    } else {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push('<p style="margin:3px 0;">' + line + '</p>');
+    }
+  }
+  if (inList) out.push('</ul>');
+  return out.join('');
+}
+
+function agendaSelectWeek(bmNaam, weekKey) {
+  if (!AGENDA_STATE[bmNaam]) AGENDA_STATE[bmNaam] = {};
+  AGENDA_STATE[bmNaam].selectedWeekKey = weekKey;
+  const _bm = BMS.find(b => b.naam === bmNaam);
+  if (_bm) document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(_bm);
+}
+
+function agendaClearImage(bmNaam) {
+  if (!AGENDA_STATE[bmNaam]) AGENDA_STATE[bmNaam] = {};
+  const st = AGENDA_STATE[bmNaam];
+  st.imagePreview = null; st.imageB64 = null; st.imageName = null;
+  st.result = null; st.error = null;
+  const _bm = BMS.find(b => b.naam === bmNaam);
+  if (_bm) document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(_bm);
+}
+
+function onAgendaFileSelected(bmNaam, file) {
+  if (!file) return;
+  if (!AGENDA_STATE[bmNaam]) AGENDA_STATE[bmNaam] = {};
+  const st = AGENDA_STATE[bmNaam];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    const commaIdx = dataUrl.indexOf(',');
+    const header = dataUrl.slice(0, commaIdx);
+    const mime = (header.match(/data:([^;]+)/) || [])[1] || 'image/png';
+    st.imagePreview = dataUrl;
+    st.imageB64 = dataUrl.slice(commaIdx + 1);
+    st.imageMime = mime;
+    st.imageName = file.name;
+    st.result = null;
+    st.error = null;
+    const _bm = BMS.find(b => b.naam === bmNaam);
+    if (_bm) document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(_bm);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyseerAgenda(bmNaam) {
+  const st = AGENDA_STATE[bmNaam];
+  if (!st || !st.imageB64 || st.loading) return;
+
+  const bm = BMS.find(b => b.naam === bmNaam);
+  if (!bm) return;
+
+  // Bepaal geselecteerde week
+  const bmRows = RAW.filter(r => r.naam === bmNaam)
+    .sort((a,b) => b.jaar*100+b.week - (a.jaar*100+a.week));
+  const defaultKey = bmRows[0] ? `${bmRows[0].jaar}-${bmRows[0].week}` : `${CUR.year}-${CUR.week}`;
+  const selectedKey = st.selectedWeekKey || defaultKey;
+  const [selYear, selWeek] = selectedKey.split('-').map(Number);
+
+  // KPI actuals voor geselecteerde week
+  const weekRow = RAW.find(r => r.naam === bmNaam && r.jaar === selYear && r.week === selWeek) || null;
+  const ratiosInd = INDIVIDUAL_RATIOS[bmNaam] || TEAM_RATIOS;
+  const norm = normPerPeriod(bm.doel, ratiosInd, 'week', bm.normFix);
+
+  // Trend: laatste 4 weken
+  const recentRows = bmRows.slice(0, 4).map(r => ({
+    jaar: r.jaar, week: r.week,
+    intakes: r.intakes, bezoeken: r.bezoeken,
+    aanbiedingen: r.aanbiedingen, matchgesprekken: r.matchgesprekken,
+    contractvoorstellen: r.contractvoorstellen, starters: r.starters,
+  }));
+
+  st.loading = true;
+  st.result = null;
+  st.error = null;
+  document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(bm);
+
+  try {
+    const sess = supa ? (await supa.auth.getSession())?.data?.session : null;
+    const authHeader = sess?.access_token || null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/agenda-analyse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
+      },
+      body: JSON.stringify({
+        image_base64: st.imageB64,
+        image_type: st.imageMime || 'image/png',
+        bm_naam: bmNaam,
+        week: selWeek,
+        jaar: selYear,
+        kpi_actuals: weekRow ? {
+          intakes: weekRow.intakes, bezoeken: weekRow.bezoeken,
+          aanbiedingen: weekRow.aanbiedingen, matchgesprekken: weekRow.matchgesprekken,
+          contractvoorstellen: weekRow.contractvoorstellen, starters: weekRow.starters,
+        } : null,
+        kpi_norms: {
+          intakes: norm.intakes, bezoeken: norm.bezoeken,
+          aanbiedingen: norm.aanbiedingen, matchgesprekken: norm.matchgesprekken,
+          contractvoorstellen: norm.contractvoorstellen, starters: norm.starters,
+        },
+        ratios_individueel: {
+          intakes: ratiosInd.intakes, bezoeken: ratiosInd.bezoeken,
+          aanbiedingen: ratiosInd.aanbiedingen, matchgesprekken: ratiosInd.matchgesprekken,
+          contractvoorstellen: ratiosInd.contractvoorstellen,
+        },
+        ratios_team: {
+          intakes: TEAM_RATIOS.intakes, bezoeken: TEAM_RATIOS.bezoeken,
+          aanbiedingen: TEAM_RATIOS.aanbiedingen, matchgesprekken: TEAM_RATIOS.matchgesprekken,
+          contractvoorstellen: TEAM_RATIOS.contractvoorstellen,
+        },
+        recent_weeks: recentRows,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    st.loading = false;
+    st.result = data.analyse || '(Geen analyse ontvangen)';
+  } catch(err) {
+    st.loading = false;
+    st.error = err.message;
+  }
+
+  document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(bm);
+}
+
+function renderAgendaAnalyse(bm) {
+  const safeId = bm.naam.replace(/\s+/g,'_');
+  if (!AGENDA_STATE[bm.naam]) AGENDA_STATE[bm.naam] = {};
+  const st = AGENDA_STATE[bm.naam];
+
+  // Recente weken voor de week-selector
+  const bmRows = RAW.filter(r => r.naam === bm.naam)
+    .sort((a,b) => b.jaar*100+b.week - (a.jaar*100+a.week))
+    .slice(0, 12);
+  const defaultKey = bmRows[0] ? `${bmRows[0].jaar}-${bmRows[0].week}` : `${CUR.year}-${CUR.week}`;
+  const selectedKey = st.selectedWeekKey || defaultKey;
+
+  const weekOptions = bmRows.map(r => {
+    const key = `${r.jaar}-${r.week}`;
+    return `<option value="${key}" ${key===selectedKey?'selected':''}>${'W' + r.week + ' ' + r.jaar}</option>`;
+  }).join('');
+
+  // Upload zone of preview
+  const dropZone = `
+    <div style="border:2px dashed var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;"
+         ondragover="event.preventDefault();this.style.background='#f0f6ff';this.style.borderColor='var(--accent)';"
+         ondragleave="this.style.background='';this.style.borderColor='var(--border)';"
+         ondrop="event.preventDefault();this.style.background='';this.style.borderColor='var(--border)';var f=event.dataTransfer.files[0];if(f)onAgendaFileSelected('${escHtml(bm.naam)}',f);"
+         onclick="document.getElementById('agenda-file-${safeId}').click();">
+      <div style="font-size:2.4rem;margin-bottom:8px;">📅</div>
+      <div style="font-weight:600;color:var(--text);margin-bottom:4px;">Agenda-screenshot uploaden</div>
+      <div style="font-size:.83rem;color:var(--muted);">Klik of sleep een Outlook-screenshot hierheen<br><span style="color:#94a3b8;">PNG · JPG · WEBP</span></div>
+      <input type="file" id="agenda-file-${safeId}" accept="image/*" style="display:none;"
+             onchange="onAgendaFileSelected('${escHtml(bm.naam)}',this.files[0]);">
+    </div>`;
+
+  const previewHtml = st.imagePreview ? `
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;">
+      <img src="${st.imagePreview}" alt="Agenda preview"
+           style="max-width:100%;max-height:300px;display:block;object-fit:contain;background:#f8f9fa;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-top:1px solid var(--border);font-size:.82rem;">
+        <span style="color:var(--muted);">${escHtml(st.imageName||'agenda.png')}</span>
+        <button class="btn-secondary" style="font-size:.76rem;padding:3px 10px;"
+                onclick="agendaClearImage('${escHtml(bm.naam)}')">✕ Verwijder</button>
+      </div>
+    </div>
+    <div style="text-align:center;margin-bottom:10px;">
+      <span style="font-size:.8rem;color:var(--muted);cursor:pointer;"
+            onclick="document.getElementById('agenda-file2-${safeId}').click();">🔄 Andere afbeelding kiezen</span>
+      <input type="file" id="agenda-file2-${safeId}" accept="image/*" style="display:none;"
+             onchange="onAgendaFileSelected('${escHtml(bm.naam)}',this.files[0]);">
+    </div>` : '';
+
+  const canAnalyse = !!st.imageB64 && !st.loading;
+  const analyseBtn = `
+    <button class="${canAnalyse?'btn-primary':'btn-secondary'}" style="width:100%;margin-top:4px;"
+            ${canAnalyse?'':'disabled'}
+            onclick="analyseerAgenda('${escHtml(bm.naam)}')">
+      ${st.loading ? '⏳ Analyseren… (10–20 sec)' : '🔍 Analyseer agenda + KPI\'s'}
+    </button>`;
+
+  const resultHtml = st.result ? `
+    <div style="margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+      <div style="background:var(--accent);color:#fff;padding:10px 16px;font-weight:700;font-size:.88rem;">📊 Productiviteitsanalyse</div>
+      <div style="padding:16px 18px;font-size:.87rem;line-height:1.7;color:var(--text);">
+        ${simpleMarkdown(st.result)}
+      </div>
+    </div>` : '';
+
+  const errorHtml = st.error ? `
+    <div class="info-box amber" style="margin-top:12px;">⚠️ <strong>Fout:</strong> ${escHtml(st.error)}</div>` : '';
+
+  return `
+    <div class="norm-intro">
+      <strong>📅 Agenda Analyse</strong><br>
+      Upload een screenshot van de Outlook-weekagenda van ${escHtml(bm.naam.split(' ')[0])}.
+      Claude analyseert de agenda-structuur en combineert dit met de KPI-prestaties en conversieratio's
+      — zo wordt zichtbaar of er sprake is van een kwantiteits- of kwaliteitsprobleem.
+    </div>
+
+    <div style="max-width:620px;margin:0 auto;">
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">
+          Week voor KPI-vergelijking
+        </label>
+        <select style="padding:7px 12px;border:1px solid var(--border);border-radius:6px;font-size:.87rem;background:#fff;"
+                onchange="agendaSelectWeek('${escHtml(bm.naam)}',this.value)">
+          ${weekOptions || `<option value="${defaultKey}">W${CUR.week} ${CUR.year}</option>`}
+        </select>
+      </div>
+
+      ${previewHtml || dropZone}
+      ${analyseBtn}
+      ${errorHtml}
+      ${resultHtml}
     </div>
   `;
 }
