@@ -9368,6 +9368,22 @@ function openStandaardModal(id) {
     });
     if (_oi > 1) _d.ow_count = _oi - 1;
   }
+  // Migreer oude vaste VERG-keys naar dynamisch formaat
+  if (!_d.sv_count) {
+    const OLD_VERG = [
+      ['verg_reis_verloning','verg_reis_fact','Reiskosten per dag'],
+      ['verg_km_verloning','verg_km_fact','Zakelijke kilometers'],
+      ['verg_fys_verloning','verg_fys_fact','Vergoeding fysieke gezondheid'],
+      ['verg_feest_verloning','verg_feest_fact','Feestdag uitkering (december)'],
+    ];
+    let _vi = 1;
+    OLD_VERG.forEach(([kv,kf,lbl]) => {
+      if (_d[kv] || _d[kf]) {
+        _d[`sv_omsch_${_vi}`] = lbl; _d[`sv_loon_${_vi}`] = _d[kv]||''; _d[`sv_fact_${_vi}`] = _d[kf]||''; _vi++;
+      }
+    });
+    if (_vi > 1) _d.sv_count = _vi - 1;
+  }
   renderStandaardModal();
   document.getElementById('standaard-modal').classList.add('open');
 }
@@ -9378,7 +9394,7 @@ function closeStandaardModal() {
 }
 function standaardModalSet(key, val) {
   STANDAARD_MODAL_DATA[key] = val;
-  if (key === 'verg_count' || key === 'ow_count') renderStandaardModal();
+  if (key === 'verg_count' || key === 'ow_count' || key === 'sv_count') renderStandaardModal();
 }
 function standaardModalAddOw() {
   const c = Math.max(1, parseInt(STANDAARD_MODAL_DATA.ow_count || 1));
@@ -9401,6 +9417,28 @@ function standaardModalRemoveOw(i) {
   delete STANDAARD_MODAL_DATA[`ow_pct_${c}`];
   delete STANDAARD_MODAL_DATA[`ow_tarief_${c}`];
   STANDAARD_MODAL_DATA.ow_count = Math.max(1, c - 1);
+  renderStandaardModal();
+}
+function standaardModalAddVerg() {
+  const c = Math.max(1, parseInt(STANDAARD_MODAL_DATA.sv_count || 1));
+  if (c === 1 && !STANDAARD_MODAL_DATA.sv_omsch_1 && !STANDAARD_MODAL_DATA.sv_loon_1 && !STANDAARD_MODAL_DATA.sv_fact_1) {
+    STANDAARD_MODAL_DATA.sv_count = 2;
+  } else {
+    STANDAARD_MODAL_DATA.sv_count = c + 1;
+  }
+  renderStandaardModal();
+}
+function standaardModalRemoveVerg(i) {
+  const c = Math.max(1, parseInt(STANDAARD_MODAL_DATA.sv_count || 1));
+  for (let j = i; j < c; j++) {
+    STANDAARD_MODAL_DATA[`sv_omsch_${j}`] = STANDAARD_MODAL_DATA[`sv_omsch_${j+1}`] || '';
+    STANDAARD_MODAL_DATA[`sv_loon_${j}`]  = STANDAARD_MODAL_DATA[`sv_loon_${j+1}`]  || '';
+    STANDAARD_MODAL_DATA[`sv_fact_${j}`]  = STANDAARD_MODAL_DATA[`sv_fact_${j+1}`]  || '';
+  }
+  delete STANDAARD_MODAL_DATA[`sv_omsch_${c}`];
+  delete STANDAARD_MODAL_DATA[`sv_loon_${c}`];
+  delete STANDAARD_MODAL_DATA[`sv_fact_${c}`];
+  STANDAARD_MODAL_DATA.sv_count = Math.max(1, c - 1);
   renderStandaardModal();
 }
 function renderStandaardModal() {
@@ -9427,12 +9465,20 @@ function renderStandaardModal() {
     </tr>`;
   }).join('');
 
-  // Vergoedingen tabel
-  const vergRows = STANDAARD_VERG_ROWS.map(([kv,kf,lbl]) => `<tr>
-    <td style="${tdS}">${escHtml(lbl)}</td>
-    <td style="${tdS}">€ <input type="number" step="0.01" value="${escHtml(String(d[kv]??''))}" placeholder="—" oninput="standaardModalSet('${kv}',this.value)" style="${stN}"></td>
-    <td style="${tdS}">€ <input type="number" step="0.01" value="${escHtml(String(d[kf]??''))}" placeholder="—" oninput="standaardModalSet('${kf}',this.value)" style="${stN}"></td>
-  </tr>`).join('');
+  // Vergoedingen tabel — dynamische rijen
+  const svCount = Math.max(1, parseInt(d.sv_count || 1));
+  const vergRows = Array.from({length: svCount}, (_, idx) => {
+    const i = idx + 1;
+    const omsch = escHtml(String(d[`sv_omsch_${i}`] ?? ''));
+    const loon  = escHtml(String(d[`sv_loon_${i}`]  ?? ''));
+    const fact  = escHtml(String(d[`sv_fact_${i}`]  ?? ''));
+    return `<tr>
+      <td style="${tdS}"><input type="text" value="${omsch}" placeholder="Omschrijving" oninput="standaardModalSet('sv_omsch_${i}',this.value)" style="${stI}"></td>
+      <td style="${tdS}" style="white-space:nowrap;">€ <input type="number" step="0.01" value="${loon}" placeholder="—" oninput="standaardModalSet('sv_loon_${i}',this.value)" style="${stN}"></td>
+      <td style="${tdS}" style="white-space:nowrap;">€ <input type="number" step="0.01" value="${fact}" placeholder="—" oninput="standaardModalSet('sv_fact_${i}',this.value)" style="${stN}"></td>
+      <td style="padding:2px 4px;">${svCount > 1 ? `<button onclick="standaardModalRemoveVerg(${i})" title="Verwijderen" style="border:none;background:transparent;cursor:pointer;color:#ef4444;font-size:.85rem;padding:0 3px;">✕</button>` : ''}</td>
+    </tr>`;
+  }).join('');
 
   const html = `
     <h4 style="font-size:1rem;font-weight:800;margin-bottom:4px;">${isEdit?'✏️ Standaard bewerken':'➕ Nieuwe standaard toevoegen'}</h4>
@@ -9468,6 +9514,8 @@ function renderStandaardModal() {
       </tr></thead>
       <tbody>${vergRows}</tbody>
     </table>
+    <button onclick="standaardModalAddVerg()" style="margin-top:5px;margin-bottom:2px;padding:3px 12px;font-size:.73rem;background:#eff6ff;color:#1a56db;border:1px solid #93c5fd;border-radius:5px;cursor:pointer;">＋ Vergoeding toevoegen</button>
+
     <div style="margin-top:6px;">
       <label style="font-size:.7rem;color:#555;display:block;margin-bottom:2px;">Winstdeling (notitie)</label>
       <textarea style="${stI}min-height:52px;resize:vertical;" oninput="standaardModalSet('winstdeling_notitie',this.value)">${escHtml(String(d.winstdeling_notitie??''))}</textarea>
@@ -9541,16 +9589,22 @@ function standaardApply(id) {
   }
   if (owIdx > 1) d.overw_count = owIdx - 1;
 
-  // Vergoedingen overnemen
+  // Vergoedingen overnemen: nieuwe sv_ keys, fallback naar vaste keys
   let vergIdx = 1;
-  vergMapping.forEach(([kv, kf, lbl]) => {
-    if (sd[kv] || sd[kf]) {
-      d[`verg_omsch_${vergIdx}`] = lbl;
-      d[`verg_loon_${vergIdx}`]  = sd[kv] || '';
-      d[`verg_fact_${vergIdx}`]  = sd[kf] || '';
-      vergIdx++;
+  const svNewCount = parseInt(sd.sv_count || 0);
+  if (svNewCount > 0) {
+    for (let i = 1; i <= svNewCount; i++) {
+      const omsch = sd[`sv_omsch_${i}`] || '';
+      const loon  = sd[`sv_loon_${i}`]  || '';
+      const fact  = sd[`sv_fact_${i}`]  || '';
+      if (loon || fact || omsch) { d[`verg_omsch_${vergIdx}`]=omsch; d[`verg_loon_${vergIdx}`]=loon; d[`verg_fact_${vergIdx}`]=fact; vergIdx++; }
     }
-  });
+  } else {
+    // Fallback: oude vaste verg-keys
+    vergMapping.forEach(([kv, kf, lbl]) => {
+      if (sd[kv] || sd[kf]) { d[`verg_omsch_${vergIdx}`]=lbl; d[`verg_loon_${vergIdx}`]=sd[kv]||''; d[`verg_fact_${vergIdx}`]=sd[kf]||''; vergIdx++; }
+    });
+  }
   d.verg_count = Math.max(1, vergIdx - 1);
   // Winstdeling notitie → overige afspraken (aanvullen, niet overschrijven)
   if (sd.winstdeling_notitie) {
