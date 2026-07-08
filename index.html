@@ -4353,16 +4353,20 @@ function renderAanmeldForm() {
 
   const g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start;';
   const btnBase = 'padding:8px 18px;border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;';
-  // Standaard selector
+  // Standaard selector — altijd tonen; sync triggeren als nog niet geladen
+  if (!STANDAARD_SYNCED) standaardSupabaseSync();
   const allStandaard = standaardLoadAll();
-  const standaardSelector = allStandaard.length ? `
-    <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:7px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <span style="font-size:.75rem;color:rgba(255,255,255,.7);white-space:nowrap;">🏢 Gebruik standaard:</span>
-      <select id="standaard-select" style="flex:1;min-width:160px;padding:4px 8px;font-size:.78rem;border-radius:4px;border:1px solid var(--border);background:#fff;color:#111;" onchange="if(this.value){if(confirm('Opdrachtgever-gegevens worden ingeladen. Ga door?'))standaardApply(this.value);this.value='';}">
-        <option value="">— Selecteer opdrachtgever-standaard —</option>
+  const standaardInner = allStandaard.length
+    ? `<select id="standaard-select" style="flex:1;min-width:200px;padding:6px 10px;font-size:.82rem;font-weight:600;border-radius:6px;border:none;background:#fff;color:#111;cursor:pointer;" onchange="if(this.value){if(confirm('Opdrachtgever-gegevens worden ingeladen. Ga door?'))standaardApply(this.value);this.value='';}">
+        <option value="">— Kies opdrachtgever —</option>
         ${allStandaard.map(e=>`<option value="${e.id}">${escHtml(e.naam)}</option>`).join('')}
-      </select>
-    </div>` : '';
+      </select>`
+    : `<span style="font-size:.78rem;color:rgba(255,255,255,.5);font-style:italic;">Standaarden laden…</span>`;
+  const standaardSelector = `
+    <div style="background:linear-gradient(135deg,rgba(26,86,219,.35) 0%,rgba(26,86,219,.18) 100%);border:1.5px solid rgba(26,86,219,.55);border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:.8rem;font-weight:700;color:#fff;white-space:nowrap;">🏢 Standaard inladen:</span>
+      ${standaardInner}
+    </div>`;
   return `<div style="max-width:860px;">
     ${standaardSelector}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
@@ -9317,7 +9321,7 @@ async function standaardSupabaseSync() {
     const arr = data.map(r => ({ id: r.id, naam: r.naam, data: r.data || {} }));
     standaardSaveAll(arr);
     STANDAARD_SYNCED = true;
-    if (currentTab === 'hrm' && HRM_SUBTAB === 'standaard') renderHrmBackoffice();
+    if (currentTab === 'hrm' && (HRM_SUBTAB === 'standaard' || HRM_SUBTAB === 'aanmeldformulier')) renderHrmBackoffice();
   } catch(_) {}
 }
 async function standaardSupabaseSave(naam, data) {
