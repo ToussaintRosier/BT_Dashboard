@@ -3466,8 +3466,8 @@ function renderContractRow(src, id, nCols, safeId) {
     // Eurobedragen op 2 decimalen: salaris, wtta, tarief, kostprijs, vergoeding, marge, marge_pw
     if (['salaris_bpm','wtta','tarief','kostprijs','vergoeding','marge','marge_pw'].includes(f.key)) {
       const num = val !== '' ? parseFloat(val) : null;
-      const dispVal = num != null ? '€ ' + num.toFixed(2) : (f.key === 'wtta' ? '€ 0.00' : '—');
-      const inpVal  = num != null ? num.toFixed(2) : (f.key === 'wtta' ? '0.00' : '');
+      const dispVal = num != null ? '€ ' + num.toFixed(2) : '—';
+      const inpVal  = num != null ? num.toFixed(2) : '';
       if (!editable) return `<span style="${stIn}display:inline-block;">${escHtml(dispVal)}</span>`;
       return `<input type="number" step="0.01" min="0" value="${escHtml(inpVal)}" placeholder="0.00" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
     }
@@ -4005,9 +4005,10 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
-      <td style="padding:5px 8px;white-space:nowrap;">${detBtn}${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
+      <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-defn-${safeId}" value="${defnVal}" oninput="projDefEindSave('${r.source}','${r.id}',this.value)" style="width:104px;padding:3px 4px;font-size:.78rem;${defnVal?'border-color:#0e9f6e;':''}" title="Definitieve einddatum — stopt de telling in de projectenlijn"></td>
@@ -4019,9 +4020,10 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId)}`;
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
-      <td style="padding:5px 8px;white-space:nowrap;">${detBtn}${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
+      <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
@@ -4845,15 +4847,15 @@ function renderPrognose() {
       ${(() => {
         window._projOvCache = { overzichtRanges, canEditProj, nuVoorOverdue };
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
-        const nCols    = canEditProj ? 7 : 6;
+        const nCols    = canEditProj ? 8 : 7;
         const TH       = (txt, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
         const THSORT   = (txt, col, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" onclick="projFiltSort('${col}')">${txt}<span id="proj-sort-${col}" style="font-size:.6rem;opacity:.45;margin-left:3px;">↕</span></th>`;
         const colgroup = canEditProj
-          ? `<colgroup><col style="width:22%"><col style="width:14%"><col style="width:auto"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
-          : `<colgroup><col style="width:26%"><col style="width:16%"><col style="width:auto"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
+          ? `<colgroup><col style="width:22%"><col style="width:14%"><col style="width:auto"><col style="width:44px"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
+          : `<colgroup><col style="width:26%"><col style="width:16%"><col style="width:auto"><col style="width:44px"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
-          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), TH('','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), TH('','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
         // Pas huidig filter toe op de initiële render
         const fq = (window._projFilt||{}).q||'';
         let initList = overzichtRanges.slice();
@@ -6813,10 +6815,10 @@ async function cvGenDownloadWoordCv() {
     xml = cvGenInsertAfterLabel(xml, 'Geboortedatum', CV_GEN.velden.geboortedatum);
 
     // Voetnoot toevoegen aan einde document (8pt, cursief, grijs)
-    const footnotePara = '<w:p><w:pPr><w:spacing w:before="280" w:after="0"/><w:pBdr><w:top w:val="single" w:sz="4" w:space="1" w:color="CCCCCC"/></w:pBdr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:i/><w:color w:val="808080"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:i/><w:color w:val="808080"/></w:rPr><w:t>Wij waarderen een inhoudelijke terugkoppeling binnen 24 uur. Zo kunnen wij onze kandidaten snel en zorgvuldig informeren en betrokken houden in het proces.</w:t></w:r></w:p>';
+    const footnotePara = '<w:p><w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="1" w:color="CCCCCC"/></w:pBdr><w:spacing w:before="280" w:after="0"/><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:i/><w:color w:val="808080"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:i/><w:color w:val="808080"/></w:rPr><w:t>Wij waarderen een inhoudelijke terugkoppeling binnen 24 uur. Zo kunnen wij onze kandidaten snel en zorgvuldig informeren en betrokken houden in het proces.</w:t></w:r></w:p>';
     // Invoegen vóór <w:sectPr> (documenteinde-sectie), anders vóór </w:body>
     if (xml.includes('<w:sectPr')) {
-      xml = xml.replace(/<w:sectPr[\s>]/, footnotePara + '<w:sectPr ').replace(footnotePara + '<w:sectPr  ', footnotePara + '<w:sectPr ');
+      xml = xml.replace(/<w:sectPr(?=[\s>])/, footnotePara + '<w:sectPr');
     } else {
       xml = xml.replace('</w:body>', footnotePara + '</w:body>');
     }
@@ -7065,7 +7067,74 @@ async function gesprekStart() {
     mr.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(GESPREK.audioChunks, { type: mr.mimeType || 'audio/webm' });
-      gesprekUpload(blob, mr.mimeType || 'audio/webm');
+      if (GESPREK._stopMode === 'pauze') {
+        GESPREK.pendingBlobs.push(blob);
+        GESPREK.recording = false;
+        GESPREK.paused = true;
+        GESPREK.statusMsg = '';
+        renderGesprek();
+      } else {
+        const allBlobs = [...GESPREK.pendingBlobs, blob];
+        const combined = new Blob(allBlobs, { type: mr.mimeType || 'audio/webm' });
+        GESPREK.pendingBlobs = [];
+        gesprekUpload(combined, mr.mimeType || 'audio/webm');
+      }
+    };
+
+    mr.start(1000);
+    GESPREK.timerInterval = setInterval(() => { GESPREK.recordingTime++; renderGesprek(); }, 1000);
+    renderGesprek();
+  } catch(err) {
+    GESPREK.statusMsg = '⚠️ Microfoontoegang geweigerd: ' + err.message;
+    renderGesprek();
+  }
+}
+
+function gesprekPauze() {
+  if (!GESPREK.recording) return;
+  GESPREK._stopMode = 'pauze';
+  if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
+  GESPREK.totalRecordingTime = (GESPREK.totalRecordingTime || 0) + GESPREK.recordingTime;
+  GESPREK.recordingTime = 0;
+  if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state !== 'inactive') {
+    GESPREK.mediaRecorder.stop();
+  }
+  GESPREK.recording = false;
+  GESPREK.statusMsg = '';
+  renderGesprek();
+}
+
+async function gesprekDoorgaan() {
+  if (GESPREK.recording || GESPREK.analyzing) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    GESPREK.mediaRecorder = mr;
+    GESPREK.audioChunks = [];
+    GESPREK.recording = true;
+    GESPREK.paused = false;
+    GESPREK._stopMode = 'stop';
+    GESPREK.statusMsg = '';
+
+    mr.ondataavailable = (e) => { if (e.data.size > 0) GESPREK.audioChunks.push(e.data); };
+    mr.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(GESPREK.audioChunks, { type: mr.mimeType || 'audio/webm' });
+      if (GESPREK._stopMode === 'pauze') {
+        GESPREK.pendingBlobs.push(blob);
+        GESPREK.recording = false;
+        GESPREK.paused = true;
+        GESPREK.statusMsg = '';
+        renderGesprek();
+      } else {
+        const allBlobs = [...GESPREK.pendingBlobs, blob];
+        const combined = new Blob(allBlobs, { type: mr.mimeType || 'audio/webm' });
+        GESPREK.pendingBlobs = [];
+        gesprekUpload(combined, mr.mimeType || 'audio/webm');
+      }
     };
 
     mr.start(1000);
@@ -7078,11 +7147,25 @@ async function gesprekStart() {
 }
 
 function gesprekStop() {
+  if (GESPREK.paused && !GESPREK.recording) {
+    // Gepauzeerd, geen actieve opname — upload direct de opgebouwde segmenten
+    GESPREK.paused = false;
+    GESPREK.analyzing = true;
+    GESPREK.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
+    const mimeType = (GESPREK.pendingBlobs[0] && GESPREK.pendingBlobs[0].type) || 'audio/webm';
+    const combined = new Blob(GESPREK.pendingBlobs, { type: mimeType });
+    GESPREK.pendingBlobs = [];
+    renderGesprek();
+    gesprekUpload(combined, mimeType);
+    return;
+  }
   if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
+  GESPREK._stopMode = 'stop';
   if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state !== 'inactive') {
     GESPREK.mediaRecorder.stop();
   }
   GESPREK.recording = false;
+  GESPREK.paused = false;
   GESPREK.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
   renderGesprek();
 }
@@ -7165,11 +7248,11 @@ function gesprekReset() {
   const bewaarFunctie = GESPREK.functie;
   GESPREK = {
     naam: bewaarNaam, functie: bewaarFunctie,
-    transcript: '', recording: false, analyzing: false,
+    transcript: '', recording: false, paused: false, analyzing: false,
     statusMsg: '', result: null,
     transcriptId: null, pollingTimer: null,
-    mediaRecorder: null, audioChunks: [],
-    recordingTime: 0, timerInterval: null,
+    mediaRecorder: null, audioChunks: [], pendingBlobs: [],
+    recordingTime: 0, totalRecordingTime: 0, timerInterval: null,
   };
   renderGesprek();
 }
@@ -7356,7 +7439,7 @@ function renderGesprek() {
     </div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
       <button class="bm-subtab-btn active" onclick="">🎙️ Recorder</button>
-      <button class="bm-subtab-btn" onclick="gesprekSubView='records';renderGesprekRecords()">📋 Recente records${_gesprekBadge}</button>
+      <button class="bm-subtab-btn" onclick="gesprekSubView='records';renderGesprekRecords();gesprekHerlaadRecords()">📋 Recente records${_gesprekBadge}</button>
     </div>
     <div class="info-box blue">ℹ️ Neem het gesprek op via de microfoon van je laptop. Na het stoppen worden de sprekers automatisch herkend en het gesprek geanalyseerd door AI. Informeer kandidaten dat het gesprek wordt opgenomen.</div>
 
@@ -7375,15 +7458,23 @@ function renderGesprek() {
       </div>
 
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-        ${!g.recording && !g.analyzing
+        ${!g.recording && !g.paused && !g.analyzing
           ? `<button class="proj-save-btn" style="background:#dc2626;border-color:#dc2626;font-size:1rem;padding:10px 22px;"
                onclick="gesprekStart()">🎙️ Start opname</button>`
           : g.recording
-          ? `<button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:1rem;padding:10px 22px;"
-               onclick="gesprekStop()">⏹ Stop opname</button>
-             <span style="font-size:1.4rem;font-weight:700;color:#dc2626;font-variant-numeric:tabular-nums;">⏱ ${fmtTime(g.recordingTime)}</span>`
+          ? `<button class="btn-secondary" style="font-size:.92rem;padding:9px 18px;"
+               onclick="gesprekPauze()">⏸ Pauze</button>
+             <button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:.92rem;padding:9px 18px;"
+               onclick="gesprekStop()">⏹ Stop &amp; Analyseer</button>
+             <span style="font-size:1.3rem;font-weight:700;color:#dc2626;font-variant-numeric:tabular-nums;">⏱ ${fmtTime(g.recordingTime)}${g.totalRecordingTime ? ' (+' + fmtTime(g.totalRecordingTime) + ' eerder)' : ''}</span>`
+          : g.paused
+          ? `<button class="proj-save-btn" style="background:#dc2626;border-color:#dc2626;font-size:.92rem;padding:9px 18px;"
+               onclick="gesprekDoorgaan()">▶️ Verder opnemen</button>
+             <button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:.92rem;padding:9px 18px;"
+               onclick="gesprekStop()">⏹ Stop &amp; Analyseer</button>
+             <span style="font-size:.84rem;color:var(--muted);">${g.pendingBlobs.length} segment(en) — ${fmtTime(g.totalRecordingTime)} opgenomen</span>`
           : `<button class="proj-save-btn" style="opacity:.6;cursor:default;" disabled>⏳ Verwerken…</button>`}
-        ${!g.recording && !g.analyzing && (g.result || g.transcript)
+        ${!g.recording && !g.paused && !g.analyzing && (g.result || g.transcript)
           ? `<button class="btn-secondary" onclick="gesprekReset()">↺ Nieuw gesprek</button>`
           : ''}
         ${g.statusMsg ? `<span style="font-size:.85rem;color:var(--muted);">${escHtml(g.statusMsg)}</span>` : ''}
@@ -8286,7 +8377,7 @@ function renderBezoekRecorder() {
     </div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
       <button class="bm-subtab-btn active" onclick="">🏢 Recorder</button>
-      <button class="bm-subtab-btn" onclick="bezoekSubView='records';renderBezoekRecords()">📋 Recente records${_bezoekBadge}</button>
+      <button class="bm-subtab-btn" onclick="bezoekSubView='records';renderBezoekRecords();bezoekHerlaadRecords()">📋 Recente records${_bezoekBadge}</button>
     </div>
     <div class="info-box blue">ℹ️ Neem het bezoekgesprek op via de microfoon van je laptop. Na het stoppen worden sprekers herkend en maakt AI automatisch een bezoekverslag. Informeer je gesprekspartner dat het gesprek wordt opgenomen.</div>
 
@@ -8340,11 +8431,11 @@ function renderBezoekRecorder() {
 // ── Plaatsingsadvies (salesnavigator: zoek vacatures voor kandidaat) ──────────
 let GESPREK = {
   naam: '', functie: '', transcript: '',
-  recording: false, analyzing: false,
+  recording: false, paused: false, analyzing: false,
   statusMsg: '', result: null,
   transcriptId: null, pollingTimer: null,
-  mediaRecorder: null, audioChunks: [],
-  recordingTime: 0, timerInterval: null,
+  mediaRecorder: null, audioChunks: [], pendingBlobs: [],
+  recordingTime: 0, totalRecordingTime: 0, timerInterval: null,
 };
 
 let PLAATSING = {
@@ -9184,6 +9275,7 @@ let OPGESL_OPEN = {}; // id → bool (uitvouwbaar)
 let STANDAARD_EXPANDED = {}; // id → bool
 let STANDAARD_MODAL_DATA = {}; // live form state in modal
 let STANDAARD_MODAL_EDIT_ID = null; // null = nieuw, id = bewerken
+let STANDAARD_SYNCED = false; // éénmalig per sessie vanuit Supabase laden
 function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
 
 // ── Standaard (opdrachtgever templates) ─────────────────────────────────────
@@ -9215,6 +9307,31 @@ function standaardLoadAll() {
 }
 function standaardSaveAll(arr) {
   try { localStorage.setItem('bt_aanmeld_standaard', JSON.stringify(arr)); } catch(_) {}
+}
+// ── Supabase sync ────────────────────────────────────────────
+async function standaardSupabaseSync() {
+  if (!supa) return;
+  try {
+    const { data, error } = await supa.from('aanmeld_standaarden').select('id,naam,data').order('naam');
+    if (error || !data || !data.length) return;
+    const arr = data.map(r => ({ id: r.id, naam: r.naam, data: r.data || {} }));
+    standaardSaveAll(arr);
+    STANDAARD_SYNCED = true;
+    if (currentTab === 'hrm' && HRM_SUBTAB === 'standaard') renderHrmBackoffice();
+  } catch(_) {}
+}
+async function standaardSupabaseSave(naam, data) {
+  if (!supa) return;
+  try {
+    await supa.from('aanmeld_standaarden')
+      .upsert({ naam, data, bijgewerkt_op: new Date().toISOString() }, { onConflict: 'naam' });
+  } catch(_) {}
+}
+async function standaardSupabaseDelete(naam) {
+  if (!supa) return;
+  try {
+    await supa.from('aanmeld_standaarden').delete().eq('naam', naam);
+  } catch(_) {}
 }
 function standaardToggle(id) {
   STANDAARD_EXPANDED[id] = !STANDAARD_EXPANDED[id];
@@ -9321,13 +9438,17 @@ function standaardModalSave() {
     all.push({ id: Date.now(), naam, data: JSON.parse(JSON.stringify(STANDAARD_MODAL_DATA)) });
   }
   standaardSaveAll(all);
+  standaardSupabaseSave(naam, JSON.parse(JSON.stringify(STANDAARD_MODAL_DATA)));
   closeStandaardModal();
   HRM_SUBTAB = 'standaard';
   render();
 }
 function standaardDelete(id) {
   if (!confirm('Weet je zeker dat je deze standaard wilt verwijderen?')) return;
-  standaardSaveAll(standaardLoadAll().filter(e => e.id !== id));
+  const all = standaardLoadAll();
+  const entry = all.find(e => e.id === id);
+  standaardSaveAll(all.filter(e => e.id !== id));
+  if (entry) standaardSupabaseDelete(entry.naam);
   delete STANDAARD_EXPANDED[id];
   render();
 }
@@ -9367,6 +9488,7 @@ function standaardApply(id) {
 }
 
 function renderStandaardTab() {
+  if (!STANDAARD_SYNCED) standaardSupabaseSync();
   const all = standaardLoadAll();
   const glans = 'background:linear-gradient(135deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,.04) 100%);backdrop-filter:blur(4px);';
   const thS = 'padding:4px 8px;font-size:.7rem;color:rgba(255,255,255,.5);font-weight:700;text-align:left;border-bottom:1px solid rgba(255,255,255,.15);';
