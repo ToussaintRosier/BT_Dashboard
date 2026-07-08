@@ -860,15 +860,23 @@ function renderTabs() {
   if (CURRENT_USER && CURRENT_USER.rol === 'bm') {
     // "Kandidaten"-overzicht (alle Intakes van alle BM's, laatste 10 weken) is
     // voor alle BM's beschikbaar.
+    const _bmIdx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
+    const _bmInMed = currentTab === 'medewerkers' || currentTab === _bmIdx;
     document.getElementById('sidebar').innerHTML = `
-      <div class="sidebar-cat"><div class="sidebar-cat-btn active-cat" style="cursor:default;">📋 ${escHtml(CURRENT_USER.bm_naam)}</div></div>
       <div class="sidebar-cat">
-        <button class="sidebar-cat-btn ${currentTab==='medewerkers'?'active-cat':''}" onclick="goMedewerkersOverzicht()"><span>👥 Medewerkers</span></button>
+        <div class="sidebar-cat-btn ${_bmInMed?'active-cat':''}" style="cursor:pointer;" onclick="toggleMedewerkers(event)">
+          <span style="flex:1;">👥 Medewerkers</span>
+          <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
+        </div>
+        <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">
+          <button class="sidebar-item ${currentTab==='medewerkers'?'active':''}" onclick="goMedewerkersOverzicht()">👥 Overzicht</button>
+          ${_bmIdx >= 0 ? `<button class="sidebar-item ${currentTab===_bmIdx?'active':''}" onclick="selectTab(${_bmIdx})">${escHtml(CURRENT_USER.bm_naam)}</button>` : ''}
+        </div>
       </div>
       <div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab===BMS.length||currentTab===BMS.length+1||currentTab==='hrm')?'active-cat':''}">
-          <span style="cursor:pointer;flex:1;">🏛️ Management</span>
-          <span class="sidebar-caret ${managementOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleManagement(event)">▶</span>
+        <div class="sidebar-cat-btn ${(currentTab===BMS.length||currentTab===BMS.length+1||currentTab==='hrm')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+          <span style="flex:1;">🏛️ Management</span>
+          <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
           <button class="sidebar-item ${currentTab===BMS.length?'active':''}" onclick="selectTab(${BMS.length})">📊 Team Resultaten</button>
@@ -883,9 +891,9 @@ function renderTabs() {
         <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
       </div>
       <div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}">
-          <span style="cursor:pointer;flex:1;">🛠️ Tools</span>
-          <span class="sidebar-caret ${toolsOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleTools(event)">▶</span>
+        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
+          <span style="flex:1;">🛠️ Tools</span>
+          <span class="sidebar-caret ${toolsOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
           <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">📄 CV-generator</button>
@@ -910,16 +918,16 @@ function renderTabs() {
 
   document.getElementById('sidebar').innerHTML = `
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}">
-        <span style="cursor:pointer;flex:1;" onclick="goMedewerkersOverzicht()">👥 Medewerkers</span>
-        <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleMedewerkers(event)">▶</span>
+      <div class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}" style="cursor:pointer;" onclick="toggleMedewerkers(event)">
+        <span style="flex:1;" onclick="goMedewerkersOverzicht(); event.stopPropagation();">👥 Medewerkers</span>
+        <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel'||currentTab==='hrm')?'active-cat':''}">
-        <span style="cursor:pointer;flex:1;">🏛️ Management</span>
-        <span class="sidebar-caret ${managementOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleManagement(event)">▶</span>
+      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel'||currentTab==='hrm')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+        <span style="flex:1;">🏛️ Management</span>
+        <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
         <button class="sidebar-item ${currentTab===teamIdx?'active':''}" onclick="selectTab(${teamIdx})">📊 Team Resultaten</button>
@@ -935,9 +943,9 @@ function renderTabs() {
       <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span>🗂️ Kandidaten</span></button>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}">
-        <span style="cursor:pointer;flex:1;">🛠️ Tools</span>
-        <span class="sidebar-caret ${toolsOpen?'open':''}" style="cursor:pointer;padding:2px 4px;" onclick="toggleTools(event)">▶</span>
+      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
+        <span style="flex:1;">🛠️ Tools</span>
+        <span class="sidebar-caret ${toolsOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
         <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">📄 CV-generator</button>
