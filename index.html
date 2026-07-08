@@ -1413,8 +1413,13 @@ function renderBM(bm) {
   const ytd    = ytdTotals(rows);
   const pLabel = view==='week' ? 'week' : 'maand';
   const passed = periodsPassedInYear(year, view);
+  // Effectieve gewerkte periodes: voor nieuwe BMs (< 26 wkn data) vanaf eerste datarij,
+  // niet vanaf jan 1 — anders krijg je bv. 44 intakes / 28 weken = 1.6 i.p.v. 44/19 = 2.3
+  const _ytdEersteRij = rows.slice().sort((a,b) => a.week - b.week)[0];
+  const _ytdStartWk   = _ytdEersteRij ? _ytdEersteRij.week : 1;
+  const gewerktePeriodes = view==='week' ? Math.max(1, passed - (_ytdStartWk - 1)) : passed;
   const ytdAvg = {};
-  for (const k of KPIS) ytdAvg[k] = +(ytd[k] / (passed||1)).toFixed(2);
+  for (const k of KPIS) ytdAvg[k] = +(ytd[k] / gewerktePeriodes).toFixed(2);
 
   const ytdTarget  = cumDoel(bm, passed, view==='week'?52:12);
   const sPct       = pct(ytd.starters, ytdTarget||1);
@@ -2889,8 +2894,11 @@ function computeCoachingData(bm) {
     const ta2m  = tr.aanbiedingen ? +(tr.matchgesprekken / tr.aanbiedingen * 100).toFixed(1) : 0;
     const tm2s  = tr.matchgesprekken ? +(tr.starters / tr.matchgesprekken * 100).toFixed(1)  : 0;
 
-    // YTD averages per week: gebruik verstreken weken in het jaar, niet weekrecords in data
-    const wksYTD = periodsPassedInYear(year, 'week') || 1;
+    // YTD averages per week: gebruik effectieve gewerkte weken (vanaf eerste datarij),
+    // niet alle verstreken weken in het jaar (anders worden nieuwe BMs benadeeld)
+    const _coachEersteRij = rowsYTD.slice().sort((a,b) => a.week - b.week)[0];
+    const _coachStartWk   = _coachEersteRij ? _coachEersteRij.week : 1;
+    const wksYTD = Math.max(1, (periodsPassedInYear(year, 'week') || 1) - (_coachStartWk - 1));
     const ytdPerWk = {};
     for (const k of KPIS) ytdPerWk[k] = +(ytd[k] / wksYTD).toFixed(1);
 
