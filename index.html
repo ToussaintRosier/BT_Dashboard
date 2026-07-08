@@ -2686,6 +2686,20 @@ async function loadBeheerData() {
       bm.doelStartFraction = bestaandBMS.doelStartFraction;
     }
 
+    // Auto-detectie startdatum uit eerste datarij — alleen als:
+    // 1. Er nog geen doelStartFraction is (geen begindatum, geen hardcoded waarde)
+    // 2. De BM minder dan 26 weken data heeft (anders is de 26-weken-window al volledig)
+    if (!bm.doelStartFraction) {
+      const bmRijsHuidigJaar = RAW.filter(r => r.naam === naam && r.jaar === huidigJaar)
+        .sort((a, b) => a.week - b.week);
+      if (bmRijsHuidigJaar.length > 0 && bmRijsHuidigJaar.length < 26) {
+        const eersteWeek = bmRijsHuidigJaar[0].week;
+        if (eersteWeek > 1) {
+          bm.doelStartFraction = (eersteWeek - 1) / 52;
+        }
+      }
+    }
+
     // DoelCurve: bewaar uit de huidige BMS als die er al in staat (veiligheidsnet)
     if (bestaandBMS?.doelCurve) bm.doelCurve = bestaandBMS.doelCurve;
 
