@@ -604,7 +604,9 @@ function inLast26(d) {
 // starters/jaar per persoon. normFix-waarden zijn per week gedefinieerd en
 // worden door normPerPeriod() automatisch geschaald naar de gekozen view.
 const KAM_NORM_FIX = { intakes: 0, bezoeken: 4, aanbiedingen: 0, matchgesprekken: 0, contractvoorstellen: 0 };
-const BMS = [
+// BMS wordt bij het laden vanuit de database opgebouwd (zie loadBeheerData).
+// De hardcoded waarden hieronder dienen als fallback totdat de DB is geladen.
+let BMS = [
   { naam: 'Jelle van Schijndel', doel: 18, kleur: '#1a56db' },
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
@@ -613,7 +615,7 @@ const BMS = [
   { naam: 'Luc Kools',           doel:  6, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
   { naam: 'Yoël Bronckers',      doel: 10, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
 ];
-const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
+let TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
 
 // Management: voorheen apart bijgehouden buiten de BM-funnel; Luc Kools en
 // Yoël Bronckers hebben nu een volwaardige medewerkerskaart (rol: Key
@@ -621,7 +623,7 @@ const TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
 // voor eventuele toekomstige management-only namen, momenteel leeg.
 const MGMT = [];
 const MGMT_DOEL = 0;
-const TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL;
+let TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL;
 
 // Luc Schiffers altijd uitsluiten van teambrede ratio's/aggregaten.
 // Key Accountmanagers (Luc Kools, Yoël Bronckers) ook uitsluiten van
@@ -629,14 +631,14 @@ const TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL;
 // (geen intakes/aanbiedingen/matchgesprekken) en zou de teamnormen voor
 // de overige medewerkers vertekenen. Ze krijgen wel hun eigen volledige
 // medewerkerskaart — alleen de team-aggregaten sluiten ze uit.
-const EXCL  = new Set(['Luc Kools', 'Yoël Bronckers', 'Luc Schiffers']);
+let EXCL  = new Set(['Luc Kools', 'Yoël Bronckers', 'Luc Schiffers']);
 // EXCL_RATIO: voor ratio-berekeningen ook management uitsluiten (vertekening voorkomen)
-const EXCL_RATIO = EXCL;
+let EXCL_RATIO = EXCL;
 // EXCL_STARTERS: starters-totalen tellen Luc Kools en Yoël Bronckers wél mee —
 // hun funnel-ratio's wijken structureel af, maar hun starters zijn reële
 // resultaten die in het teamtotaal thuishoren. Alleen Luc Schiffers (uit dienst)
 // blijft hier buiten beeld.
-const EXCL_STARTERS = new Set(['Luc Schiffers']);
+let EXCL_STARTERS = new Set(['Luc Schiffers']);
 
 // P75 historisch veiligheidsmargin: aanbiedingen/intake norm
 const AANB_PER_INTAKE_P75   = 6.3;  // datagedreven P75 (excl. outliers)
@@ -878,7 +880,10 @@ function renderTabs() {
           <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ ITK-Recorder</button>
           <button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">🏢 BZK-Recorder</button>
         </div>
-      </div>`;
+      </div>
+      ${isBeheerder() ? `<div class="sidebar-cat">
+        <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span>⚙️ Beheer</span></button>
+      </div>` : ''}`;
     return;
   }
 
@@ -927,7 +932,10 @@ function renderTabs() {
         <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">🎙️ ITK-Recorder</button>
         <button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">🏢 BZK-Recorder</button>
       </div>
-    </div>`;
+    </div>
+    ${isBeheerder() ? `<div class="sidebar-cat">
+      <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span>⚙️ Beheer</span></button>
+    </div>` : ''}`;
 }
 
 function toggleMedewerkers(event) {
@@ -957,6 +965,308 @@ function goMedewerkersOverzicht() {
   renderTabs();
   render();
 }
+function isBeheerder() {
+  return !!CURRENT_USER && CURRENT_USER.naam === 'Toussaint Rosier';
+}
+
+// ── Beheer-tab ────────────────────────────────────────────────────────────────
+// Zichtbaar én toegankelijk alleen voor Toussaint Rosier (isBeheerder()).
+// Toont alle collega's uit de `profiles` tabel en de `doelen` tabel.
+// Stelt in staat om collega's te bewerken (naam, begindatum, einddatum, rol, jaardoel)
+// en nieuwe collega's uit te nodigen via de `beheer-invite` Edge Function.
+
+let BEHEER_EDIT_ID    = null; // profiel-id dat nu bewerkt wordt (of null = nieuw)
+let BEHEER_INVITE_OPEN = false;
+
+// Rol-labels voor de dropdown
+const BEHEER_ROL_OPTIES = [
+  { value: 'bm',        label: 'BM (Business Manager)' },
+  { value: 'kam',       label: 'KAM (Key Accountmanager)' },
+  { value: 'manager',   label: 'Manager' },
+  { value: 'backoffice',label: 'Backoffice' },
+];
+
+function renderBeheer() {
+  const huidigJaar = new Date().getFullYear();
+
+  // Bouw doelen-map: naam → jaardoel voor huidig jaar
+  const doelenMap = {};
+  for (const d of BEHEER_DOELEN) {
+    if (d.jaar === huidigJaar) doelenMap[d.naam] = d.jaardoel;
+  }
+
+  // Tabel met alle profielen
+  const profielenHtml = BEHEER_PROFIELEN.length === 0
+    ? `<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted);">Geen collega's gevonden. Druk op "Nieuw uitnodigen".</td></tr>`
+    : BEHEER_PROFIELEN.map(p => {
+        const rolLabel = (BEHEER_ROL_OPTIES.find(r => r.value === p.rol) || {}).label || p.rol;
+        const profNaam = p.bm_naam || p.naam;
+        const doel     = (p.rol === 'bm' || p.rol === 'kam') ? (doelenMap[profNaam] ?? p.doel ?? '—') : '—';
+        const begin    = p.begindatum ? p.begindatum.slice(0,10) : '—';
+        const eind     = p.einddatum  ? p.einddatum.slice(0,10)  : '—';
+        const actief   = !p.einddatum || new Date(p.einddatum) >= new Date();
+        const badgeStyle = actief
+          ? 'background:#d1fae5;color:#065f46;'
+          : 'background:#fee2e2;color:#991b1b;';
+        return `<tr>
+          <td style="padding:8px 10px;font-weight:600;">${escHtml(p.naam)}</td>
+          <td style="padding:8px 10px;">${escHtml(p.email||'—')}</td>
+          <td style="padding:8px 10px;">${escHtml(rolLabel)}</td>
+          <td style="padding:8px 10px;">${escHtml(begin)}</td>
+          <td style="padding:8px 10px;">${escHtml(eind)}</td>
+          <td style="padding:8px 10px;text-align:center;">${(p.rol==='bm'||p.rol==='kam') ? escHtml(String(doel)) : '—'}</td>
+          <td style="padding:8px 10px;text-align:center;">
+            <span style="font-size:.72rem;padding:2px 8px;border-radius:10px;${badgeStyle}">${actief?'Actief':'Inactief'}</span>
+            &nbsp;
+            <button onclick="beheerStartEdit('${escHtml(p.id)}')" style="font-size:.78rem;padding:3px 10px;border-radius:6px;background:var(--primary);color:#fff;border:none;cursor:pointer;">Bewerken</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+  // Edit-formulier (inline, onder de tabel) voor geselecteerd profiel
+  const editProfiel = BEHEER_EDIT_ID ? BEHEER_PROFIELEN.find(p => p.id === BEHEER_EDIT_ID) : null;
+  const profNaamEdit = editProfiel ? (editProfiel.bm_naam || editProfiel.naam) : '';
+  const editFormHtml = editProfiel ? `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:20px;">
+      <div style="font-size:1.05rem;font-weight:700;margin-bottom:14px;color:var(--text);">✏️ Bewerken: ${escHtml(editProfiel.naam)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Naam</label>
+          <input id="beh-naam" value="${escHtml(editProfiel.naam)}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">E-mailadres</label>
+          <input id="beh-email" value="${escHtml(editProfiel.email||'')}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Rol</label>
+          <select id="beh-rol" onchange="beheerEditRolToggle()" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+            ${BEHEER_ROL_OPTIES.map(r=>`<option value="${r.value}"${editProfiel.rol===r.value?' selected':''}>${r.label}</option>`).join('')}
+          </select>
+        </div>
+        <div id="beh-jaardoel-wrap" style="${(editProfiel.rol==='bm'||editProfiel.rol==='kam')?'':'display:none;'}">
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Jaardoel ${huidigJaar}</label>
+          <input id="beh-jaardoel" type="number" min="0" value="${escHtml(String(doelenMap[profNaamEdit]??editProfiel.doel??12))}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Begindatum</label>
+          <input id="beh-begindatum" type="date" value="${escHtml(editProfiel.begindatum||'')}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Einddatum <span style="color:var(--text-muted);font-size:.75rem;">(leeg = actief)</span></label>
+          <input id="beh-einddatum" type="date" value="${escHtml(editProfiel.einddatum||'')}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+      </div>
+      <div id="beh-edit-msg" style="margin-top:10px;font-size:.82rem;"></div>
+      <div style="margin-top:14px;display:flex;gap:10px;">
+        <button onclick="beheerSaveProfiel('${escHtml(BEHEER_EDIT_ID)}')" style="padding:8px 22px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;">Opslaan</button>
+        <button onclick="beheerAnnuleerEdit()" style="padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text);">Annuleren</button>
+      </div>
+    </div>` : '';
+
+  // Uitnodigingsmodal
+  const inviteHtml = BEHEER_INVITE_OPEN ? `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:20px;">
+      <div style="font-size:1.05rem;font-weight:700;margin-bottom:14px;color:var(--text);">➕ Nieuwe collega uitnodigen</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Naam <span style="color:#e87400">*</span></label>
+          <input id="inv-naam" placeholder="Volledige naam" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">E-mailadres <span style="color:#e87400">*</span></label>
+          <input id="inv-email" type="email" placeholder="naam@brightech.nl" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Rol <span style="color:#e87400">*</span></label>
+          <select id="inv-rol" onchange="beheerInviteRolToggle()" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+            ${BEHEER_ROL_OPTIES.map(r=>`<option value="${r.value}">${r.label}</option>`).join('')}
+          </select>
+        </div>
+        <div id="inv-jaardoel-wrap">
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Jaardoel ${huidigJaar}</label>
+          <input id="inv-jaardoel" type="number" min="0" value="12" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Begindatum</label>
+          <input id="inv-begindatum" type="date" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Einddatum <span style="color:var(--text-muted);font-size:.75rem;">(leeg = actief)</span></label>
+          <input id="inv-einddatum" type="date" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:.82rem;color:var(--text-muted);">
+        💡 De collega ontvangt een uitnodigingsmail van Supabase om in te loggen op het dashboard.
+      </div>
+      <div id="inv-msg" style="margin-top:8px;font-size:.82rem;"></div>
+      <div style="margin-top:14px;display:flex;gap:10px;">
+        <button onclick="beheerInviteVerstuur()" style="padding:8px 22px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;">Uitnodiging versturen</button>
+        <button onclick="beheerSluitInvite()" style="padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text);">Annuleren</button>
+      </div>
+    </div>` : '';
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">⚙️ Beheer</div>
+      <div class="person-meta"><span class="meta-pill">Medewerkersbeheer — alleen zichtbaar voor Toussaint</span></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:.9rem;color:var(--text-muted);">${BEHEER_PROFIELEN.length} collega's geladen</div>
+      <button onclick="beheerOpenInvite()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:.88rem;">➕ Nieuw uitnodigen</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+        <thead>
+          <tr style="background:var(--sidebar-bg,#0F092F);color:#E0E4E9;">
+            <th style="padding:9px 10px;text-align:left;font-weight:600;">Naam</th>
+            <th style="padding:9px 10px;text-align:left;font-weight:600;">E-mail</th>
+            <th style="padding:9px 10px;text-align:left;font-weight:600;">Rol</th>
+            <th style="padding:9px 10px;text-align:left;font-weight:600;">Begindatum</th>
+            <th style="padding:9px 10px;text-align:left;font-weight:600;">Einddatum</th>
+            <th style="padding:9px 10px;text-align:center;font-weight:600;">Jaardoel</th>
+            <th style="padding:9px 10px;text-align:center;font-weight:600;">Acties</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${profielenHtml}
+        </tbody>
+      </table>
+    </div>
+    ${editFormHtml}
+    ${inviteHtml}
+    <div style="margin-top:20px;">
+      <button onclick="loadBeheerData().then(()=>renderBeheer())" style="font-size:.8rem;padding:5px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-muted);">🔄 Vernieuwen</button>
+    </div>
+  </div>`;
+}
+
+// Toon/verberg jaardoel-veld op basis van geselecteerde rol (edit)
+function beheerEditRolToggle() {
+  const rol = document.getElementById('beh-rol')?.value;
+  const wrap = document.getElementById('beh-jaardoel-wrap');
+  if (wrap) wrap.style.display = (rol === 'bm' || rol === 'kam') ? '' : 'none';
+}
+
+// Toon/verberg jaardoel-veld op basis van geselecteerde rol (invite)
+function beheerInviteRolToggle() {
+  const rol = document.getElementById('inv-rol')?.value;
+  const wrap = document.getElementById('inv-jaardoel-wrap');
+  if (wrap) wrap.style.display = (rol === 'bm' || rol === 'kam') ? '' : 'none';
+}
+
+function beheerStartEdit(profielId) {
+  BEHEER_EDIT_ID = profielId;
+  BEHEER_INVITE_OPEN = false;
+  renderBeheer();
+  // scroll naar formulier
+  setTimeout(() => {
+    const el = document.getElementById('beh-naam');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
+}
+
+function beheerAnnuleerEdit() {
+  BEHEER_EDIT_ID = null;
+  renderBeheer();
+}
+
+async function beheerSaveProfiel(profielId) {
+  const msg = document.getElementById('beh-edit-msg');
+  if (msg) msg.textContent = '⏳ Opslaan…';
+  try {
+    const naam        = document.getElementById('beh-naam')?.value?.trim();
+    const email       = document.getElementById('beh-email')?.value?.trim();
+    const rol         = document.getElementById('beh-rol')?.value;
+    const begindatum  = document.getElementById('beh-begindatum')?.value || null;
+    const einddatum   = document.getElementById('beh-einddatum')?.value  || null;
+    const jaardoel    = parseInt(document.getElementById('beh-jaardoel')?.value||'0',10);
+    if (!naam || !rol) { if (msg) msg.textContent = '⚠️ Naam en rol zijn verplicht.'; return; }
+    const huidigJaar  = new Date().getFullYear();
+    const profNaam    = naam; // we gebruiken naam als profiel_naam voor doelen
+
+    // Update profiel
+    const { error: pErr } = await supa.from('profiles').update({
+      naam, email: email||null, rol, begindatum, einddatum
+    }).eq('id', profielId);
+    if (pErr) throw new Error(pErr.message);
+
+    // Update jaardoel (alleen voor BM/KAM)
+    if (rol === 'bm' || rol === 'kam') {
+      const { error: dErr } = await supa.from('doelen').upsert(
+        { naam: profNaam, jaar: huidigJaar, jaardoel },
+        { onConflict: 'naam,jaar' }
+      );
+      if (dErr) throw new Error(dErr.message);
+    }
+
+    if (msg) msg.innerHTML = '<span style="color:#059669">✅ Opgeslagen.</span>';
+    // Herlaad data
+    await loadBeheerData();
+    BEHEER_EDIT_ID = null;
+    renderBeheer();
+  } catch(err) {
+    if (msg) msg.textContent = '⚠️ Fout: ' + err.message;
+  }
+}
+
+function beheerOpenInvite() {
+  BEHEER_INVITE_OPEN = true;
+  BEHEER_EDIT_ID = null;
+  renderBeheer();
+  setTimeout(() => {
+    const el = document.getElementById('inv-naam');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
+}
+
+function beheerSluitInvite() {
+  BEHEER_INVITE_OPEN = false;
+  renderBeheer();
+}
+
+async function beheerInviteVerstuur() {
+  const msg = document.getElementById('inv-msg');
+  if (msg) msg.textContent = '⏳ Uitnodiging versturen…';
+  try {
+    const naam       = document.getElementById('inv-naam')?.value?.trim();
+    const email      = document.getElementById('inv-email')?.value?.trim();
+    const rol        = document.getElementById('inv-rol')?.value;
+    const begindatum = document.getElementById('inv-begindatum')?.value || null;
+    const einddatum  = document.getElementById('inv-einddatum')?.value  || null;
+    const jaardoel   = parseInt(document.getElementById('inv-jaardoel')?.value||'12',10);
+
+    if (!naam || !email || !rol) {
+      if (msg) msg.textContent = '⚠️ Naam, e-mail en rol zijn verplicht.';
+      return;
+    }
+
+    const session = supa ? (await supa.auth.getSession())?.data?.session : null;
+    const authHeader = session?.access_token || '';
+
+    const res = await fetch(SUPABASE_URL + '/functions/v1/beheer-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + authHeader,
+      },
+      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    if (msg) msg.innerHTML = `<span style="color:#059669">✅ ${escHtml(data.message||'Uitnodiging verstuurd!')}</span>`;
+    // Herlaad data en sluit invite-formulier na 1.5s
+    await loadBeheerData();
+    setTimeout(() => {
+      BEHEER_INVITE_OPEN = false;
+      renderBeheer();
+    }, 1500);
+  } catch(err) {
+    if (msg) msg.textContent = '⚠️ Fout: ' + err.message;
+  }
+}
+
 function canEdit(bmNaam) {
   return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.bm_naam === bmNaam);
 }
@@ -995,6 +1305,7 @@ function selectTab(i) {
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || i === 'hrm' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
+  if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
 }
@@ -1602,6 +1913,7 @@ function render() {
   if (currentTab === 'plaatsing') { renderPlaatsing(); return; }
   if (currentTab === 'gesprek') { renderGesprek(); return; }
   if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
+  if (currentTab === 'beheer') { if (isBeheerder()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
   else if (currentTab === BMS.length) renderTeam();
@@ -2216,7 +2528,82 @@ async function loadUrenrapportage() {
   UREN_KPI_WEEK_CACHE = (week.data || []).sort((a, b) => (a.jaar - b.jaar) || (a.week - b.week));
 }
 
+// ── Beheer: caches voor profielen en doelen ───────────────────────────────────
+let BEHEER_PROFIELEN = [];
+let BEHEER_DOELEN    = [];
+
+async function loadBeheerData() {
+  if (!supa) return;
+  const huidigJaar = new Date().getFullYear();
+
+  // Laad alle profielen (managers zien alles via RLS)
+  const { data: profielen } = await supa.from('profiles').select('*').order('naam');
+  BEHEER_PROFIELEN = profielen || [];
+
+  // Laad doelen voor dit jaar en vorige jaren
+  const { data: doelen } = await supa.from('doelen').select('*').order('jaar');
+  BEHEER_DOELEN = doelen || [];
+
+  // Bouw BMS opnieuw op vanuit DB — alleen actieve bm/kam profielen
+  const doelenMap = {};
+  for (const d of BEHEER_DOELEN) {
+    if (d.jaar === huidigJaar) doelenMap[d.naam] = d.jaardoel;
+  }
+
+  const fallbackKleuren = ['#1a56db','#0e9f6e','#7e3af2','#e02424','#d97706',
+                           '#0891b2','#7c3aed','#059669','#dc2626','#2563eb'];
+  let kleurIdx = 0;
+  const nieuweBMS = [];
+
+  for (const p of BEHEER_PROFIELEN) {
+    if (p.rol !== 'bm' && p.rol !== 'kam') continue;
+    // Sla medewerkers met verstreken einddatum over
+    if (p.einddatum && new Date(p.einddatum) < new Date()) continue;
+
+    const naam  = p.bm_naam || p.naam;
+    const doel  = doelenMap[naam] ?? p.doel ?? 12;
+    const kleur = p.kleur || fallbackKleuren[kleurIdx++ % fallbackKleuren.length];
+    const bm    = { naam, doel, kleur };
+
+    if (p.rol === 'kam') {
+      bm.rol     = 'Key Accountmanager';
+      bm.normFix = KAM_NORM_FIX;
+    }
+
+    // DoelStartFraction: BM gestart ná 1 januari van dit jaar
+    if (p.begindatum) {
+      const start     = new Date(p.begindatum);
+      const jaarStart = new Date(huidigJaar, 0, 1);
+      const jaarEind  = new Date(huidigJaar, 11, 31);
+      if (start > jaarStart && start <= jaarEind) {
+        const totalMs = jaarEind.getTime() - jaarStart.getTime();
+        const passedMs= start.getTime()    - jaarStart.getTime();
+        bm.doelStartFraction = Math.min(1, passedMs / totalMs);
+      }
+    }
+
+    // DoelCurve: bewaar uit de huidige BMS als die er al in staat (veiligheidsnet)
+    const bestaand = BMS.find(b => b.naam === naam);
+    if (bestaand?.doelCurve) bm.doelCurve = bestaand.doelCurve;
+
+    nieuweBMS.push(bm);
+  }
+
+  // Vervang BMS in-place zodat bestaande referenties werken
+  if (nieuweBMS.length > 0) {
+    BMS.splice(0, BMS.length, ...nieuweBMS);
+    TEAM_DOEL    = BMS.reduce((s, b) => s + b.doel, 0);
+    TOTAAL_DOEL  = TEAM_DOEL + MGMT_DOEL;
+    // Bouw EXCL-sets opnieuw op: altijd 'Luc Schiffers' + alle actieve KAMs
+    EXCL = new Set(['Luc Schiffers']);
+    for (const bm of BMS) if (bm.rol === 'Key Accountmanager') EXCL.add(bm.naam);
+    EXCL_RATIO    = EXCL;
+    EXCL_STARTERS = new Set(['Luc Schiffers']);
+  }
+}
+
 async function loadAllData() {
+  await loadBeheerData();   // eerst: BMS, TEAM_DOEL, EXCL bijwerken vanuit DB
   await loadKpiWeekly();
   await pipeFetchAll();
   await loadProjecten();
@@ -7177,15 +7564,33 @@ async function gesprekUpload(blob, mimeType) {
   GESPREK.analyzing = true;
   renderGesprek();
   try {
-    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const session = supa ? (await supa.auth.getSession())?.data?.session : null;
+    const authHeader = session?.access_token || null;
+    const userId = session?.user?.id || 'anoniem';
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
     const fd = new FormData();
 
-    // Audio altijd direct als blob meesturen; de Edge Function streamt dit
-    // door naar AssemblyAI via chunked transfer (geen Storage-bucket nodig).
-    GESPREK.statusMsg = '⏳ Audio uploaden… (even geduld bij lange opnames)';
+    // Stap 1: Upload audio naar Supabase Storage vanuit de browser.
+    // Dit gaat direct browser → Storage zonder tussenkomst van de Edge Function,
+    // dus er is geen timeout-risico — ook niet bij opnames van >1 uur.
+    GESPREK.statusMsg = '⏳ Audio uploaden…';
     renderGesprek();
-    fd.append('audio', blob, 'opname.' + ext);
+    const storagePath = userId + '/' + Date.now() + '.' + ext;
+    const { error: uploadError } = await supa.storage
+      .from('audio-opnames')
+      .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
+    if (uploadError) throw new Error('Audio opslaan mislukt: ' + uploadError.message +
+      ' — Controleer of de Storage bucket "audio-opnames" is aangemaakt in Supabase.');
+
+    // Stap 2: Haal een tijdelijke URL op (1 uur geldig — lang genoeg voor transcriptie).
+    const { data: urlData, error: urlError } = await supa.storage
+      .from('audio-opnames')
+      .createSignedUrl(storagePath, 3600);
+    if (urlError || !urlData?.signedUrl) throw new Error('Signed URL ophalen mislukt');
+    GESPREK._audioStoragePath = storagePath;
+
+    // Stap 3: Stuur alleen de URL naar de Edge Function — geen groot bestand, geen timeout.
+    fd.append('audio_url', urlData.signedUrl);
     if (GESPREK.naam) fd.append('naam', GESPREK.naam);
     if (GESPREK.functie) fd.append('functie', GESPREK.functie);
 
@@ -7203,6 +7608,11 @@ async function gesprekUpload(blob, mimeType) {
     renderGesprek();
     gesprekPoll();
   } catch(err) {
+    // Ruim audiobestand op als dat al was geüpload
+    if (GESPREK._audioStoragePath && supa) {
+      supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
+      GESPREK._audioStoragePath = null;
+    }
     GESPREK.analyzing = false;
     GESPREK.statusMsg = '⚠️ Fout: ' + err.message;
     renderGesprek();
@@ -7224,6 +7634,11 @@ function gesprekPoll() {
       const data = await res.json();
       if (data.status === 'completed') {
         clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
+        // Verwijder audiobestand uit Storage (privacy — transcriptie is klaar)
+        if (GESPREK._audioStoragePath && supa) {
+          supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
+          GESPREK._audioStoragePath = null;
+        }
         GESPREK.transcript = data.transcript || '';
         GESPREK.result = data.analyse || null;
         GESPREK.analyzing = false;
@@ -7232,6 +7647,11 @@ function gesprekPoll() {
         renderGesprek();
       } else if (data.status === 'error' || data.error) {
         clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
+        // Ruim audiobestand op bij transcriptiefout
+        if (GESPREK._audioStoragePath && supa) {
+          supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
+          GESPREK._audioStoragePath = null;
+        }
         GESPREK.analyzing = false;
         GESPREK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt');
         renderGesprek();
@@ -7247,6 +7667,10 @@ function gesprekReset() {
   if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state !== 'inactive') {
     try { GESPREK.mediaRecorder.stop(); } catch(_) {}
   }
+  // Verwijder eventueel achtergebleven audiobestand uit Storage
+  if (GESPREK._audioStoragePath && supa) {
+    supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
+  }
   const bewaarNaam    = GESPREK.naam;
   const bewaarFunctie = GESPREK.functie;
   GESPREK = {
@@ -7256,6 +7680,7 @@ function gesprekReset() {
     transcriptId: null, pollingTimer: null,
     mediaRecorder: null, audioChunks: [], pendingBlobs: [],
     recordingTime: 0, totalRecordingTime: 0, timerInterval: null,
+    _audioStoragePath: null,
   };
   renderGesprek();
 }
@@ -8439,6 +8864,7 @@ let GESPREK = {
   transcriptId: null, pollingTimer: null,
   mediaRecorder: null, audioChunks: [], pendingBlobs: [],
   recordingTime: 0, totalRecordingTime: 0, timerInterval: null,
+  _audioStoragePath: null,
 };
 
 let PLAATSING = {
