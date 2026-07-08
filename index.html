@@ -4039,6 +4039,7 @@ function renderHrmBackoffice() {
   const subTabBar = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
     ${subTabBtn('evaluatie','📋 Evaluatiebeheer')}
     ${subTabBtn('aanmeldformulier','📝 Aanmeldformulier')}
+    ${subTabBtn('opgeslagen','📁 Opgeslagen formulieren')}
   </div>`;
 
   let body = '';
@@ -4119,6 +4120,8 @@ function renderHrmBackoffice() {
         </table>
       </div>`;
     }
+  } else if (HRM_SUBTAB === 'opgeslagen') {
+    body = renderOpgeslagenFormulieren();
   } else {
     body = renderAanmeldForm();
   }
@@ -4178,6 +4181,26 @@ function aanmeldRemoveOverwRow(i) {
   aanmeldSet(`overw_omsch_${count}`, '');
   aanmeldSet(`overw_pct_${count}`,   '');
   aanmeldSet('overw_count', Math.max(1, count - 1));
+  renderHrmBackoffice();
+}
+function aanmeldAddVergRow() {
+  const d = aanmeldLoad();
+  const cur = Math.max(1, parseInt(d.verg_count || 1));
+  aanmeldSet('verg_count', Math.min(cur + 1, 15));
+  renderHrmBackoffice();
+}
+function aanmeldRemoveVergRow(i) {
+  const d = aanmeldLoad();
+  const count = Math.max(1, parseInt(d.verg_count || 1));
+  for (let j = i; j < count; j++) {
+    aanmeldSet(`verg_omsch_${j}`, d[`verg_omsch_${j+1}`] || '');
+    aanmeldSet(`verg_loon_${j}`,  d[`verg_loon_${j+1}`]  || '');
+    aanmeldSet(`verg_fact_${j}`,  d[`verg_fact_${j+1}`]  || '');
+  }
+  aanmeldSet(`verg_omsch_${count}`, '');
+  aanmeldSet(`verg_loon_${count}`,  '');
+  aanmeldSet(`verg_fact_${count}`,  '');
+  aanmeldSet('verg_count', Math.max(1, count - 1));
   renderHrmBackoffice();
 }
 
@@ -4277,7 +4300,7 @@ function renderAanmeldForm() {
   const evenDays   = d.arb_even   || [];
   const onevenDays = d.arb_oneven || [];
   const dayChk = (week, list) => days.map(dy =>
-    `<label style="display:inline-flex;align-items:center;gap:2px;font-size:.74rem;cursor:pointer;margin-right:6px;color:var(--text);"><input type="checkbox" ${list.includes(dy)?'checked':''} onchange="aanmeldDayToggle('${week}','${dy}')"> ${dy}</label>`
+    `<label style="display:inline-flex;align-items:center;gap:2px;font-size:.74rem;cursor:pointer;margin-right:6px;color:#fff;"><input type="checkbox" ${list.includes(dy)?'checked':''} onchange="aanmeldDayToggle('${week}','${dy}')"> ${dy}</label>`
   ).join('');
 
   const tarief100 = parseFloat(d.tarief_100 || 0) || 0;
@@ -4301,6 +4324,23 @@ function renderAanmeldForm() {
     </tr>`;
   }).join('');
 
+  const vergCount = Math.max(1, parseInt(d.verg_count || 1));
+  const vergRows = Array.from({length: vergCount}, (_, idx) => {
+    const i = idx + 1;
+    const omsch = escHtml(String(d[`verg_omsch_${i}`] ?? ''));
+    const loon  = escHtml(String(d[`verg_loon_${i}`]  ?? ''));
+    const fact  = escHtml(String(d[`verg_fact_${i}`]  ?? ''));
+    return `<tr>
+      <td style="${stCell}font-size:.72rem;color:#fff;white-space:nowrap;">Vergoeding ${i}</td>
+      <td style="${stCell}width:200px;"><input type="text" value="${omsch}" placeholder="Omschrijving *" oninput="aanmeldSet('verg_omsch_${i}',this.value)" style="${stInp}width:100%;box-sizing:border-box;"></td>
+      <td style="${stCell}"><input type="number" step="0.01" value="${loon}" placeholder="€" oninput="aanmeldSet('verg_loon_${i}',this.value)" style="${stInp}width:80px;"></td>
+      <td style="${stCell}font-size:.71rem;color:rgba(255,255,255,.75);">€ loon</td>
+      <td style="${stCell}"><input type="number" step="0.01" value="${fact}" placeholder="€" oninput="aanmeldSet('verg_fact_${i}',this.value)" style="${stInp}width:80px;"></td>
+      <td style="${stCell}font-size:.71rem;color:rgba(255,255,255,.75);">€ fact.</td>
+      ${vergCount > 1 ? `<td style="${stCell}"><button onclick="aanmeldRemoveVergRow(${i})" title="Verwijderen" style="border:none;background:transparent;cursor:pointer;color:#ef4444;font-size:.85rem;padding:0 4px;">✕</button></td>` : '<td></td>'}
+    </tr>`;
+  }).join('');
+
   const checkRows = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
     `<tr><td style="padding:3px 8px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem;color:#fff;"><input type="checkbox" ${d[key]?'checked':''} onchange="aanmeldSet('${key}',this.checked)"> ${lbl}</label></td><td style="padding:3px 8px;text-align:right;font-size:.68rem;color:rgba(255,255,255,.6);white-space:nowrap;">${who}</td></tr>`
   ).join('');
@@ -4317,6 +4357,7 @@ function renderAanmeldForm() {
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
       <button onclick="hrmDownloadAanmeld()" style="${btnBase}background:var(--primary);color:#fff;border:none;">⬇️ PDF downloaden</button>
       <button onclick="hrmWordAanmeld()"     style="${btnBase}background:var(--primary);color:#fff;border:none;">📄 Word downloaden</button>
+      <button onclick="aanmeldSaveForm()"    style="${btnBase}background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);">💾 Opslaan als formulier</button>
       <button onclick="hrmMailtoAanmeld()"   style="${btnBase}background:var(--primary-light);color:var(--primary);border:1.5px solid var(--primary);">📧 Versturen via e-mail</button>
       <button onclick="hrmResetAanmeld()"    style="${btnBase}background:#fff;color:#dc2626;border:1.5px solid #fca5a5;">🗑 Formulier leegmaken</button>
       <span style="font-size:.72rem;color:var(--muted);">Gegevens worden automatisch opgeslagen.</span>
@@ -4359,6 +4400,20 @@ function renderAanmeldForm() {
       ${sec('💰 Salaris & Tarief')}
       ${fld('bruto_maand','Bruto per maand (€)','number')}
       ${fld('tarief_100','Tarief 100% (€)','number')}
+      <div style="grid-column:1/-1;">
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:.74rem;color:#fff;cursor:pointer;">
+          <input type="checkbox" ${d.ploegtoesl_actief?'checked':''} onchange="aanmeldSet('ploegtoesl_actief',this.checked);renderHrmBackoffice();">
+          <strong>Ploegentoeslag</strong> <span style="color:rgba(255,255,255,.6);font-style:italic;">(optioneel)</span>
+        </label>
+        ${d.ploegtoesl_actief ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:8px;">
+          <div><label style="font-size:.68rem;color:#fff;display:block;margin-bottom:2px;">Percentage (%)</label>
+            <input type="number" step="0.01" max="100" value="${escHtml(String(d.ploegtoesl_pct??''))}" style="${stI}border:1px solid var(--border);" oninput="aanmeldSet('ploegtoesl_pct',parseFloat(this.value)||'')">
+          </div>
+          <div><label style="font-size:.68rem;color:#fff;display:block;margin-bottom:2px;">Omschrijving (welke ploegendienst)</label>
+            <input type="text" value="${escHtml(String(d.ploegtoesl_omsch??''))}" style="${stI}border:1px solid var(--border);" oninput="aanmeldSet('ploegtoesl_omsch',this.value)">
+          </div>
+        </div>` : ''}
+      </div>
 
       ${sec('⏰ Overwerk')}
       <div style="grid-column:1/-1;">
@@ -4378,10 +4433,23 @@ function renderAanmeldForm() {
       </div>
 
       ${sec('🚗 Vergoedingen')}
-      ${fld('reiskosten_dag','Reiskosten per dag (€)','number')}
-      ${fld('vergoeding_overige','Overige vergoeding')}
       ${fld('loonheffingskorting','Loonheffingskorting','select',['','Ja','Nee'])}
       <div></div>
+      <div style="grid-column:1/-1;">
+        <table style="border-collapse:collapse;width:100%;">
+          <thead><tr>
+            <th style="padding:2px 6px;text-align:left;font-size:.67rem;color:rgba(255,255,255,.7);font-weight:600;"></th>
+            <th style="padding:2px 4px;text-align:left;font-size:.67rem;color:rgba(255,255,255,.7);font-weight:600;">Omschrijving *</th>
+            <th style="padding:2px 4px;text-align:left;font-size:.67rem;color:rgba(255,255,255,.7);font-weight:600;">Deel loon</th>
+            <th></th>
+            <th style="padding:2px 4px;text-align:left;font-size:.67rem;color:rgba(255,255,255,.7);font-weight:600;">Deel facturatie</th>
+            <th></th>
+            <th></th>
+          </tr></thead>
+          <tbody id="verg-tbody">${vergRows}</tbody>
+        </table>
+        <button onclick="aanmeldAddVergRow()" style="margin-top:6px;padding:4px 12px;font-size:.73rem;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:5px;cursor:pointer;">＋ Vergoeding toevoegen</button>
+      </div>
 
       ${sec('🏢 Opdrachtgever')}
       ${fld('opdrachtgever_naam','Naam opdrachtgever')}
@@ -4396,15 +4464,21 @@ function renderAanmeldForm() {
     </div>
 
     <div style="margin-top:14px;">
+      <div style="margin-bottom:12px;">${fld('overig_afspraken','Overige afspraken','textarea')}</div>
       <div style="background:var(--primary-light);color:var(--primary);font-weight:700;font-size:.75rem;padding:5px 8px;border-radius:4px;margin-bottom:6px;">✅ Administratie checklist</div>
       <table style="width:100%;border-collapse:collapse;">${checkRows}</table>
-      <div style="margin-top:10px;">${fld('overig_afspraken','Overig afspraken','textarea')}</div>
     </div>
   </div>`;
 }
 
 function _aanmeldBuildHtml(d, forPrint) {
   const v = k => d[k] ? escHtml(String(d[k])) : '—';
+  // Geboortedatum en datumvelden: YYYY-MM-DD → DD-MM-YYYY
+  const nlDate = k => {
+    const s = String(d[k] || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.split('-').reverse().join('-');
+    return s || '—';
+  };
   const tarief100 = parseFloat(d.tarief_100 || 0) || 0;
   const overwCount = Math.max(1, parseInt(d.overw_count || 1));
   let overwHtml = '';
@@ -4416,54 +4490,87 @@ function _aanmeldBuildHtml(d, forPrint) {
       overwHtml += `<tr><td style="padding:2px 8px;">Overwerk ${i}</td><td style="padding:2px 8px;">${escHtml(omsch)}</td><td style="padding:2px 8px;">${escHtml(String(pct||''))}%</td><td style="padding:2px 8px;">€ ${tar}</td></tr>`;
     }
   }
+  const vergCount = Math.max(1, parseInt(d.verg_count || 1));
+  let vergHtml = '';
+  for (let i = 1; i <= vergCount; i++) {
+    const omsch = d[`verg_omsch_${i}`] || '';
+    const loon  = d[`verg_loon_${i}`]  || '';
+    const fact  = d[`verg_fact_${i}`]  || '';
+    if (omsch || loon || fact) {
+      vergHtml += `<tr><td style="padding:2px 8px;">${escHtml(omsch)}</td><td style="padding:2px 8px;">${loon ? '€ ' + escHtml(String(loon)) : '—'}</td><td style="padding:2px 8px;">${fact ? '€ ' + escHtml(String(fact)) : '—'}</td></tr>`;
+    }
+  }
+  // Interactieve checklist (aanvinkbaar in PDF/Word)
   const checkHtml = AANMELD_CHECKLIST.map(([lbl, key, who]) =>
-    `<tr><td style="padding:3px 8px;">${d[key] ? '☑' : '☐'} ${lbl}</td><td style="padding:3px 8px;text-align:right;color:#666;">${who}</td></tr>`
+    `<tr><td style="padding:3px 8px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" ${d[key]?'checked':''} style="width:14px;height:14px;"> ${lbl}</label></td><td style="padding:3px 8px;text-align:right;color:#666;">${who}</td></tr>`
   ).join('');
   const printScript = forPrint ? `<script>window.onload=function(){window.print();}<\/script>` : '';
+  const ploegHtml = d.ploegtoesl_actief
+    ? `<tr><td class="lb">Ploegentoeslag</td><td class="vl" colspan="3">${escHtml(String(d.ploegtoesl_pct||'—'))}% — ${escHtml(String(d.ploegtoesl_omsch||'—'))}</td></tr>` : '';
   return `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
   <title>Aanmeldformulier – ${v('naam_achternaam')}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;color:#111;}h1{font-size:13pt;color:#1a56db;margin-bottom:4px;}h2{font-size:10.5pt;background:#eff6ff;color:#1a56db;padding:4px 8px;margin:14px 0 5px;border-radius:3px;}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10pt;}.lb{color:#555;width:38%;}.vl{font-weight:500;}@media print{body{margin:8mm;}}</style>
+  <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;color:#111;}h1{font-size:13pt;color:#1a56db;margin-bottom:4px;}h2{font-size:10.5pt;background:#eff6ff;color:#1a56db;padding:4px 8px;margin:14px 0 5px;border-radius:3px;}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10pt;}.lb{color:#555;width:42%;vertical-align:top;padding:3px 8px;}.vl{font-weight:500;padding:3px 8px;}input[type=checkbox]{accent-color:#1a56db;}@media print{body{margin:8mm;}}</style>
   </head><body>
   <h1>Aanmeldformulier Brightech 2026</h1>
-  <p style="color:#555;font-size:10pt;margin-bottom:10px;">Kandidaat: <strong>${v('naam_achternaam')}</strong> &nbsp;|&nbsp; Datum in dienst: <strong>${v('datum_dienst')}</strong></p>
+  <p style="color:#555;font-size:10pt;margin-bottom:10px;">Kandidaat: <strong>${v('naam_achternaam')}</strong> &nbsp;|&nbsp; Datum in dienst: <strong>${nlDate('datum_dienst')}</strong></p>
   <h2>Persoonlijke gegevens</h2>
   <table>
-    <tr><td class="lb">Voornaam en achternaam</td><td class="vl">${v('naam_achternaam')}</td><td class="lb">Voorletters</td><td class="vl">${v('voorletters')}</td></tr>
-    <tr><td class="lb">M/V</td><td class="vl">${v('geslacht')}</td><td class="lb">Roepnaam</td><td class="vl">${v('roepnaam')}</td></tr>
-    <tr><td class="lb">Telefoon</td><td class="vl">${v('telefoon')}</td><td class="lb">E-mailadres</td><td class="vl">${v('email')}</td></tr>
-    <tr><td class="lb">Contact noodgevallen</td><td class="vl">${v('noodcontact')}</td><td class="lb">Functie</td><td class="vl">${v('functie')}</td></tr>
-    <tr><td class="lb">CAO Opdrachtgever</td><td class="vl">${v('cao_opdrachtgever')}</td><td class="lb">Adres</td><td class="vl">${v('adres')}</td></tr>
-    <tr><td class="lb">Postcode/Woonplaats</td><td class="vl">${v('postcode_woonplaats')}</td><td class="lb">Geboortedatum</td><td class="vl">${v('geb_datum')}</td></tr>
-    <tr><td class="lb">Nationaliteit</td><td class="vl">${v('nationaliteit')}</td><td class="lb">Auto van de zaak</td><td class="vl">${v('auto_zaak')}</td></tr>
-    <tr><td class="lb">BSN/Sofi-nummer</td><td class="vl">${v('bsn')}</td><td class="lb">Burgelijke staat</td><td class="vl">${v('burg_staat')}</td></tr>
-    <tr><td class="lb">Soort ID-bewijs</td><td class="vl">${v('id_bewijs')}</td><td class="lb">Nr. ID</td><td class="vl">${v('nr_id')}</td></tr>
-    <tr><td class="lb">Bankrekeningnummer</td><td class="vl">${v('bankrekening')}</td><td class="lb">Datum in dienst</td><td class="vl">${v('datum_dienst')}</td></tr>
-    <tr><td class="lb">Datum uit dienst</td><td class="vl">${v('datum_uitdienst')}</td><td class="lb">Deeltijd %</td><td class="vl">${v('deeltijd_pct')}</td></tr>
-    <tr><td class="lb">Arb. uren per dag</td><td class="vl">${v('arb_uren_dag')}</td><td></td><td></td></tr>
-    <tr><td class="lb">Even week</td><td class="vl" colspan="3">${(d.arb_even||[]).join(', ')||'—'}</td></tr>
-    <tr><td class="lb">Oneven week</td><td class="vl" colspan="3">${(d.arb_oneven||[]).join(', ')||'—'}</td></tr>
+    <tr><td class="lb">Voornaam en achternaam</td><td class="vl">${v('naam_achternaam')}</td></tr>
+    <tr><td class="lb">Voorletters</td><td class="vl">${v('voorletters')}</td></tr>
+    <tr><td class="lb">M/V</td><td class="vl">${v('geslacht')}</td></tr>
+    <tr><td class="lb">Roepnaam/voornaam</td><td class="vl">${v('roepnaam')}</td></tr>
+    <tr><td class="lb">Telefoon</td><td class="vl">${v('telefoon')}</td></tr>
+    <tr><td class="lb">E-mailadres</td><td class="vl">${v('email')}</td></tr>
+    <tr><td class="lb">Contact in noodgevallen</td><td class="vl">${v('noodcontact')}</td></tr>
+    <tr><td class="lb">Functie omschrijving</td><td class="vl">${v('functie')}</td></tr>
+    <tr><td class="lb">CAO Opdrachtgever</td><td class="vl">${v('cao_opdrachtgever')}</td></tr>
+    <tr><td class="lb">Adres</td><td class="vl">${v('adres')}</td></tr>
+    <tr><td class="lb">Postcode / Woonplaats</td><td class="vl">${v('postcode_woonplaats')}</td></tr>
+    <tr><td class="lb">Geboortedatum</td><td class="vl">${nlDate('geb_datum')}</td></tr>
+    <tr><td class="lb">Nationaliteit</td><td class="vl">${v('nationaliteit')}</td></tr>
+    <tr><td class="lb">Auto van de zaak</td><td class="vl">${v('auto_zaak')}</td></tr>
+    <tr><td class="lb">BSN / Sofi-nummer</td><td class="vl">${v('bsn')}</td></tr>
+    <tr><td class="lb">Burgelijke staat</td><td class="vl">${v('burg_staat')}</td></tr>
+    <tr><td class="lb">Soort ID-bewijs</td><td class="vl">${v('id_bewijs')}</td></tr>
+    <tr><td class="lb">Nr. ID</td><td class="vl">${v('nr_id')}</td></tr>
+    <tr><td class="lb">Bankrekeningnummer</td><td class="vl">${v('bankrekening')}</td></tr>
+    <tr><td class="lb">Datum in dienst</td><td class="vl">${nlDate('datum_dienst')}</td></tr>
+    <tr><td class="lb">Vermoedelijke datum uit dienst</td><td class="vl">${nlDate('datum_uitdienst')}</td></tr>
+    <tr><td class="lb">Deeltijd %</td><td class="vl">${v('deeltijd_pct')}</td></tr>
+    <tr><td class="lb">Arbeidspatroon uren per dag</td><td class="vl">${v('arb_uren_dag')}</td></tr>
+    <tr><td class="lb">Even week</td><td class="vl">${(d.arb_even||[]).join(', ')||'—'}</td></tr>
+    <tr><td class="lb">Oneven week</td><td class="vl">${(d.arb_oneven||[]).join(', ')||'—'}</td></tr>
   </table>
-  <h2>Bruto per maand &amp; Overwerk</h2>
+  <h2>Salaris &amp; Tarief</h2>
   <table>
-    <tr><td class="lb">Bruto per maand</td><td class="vl">€ ${v('bruto_maand')}</td><td></td><td></td></tr>
-    ${overwHtml ? `<tr><td colspan="4" style="padding-top:4px;"><table style="border-collapse:collapse;font-size:10pt;"><thead><tr><th style="padding:2px 8px;text-align:left;color:#555;">Overwerk</th><th style="padding:2px 8px;text-align:left;color:#555;">Omschrijving</th><th style="padding:2px 8px;text-align:left;color:#555;">%</th><th style="padding:2px 8px;text-align:left;color:#555;">Tarief</th></tr></thead><tbody>${overwHtml}</tbody></table></td></tr>` : ''}
+    <tr><td class="lb">Bruto per maand</td><td class="vl">€ ${v('bruto_maand')}</td></tr>
+    <tr><td class="lb">Tarief 100%</td><td class="vl">€ ${v('tarief_100')}</td></tr>
+    ${ploegHtml}
+  </table>
+  <h2>Overwerk</h2>
+  <table>
+    ${overwHtml ? `<tr><td colspan="2" style="padding:0;"><table style="border-collapse:collapse;font-size:10pt;width:100%;"><thead><tr><th style="padding:2px 8px;text-align:left;color:#555;">Omschrijving</th><th style="padding:2px 8px;text-align:left;color:#555;">%</th><th style="padding:2px 8px;text-align:left;color:#555;">Tarief</th></tr></thead><tbody>${overwHtml}</tbody></table></td></tr>` : '<tr><td class="lb">—</td><td class="vl"></td></tr>'}
   </table>
   <h2>Vergoedingen</h2>
   <table>
-    <tr><td class="lb">Reiskosten per dag</td><td class="vl">€ ${v('reiskosten_dag')}</td><td class="lb">Overige</td><td class="vl">${v('vergoeding_overige')}</td></tr>
-    <tr><td class="lb">Loonheffingskorting</td><td class="vl">${v('loonheffingskorting')}</td><td></td><td></td></tr>
+    <tr><td class="lb">Loonheffingskorting</td><td class="vl">${v('loonheffingskorting')}</td></tr>
+    ${vergHtml ? `<tr><td colspan="2" style="padding:0;"><table style="border-collapse:collapse;font-size:10pt;width:100%;"><thead><tr><th style="padding:2px 8px;text-align:left;color:#555;">Omschrijving</th><th style="padding:2px 8px;text-align:left;color:#555;">Deel loon</th><th style="padding:2px 8px;text-align:left;color:#555;">Deel facturatie</th></tr></thead><tbody>${vergHtml}</tbody></table></td></tr>` : ''}
   </table>
   <h2>Opdrachtgever</h2>
   <table>
-    <tr><td class="lb">Naam opdrachtgever</td><td class="vl">${v('opdrachtgever_naam')}</td><td class="lb">VCA plichtig</td><td class="vl">${v('vca_plichtig')}</td></tr>
-    <tr><td class="lb">Firmapas benodigd</td><td class="vl">${v('firmapas_benodigd')}</td><td class="lb">Betalingstermijn</td><td class="vl">${v('betalingstermijn')}</td></tr>
-    <tr><td class="lb">Tarief 100%</td><td class="vl">€ ${v('tarief_100')}</td><td class="lb">Berekening tarief</td><td class="vl">${v('berekening_tarief')}</td></tr>
-    <tr><td class="lb">Berekening reiskosten</td><td class="vl">${v('berekening_reiskosten')}</td><td class="lb">Accordering uren door</td><td class="vl">${v('accordering_uren')}</td></tr>
-    <tr><td class="lb">Email facturatie</td><td class="vl">${v('email_facturatie')}</td><td class="lb">CAO contact</td><td class="vl">${v('cao_contact')}</td></tr>
+    <tr><td class="lb">Naam opdrachtgever</td><td class="vl">${v('opdrachtgever_naam')}</td></tr>
+    <tr><td class="lb">VCA plichtig</td><td class="vl">${v('vca_plichtig')}</td></tr>
+    <tr><td class="lb">Firmapas benodigd</td><td class="vl">${v('firmapas_benodigd')}</td></tr>
+    <tr><td class="lb">Betalingstermijn</td><td class="vl">${v('betalingstermijn')}</td></tr>
+    <tr><td class="lb">Berekening 100% tarief</td><td class="vl">${v('berekening_tarief')}</td></tr>
+    <tr><td class="lb">Berekening reiskosten</td><td class="vl">${v('berekening_reiskosten')}</td></tr>
+    <tr><td class="lb">Accordering uren door</td><td class="vl">${v('accordering_uren')}</td></tr>
+    <tr><td class="lb">Emailadres facturatie</td><td class="vl">${v('email_facturatie')}</td></tr>
+    <tr><td class="lb">CAO contact</td><td class="vl">${v('cao_contact')}</td></tr>
   </table>
+  ${d.overig_afspraken ? `<h2>Overige afspraken</h2><p style="font-size:10pt;">${escHtml(String(d.overig_afspraken)).replace(/\n/g,'<br>')}</p>` : ''}
   <h2>Administratie checklist</h2>
   <table>${checkHtml}</table>
-  ${d.overig_afspraken ? `<h2>Overig afspraken</h2><p style="font-size:10pt;">${escHtml(String(d.overig_afspraken)).replace(/\n/g,'<br>')}</p>` : ''}
   ${printScript}
   </body></html>`;
 }
@@ -9063,8 +9170,81 @@ function isHrmEditor() {
   return !!CURRENT_USER && CURRENT_USER.rol === 'manager';
 }
 // State voor HRM sub-tab
-let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier'
+let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier' | 'opgeslagen'
+let OPGESL_OPEN = {}; // id → bool (uitvouwbaar)
 function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
+
+function aanmeldSaveForm() {
+  const d = aanmeldLoad();
+  const naam = String(d.naam_achternaam || '').trim();
+  const opdr = String(d.opdrachtgever_naam || '').trim();
+  if (!naam) { alert('Vul eerst de naam van de medewerker in.'); return; }
+  const label = naam + (opdr ? ' – ' + opdr : '');
+  const saved = aanmeldLoadSaved();
+  const entry = { id: Date.now(), label, ts: new Date().toISOString(), data: JSON.parse(JSON.stringify(d)) };
+  saved.unshift(entry);
+  try { localStorage.setItem('bt_aanmeld_saved', JSON.stringify(saved)); } catch(_) {}
+  alert('Formulier opgeslagen als: ' + label);
+  HRM_SUBTAB = 'opgeslagen';
+  render();
+}
+function aanmeldLoadSaved() {
+  try { return JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]'); } catch(_) { return []; }
+}
+function aanmeldDeleteSaved(id) {
+  if (!confirm('Weet je zeker dat je dit formulier wilt verwijderen?')) return;
+  const saved = aanmeldLoadSaved().filter(e => e.id !== id);
+  try { localStorage.setItem('bt_aanmeld_saved', JSON.stringify(saved)); } catch(_) {}
+  delete OPGESL_OPEN[id];
+  render();
+}
+function aanmeldEditSaved(id) {
+  const saved = aanmeldLoadSaved();
+  const entry = saved.find(e => e.id === id);
+  if (!entry) return;
+  try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(entry.data)); } catch(_) {}
+  HRM_SUBTAB = 'aanmeldformulier';
+  render();
+}
+function aanmeldToggleOpgesl(id) {
+  OPGESL_OPEN[id] = !OPGESL_OPEN[id];
+  render();
+}
+function renderOpgeslagenFormulieren() {
+  const saved = aanmeldLoadSaved();
+  if (!saved.length) return `<div style="padding:24px;color:rgba(255,255,255,.6);font-size:.87rem;text-align:center;">Nog geen opgeslagen formulieren. Ga naar <strong>📝 Aanmeldformulier</strong> en klik op "Opslaan als formulier".</div>`;
+  const rows = saved.map(e => {
+    const open = !!OPGESL_OPEN[e.id];
+    const d = e.data || {};
+    const v = k => d[k] ? escHtml(String(d[k])) : '—';
+    const nlDate = k => { const s = String(d[k]||''); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.split('-').reverse().join('-') : s||'—'; };
+    const ts = new Date(e.ts).toLocaleDateString('nl-NL', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const glans = 'background:linear-gradient(135deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,.03) 100%);backdrop-filter:blur(4px);';
+    const detail = open ? `<div style="padding:10px 14px 14px;${glans}border-top:1px solid rgba(255,255,255,.08);font-size:.78rem;display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;">
+      <div><span style="color:rgba(255,255,255,.55);">Geboortedatum</span> <strong>${nlDate('geb_datum')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">Telefoon</span> <strong>${v('telefoon')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">E-mail</span> <strong>${v('email')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">Functie</span> <strong>${v('functie')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">Datum in dienst</span> <strong>${nlDate('datum_dienst')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">Bruto/maand</span> <strong>€ ${v('bruto_maand')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">Tarief 100%</span> <strong>€ ${v('tarief_100')}</strong></div>
+      <div><span style="color:rgba(255,255,255,.55);">Opdrachtgever</span> <strong>${v('opdrachtgever_naam')}</strong></div>
+    </div>` : '';
+    return `<div style="border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.12);margin-bottom:10px;${glans}">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;" onclick="aanmeldToggleOpgesl(${e.id})">
+        <span style="font-size:.85rem;color:#fff;flex:1;font-weight:600;">${escHtml(e.label)}</span>
+        <span style="font-size:.7rem;color:rgba(255,255,255,.45);">${ts}</span>
+        <span style="color:rgba(255,255,255,.5);font-size:.8rem;">${open?'▲':'▼'}</span>
+      </div>
+      ${detail}
+      ${open ? `<div style="display:flex;gap:8px;padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);">
+        <button onclick="aanmeldEditSaved(${e.id})" style="padding:5px 14px;font-size:.75rem;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;">✏️ Bewerken</button>
+        <button onclick="aanmeldDeleteSaved(${e.id})" style="padding:5px 14px;font-size:.75rem;background:transparent;color:#ef4444;border:1px solid #ef4444;border-radius:5px;cursor:pointer;">🗑 Verwijderen</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+  return `<div style="max-width:860px;"><p style="font-size:.78rem;color:rgba(255,255,255,.55);margin-bottom:12px;">${saved.length} opgeslagen formulier${saved.length!==1?'en':''}. Klik op een formulier om het uit te vouwen.</p>${rows}</div>`;
+}
 
 // ── Contract-velden (localStorage) per project ───────────────────────────────
 
