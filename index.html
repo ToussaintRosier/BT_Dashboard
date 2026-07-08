@@ -987,6 +987,7 @@ function isBeheerder() {
 
 let BEHEER_EDIT_ID    = null; // profiel-id dat nu bewerkt wordt (of null = nieuw)
 let BEHEER_INVITE_OPEN = false;
+let BEHEER_VERNIEUWD_TS = 0; // 0 = idle, -1 = laden, >0 = timestamp bijgewerkt
 
 // Rol-labels voor de dropdown
 const BEHEER_ROL_OPTIES = [
@@ -1152,8 +1153,18 @@ function renderBeheer() {
           <input id="inv-einddatum" type="date" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
         </div>
       </div>
-      <div style="margin-top:10px;font-size:.82rem;color:var(--text-muted);">
-        💡 De collega ontvangt een uitnodigingsmail van Supabase om in te loggen op het dashboard.
+        <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Wachtwoord instellen <span style="color:var(--text-muted);font-size:.75rem;">(leeg = uitnodigingsmail)</span></label>
+            <input id="inv-wachtwoord" type="password" placeholder="Minimaal 8 tekens" autocomplete="new-password" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+          </div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
+            <div style="font-size:.78rem;color:var(--text-muted);line-height:1.4;">
+              💡 <strong>Met wachtwoord:</strong> account direct actief, geef gegevens zelf door.<br>
+              <strong>Zonder:</strong> collega ontvangt uitnodigingsmail.
+            </div>
+          </div>
+        </div>
       </div>
       <div id="inv-msg" style="margin-top:8px;font-size:.82rem;"></div>
       <div style="margin-top:14px;display:flex;gap:10px;">
@@ -1193,7 +1204,11 @@ function renderBeheer() {
       ${editFormHtml}
       ${inviteHtml}
       <div style="margin-top:20px;">
-        <button onclick="loadBeheerData().then(()=>renderBeheer())" style="font-size:.8rem;padding:5px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-muted);">🔄 Vernieuwen</button>
+        ${(()=>{
+          const lbl = BEHEER_VERNIEUWD_TS===-1?'⏳ Laden…':BEHEER_VERNIEUWD_TS>0?'✅ Bijgewerkt!':'🔄 Vernieuwen';
+          const klr = BEHEER_VERNIEUWD_TS>0?'#059669':'var(--text-muted)';
+          return `<button onclick="beheerVernieuwen()" ${BEHEER_VERNIEUWD_TS===-1?'disabled':''} style="font-size:.8rem;padding:5px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:${klr};font-weight:${BEHEER_VERNIEUWD_TS>0?'700':'400'};transition:color .2s;">${lbl}</button>`;
+        })()}
       </div>
     </div>
   </div>`;
@@ -1317,6 +1332,15 @@ function beheerSluitInvite() {
   renderBeheer();
 }
 
+async function beheerVernieuwen() {
+  BEHEER_VERNIEUWD_TS = -1;
+  renderBeheer();
+  await loadBeheerData();
+  BEHEER_VERNIEUWD_TS = Date.now();
+  renderBeheer();
+  setTimeout(() => { BEHEER_VERNIEUWD_TS = 0; renderBeheer(); }, 2500);
+}
+
 async function beheerInviteVerstuur() {
   const msg = document.getElementById('inv-msg');
   if (msg) msg.textContent = '⏳ Uitnodiging versturen…';
@@ -1324,12 +1348,17 @@ async function beheerInviteVerstuur() {
     const naam       = document.getElementById('inv-naam')?.value?.trim();
     const email      = document.getElementById('inv-email')?.value?.trim();
     const rol        = document.getElementById('inv-rol')?.value;
-    const begindatum = document.getElementById('inv-begindatum')?.value || null;
-    const einddatum  = document.getElementById('inv-einddatum')?.value  || null;
-    const jaardoel   = parseInt(document.getElementById('inv-jaardoel')?.value||'12',10);
+    const begindatum  = document.getElementById('inv-begindatum')?.value || null;
+    const einddatum   = document.getElementById('inv-einddatum')?.value  || null;
+    const jaardoel    = parseInt(document.getElementById('inv-jaardoel')?.value||'12',10);
+    const wachtwoord  = document.getElementById('inv-wachtwoord')?.value?.trim() || null;
 
     if (!naam || !email || !rol) {
       if (msg) msg.textContent = '⚠️ Naam, e-mail en rol zijn verplicht.';
+      return;
+    }
+    if (wachtwoord && wachtwoord.length < 8) {
+      if (msg) msg.textContent = '⚠️ Wachtwoord moet minimaal 8 tekens zijn.';
       return;
     }
 
@@ -1342,7 +1371,7 @@ async function beheerInviteVerstuur() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + authHeader,
       },
-      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel }),
+      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel, wachtwoord }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
