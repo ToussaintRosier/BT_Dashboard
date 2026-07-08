@@ -9187,6 +9187,14 @@ let STANDAARD_MODAL_EDIT_ID = null; // null = nieuw, id = bewerken
 function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
 
 // ── Standaard (opdrachtgever templates) ─────────────────────────────────────
+// Basisvelden (tekst/email)
+const STANDAARD_BASIC_FIELDS = [
+  ['cao_opdrachtgever',   'CAO Opdrachtgever',      'text'],
+  ['betalingstermijn',    'Betalingstermijn',        'text'],
+  ['accordering_uren',    'Accordering uren door',   'text'],
+  ['cao_contact',         'CAO contact',             'text'],
+  ['email_facturatie',    'Emailadres facturatie',   'email'],
+];
 // Overwerk-rijen: [key_pct, key_tarief, label]
 const STANDAARD_OW_ROWS = [
   ['ow_ma_vr_2_pct',   'ow_ma_vr_2_tarief',   'Overuren ma t/m vr (eerste 2 uur)'],
@@ -9264,6 +9272,13 @@ function renderStandaardModal() {
     <p style="font-size:.78rem;color:#666;margin-bottom:10px;">Vul de vaste opdrachtgever-gegevens in.</p>
     <label style="font-size:.7rem;color:#555;display:block;margin-bottom:2px;">Naam opdrachtgever <span style="color:#ef4444;">*</span></label>
     <input type="text" value="${escHtml(String(d.opdrachtgever_naam??''))}" placeholder="Naam opdrachtgever" style="${stI}margin-bottom:10px;" oninput="standaardModalSet('opdrachtgever_naam',this.value)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-bottom:4px;">
+      ${STANDAARD_BASIC_FIELDS.map(([k,l,t]) => {
+        const val = escHtml(String(d[k]??''));
+        return `<div><label style="font-size:.7rem;color:#555;display:block;margin-bottom:2px;">${escHtml(l)}</label>
+          <input type="${t}" value="${val}" placeholder="${escHtml(l)}" style="${stI}margin-bottom:8px;" oninput="standaardModalSet('${k}',this.value)"></div>`;
+      }).join('')}
+    </div>
 
     ${secH('📊 Overwerk %')}
     <table style="border-collapse:collapse;width:100%;">
@@ -9322,8 +9337,9 @@ function standaardApply(id) {
   if (!entry) return;
   const d = aanmeldLoad();
   const sd = entry.data || {};
-  // Naam opdrachtgever
+  // Naam opdrachtgever + basisvelden direct kopiëren
   if (sd.opdrachtgever_naam) d.opdrachtgever_naam = sd.opdrachtgever_naam;
+  STANDAARD_BASIC_FIELDS.forEach(([k]) => { if (sd[k]) d[k] = sd[k]; });
   // Map vergoedingen naar genummerde rijen in aanmeldformulier
   const vergMapping = [
     ['verg_reis_verloning', 'verg_reis_fact',  'Reiskosten per dag'],
@@ -9389,7 +9405,12 @@ function renderStandaardTab() {
 
     const winstNote = d.winstdeling_notitie ? `<div style="font-size:.77rem;color:rgba(255,255,255,.65);background:rgba(255,255,255,.06);border-radius:5px;padding:6px 10px;margin-bottom:10px;font-style:italic;">${escHtml(d.winstdeling_notitie)}</div>` : '';
 
+    const basicGrid = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 24px;font-size:.78rem;margin-bottom:12px;">
+      ${STANDAARD_BASIC_FIELDS.map(([k,l]) => `<div><span style="color:rgba(255,255,255,.5);">${escHtml(l)}</span> <strong style="color:#fff;">${d[k] ? escHtml(String(d[k])) : '—'}</strong></div>`).join('')}
+    </div>`;
+
     const detail = open ? `<div style="padding:12px 16px 14px;${glans}border-top:1px solid rgba(255,255,255,.1);">
+      ${basicGrid}
       ${owTable}
       ${vergTable}
       ${winstNote}
