@@ -675,12 +675,22 @@ function computeRatios(naam) {
   };
 }
 
+// Vaste norm: 1.25 contractvoorstellen per starter.
+// Data is nog te nieuw voor een betrouwbare historische ratio;
+// na ±26 weken data kan dit worden vervangen door de historische waarde.
+const CONTRACTVOORSTEL_RATIO_NORM = 1.25;
+
 let INDIVIDUAL_RATIOS = {};
 let TEAM_RATIOS = {};
 function recomputeRatios() {
   INDIVIDUAL_RATIOS = {};
-  for (const bm of BMS) INDIVIDUAL_RATIOS[bm.naam] = computeRatios(bm.naam);
+  for (const bm of BMS) {
+    const r = computeRatios(bm.naam);
+    r.contractvoorstellen = CONTRACTVOORSTEL_RATIO_NORM;
+    INDIVIDUAL_RATIOS[bm.naam] = r;
+  }
   TEAM_RATIOS = computeRatios(null);
+  TEAM_RATIOS.contractvoorstellen = CONTRACTVOORSTEL_RATIO_NORM;
 }
 recomputeRatios();
 
