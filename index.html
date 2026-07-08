@@ -1458,25 +1458,15 @@ function renderTeam() {
       </div>
     </div>
 
-    <!-- Grafieken rij 1: starters/maand + alle KPI's per week -->
+    <!-- KPI's per week – volledige breedte -->
     <div class="section-title">Team KPI-grafieken (${year})</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:6px;align-items:end;">
-      <div style="font-size:.8rem;font-weight:600;color:var(--muted);">Starters per maand</div>
-      <div class="kpi-toggles" style="margin:0;">
+    <div class="chart-card">
+      <div class="kpi-toggles" style="margin-bottom:10px;">
         ${KPIS.map(k => `<label class="kpi-toggle" style="--toggle-color:${kpiColor(k)}">
           <input type="checkbox" checked data-kpi="${k}" data-chart="chartTK" onchange="toggleKpiDataset(this)"> ${KPI_LABELS[k]}
         </label>`).join('')}
       </div>
-    </div>
-    <div class="two-col">
-      <div class="chart-card"><div class="chart-wrap"><canvas id="chartTS"></canvas></div></div>
-      <div class="chart-card"><div class="chart-wrap"><canvas id="chartTK"></canvas></div></div>
-    </div>
-
-    <!-- Aanbiedingen per week -->
-    <div class="chart-card" style="margin-top:0;">
-      <h3>Aanbiedingen per week + norm (${aanbNormPerWeek}/week)</h3>
-      <div class="chart-wrap"><canvas id="chartAanb"></canvas></div>
+      <div class="chart-wrap" style="height:340px;"><canvas id="chartTK"></canvas></div>
     </div>
 
     <!-- Individuele ratio's -->
@@ -1518,20 +1508,9 @@ function renderTeam() {
   </div>`;
 
   setTimeout(() => {
-    // 1. Starters per maand (lijn)
+    // 1. Activiteiten staafdiagram per maand — incl. aanbiedingen en % t.o.v. teamnorm (tooltip)
     const maandLabels = aggM.map(a => 'M'+a.period);
-    makeChart('chartTS', maandLabels, [
-      { label:'Starters', data:aggM.map(a=>startersByPeriod[a.period] ?? a.starters), borderColor:'#f59e0b', backgroundColor:'#f59e0b22', fill:true, tension:.3, pointRadius:4 },
-    ]);
-
-    // 2. Aanbiedingen per week (lijn) + normlijn
-    const weekLabels = aggW.map(a => 'W'+a.period);
-    makeChart('chartAanb', weekLabels, [
-      { label:'Aanbiedingen', data:aggW.map(a=>a.aanbiedingen), borderColor:'#7e3af2', backgroundColor:'#7e3af222', fill:true, tension:.3, pointRadius:2 },
-      { label:`Norm (${aanbNormPerWeek}/wk)`, data:aggW.map(()=>aanbNormPerWeek), borderColor:'#E87400', borderDash:[5,4], pointRadius:0 },
-    ]);
-
-    // 3. Activiteiten staafdiagram per maand — incl. aanbiedingen en % t.o.v. teamnorm (tooltip)
+    const weekLabels  = aggW.map(a => 'W'+a.period);
     const teamNormMonth = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'maand');
     makeChart('chartBar', maandLabels, [
       { label:'Intakes',      kpiKey:'intakes',         data:aggM.map(a=>a.intakes),         backgroundColor:'#1a56db99', borderColor:'#1a56db', borderWidth:1 },
