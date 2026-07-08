@@ -615,6 +615,9 @@ let BMS = [
   { naam: 'Luc Kools',           doel:  6, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
   { naam: 'Yoël Bronckers',      doel: 10, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
 ];
+// Vaste snapshot van de hardcoded BMS-namen — nooit overschreven, ook niet na DB-rebuild.
+// Gebruikt als altijd-bewaarde fallback in loadBeheerData().
+const BMS_HARDCODED_NAMEN = new Set(BMS.map(b => b.naam));
 let TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
 
 // Management: voorheen apart bijgehouden buiten de BM-funnel; Luc Kools en
@@ -2533,8 +2536,10 @@ async function loadBeheerData() {
   const { data: profielen } = await supa.from('profiles').select('*').order('naam');
   BEHEER_PROFIELEN = profielen || [];
 
-  // Laad doelen voor dit jaar en vorige jaren
-  const { data: doelen } = await supa.from('doelen').select('*').order('jaar');
+  // Laad doelen — als de tabel nog niet bestaat (migratie niet uitgevoerd),
+  // stop dan hier zodat BMS onaangetast blijft (hardcoded fallback blijft actief).
+  const { data: doelen, error: doelenErr } = await supa.from('doelen').select('*').order('jaar');
+  if (doelenErr) return;
   BEHEER_DOELEN = doelen || [];
 
   // Bouw BMS opnieuw op vanuit DB — alleen actieve bm/kam profielen
@@ -2549,16 +2554,24 @@ async function loadBeheerData() {
   const nieuweBMS = [];
 
   for (const p of BEHEER_PROFIELEN) {
-    if (p.rol !== 'bm' && p.rol !== 'kam') continue;
+    const naam = p.bm_naam || p.naam;
+    const isBmOfKam = p.rol === 'bm' || p.rol === 'kam';
+    // Opnemen als: staat in hardcoded BMS (onveranderlijke const) ÓÓFT heeft
+    // een jaardoel in de doelen-tabel voor dit jaar (= door manager toegevoegd).
+    // Dit sluit "ruis"-profielen (bijv. Recruitment) uit zonder jaardoel-entry.
+    const heeftDoel        = Object.prototype.hasOwnProperty.call(doelenMap, naam);
+    const isInHardcodedBMS = BMS_HARDCODED_NAMEN.has(naam);
+    if (!heeftDoel && !isInHardcodedBMS) continue;
     // Sla medewerkers met verstreken einddatum over
     if (p.einddatum && new Date(p.einddatum) < new Date()) continue;
 
-    const naam  = p.bm_naam || p.naam;
     const doel  = doelenMap[naam] ?? p.doel ?? 12;
     const kleur = p.kleur || fallbackKleuren[kleurIdx++ % fallbackKleuren.length];
     const bm    = { naam, doel, kleur };
 
-    if (p.rol === 'kam') {
+    // KAM: expliciet in DB of al aangemerkt in huidige BMS
+    const bestaandBMS = BMS.find(b => b.naam === naam);
+    if (p.rol === 'kam' || bestaandBMS?.rol === 'Key Accountmanager') {
       bm.rol     = 'Key Accountmanager';
       bm.normFix = KAM_NORM_FIX;
     }
@@ -2576,10 +2589,19 @@ async function loadBeheerData() {
     }
 
     // DoelCurve: bewaar uit de huidige BMS als die er al in staat (veiligheidsnet)
-    const bestaand = BMS.find(b => b.naam === naam);
-    if (bestaand?.doelCurve) bm.doelCurve = bestaand.doelCurve;
+    if (bestaandBMS?.doelCurve) bm.doelCurve = bestaandBMS.doelCurve;
 
     nieuweBMS.push(bm);
+  }
+
+  // Veiligheidsnet: hardcoded BMS-leden zonder profiel-rij in de DB én zonder
+  // doelen-entry worden altijd bewaard — ook na meerdere loadBeheerData()-aanroepen.
+  // Gebruikt BMS_HARDCODED_NAMEN (const) zodat dit nooit kan veranderen.
+  const nieuweBMSNamen = new Set(nieuweBMS.map(b => b.naam));
+  for (const bestaand of BMS) {
+    if (BMS_HARDCODED_NAMEN.has(bestaand.naam) && !nieuweBMSNamen.has(bestaand.naam)) {
+      nieuweBMS.push({ ...bestaand });
+    }
   }
 
   // Vervang BMS in-place zodat bestaande referenties werken
