@@ -4038,9 +4038,9 @@ function renderHrmBackoffice() {
   const subTabBtn = (t, label) => `<button class="bm-subtab-btn ${HRM_SUBTAB===t?'active':''}" onclick="selectHrmSubTab('${t}')">${label}</button>`;
   const subTabBar = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
     ${subTabBtn('evaluatie','📋 Evaluatiebeheer')}
-    ${subTabBtn('standaard','🏢 Standaard')}
     ${subTabBtn('aanmeldformulier','📝 Aanmeldformulier')}
     ${subTabBtn('opgeslagen','📁 Opgeslagen formulieren')}
+    ${subTabBtn('standaard','🏢 Standaard')}
   </div>`;
 
   let body = '';
@@ -4092,13 +4092,14 @@ function renderHrmBackoffice() {
     if (!sorted.length) {
       body = searchBar + `<p style="color:var(--muted);font-size:.88rem;padding:12px 0;">Geen resultaten voor "${escHtml(EVAL_SEARCH)}".</p>`;
     } else {
-      const rows = sorted.map(r => {
+      const rows = sorted.map((r, ri) => {
         const safeId   = `hrm${String(r.id).replace(/[^a-zA-Z0-9]/g, '')}`;
         const startStr = toISODate(r.begin) || '';
         const checked  = projEvalLoad(r.source, r.id);
         const ms       = getEvalMilestones(new Date(startStr));
         const chips    = _evalChips(r.source, r.id, ms, checked, safeId, false, true);
-        return `<tr style="border-bottom:1px solid var(--border);background:#fffbeb;">
+        const bg = ri % 2 === 0 ? '#fff' : '#f8fafc';
+        return `<tr style="border-bottom:1px solid var(--border);background:${bg};">
           <td style="padding:6px 10px;font-size:.82rem;font-weight:700;text-align:left;">${escHtml(r.naam||'—')}</td>
           <td style="padding:6px 10px;font-size:.78rem;text-align:left;">${escHtml(r.bm||'—')}</td>
           <td style="padding:6px 10px;font-size:.78rem;text-align:left;">${escHtml(r.opdrachtgever||'—')}</td>
@@ -4350,25 +4351,18 @@ function renderAanmeldForm() {
 
   const g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start;';
   const btnBase = 'padding:8px 18px;border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;';
-  const missingBanner = missingNow.length
-    ? `<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:7px;padding:8px 12px;font-size:.75rem;color:#dc2626;margin-bottom:10px;">
-        ⚠️ Nog <strong>${missingNow.length}</strong> verplicht ${missingNow.length===1?'veld':'velden'} open — formulier kan nog niet worden geëxporteerd of verstuurd.
-       </div>`
-    : `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:7px;padding:8px 12px;font-size:.75rem;color:#15803d;margin-bottom:10px;">✅ Alle verplichte velden zijn ingevuld.</div>`;
   // Standaard selector
   const allStandaard = standaardLoadAll();
   const standaardSelector = allStandaard.length ? `
     <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:7px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="font-size:.75rem;color:rgba(255,255,255,.7);white-space:nowrap;">🏢 Gebruik standaard:</span>
-      <select id="standaard-select" style="flex:1;min-width:160px;padding:4px 8px;font-size:.78rem;border-radius:4px;border:1px solid var(--border);background:#fff;color:#111;" onchange="if(this.value){if(confirm('De vaste opdrachtgever-gegevens worden ingeladen. Ga door?'))standaardApply(parseInt(this.value));this.value='';}">
-        <option value="">— Selecteer standaard —</option>
+      <select id="standaard-select" style="flex:1;min-width:160px;padding:4px 8px;font-size:.78rem;border-radius:4px;border:1px solid var(--border);background:#fff;color:#111;" onchange="if(this.value){if(confirm('Opdrachtgever-gegevens worden ingeladen. Ga door?'))standaardApply(this.value);this.value='';}">
+        <option value="">— Selecteer opdrachtgever-standaard —</option>
         ${allStandaard.map(e=>`<option value="${e.id}">${escHtml(e.naam)}</option>`).join('')}
       </select>
-      <span style="font-size:.68rem;color:rgba(255,255,255,.45);">Vult opdrachtgever-velden automatisch in</span>
     </div>` : '';
   return `<div style="max-width:860px;">
     ${standaardSelector}
-    ${missingBanner}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
       <button onclick="hrmDownloadAanmeld()" style="${btnBase}background:var(--primary);color:#fff;border:none;">⬇️ PDF downloaden</button>
       <button onclick="hrmWordAanmeld()"     style="${btnBase}background:var(--primary);color:#fff;border:none;">📄 Word downloaden</button>
@@ -9193,20 +9187,19 @@ let STANDAARD_MODAL_EDIT_ID = null; // null = nieuw, id = bewerken
 function selectHrmSubTab(t) { HRM_SUBTAB = t; render(); }
 
 // ── Standaard (opdrachtgever templates) ─────────────────────────────────────
-const STANDAARD_FIELDS = [
-  // [key, label, type, opts?]
-  ['opdrachtgever_naam',    'Naam opdrachtgever *',        'text'],
-  ['cao_opdrachtgever',     'CAO Opdrachtgever',           'text'],
-  ['vca_plichtig',          'VCA plichtig?',               'select', ['','Nee','Basis','VOL']],
-  ['firmapas_benodigd',     'Firmapas benodigd',           'select', ['','Ja','Nee']],
-  ['betalingstermijn',      'Betalingstermijn',            'text'],
-  ['tarief_100',            'Tarief 100% (€)',             'number'],
-  ['berekening_tarief',     'Berekening 100% tarief',      'text'],
-  ['berekening_reiskosten', 'Berekening reiskosten',       'text'],
-  ['accordering_uren',      'Accordering uren door',       'text'],
-  ['email_facturatie',      'Emailadres facturatie',       'email'],
-  ['cao_contact',           'CAO contact',                 'text'],
-  ['loonheffingskorting',   'Loonheffingskorting',         'select', ['','Ja','Nee']],
+// Overwerk-rijen: [key_pct, key_tarief, label]
+const STANDAARD_OW_ROWS = [
+  ['ow_ma_vr_2_pct',   'ow_ma_vr_2_tarief',   'Overuren ma t/m vr (eerste 2 uur)'],
+  ['ow_ma_vr_na2_pct', 'ow_ma_vr_na2_tarief', 'Overuren ma t/m vr (na de eerste 2 uur)'],
+  ['ow_zat_pct',       'ow_zat_tarief',        'Overuren zaterdag'],
+  ['ow_zon_pct',       'ow_zon_tarief',        'Overuren zon- en feestdagen'],
+];
+// Vergoedingen-rijen: [key_verloning, key_fact, label]
+const STANDAARD_VERG_ROWS = [
+  ['verg_reis_verloning',  'verg_reis_fact',  'Reiskosten per dag'],
+  ['verg_km_verloning',    'verg_km_fact',    'Zakelijke kilometers (0,23 cent per km)'],
+  ['verg_fys_verloning',   'verg_fys_fact',   'Vergoeding fysieke gezondheid'],
+  ['verg_feest_verloning', 'verg_feest_fact', 'Feestdag uitkering (uitbetalen in december)'],
 ];
 
 function standaardLoadAll() {
@@ -9246,81 +9239,61 @@ function standaardModalSet(key, val) {
 function renderStandaardModal() {
   const d = STANDAARD_MODAL_DATA;
   const isEdit = STANDAARD_MODAL_EDIT_ID != null;
-  const stI = 'width:100%;box-sizing:border-box;padding:5px 8px;font-size:.8rem;border-radius:4px;border:1px solid #d1d5db;background:#fff;color:#111;margin-bottom:8px;';
+  const stI  = 'width:100%;box-sizing:border-box;padding:5px 8px;font-size:.8rem;border-radius:4px;border:1px solid #d1d5db;background:#fff;color:#111;';
+  const stN  = 'padding:4px 6px;font-size:.78rem;border:1px solid #d1d5db;border-radius:3px;background:#fff;color:#111;width:90px;';
+  const thS  = 'padding:4px 8px;font-size:.7rem;color:#555;font-weight:700;text-align:left;background:#f9fafb;border-bottom:2px solid #e5e7eb;';
+  const tdS  = 'padding:4px 8px;border-bottom:1px solid #f0f0f0;font-size:.78rem;color:#374151;';
+  const secH = (t) => `<div style="font-size:.75rem;font-weight:700;color:#1a56db;background:#eff6ff;padding:4px 8px;border-radius:4px;margin:10px 0 6px;">` + t + `</div>`;
 
-  const fldM = (key, label, type, opts) => {
-    let inp;
-    const val = d[key] ?? '';
-    if (type === 'select') {
-      const os = (opts||[]).map(o => `<option value="${escHtml(o)}" ${o==val?'selected':''}>${escHtml(o)||'—'}</option>`).join('');
-      inp = `<select style="${stI}" onchange="standaardModalSet('${key}',this.value)">${os}</select>`;
-    } else {
-      inp = `<input type="${type}" value="${escHtml(String(val))}" placeholder="${label}" style="${stI}" oninput="standaardModalSet('${key}',this.value)">`;
-    }
-    return `<div><label style="font-size:.7rem;color:#555;display:block;margin-bottom:2px;">${label}</label>${inp}</div>`;
-  };
+  // Overwerk % tabel
+  const owRows = STANDAARD_OW_ROWS.map(([kp,kt,lbl]) => `<tr>
+    <td style="${tdS}">${escHtml(lbl)}</td>
+    <td style="${tdS}"><input type="number" step="0.01" value="${escHtml(String(d[kp]??''))}" placeholder="%" oninput="standaardModalSet('${kp}',this.value)" style="${stN}"> %</td>
+    <td style="${tdS}">€ <input type="number" step="0.01" value="${escHtml(String(d[kt]??''))}" placeholder="—" oninput="standaardModalSet('${kt}',this.value)" style="${stN}"></td>
+  </tr>`).join('');
 
-  // Vergoedingen rows in modal
-  const vergCount = Math.max(1, parseInt(d.verg_count || 1));
-  let vergRows = '';
-  const stInpM = 'padding:4px 6px;font-size:.75rem;border:1px solid #d1d5db;border-radius:3px;background:#fff;color:#111;';
-  for (let i = 1; i <= vergCount; i++) {
-    const omsch = escHtml(String(d[`verg_omsch_${i}`]??''));
-    const loon  = escHtml(String(d[`verg_loon_${i}`] ??''));
-    const fact  = escHtml(String(d[`verg_fact_${i}`] ??''));
-    vergRows += `<tr>
-      <td style="padding:2px 4px;font-size:.72rem;color:#555;">Vergoeding ${i}</td>
-      <td style="padding:2px 4px;"><input type="text" value="${omsch}" placeholder="Omschrijving" oninput="standaardModalSet('verg_omsch_${i}',this.value)" style="${stInpM}width:160px;"></td>
-      <td style="padding:2px 4px;"><input type="number" step="0.01" value="${loon}" placeholder="€" oninput="standaardModalSet('verg_loon_${i}',this.value)" style="${stInpM}width:70px;"></td>
-      <td style="padding:2px 4px;font-size:.7rem;color:#777;">loon</td>
-      <td style="padding:2px 4px;"><input type="number" step="0.01" value="${fact}" placeholder="€" oninput="standaardModalSet('verg_fact_${i}',this.value)" style="${stInpM}width:70px;"></td>
-      <td style="padding:2px 4px;font-size:.7rem;color:#777;">fact.</td>
-      ${vergCount > 1 ? `<td style="padding:2px 4px;"><button onclick="standaardModalRemoveVerg(${i})" style="border:none;background:transparent;color:#ef4444;cursor:pointer;font-size:.8rem;">✕</button></td>` : '<td></td>'}
-    </tr>`;
-  }
+  // Vergoedingen tabel
+  const vergRows = STANDAARD_VERG_ROWS.map(([kv,kf,lbl]) => `<tr>
+    <td style="${tdS}">${escHtml(lbl)}</td>
+    <td style="${tdS}">€ <input type="number" step="0.01" value="${escHtml(String(d[kv]??''))}" placeholder="—" oninput="standaardModalSet('${kv}',this.value)" style="${stN}"></td>
+    <td style="${tdS}">€ <input type="number" step="0.01" value="${escHtml(String(d[kf]??''))}" placeholder="—" oninput="standaardModalSet('${kf}',this.value)" style="${stN}"></td>
+  </tr>`).join('');
 
   const html = `
     <h4 style="font-size:1rem;font-weight:800;margin-bottom:4px;">${isEdit?'✏️ Standaard bewerken':'➕ Nieuwe standaard toevoegen'}</h4>
-    <p style="font-size:.78rem;color:#666;margin-bottom:14px;">Vul de vaste opdrachtgever-gegevens in. Deze worden automatisch ingeladen als je de standaard selecteert in het Aanmeldformulier.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
-      ${STANDAARD_FIELDS.map(([k,l,t,o]) => fldM(k,l,t,o)).join('')}
+    <p style="font-size:.78rem;color:#666;margin-bottom:10px;">Vul de vaste opdrachtgever-gegevens in.</p>
+    <label style="font-size:.7rem;color:#555;display:block;margin-bottom:2px;">Naam opdrachtgever <span style="color:#ef4444;">*</span></label>
+    <input type="text" value="${escHtml(String(d.opdrachtgever_naam??''))}" placeholder="Naam opdrachtgever" style="${stI}margin-bottom:10px;" oninput="standaardModalSet('opdrachtgever_naam',this.value)">
+
+    ${secH('📊 Overwerk %')}
+    <table style="border-collapse:collapse;width:100%;">
+      <thead><tr>
+        <th style="${thS}">Omschrijving</th>
+        <th style="${thS}">Percentage</th>
+        <th style="${thS}">Tarief</th>
+      </tr></thead>
+      <tbody>${owRows}</tbody>
+    </table>
+
+    ${secH('🚗 Vergoedingen')}
+    <table style="border-collapse:collapse;width:100%;">
+      <thead><tr>
+        <th style="${thS}">Omschrijving</th>
+        <th style="${thS}">Verloning</th>
+        <th style="${thS}">Facturatie</th>
+      </tr></thead>
+      <tbody>${vergRows}</tbody>
+    </table>
+    <div style="margin-top:6px;">
+      <label style="font-size:.7rem;color:#555;display:block;margin-bottom:2px;">Winstdeling (notitie)</label>
+      <textarea style="${stI}min-height:52px;resize:vertical;" oninput="standaardModalSet('winstdeling_notitie',this.value)">${escHtml(String(d.winstdeling_notitie??''))}</textarea>
     </div>
-    <div style="margin-top:8px;border-top:1px solid #e5e7eb;padding-top:10px;">
-      <div style="font-size:.75rem;font-weight:700;color:#1a56db;background:#eff6ff;padding:4px 8px;border-radius:4px;margin-bottom:8px;">🚗 Vergoedingen</div>
-      <table style="border-collapse:collapse;width:100%;font-size:.78rem;">
-        <thead><tr>
-          <th style="padding:2px 4px;text-align:left;color:#777;font-size:.68rem;"></th>
-          <th style="padding:2px 4px;text-align:left;color:#777;font-size:.68rem;">Omschrijving</th>
-          <th style="padding:2px 4px;text-align:left;color:#777;font-size:.68rem;">Deel loon</th><th></th>
-          <th style="padding:2px 4px;text-align:left;color:#777;font-size:.68rem;">Deel fact.</th><th></th><th></th>
-        </tr></thead>
-        <tbody>${vergRows}</tbody>
-      </table>
-      <button onclick="standaardModalAddVerg()" style="margin-top:6px;padding:3px 10px;font-size:.72rem;background:#eff6ff;color:#1a56db;border:1px solid #1a56db;border-radius:4px;cursor:pointer;">＋ Vergoeding</button>
-    </div>
+
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
       <button onclick="closeStandaardModal()" style="padding:7px 18px;font-size:.82rem;background:#f3f4f6;color:#374151;border:none;border-radius:6px;cursor:pointer;">Annuleren</button>
       <button onclick="standaardModalSave()" style="padding:7px 18px;font-size:.82rem;font-weight:700;background:#1a56db;color:#fff;border:none;border-radius:6px;cursor:pointer;">${isEdit?'Wijzigingen opslaan':'Opslaan'}</button>
     </div>`;
   document.getElementById('standaard-modal-inner').innerHTML = html;
-}
-function standaardModalAddVerg() {
-  const cur = Math.max(1, parseInt(STANDAARD_MODAL_DATA.verg_count || 1));
-  STANDAARD_MODAL_DATA.verg_count = Math.min(cur + 1, 10);
-  renderStandaardModal();
-}
-function standaardModalRemoveVerg(i) {
-  const count = Math.max(1, parseInt(STANDAARD_MODAL_DATA.verg_count || 1));
-  for (let j = i; j < count; j++) {
-    STANDAARD_MODAL_DATA[`verg_omsch_${j}`] = STANDAARD_MODAL_DATA[`verg_omsch_${j+1}`] || '';
-    STANDAARD_MODAL_DATA[`verg_loon_${j}`]  = STANDAARD_MODAL_DATA[`verg_loon_${j+1}`]  || '';
-    STANDAARD_MODAL_DATA[`verg_fact_${j}`]  = STANDAARD_MODAL_DATA[`verg_fact_${j+1}`]  || '';
-  }
-  STANDAARD_MODAL_DATA[`verg_omsch_${count}`] = '';
-  STANDAARD_MODAL_DATA[`verg_loon_${count}`]  = '';
-  STANDAARD_MODAL_DATA[`verg_fact_${count}`]  = '';
-  STANDAARD_MODAL_DATA.verg_count = Math.max(1, count - 1);
-  renderStandaardModal();
 }
 function standaardModalSave() {
   const naam = String(STANDAARD_MODAL_DATA.opdrachtgever_naam || '').trim();
@@ -9345,10 +9318,33 @@ function standaardDelete(id) {
 }
 function standaardApply(id) {
   const all = standaardLoadAll();
-  const entry = all.find(e => e.id === id);
+  const entry = all.find(e => String(e.id) === String(id));
   if (!entry) return;
   const d = aanmeldLoad();
-  Object.assign(d, entry.data);
+  const sd = entry.data || {};
+  // Naam opdrachtgever
+  if (sd.opdrachtgever_naam) d.opdrachtgever_naam = sd.opdrachtgever_naam;
+  // Map vergoedingen naar genummerde rijen in aanmeldformulier
+  const vergMapping = [
+    ['verg_reis_verloning', 'verg_reis_fact',  'Reiskosten per dag'],
+    ['verg_km_verloning',   'verg_km_fact',    'Zakelijke kilometers (0,23/km)'],
+    ['verg_fys_verloning',  'verg_fys_fact',   'Vergoeding fysieke gezondheid'],
+    ['verg_feest_verloning','verg_feest_fact',  'Feestdag uitkering (december)'],
+  ];
+  let vergIdx = 1;
+  vergMapping.forEach(([kv, kf, lbl]) => {
+    if (sd[kv] || sd[kf]) {
+      d[`verg_omsch_${vergIdx}`] = lbl;
+      d[`verg_loon_${vergIdx}`]  = sd[kv] || '';
+      d[`verg_fact_${vergIdx}`]  = sd[kf] || '';
+      vergIdx++;
+    }
+  });
+  d.verg_count = Math.max(1, vergIdx - 1);
+  // Winstdeling notitie → overige afspraken (aanvullen, niet overschrijven)
+  if (sd.winstdeling_notitie) {
+    d.overig_afspraken = (d.overig_afspraken ? d.overig_afspraken + '\n\n' : '') + sd.winstdeling_notitie;
+  }
   try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(d)); } catch(_) {}
   HRM_SUBTAB = 'aanmeldformulier';
   render();
@@ -9357,32 +9353,55 @@ function standaardApply(id) {
 function renderStandaardTab() {
   const all = standaardLoadAll();
   const glans = 'background:linear-gradient(135deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,.04) 100%);backdrop-filter:blur(4px);';
+  const thS = 'padding:4px 8px;font-size:.7rem;color:rgba(255,255,255,.5);font-weight:700;text-align:left;border-bottom:1px solid rgba(255,255,255,.15);';
+  const tdS = 'padding:4px 8px;font-size:.78rem;color:#fff;border-bottom:1px solid rgba(255,255,255,.07);';
+
   const rows = all.length ? all.map(entry => {
     const open = !!STANDAARD_EXPANDED[entry.id];
     const d = entry.data || {};
     const v = k => d[k] ? escHtml(String(d[k])) : '—';
-    const vergCount = Math.max(1, parseInt(d.verg_count || 1));
-    let vergDetail = '';
-    for (let i = 1; i <= vergCount; i++) {
-      const omsch = d[`verg_omsch_${i}`]; const loon = d[`verg_loon_${i}`]; const fact = d[`verg_fact_${i}`];
-      if (omsch || loon || fact) vergDetail += `<tr><td style="padding:2px 0;color:rgba(255,255,255,.55);">Vergoeding ${i}</td><td style="padding:2px 12px;">${escHtml(String(omsch||'—'))}</td><td style="padding:2px 8px;">${loon?'€ '+escHtml(String(loon)):'—'} loon</td><td style="padding:2px 8px;">${fact?'€ '+escHtml(String(fact)):'—'} fact.</td></tr>`;
-    }
+
+    const owTable = `<table style="border-collapse:collapse;width:100%;margin-bottom:10px;">
+      <thead><tr>
+        <th style="${thS}">Overwerk %</th>
+        <th style="${thS}">Percentage</th>
+        <th style="${thS}">Tarief</th>
+      </tr></thead>
+      <tbody>${STANDAARD_OW_ROWS.map(([kp,kt,lbl]) => `<tr>
+        <td style="${tdS}">${escHtml(lbl)}</td>
+        <td style="${tdS}">${d[kp] ? escHtml(String(d[kp])) + '%' : '—'}</td>
+        <td style="${tdS}">${d[kt] ? '€ ' + escHtml(String(d[kt])) : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+    const vergTable = `<table style="border-collapse:collapse;width:100%;margin-bottom:6px;">
+      <thead><tr>
+        <th style="${thS}">Vergoedingen</th>
+        <th style="${thS}">Verloning</th>
+        <th style="${thS}">Facturatie</th>
+      </tr></thead>
+      <tbody>${STANDAARD_VERG_ROWS.map(([kv,kf,lbl]) => `<tr>
+        <td style="${tdS}">${escHtml(lbl)}</td>
+        <td style="${tdS}">${d[kv] ? '€ ' + escHtml(String(d[kv])) : '—'}</td>
+        <td style="${tdS}">${d[kf] ? '€ ' + escHtml(String(d[kf])) : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+    const winstNote = d.winstdeling_notitie ? `<div style="font-size:.77rem;color:rgba(255,255,255,.65);background:rgba(255,255,255,.06);border-radius:5px;padding:6px 10px;margin-bottom:10px;font-style:italic;">${escHtml(d.winstdeling_notitie)}</div>` : '';
+
     const detail = open ? `<div style="padding:12px 16px 14px;${glans}border-top:1px solid rgba(255,255,255,.1);">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:.78rem;margin-bottom:10px;">
-        ${STANDAARD_FIELDS.map(([k,l]) => `<div><span style="color:rgba(255,255,255,.5);">${l.replace(' *','')}</span> <strong style="color:#fff;">${v(k)}</strong></div>`).join('')}
-      </div>
-      ${vergDetail ? `<div style="font-size:.72rem;color:rgba(255,255,255,.55);margin-top:6px;">Vergoedingen:</div>
-        <table style="border-collapse:collapse;font-size:.77rem;color:#fff;margin-top:3px;"><tbody>${vergDetail}</tbody></table>` : ''}
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button onclick="standaardApply(${entry.id})" style="padding:5px 14px;font-size:.75rem;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;">📝 Gebruik in formulier</button>
+      ${owTable}
+      ${vergTable}
+      ${winstNote}
+      <div style="display:flex;gap:8px;margin-top:10px;">
         <button onclick="openStandaardModal(${entry.id})" style="padding:5px 14px;font-size:.75rem;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;cursor:pointer;">✏️ Bewerken</button>
         <button onclick="standaardDelete(${entry.id})" style="padding:5px 14px;font-size:.75rem;background:transparent;color:#ef4444;border:1px solid #ef4444;border-radius:5px;cursor:pointer;">🗑 Verwijderen</button>
       </div>
     </div>` : '';
+
     return `<div style="border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.13);margin-bottom:8px;${glans}">
       <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;" onclick="standaardToggle(${entry.id})">
         <span style="font-size:.87rem;font-weight:700;color:#fff;flex:1;">🏢 ${escHtml(entry.naam)}</span>
-        <span style="font-size:.72rem;color:rgba(255,255,255,.45);">${STANDAARD_FIELDS.filter(([k])=>d[k]).length} velden ingevuld</span>
         <span style="color:rgba(255,255,255,.5);font-size:.8rem;">${open?'▲':'▼'}</span>
       </div>
       ${detail}
@@ -9391,7 +9410,7 @@ function renderStandaardTab() {
 
   return `<div style="max-width:860px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <p style="font-size:.78rem;color:rgba(255,255,255,.55);margin:0;">${all.length} standaard${all.length!==1?'en':''}. Selecteer in het Aanmeldformulier via de "Gebruik in formulier"-knop.</p>
+      <p style="font-size:.78rem;color:rgba(255,255,255,.55);margin:0;">${all.length} standaard${all.length!==1?'en':''}.</p>
       <button onclick="openStandaardModal(null)" style="padding:7px 16px;font-size:.8rem;font-weight:700;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer;">＋ Standaard toevoegen</button>
     </div>
     ${rows}
