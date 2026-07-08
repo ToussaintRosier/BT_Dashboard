@@ -783,9 +783,12 @@ function cumDoel(bm, passed, totalPeriods) {
   return bm.doel * (passed / totalPeriods);
 }
 
-function normPerPeriod(doel_jaar, ratios, period, override) {
+function normPerPeriod(doel_jaar, ratios, period, override, doelStartFraction) {
   const f = period==='week' ? 1/52 : 1/12;
-  const s = doel_jaar * f;
+  // Als BM ná 1 jan is gestart: doel moet in minder weken gehaald worden →
+  // weeknorm evenredig omhoog. doelStartFraction = deel van het jaar vóór start.
+  const scaleFactor = (doelStartFraction > 0 && doelStartFraction < 1) ? 1 / (1 - doelStartFraction) : 1;
+  const s = doel_jaar * f * scaleFactor;
   const norm = {
     starters:             +s.toFixed(3),
     intakes:              +(ratios.intakes              * s).toFixed(1),
@@ -1321,7 +1324,7 @@ function selectBmSubTab(tab) { bmSubTab = tab; render(); }
 function renderBM(bm) {
   const year   = getYear();
   const ratios = INDIVIDUAL_RATIOS[bm.naam];
-  const norm   = normPerPeriod(bm.doel, ratios, view, bm.normFix);
+  const norm   = normPerPeriod(bm.doel, ratios, view, bm.normFix, bm.doelStartFraction);
   const rows   = filterData(bm.naam, year);
   const agg    = aggregateByPeriod(rows, view);
   const ytd    = ytdTotals(rows);
@@ -1574,7 +1577,7 @@ function renderMedewerkersOverzicht() {
       for (const k of KPIS) totals[k] += vals[k] || 0;
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
       if (!hasAny && !isCurOrNext) return null;
-      const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', bm.normFix);
+      const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', bm.normFix, bm.doelStartFraction);
       const status = isSaved
         ? (staleStarters
             ? '<span style="color:var(--warn);font-size:.75rem;" title="Invoer verouderd — pipeline toont meer starters; zet dit recht via Wijzigen + Opslaan">⚠️ opg.</span>'
@@ -2770,7 +2773,7 @@ function computeCoachingData(bm) {
     for (const k of KPIS) ytdPerWk[k] = +(ytd[k] / wksYTD).toFixed(1);
 
     // Norm per week
-    const norm = normPerPeriod(bm.doel, r26, 'week', bm.normFix);
+    const norm = normPerPeriod(bm.doel, r26, 'week', bm.normFix, bm.doelStartFraction);
 
     // Recent trend (last 4 wks vs YTD avg)
     const trend = {};
@@ -2807,9 +2810,11 @@ function computeCoachingData(bm) {
     const sortedWks = RAW.filter(d => d.naam===bm.naam && d.jaar===CUR.year && d.week <= CUR.week)
       .sort((a,b) => b.week-a.week);
     let bezoekStreak = 0;
-    for (const w of sortedWks) {
-      if (w.bezoeken >= Math.max(1, norm.bezoeken * 0.9)) bezoekStreak++;
-      else break;
+    if (norm.bezoeken > 0) {
+      for (const w of sortedWks) {
+        if (w.bezoeken >= Math.max(1, norm.bezoeken * 0.9)) bezoekStreak++;
+        else break;
+      }
     }
 
     // ── Jaar-op-jaar vergelijking (zelfde weken vorig jaar) ───────────────────
@@ -2851,15 +2856,15 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 2. Intakes volume (n.v.t. voor Key Accountmanager: geen norm op intakes)
-    if (!isKAM && ytdPerWk.intakes < norm.intakes * 0.75) {
+    // 2. Intakes volume (alleen als norm > 0 voor deze functie)
+    if (norm.intakes > 0 && ytdPerWk.intakes < norm.intakes * 0.75) {
       points.push({
         prio: 'red',
         icon: '👥',
         title: 'Intake-volume te laag',
         reason: `Gem. ${ytdPerWk.intakes}/week YTD vs. norm ${norm.intakes}/week. Meer gesprekken met kandidaten nodig als basis voor de funnel.`
       });
-    } else if (!isKAM && ytdPerWk.intakes < norm.intakes * 0.9) {
+    } else if (norm.intakes > 0 && ytdPerWk.intakes < norm.intakes * 0.9) {
       points.push({
         prio: 'orange',
         icon: '👥',
@@ -2868,15 +2873,15 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 3. Bezoeken (commercial visits)
-    if (r26.totals.bezoeken === 0 && r26.weeksUsed > 4) {
+    // 3. Bezoeken (alleen als norm > 0 voor deze functie)
+    if (norm.bezoeken > 0 && r26.totals.bezoeken === 0 && r26.weeksUsed > 4) {
       points.push({
         prio: 'red',
         icon: '🤝',
         title: 'Geen commerciële bezoeken geregistreerd',
         reason: `In de laatste 26 weken staan nul bezoeken. Klantrelaties opbouwen is essentieel voor opdrachtstroom.`
       });
-    } else if (ytdPerWk.bezoeken < norm.bezoeken * 0.7) {
+    } else if (norm.bezoeken > 0 && ytdPerWk.bezoeken < norm.bezoeken * 0.7) {
       points.push({
         prio: 'orange',
         icon: '🤝',
@@ -2885,15 +2890,15 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 4. Aanbiedingen (n.v.t. voor Key Accountmanager: geen norm op aanbiedingen)
-    if (!isKAM && r26.totals.aanbiedingen === 0 && r26.weeksUsed > 4) {
+    // 4. Aanbiedingen (alleen als norm > 0 voor deze functie)
+    if (norm.aanbiedingen > 0 && r26.totals.aanbiedingen === 0 && r26.weeksUsed > 4) {
       points.push({
         prio: 'red',
         icon: '📄',
         title: 'Geen aanbiedingen geregistreerd',
         reason: `Nul CV-aanbiedingen in de laatste 26 weken. Controleer of registratie ontbreekt of dat er een blokkade is in het aanbiedingsproces.`
       });
-    } else if (!isKAM && ytdPerWk.aanbiedingen < norm.aanbiedingen * 0.75) {
+    } else if (norm.aanbiedingen > 0 && ytdPerWk.aanbiedingen < norm.aanbiedingen * 0.75) {
       points.push({
         prio: 'red',
         icon: '📄',
@@ -2902,15 +2907,15 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 5. Aanbieding → Match conversie vs team (n.v.t. voor Key Accountmanager)
-    if (!isKAM && a2m > 0 && a2m < ta2m * 0.6) {
+    // 5. Aanbieding → Match conversie (alleen als aanbiedingen-norm > 0)
+    if (norm.aanbiedingen > 0 && a2m > 0 && a2m < ta2m * 0.6) {
       points.push({
         prio: 'red',
         icon: '🎯',
         title: `Lage conversie aanbied. → matchgesprek (${a2m}% vs. team ${ta2m}%)`,
         reason: `Van elke 100 aanbiedingen leidt slechts ${a2m}% tot een uitnodiging. Focus op kwaliteit en aansluiting van CV's bij de vacature.`
       });
-    } else if (!isKAM && a2m > 0 && a2m < ta2m * 0.85) {
+    } else if (norm.aanbiedingen > 0 && a2m > 0 && a2m < ta2m * 0.85) {
       points.push({
         prio: 'orange',
         icon: '🎯',
@@ -2919,15 +2924,15 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 6. Match → Starter conversie (n.v.t. voor Key Accountmanager)
-    if (!isKAM && m2s > 0 && m2s < tm2s * 0.6) {
+    // 6. Match → Starter conversie (alleen als matchgesprekken-norm > 0)
+    if (norm.matchgesprekken > 0 && m2s > 0 && m2s < tm2s * 0.6) {
       points.push({
         prio: 'red',
         icon: '🏁',
         title: `Lage closing rate matchgesprekken (${m2s}% vs. team ${tm2s}%)`,
         reason: `Na een matchgesprek volgt slechts ${m2s}% een starter. Voorbereiding kandidaat én afstemming met opdrachtgever verbeteren.`
       });
-    } else if (!isKAM && m2s > 0 && m2s < tm2s * 0.85) {
+    } else if (norm.matchgesprekken > 0 && m2s > 0 && m2s < tm2s * 0.85) {
       points.push({
         prio: 'orange',
         icon: '🏁',
@@ -2936,8 +2941,8 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 7. Trend laatste 4 weken
-    if (trend.intakes.delta < -1 && trend.intakes.recent < norm.intakes) {
+    // 7. Trend laatste 4 weken (alleen intakes als norm > 0)
+    if (norm.intakes > 0 && trend.intakes.delta < -1 && trend.intakes.recent < norm.intakes) {
       points.push({
         prio: 'orange',
         icon: '📉',
@@ -2954,18 +2959,18 @@ function computeCoachingData(bm) {
       });
     }
 
-    // 8. Contractvoorstel → Starter conversie
-    if (!isKAM && c2s > 0 && tc2s > 0 && c2s < tc2s * 0.65) {
+    // 8. Contractvoorstel → Starter conversie (alleen als matchgesprekken-norm > 0)
+    if (norm.matchgesprekken > 0 && c2s > 0 && tc2s > 0 && c2s < tc2s * 0.65) {
       points.push({ prio:'red', icon:'✍️', title:`Lage closing: contractvoorstel → starter (${c2s}% vs. team ${tc2s}%)`,
         reason:`Contractvoorstellen worden beperkt omgezet. Bespreek wat er misgaat in de afrondingsfase — verwachtingen, salaris, of nazorg.` });
     }
-    if (!isKAM && m2c > 0 && tm2c > 0 && m2c < tm2c * 0.65) {
+    if (norm.matchgesprekken > 0 && m2c > 0 && tm2c > 0 && m2c < tm2c * 0.65) {
       points.push({ prio:'orange', icon:'📋', title:`Lage conversie match → contractvoorstel (${m2c}% vs. team ${tm2c}%)`,
         reason:`Van elke 100 matchgesprekken leidt slechts ${m2c}% tot een voorstel. Stellen we eerder in het gesprek de verwachting scherp?` });
     }
 
-    // 9. Pipeline-aanvoer als leading indicator
-    if (!isKAM && pipeEarly < 3 && ytd.starters > 0) {
+    // 9. Pipeline-aanvoer als leading indicator (alleen als intakes-norm > 0)
+    if (norm.intakes > 0 && pipeEarly < 3 && ytd.starters > 0) {
       points.push({ prio:'orange', icon:'🔭', title:`Dunne pipeline-aanvoer (${pipeEarly} kandidaat${pipeEarly===1?'':'en'} in intake/aanbieding)`,
         reason:`Weinig kandidaten in de vroege fases voorspelt terugval in starters over 4–6 weken. Meer intakes nodig om de pipeline gevuld te houden.` });
     }
@@ -2979,14 +2984,14 @@ function computeCoachingData(bm) {
         reason:`Nog net in de norm, maar aandacht gewenst. Welke kandidaten staan het dichtst bij een plaatsing?` });
     }
 
-    // 11. Bezoeknorm-streak (positief)
-    if (bezoekStreak >= 4) {
+    // 11. Bezoeknorm-streak (positief — alleen als bezoeken-norm > 0)
+    if (norm.bezoeken > 0 && bezoekStreak >= 4) {
       points.push({ prio:'green', icon:'🔥', title:`${bezoekStreak} weken op rij bezoeknorm gehaald`,
         reason:`Consistente klantactiviteit is de basis voor een goede opdrachtstroom. Goed volhouden!` });
     }
 
-    // 12. Consistentie intakes
-    if (!isKAM && intakeStd > intakeMean * 0.7 && intakeMean > 0 && rows8wk.length >= 5) {
+    // 12. Consistentie intakes (alleen als intakes-norm > 0)
+    if (norm.intakes > 0 && intakeStd > intakeMean * 0.7 && intakeMean > 0 && rows8wk.length >= 5) {
       points.push({ prio:'orange', icon:'📊', title:`Wisselvallige intake-aantallen (std. ${intakeStd} vs. gem. ${intakeMean}/wk)`,
         reason:`Grote week-tot-week schommelingen maken de funnel onvoorspelbaar. Stabiele activiteit levert betrouwbaardere resultaten.` });
     }
@@ -3323,7 +3328,7 @@ async function analyseerAgenda(bmNaam) {
   // KPI actuals voor geselecteerde week
   const weekRow = RAW.find(r => r.naam === bmNaam && r.jaar === selYear && r.week === selWeek) || null;
   const ratiosInd = INDIVIDUAL_RATIOS[bmNaam] || TEAM_RATIOS;
-  const norm = normPerPeriod(bm.doel, ratiosInd, 'week', bm.normFix);
+  const norm = normPerPeriod(bm.doel, ratiosInd, 'week', bm.normFix, bm.doelStartFraction);
 
   // Trend: laatste 4 weken
   const recentRows = bmRows.slice(0, 4).map(r => ({
