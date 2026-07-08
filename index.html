@@ -1052,9 +1052,9 @@ function renderBM(bm) {
       <button class="bm-subtab-btn ${bmSubTab==='kpis'?'active':''}" onclick="selectBmSubTab('kpis')">📊 KPI's</button>
       <button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">📝 Plan van aanpak</button>
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">🎯 Coaching</button>
+      <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">📈 Performance-Analyse</button>
       <button class="bm-subtab-btn ${bmSubTab==='motivatieladder'?'active':''}" onclick="selectBmSubTab('motivatieladder')">🪜 Motivatieladder</button>
       <button class="bm-subtab-btn ${bmSubTab==='werkintensiteit'?'active':''}" onclick="selectBmSubTab('werkintensiteit')">⚡ Werkintensiteit</button>
-      <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">📅 Agenda Analyse</button>
     </div>
     <div id="bm-subtab-content"></div>
   </div>`;
@@ -2941,6 +2941,56 @@ async function analyseerAgenda(bmNaam) {
   document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(bm);
 }
 
+function agendaToggleInfo(bmNaam) {
+  if (!AGENDA_STATE[bmNaam]) AGENDA_STATE[bmNaam] = {};
+  AGENDA_STATE[bmNaam].showInfo = !AGENDA_STATE[bmNaam].showInfo;
+  const _bm = BMS.find(b => b.naam === bmNaam);
+  if (_bm) document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(_bm);
+}
+
+function agendaPrint(bmNaam) {
+  const st = AGENDA_STATE[bmNaam];
+  if (!st || !st.result) return;
+  const win = window.open('', '_blank');
+  if (!win) { alert('Sta pop-ups toe om te kunnen printen.'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Performance-Analyse — ${bmNaam}</title>
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.7; margin: 2.5cm 3cm; color: #111; }
+      h3 { font-size: 14pt; font-weight: bold; margin: 18pt 0 6pt; }
+      h4 { font-size: 12pt; font-weight: bold; margin: 12pt 0 4pt; }
+      ul { margin: 6pt 0 6pt 20pt; padding: 0; }
+      li { margin: 3pt 0; }
+      strong { font-weight: bold; }
+    </style>
+  </head><body>${simpleMarkdown(st.result)}</body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 300);
+}
+
+function agendaWordExport(bmNaam) {
+  const st = AGENDA_STATE[bmNaam];
+  if (!st || !st.result) return;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:w="urn:schemas-microsoft-com:office:word"
+    xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>Performance-Analyse — ${bmNaam}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.7; margin: 2.5cm 3cm; }
+  h3 { font-size: 14pt; font-weight: bold; margin: 18pt 0 6pt; }
+  h4 { font-size: 12pt; font-weight: bold; margin: 12pt 0 4pt; }
+  ul { margin: 6pt 0 6pt 20pt; } li { margin: 3pt 0; }
+</style></head>
+<body>${simpleMarkdown(st.result)}</body></html>`;
+  const blob = new Blob([html], { type: 'application/msword' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `performance-analyse-${bmNaam.replace(/\s+/g,'-').toLowerCase()}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
+}
+
 function renderAgendaAnalyse(bm) {
   const safeId = bm.naam.replace(/\s+/g,'_');
   if (!AGENDA_STATE[bm.naam]) AGENDA_STATE[bm.naam] = {};
@@ -2957,6 +3007,21 @@ function renderAgendaAnalyse(bm) {
     const key = `${r.jaar}-${r.week}`;
     return `<option value="${key}" ${key===selectedKey?'selected':''}>${'W' + r.week + ' ' + r.jaar}</option>`;
   }).join('');
+
+  // ℹ️-knop met uitklapbare beschrijving
+  const infoBlock = `
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
+      <button onclick="agendaToggleInfo('${escHtml(bm.naam)}')"
+              title="${st.showInfo ? 'Verberg uitleg' : 'Toon uitleg'}"
+              style="flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--muted);background:none;
+                     cursor:pointer;font-size:.8rem;color:var(--muted);line-height:1;padding:0;
+                     ${st.showInfo ? 'background:var(--muted);color:#fff;' : ''}">ℹ</button>
+      ${st.showInfo ? `<div style="font-size:.83rem;color:var(--muted);line-height:1.55;">
+        Upload een screenshot van de Outlook-weekagenda van <strong>${escHtml(bm.naam.split(' ')[0])}</strong>.
+        Claude analyseert de agenda-structuur en combineert dit met de KPI-prestaties en conversieratio's
+        — zo wordt zichtbaar of er sprake is van een kwantiteits- of kwaliteitsprobleem.
+      </div>` : ''}
+    </div>`;
 
   // Upload zone of preview
   const dropZone = `
@@ -2998,9 +3063,19 @@ function renderAgendaAnalyse(bm) {
     </button>`;
 
   const resultHtml = st.result ? `
-    <div style="margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
-      <div style="background:var(--accent);color:#fff;padding:10px 16px;font-weight:700;font-size:.88rem;">📊 Productiviteitsanalyse</div>
-      <div style="padding:16px 18px;font-size:.87rem;line-height:1.7;color:var(--text);">
+    <div style="margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);">
+        <span style="font-weight:700;font-size:.88rem;color:var(--text);">📈 Performance-Analyse — ${escHtml(bm.naam)}</span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-secondary" style="font-size:.75rem;padding:4px 10px;"
+                  onclick="agendaPrint('${escHtml(bm.naam)}')">🖨️ Print</button>
+          <button class="btn-secondary" style="font-size:.75rem;padding:4px 10px;"
+                  onclick="agendaPrint('${escHtml(bm.naam)}')">📄 PDF</button>
+          <button class="btn-secondary" style="font-size:.75rem;padding:4px 10px;"
+                  onclick="agendaWordExport('${escHtml(bm.naam)}')">📝 Word</button>
+        </div>
+      </div>
+      <div style="padding:18px 20px;font-size:.87rem;line-height:1.75;color:var(--text);background:#fff;">
         ${simpleMarkdown(st.result)}
       </div>
     </div>` : '';
@@ -3009,14 +3084,9 @@ function renderAgendaAnalyse(bm) {
     <div class="info-box amber" style="margin-top:12px;">⚠️ <strong>Fout:</strong> ${escHtml(st.error)}</div>` : '';
 
   return `
-    <div class="norm-intro">
-      <strong>📅 Agenda Analyse</strong><br>
-      Upload een screenshot van de Outlook-weekagenda van ${escHtml(bm.naam.split(' ')[0])}.
-      Claude analyseert de agenda-structuur en combineert dit met de KPI-prestaties en conversieratio's
-      — zo wordt zichtbaar of er sprake is van een kwantiteits- of kwaliteitsprobleem.
-    </div>
+    <div style="max-width:620px;margin:0 auto;padding-top:4px;">
 
-    <div style="max-width:620px;margin:0 auto;">
+      ${infoBlock}
 
       <div style="margin-bottom:16px;">
         <label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">
