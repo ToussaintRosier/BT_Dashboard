@@ -252,13 +252,13 @@
   .pipe-count-sm { border-radius:99px; padding:1px 6px; font-size:.7rem; font-weight:700; background:rgba(0,0,0,.1); }
   .pipe-row { display:contents; }
   .pipe-week-block { margin-bottom:10px; }
-  .pipe-week-bar { display:flex; align-items:center; gap:8px; padding:6px 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; cursor:pointer; user-select:none; }
-  .pipe-week-bar:hover { background:#f3f4f6; }
-  .pipe-week-bar.wk-now { background:#eff6ff; border-color:#93c5fd; }
-  .pipe-week-bar.wk-next { background:#fefce8; border-color:#fde68a; }
-  .pipe-week-bar-toggle { font-size:.78rem; color:var(--muted); flex-shrink:0; width:14px; }
-  .pipe-week-bar-title { font-weight:700; font-size:.88rem; white-space:nowrap; }
-  .pipe-week-bar-summary { flex:1; font-size:.73rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pipe-week-bar { display:flex; align-items:center; gap:8px; padding:6px 12px; background:#f4f6f9; border:1px solid #dde1e9; border-radius:8px; cursor:pointer; user-select:none; }
+  .pipe-week-bar:hover { background:#eaeef5; }
+  .pipe-week-bar.wk-now { background:#e8f1ff; border-color:#93c5fd; }
+  .pipe-week-bar.wk-next { background:#f0f5ff; border-color:#c7d7f5; }
+  .pipe-week-bar-toggle { font-size:.78rem; color:#6b7a9a; flex-shrink:0; width:14px; }
+  .pipe-week-bar-title { font-weight:700; font-size:.88rem; white-space:nowrap; color:var(--primary); }
+  .pipe-week-bar-summary { flex:1; font-size:.73rem; color:#6b7a9a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pipe-week-content { margin-top:4px; }
   .pipe-week-label { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px 3px; border-radius:8px; background:#f3f4f6; border:1px solid var(--border); min-height:72px; }
   .pipe-wk-now  { background:#eff6ff; border-color:#93c5fd; }
@@ -669,7 +669,7 @@ const AANB_PER_INTAKE_P75   = 6.3;  // datagedreven P75 (excl. outliers)
 const AANB_PER_INTAKE_2X    = null; // wordt dynamisch berekend als 2× teamratio
 const KPIS  = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 const KPI_LABELS = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen', matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
-const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424', contractvoorstellen:'#9d174d', starters:'#16a34a' };
+const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424', contractvoorstellen:'#9d174d', starters:'#d97706' };
 // Expliciete koppeling KPI -> pipeline-fase (positioneel sinds PIPE_STAGES inmiddels
 // 6 fases heeft; 'contractvoorstellen' telt nu ook volwaardig mee als KPI).
 const KPI_STAGE_MAP = { intakes:'Intake', bezoeken:'Bezoeken', aanbiedingen:'Aanbieden', matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstel', starters:'Starter' };
@@ -8260,6 +8260,63 @@ function gesprekRecordWisAlles() {
   renderGesprek();
 }
 
+// Samenvoeg-functie: combineert meerdere records met dezelfde naam+functie+datum tot 1
+let _samenvoegBusy = false;
+async function gesprekSamenvoegGroep(groepKey) {
+  if (_samenvoegBusy) return;
+  const groep = GESPREK_RECORDS.filter(r => [r.naam||'', r.functie||'', r.datum||''].join('|') === groepKey);
+  if (groep.length < 2) return;
+  if (!confirm(`${groep.length} opnames van "${groep[0].naam || groep[0].functie || 'deze persoon'}" samenvoegen tot 1 transcriptie en heranalyseren?`)) return;
+  _samenvoegBusy = true;
+  // Statusbericht tonen
+  const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
+  const statusEl = document.getElementById('samenvoeg-status-' + safeKey);
+  if (statusEl) { statusEl.textContent = '⏳ Transcripties samenvoegen en heranalyseren…'; statusEl.style.display='inline'; }
+  try {
+    // Transcripties samenvoegen (met scheidingstekens)
+    const combined = groep.map((r, i) => {
+      const deel = r.transcript ? `--- [Deel ${i+1}] ---\n${r.transcript}` : '';
+      return deel;
+    }).filter(Boolean).join('\n\n');
+    if (!combined.trim()) throw new Error('Geen transcripties beschikbaar om samen te voegen.');
+    // Heranalyseren via gesprek-analyse Edge Function
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
+      },
+      body: JSON.stringify({ naam: groep[0].naam, functie: groep[0].functie, transcript: combined }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Analyse mislukt');
+    const analyse = data.analyse;
+    if (!analyse || !analyse.samenvatting) throw new Error('Ongeldige analyse ontvangen');
+    // Oud verwijderen (lokaal + Supabase)
+    const oldIds = groep.map(r => r.id);
+    GESPREK_RECORDS = GESPREK_RECORDS.filter(r => !oldIds.includes(r.id));
+    oldIds.forEach(id => {
+      GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
+      if (supa && typeof id === 'string' && id.includes('-'))
+        supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{});
+    });
+    // Nieuw merged record opslaan
+    const datum = groep[0].datum;
+    const newRec = { id: Date.now(), datum, naam: groep[0].naam, functie: groep[0].functie, result: analyse, transcript: combined };
+    GESPREK_RECORDS.unshift(newRec);
+    if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
+    _saveGesprekRec();
+    _saveVerslagToSupa('gesprek', { naam: newRec.naam, functie: newRec.functie, datum }, analyse, combined);
+  } catch(err) {
+    if (statusEl) { statusEl.textContent = '⚠️ ' + err.message; }
+    _samenvoegBusy = false;
+    return;
+  }
+  _samenvoegBusy = false;
+  renderGesprekRecords();
+}
+
 function toggleBezoekRecord(id)    { if(BEZOEK_OPEN.has(id))BEZOEK_OPEN.delete(id); else BEZOEK_OPEN.add(id); renderBezoekRecorder(); }
 function toggleBezoekTranscript(id){ if(BEZOEK_SHOW_TR.has(id))BEZOEK_SHOW_TR.delete(id); else BEZOEK_SHOW_TR.add(id); renderBezoekRecorder(); }
 function bezoekRecordVerwijder(id) {
@@ -8363,17 +8420,31 @@ function renderGesprekRecords() {
   if (currentTab !== 'gesprek') return;
   const PT=(rows)=>`<table style="width:100%;border-collapse:collapse;font-size:.84rem;">${rows.filter(([,v])=>v).map(([k,v])=>`<tr><td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:4px 10px 4px 0;vertical-align:top;width:38%;">${escHtml(k)}</td><td style="padding:4px 0;line-height:1.5;">${escHtml(v)}</td></tr>`).join('')}</table>`;
   const badge=GESPREK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>`:'';
+
+  // Groepeer records op naam+functie+datum; toon samenvoegknop als groep ≥ 2 heeft
+  const groepTelling = {};
+  GESPREK_RECORDS.forEach(r => {
+    const k = [r.naam||'', r.functie||'', r.datum||''].join('|');
+    groepTelling[k] = (groepTelling[k] || 0) + 1;
+  });
+
   const items=GESPREK_RECORDS.length===0
     ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen gesprekken.</div>`
     :GESPREK_RECORDS.map(rec=>{
       const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
       const open=GESPREK_OPEN.has(rec.id), showTr=GESPREK_SHOW_TR.has(rec.id);
       const title=[rec.naam,rec.functie].filter(Boolean).join(' — ')||'Gesprek';
-      return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
-        <div onclick="toggleGesprekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
+      const groepKey=[rec.naam||'',rec.functie||'',rec.datum||''].join('|');
+      const isDup = groepTelling[groepKey] >= 2;
+      const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
+      return `<div style="border:1px solid ${isDup?'#f59e0b':'var(--border)'};border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
+        <div onclick="toggleGesprekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':isDup?'#fffbeb':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
+          ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">🔀 Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
+          <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
           <span onclick="event.stopPropagation();gesprekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
