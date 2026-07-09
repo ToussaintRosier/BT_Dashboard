@@ -55,20 +55,20 @@
   .sidebar-item:hover { background:rgba(255,255,255,.08); color:#fff; }
   .sidebar-item.active { background:var(--accent); color:#fff; }
   main { padding:28px 32px 40px; flex:1; min-width:0; }
-  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:14px; margin:20px 0; }
-  .kpi-card { background:var(--card); border-radius:var(--radius); padding:18px 20px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(37,49,81,.09); }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:10px; margin:12px 0; }
+  .kpi-card { background:var(--card); border-radius:var(--radius); padding:10px 14px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(37,49,81,.09); }
   .kpi-card .label { font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; }
-  .kpi-card.kpi-starters { border-left:3px solid var(--success); padding-left:17px; }
-  .kpi-card .value { font-size:2rem; font-weight:800; line-height:1.1; margin:6px 0 4px; }
+  .kpi-card.kpi-starters { border-left:3px solid var(--success); padding-left:11px; }
+  .kpi-card .value { font-size:1.6rem; font-weight:800; line-height:1.1; margin:3px 0 2px; }
   .kpi-card .sub   { font-size:.78rem; color:var(--muted); }
-  .kpi-card .actual { font-size:.82rem; font-weight:600; margin-top:6px; }
+  .kpi-card .actual { font-size:.82rem; font-weight:600; margin-top:3px; }
   .section-title { font-size:1.05rem; font-weight:700; letter-spacing:.2px; margin:24px 0 12px; display:flex; align-items:center; gap:8px; color:var(--primary); }
   .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
-  .progress-block { background:var(--card); border-radius:var(--radius); padding:20px; border:1px solid var(--border); margin-bottom:14px; box-shadow:0 2px 8px rgba(37,49,81,.07); }
+  .progress-block { background:var(--card); border-radius:var(--radius); padding:12px 16px; border:1px solid var(--border); margin-bottom:10px; box-shadow:0 2px 8px rgba(37,49,81,.07); }
   .progress-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
   .progress-name   { font-weight:700; font-size:.95rem; }
   .progress-nums   { font-size:.85rem; color:var(--muted); }
-  .progress-bar-bg   { background:#e9ecef; border-radius:99px; height:10px; overflow:hidden; }
+  .progress-bar-bg   { background:#e9ecef; border-radius:99px; height:7px; overflow:hidden; }
   .progress-bar-fill { height:100%; border-radius:99px; transition:width .6s ease; }
   .progress-sub { display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); margin-top:5px; }
   .medew-bar-wrap { position:relative; padding-top:14px; min-width:150px; }
@@ -376,10 +376,10 @@
   main { padding: 14px 14px 72px; }
 
   /* KPI-grid: 2 kolommen */
-  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
-  .kpi-card { padding: 14px 12px; }
-  .kpi-card .value { font-size: 1.55rem; }
-  .kpi-card.kpi-starters { padding-left: 10px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .kpi-card { padding: 8px 10px; }
+  .kpi-card .value { font-size: 1.45rem; }
+  .kpi-card.kpi-starters { padding-left: 7px; }
 
   /* Person header: niet sticky op mobiel */
   .person-header { position: static; border-radius: var(--radius); margin: 0 0 14px; top: auto; z-index: auto; }
@@ -3914,14 +3914,38 @@ function projEvalToggle(src, id, idx) {
 }
 
 function getEvalMilestones(startDate) {
-  const fixed  = [[0,'Dag 1'],[30,'1 mnd'],[90,'3 mnd'],[180,'6 mnd'],[270,'9 mnd'],[365,'12 mnd']];
-  const ms     = fixed.map(([d,lbl]) => ({ label:lbl, date: new Date(+startDate + d*86400000) }));
+  // Stabiele volgorde — idx is de persistente sleutel voor opgeslagen vinkjes.
+  // Nooit items tussenvoegen; nieuwe items altijd achteraan toevoegen.
+  const fixed  = [
+    [0,  'Dag 1'],    // idx 0
+    [30, '1 mnd'],    // idx 1
+    [90, '3 mnd'],    // idx 2
+    [180,'6 mnd'],    // idx 3
+    [270,'9 mnd'],    // idx 4
+    [365,'12 mnd'],   // idx 5
+    // Uitbreiding (nieuwe items, indices 6-11)
+    [7,  'Week 1'],   // idx 6
+    [14, 'Week 2'],   // idx 7
+    [90, '3 mnd BM'], // idx 8
+    [90, '3 mnd JvR'],// idx 9
+    [150,'5 mnd BM'], // idx 10
+    [150,'5 mnd JvR'],// idx 11
+  ];
+  const ms = fixed.map(([d,lbl], origIdx) => ({
+    label: lbl,
+    date: new Date(+startDate + d*86400000),
+    idx: origIdx,
+  }));
+  // Chronologisch sorteren voor weergave (idx blijft stabiel)
+  ms.sort((a, b) => a.date - b.date || a.idx - b.idx);
+  // Dynamische kwartaalmomenten vanaf 15 mnd
   let d = new Date(+startDate + 365*86400000);
   let mnd = 15; let futureCount = 0;
   const today = new Date();
+  let dynIdx = fixed.length;
   while (mnd <= 360) {
     d = new Date(+d + 91*86400000);
-    ms.push({ label:`${mnd} mnd`, date: new Date(d) });
+    ms.push({ label:`${mnd} mnd`, date: new Date(d), idx: dynIdx++ });
     if (d > today) { futureCount++; if (futureCount >= 2) break; }
     mnd += 3;
   }
@@ -3932,16 +3956,17 @@ function getEvalMilestones(startDate) {
 // hrmMode=true  → chips klikken via hrmEvalToggle (HRM/Backoffice view, met Salesforce popup)
 function _evalChips(src, id, milestones, checked, safeId, readonly, hrmMode) {
   const today = new Date(); today.setHours(0,0,0,0);
-  return milestones.map((m, i) => {
-    const due = m.date <= today, done = checked.includes(i);
+  return milestones.map((m) => {
+    const idx = m.idx ?? 0; // stabiele index voor opgeslagen vinkjes
+    const due = m.date <= today, done = checked.includes(idx);
     const dStr = toISODate(m.date);
     let st, lbl;
     if (done)     { st='background:#d1fae5;border-color:#0e9f6e;color:#065f46;';                 lbl='✓ '+m.label; }
     else if (due) { st='background:#fef3c7;border-color:#d97706;color:#92400e;font-weight:700;'; lbl='⚡ '+m.label; }
     else          { st='background:#f9fafb;border-color:#e5e7eb;color:#9ca3af;';                 lbl=m.label; }
     const clickFn = hrmMode
-      ? `hrmEvalToggle('${src}','${id}',${i})`
-      : readonly ? '' : `projEvalToggle('${src}','${id}',${i})`;
+      ? `hrmEvalToggle('${src}','${id}',${idx})`
+      : readonly ? '' : `projEvalToggle('${src}','${id}',${idx})`;
     const cursorSt = (readonly && !hrmMode) ? 'cursor:default;' : 'cursor:pointer;';
     return `<span ${clickFn?`onclick="${clickFn}"`:''}  title="${dStr}" style="display:inline-block;padding:2px 7px;border-radius:99px;font-size:.68rem;border:1.5px solid;${cursorSt}${st}margin:1px;">${lbl}</span>`;
   }).join('');
@@ -3980,7 +4005,7 @@ function renderEvalRow(src, id, startDateStr, nCols, safeId) {
   const today   = new Date(); today.setHours(0,0,0,0);
   const checked = projEvalLoad(src, id);
   const ms      = getEvalMilestones(new Date(startDateStr));
-  const anyDue  = ms.some((m, i) => m.date <= today && !checked.includes(i));
+  const anyDue  = ms.some(m => m.date <= today && !checked.includes(m.idx ?? 0));
   const rowBg   = anyDue ? '#fffbeb' : '#f8faff';
   return `<tr id="pr-eval-row-${safeId}" data-start="${startDateStr}" style="display:none;background:${rowBg};border-bottom:1px solid var(--border);">
     <td colspan="${nCols}" style="padding:2px 8px 6px 26px;">
@@ -4591,7 +4616,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   const today       = new Date(); today.setHours(0,0,0,0);
   const checked     = startStr ? projEvalLoad(r.source, r.id) : [];
   const ms          = startStr ? getEvalMilestones(new Date(startStr)) : [];
-  const anyDue      = startStr && ms.some((m, i) => m.date <= today && !checked.includes(i));
+  const anyDue      = startStr && ms.some(m => m.date <= today && !checked.includes(m.idx ?? 0));
   const alertSpan   = startStr
     ? `<span id="pr-eval-alert-${safeId}" title="Evaluatie vereist" style="color:#d97706;font-weight:900;font-size:.85rem;margin-left:2px;cursor:pointer;${anyDue?'':'display:none'}">!</span>`
     : '';
@@ -4652,7 +4677,7 @@ function renderHrmBackoffice() {
       if (!startStr) return false;
       const checked = projEvalLoad(r.source, r.id);
       const ms = getEvalMilestones(new Date(startStr));
-      return ms.some((m, i) => m.date <= today && !checked.includes(i));
+      return ms.some(m => m.date <= today && !checked.includes(m.idx ?? 0));
     });
 
     // Zoekterm toepassen over alle velden
@@ -4662,7 +4687,7 @@ function renderHrmBackoffice() {
       const checked  = projEvalLoad(r.source, r.id);
       const ms       = getEvalMilestones(new Date(startStr));
       // Evaluatiemomenten als tekst: labels van openstaande momenten
-      const evalLabels = ms.map((m,i) => (!checked.includes(i) && m.date <= today) ? m.label : '').filter(Boolean).join(' ');
+      const evalLabels = ms.map(m => (!checked.includes(m.idx ?? 0) && m.date <= today) ? m.label : '').filter(Boolean).join(' ');
       const haystack = [r.naam, r.bm, r.opdrachtgever, startStr, evalLabels].join(' ').toLowerCase();
       return haystack.includes(q);
     }) : ranges;
@@ -9901,8 +9926,18 @@ function evalSort(key) {
   else { EVAL_SORT_KEY = key; EVAL_SORT_DIR = 'asc'; }
   renderHrmBackoffice();
 }
-function evalSetSearch(v) { EVAL_SEARCH = v; renderHrmBackoffice(); }
-function kandSetSearch(v) { KAND_SEARCH = v; renderKandidaten(); }
+function evalSetSearch(v) {
+  EVAL_SEARCH = v;
+  renderHrmBackoffice();
+  const inp = document.getElementById('eval-search-inp');
+  if (inp) { inp.focus(); inp.setSelectionRange(v.length, v.length); }
+}
+function kandSetSearch(v) {
+  KAND_SEARCH = v;
+  renderKandidaten();
+  const inp = document.getElementById('kand-search-q');
+  if (inp) { inp.focus(); inp.setSelectionRange(v.length, v.length); }
+}
 
 // ── HRM/Backoffice helpers ────────────────────────────────────────────────────
 // Bepaalt wie contractvelden en evaluatie-checkboxen mag bewerken in HRM-context
@@ -11106,13 +11141,11 @@ function renderPipeline(bm) {
     </div>`;
   }).join('');
 
-  return `<div class="section-title" style="display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px">
-    <span>🗂️ Kandidaten pipeline</span>
-    <span style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:400;margin-left:0;">
-      <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
-      ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
-      <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
-    </span>
+  return `<div class="section-title">🗂️ Kandidaten pipeline</div>
+  <div style="display:flex;align-items:center;gap:5px;margin:2px 0 8px 0;">
+    <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
+    ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
+    <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
   </div>
   ${blocks}`;
 }
