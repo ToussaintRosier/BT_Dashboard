@@ -632,7 +632,7 @@ let BMS = [
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
   { naam: 'Robin Amory',         doel: 14, kleur: '#f97316' },
   { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424', doelCurve: 'exponentieel' },
-  { naam: 'Robin Farnes',        doel: 14, kleur: '#d97706', doelStartFraction: 26/52 }, // start 1 juli 2026 (ISO-week 27) — YTD-norm bouwt pas vanaf dan op
+  { naam: 'Robin Farnes',        doel: 14, kleur: '#eab308', doelStartFraction: 26/52 }, // start 1 juli 2026 (ISO-week 27) — YTD-norm bouwt pas vanaf dan op
   { naam: 'Luc Kools',           doel:  6, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
   { naam: 'Yoël Bronckers',      doel: 10, kleur: '#7c3aed', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX }, // tevens manager
 ];
@@ -1003,6 +1003,10 @@ function goMedewerkersOverzicht() {
 }
 function isBeheerder() {
   return !!CURRENT_USER && CURRENT_USER.naam === 'Toussaint Rosier';
+}
+// Yoël Bronckers heeft rol='kam' maar ook volledige manager-UI rechten.
+function isManagerLevel() {
+  return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.naam === 'Yoël Bronckers');
 }
 
 // ── Beheer-tab ────────────────────────────────────────────────────────────────
@@ -1420,14 +1424,14 @@ async function beheerInviteVerstuur() {
 }
 
 function canEdit(bmNaam) {
-  return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.bm_naam === bmNaam);
+  return !!CURRENT_USER && (isManagerLevel() || CURRENT_USER.bm_naam === bmNaam);
 }
 // Backoffice mag alles bekijken (zelfde breedte als manager) maar nergens
 // invoeren/opslaan — canView() regelt dat laatste onderscheid voor schermen
 // die voorheen aan canEdit() vasthingen om te bepalen of iemand iets mag ZIEN
 // (canEdit blijft uitsluitend bepalen of iemand mag WIJZIGEN).
 function canView(bmNaam) {
-  return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.rol === 'backoffice' || CURRENT_USER.bm_naam === bmNaam);
+  return !!CURRENT_USER && (isManagerLevel() || CURRENT_USER.rol === 'backoffice' || CURRENT_USER.bm_naam === bmNaam);
 }
 // Los van de normale rol: alleen Yoël en Toussaint mogen op Projecten
 // wijzigingen doorvoeren en kandidaten uit het Kandidaten-overzicht
@@ -2047,7 +2051,7 @@ function render() {
   if (currentTab === 'accounts') { renderAccounts(); return; }
   if (currentTab === 'financieel') {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
-    if (!CURRENT_USER || (CURRENT_USER.rol !== 'manager' && CURRENT_USER.rol !== 'backoffice')) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+    if (!CURRENT_USER || (!isManagerLevel() && CURRENT_USER.rol !== 'backoffice')) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
     renderFinancieel();
     return;
   }
@@ -2264,7 +2268,7 @@ function renderPlanVanAanpak(bm) {
 
   const printBtn = `<button onclick="printPlanVanAanpak('${escApos(bm.naam)}')" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">🖨️ Printen</button>`;
 
-  const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
+  const isManager = isManagerLevel();
 
   // Linkerkolom: logboek met de laatste weken — elke week is een inklapbare balk,
   // zodat oudere afspraken niet meer altijd standaard zichtbaar zijn maar wel
@@ -2485,7 +2489,7 @@ function buildPvaPayload(bmNaam) {
   // Managernotitie alleen meesturen als het veld daadwerkelijk gerenderd was
   // (dus alleen als de huidige gebruiker manager is) — zo overschrijft een
   // medewerker die zijn eigen plan opslaat nooit de notitie van de manager.
-  if (CURRENT_USER.rol === 'manager') {
+  if (isManagerLevel()) {
     payload.manager_notitie = val(`pva-manager_notitie-${safeId}`);
   }
   return payload;
@@ -2519,7 +2523,7 @@ function pvaScheduleAutosave(bmNaam) {
 // de notitie + sleutelvelden weg, zodat de eigen ingevoerde gegevens van de
 // medewerker nooit per ongeluk overschreven worden.
 async function pvaAutosaveManagerNotitie(bmNaam) {
-  if (!supa || !CURRENT_USER || CURRENT_USER.rol !== 'manager') return;
+  if (!supa || !CURRENT_USER || !isManagerLevel()) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
   const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
@@ -2552,7 +2556,7 @@ function pvaScheduleAutosaveManagerNotitie(bmNaam) {
 // medewerker: opslaan vergrendelt het veld voor deze week, wijzigen ontgrendelt
 // het weer — alleen bruikbaar door de manager.
 async function saveManagerNotitie(bmNaam) {
-  if (!supa || !CURRENT_USER || CURRENT_USER.rol !== 'manager') return;
+  if (!supa || !CURRENT_USER || !isManagerLevel()) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
   clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]); // handmatige save overschrijft een wachtende autosave
@@ -3349,7 +3353,7 @@ function renderBmCoachingTab(bm) {
               <span style="font-weight:600;font-size:.86rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
               ${!cr ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="${fnAnalyse}">🔍 Analyseer</button>` : ''}
               ${cr && cr.loading ? `<span style="font-size:.8rem;color:var(--muted);flex-shrink:0;">⏳ Analyseren…</span>` : ''}
-              ${CURRENT_USER?.rol === 'manager' ? `<button onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">🗑</button>` : ''}
+              ${isManagerLevel() ? `<button onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">🗑</button>` : ''}
             </div>
             ${cr && !cr.loading && cr.result ? `
             <div style="padding:12px 14px;border-top:1px solid var(--border);background:#fafafa;">
@@ -5326,7 +5330,7 @@ function hrmMailtoAanmeld() {
 }
 
 function renderPrognose() {
-  const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
+  const isManager = isManagerLevel();
   // Alleen Yoël en Toussaint mogen hier daadwerkelijk iets wijzigen; iedereen
   // anders krijgt deze hele pagina als alleen-lezen overzicht te zien.
   const canEditProj = isProjKandEditor();
@@ -5587,7 +5591,7 @@ function getKandidatenWeeks() {
 function renderKandidaten() {
   const weeks = getKandidatenWeeks();
   const canExclude = isProjKandEditor();
-  const isManager = !!CURRENT_USER && CURRENT_USER.rol === 'manager';
+  const isManager = isManagerLevel();
 
   // Kleur-instellingen per status
   const KAND_STATUS = {
@@ -5746,7 +5750,7 @@ async function kandidaatExcludeToggle(bmNaam, cardId, exclude) {
 // Sla kleurstatus op voor een kandidaat-kaart (alleen manager).
 // status = 'groen' | 'geel' | 'oranje' | null (reset)
 async function kandidaatSetStatus(bmNaam, cardId, status) {
-  if (!CURRENT_USER || CURRENT_USER.rol !== 'manager') return;
+  if (!CURRENT_USER || !isManagerLevel()) return;
   const cards = pipeLoad(bmNaam);
   const idx = cards.findIndex(c => String(c.id) === String(cardId));
   if (idx === -1) return;
@@ -10074,7 +10078,7 @@ function kandSetSearch(v) {
 function isHrmEditor() {
   // Manager-rol heeft volledige HRM-toegang (contractvelden, evaluatie-checkboxen).
   // BM's zien HRM read-only; het aanmeldformulier is voor iedereen bewerkbaar.
-  return !!CURRENT_USER && CURRENT_USER.rol === 'manager';
+  return isManagerLevel();
 }
 // State voor HRM sub-tab
 let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier' | 'opgeslagen'
@@ -10769,7 +10773,7 @@ function selectRankingSort(key) {
 
 function renderFinancieel() {
   const all = FINANCIEEL_CACHE.slice();
-  const isManager = CURRENT_USER && CURRENT_USER.rol === 'manager';
+  const isManager = isManagerLevel();
 
   // Omzet van alleen vorig kalenderjaar (niet de som van alle jaren in
   // omzet_historie — dat zou meerdere jaren tegelijk optellen en het cijfer
