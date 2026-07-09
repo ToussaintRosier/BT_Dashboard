@@ -8329,33 +8329,36 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
     // Bepaal analyse: heranalyseer als transcripties beschikbaar, anders beste bestaande overnemen
     let analyse = null;
     if (combined.trim()) {
-      const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-      const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
-        },
-        body: JSON.stringify({ naam: groep[0].naam, functie: groep[0].functie, transcript: combined }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Analyse mislukt');
-      analyse = data.analyse;
-      if (!analyse || !analyse.samenvatting) throw new Error('Ongeldige analyse ontvangen');
-    } else {
-      // Geen transcripties — gebruik de bestaande analyse van het eerste record met resultaat
+      try {
+        const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+        const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
+          },
+          body: JSON.stringify({ naam: groep[0].naam, functie: groep[0].functie, transcript: combined }),
+        });
+        const data = await res.json();
+        if (res.ok && !data.error && data.analyse && data.analyse.samenvatting) {
+          analyse = data.analyse;
+        }
+      } catch(_) { /* val terug op bestaande analyse */ }
+    }
+    if (!analyse) {
+      // Geen heranalyse gelukt — gebruik de beste bestaande analyse
       const metResult = groep.find(r => r.result && r.result.samenvatting);
       if (!metResult) throw new Error('Geen transcripties en geen bestaande analyse beschikbaar.');
       analyse = metResult.result;
     }
-    // Oud verwijderen (lokaal + Supabase)
+    // Oud verwijderen (lokaal + Supabase) — await zodat dit daadwerkelijk lukt vóór opslaan
     const oldIds = groep.map(r => r.id);
     GESPREK_RECORDS = GESPREK_RECORDS.filter(r => !oldIds.includes(r.id));
-    oldIds.forEach(id => {
-      GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
-      if (supa && typeof id === 'string' && id.includes('-'))
-        supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{});
-    });
+    oldIds.forEach(id => { GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id); });
+    if (supa) {
+      const uuidIds = oldIds.filter(id => typeof id === 'string' && id.includes('-'));
+      await Promise.all(uuidIds.map(id => supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{})));
+    }
     // Nieuw merged record opslaan
     const datum = groep[0].datum;
     const newRec = { id: Date.now(), datum, naam: groep[0].naam, functie: groep[0].functie, result: analyse, transcript: combined };
