@@ -3527,6 +3527,8 @@ async function analyseerAgenda(bmNaam) {
   const weekRow = RAW.find(r => r.naam === bmNaam && r.jaar === selYear && r.week === selWeek) || null;
   const ratiosInd = INDIVIDUAL_RATIOS[bmNaam] || TEAM_RATIOS;
   const norm = normPerPeriod(bm.doel, ratiosInd, 'week', activeNormFix(bm), bm.doelStartFraction);
+  // Bepaal actieve KPI's: alleen waar norm > 0 (rol-bewuste filtering)
+  const active_kpis = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'].filter(k => norm[k] > 0);
 
   // Trend: laatste 4 weken
   const recentRows = bmRows.slice(0, 4).map(r => ({
@@ -3577,6 +3579,7 @@ async function analyseerAgenda(bmNaam) {
           contractvoorstellen: TEAM_RATIOS.contractvoorstellen,
         },
         recent_weeks: recentRows,
+        active_kpis,
       }),
     });
     const data = await res.json();
