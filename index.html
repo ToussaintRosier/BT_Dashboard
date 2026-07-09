@@ -8234,6 +8234,7 @@ async function loadGesprekRecordsFromDb() {
     id: r.id,
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     naam: r.meta?.naam || '', functie: r.meta?.functie || '',
+    recorder_naam: r.meta?.recorder_naam || '',
     result: r.result, transcript: r.transcript,
   }));
   _saveGesprekRec();
@@ -8267,27 +8268,34 @@ async function loadBezoekRecordsFromDb() {
     id: r.id,
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
+    recorder_naam: r.meta?.recorder_naam || '',
     result: r.result, transcript: r.transcript,
   }));
   _saveBezoekRec();
   if (currentTab === 'bezoek') renderBezoekRecorder();
 }
 
+function _recInitials(naam) {
+  if (!naam) return '';
+  return naam.trim().split(/\s+/).filter(w=>w).map(w=>w[0].toUpperCase()).slice(0,2).join('');
+}
 function addGesprekRecord() {
   const g = GESPREK; if (!g.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
-  GESPREK_RECORDS.unshift({ id: Date.now(), datum, naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript });
+  const recNaam = CURRENT_USER?.naam || '';
+  GESPREK_RECORDS.unshift({ id: Date.now(), datum, naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript, recorder_naam:recNaam });
   if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
   _saveGesprekRec();
-  _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum }, g.result, g.transcript);
+  _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam }, g.result, g.transcript);
 }
 function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
-  BEZOEK_RECORDS.unshift({ id: Date.now(), datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, result:b.result, transcript:b.transcript });
+  const recNaam = CURRENT_USER?.naam || '';
+  BEZOEK_RECORDS.unshift({ id: Date.now(), datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, result:b.result, transcript:b.transcript, recorder_naam:recNaam });
   if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
   _saveBezoekRec();
-  _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, datum }, b.result, b.transcript);
+  _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, datum, recorder_naam:recNaam }, b.result, b.transcript);
 }
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
@@ -8495,10 +8503,12 @@ function renderGesprekRecords() {
       const groepKey=[rec.naam||'',rec.functie||'',rec.datum||''].join('|');
       const isDup = groepTelling[groepKey] >= 2;
       const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
+      const recIni = _recInitials(rec.recorder_naam);
       return `<div style="border:1px solid ${isDup?'#f59e0b':'var(--border)'};border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
         <div onclick="toggleGesprekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':isDup?'#fffbeb':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
+          ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
           ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">🔀 Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
@@ -8569,10 +8579,12 @@ function renderBezoekRecords() {
       const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{};
       const open=BEZOEK_OPEN.has(rec.id), showTr=BEZOEK_SHOW_TR.has(rec.id);
       const title=[rec.bedrijf,rec.contactpersoon].filter(Boolean).join(' — ')||'Bezoek';
+      const brecIni = _recInitials(rec.recorder_naam);
       return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
         <div onclick="toggleBezoekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
+          ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
