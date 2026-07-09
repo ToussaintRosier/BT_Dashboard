@@ -245,12 +245,21 @@
   .detail-section h3 { font-size:1rem; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
 
   /* ── PIPELINE KANBAN GRID ──────────────────────────────────────────────── */
-  .pipe-grid-wrap { overflow-x:auto; margin-top:8px; }
-  .pipe-grid { display:grid; grid-template-columns:68px repeat(6,1fr); gap:5px; min-width:850px; }
+  .pipe-grid-wrap { overflow-x:auto; margin-top:4px; }
+  .pipe-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; min-width:750px; }
   .pipe-grid-corner { }
   .pipe-col-hdr { padding:8px 10px; border-radius:8px; font-weight:700; font-size:.78rem; text-align:center; display:flex; align-items:center; justify-content:center; gap:6px; }
   .pipe-count-sm { border-radius:99px; padding:1px 6px; font-size:.7rem; font-weight:700; background:rgba(0,0,0,.1); }
   .pipe-row { display:contents; }
+  .pipe-week-block { margin-bottom:10px; }
+  .pipe-week-bar { display:flex; align-items:center; gap:8px; padding:6px 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; cursor:pointer; user-select:none; }
+  .pipe-week-bar:hover { background:#f3f4f6; }
+  .pipe-week-bar.wk-now { background:#eff6ff; border-color:#93c5fd; }
+  .pipe-week-bar.wk-next { background:#fefce8; border-color:#fde68a; }
+  .pipe-week-bar-toggle { font-size:.78rem; color:var(--muted); flex-shrink:0; width:14px; }
+  .pipe-week-bar-title { font-weight:700; font-size:.88rem; white-space:nowrap; }
+  .pipe-week-bar-summary { flex:1; font-size:.73rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pipe-week-content { margin-top:4px; }
   .pipe-week-label { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px 3px; border-radius:8px; background:#f3f4f6; border:1px solid var(--border); min-height:72px; }
   .pipe-wk-now  { background:#eff6ff; border-color:#93c5fd; }
   .pipe-wk-past { background:#f9fafb; }
@@ -579,7 +588,7 @@ refreshWeekConstants();
 // ── Plan van aanpak: logboek met laatste weken (inklapbare balken) ────────────
 const PVA_LOG_WEEKS = 10; // aantal historische weken dat in het logboek getoond wordt
 let PVA_LOG_OPEN = new Set(); // keys "bmNaam|jaar|week" voor open logboekbalken
-let MEDEW_WEEK_OPEN = new Set(); // "jaar-week" keys voor uitgeklapte historische weekrijen op Medewerkers-overzicht
+let MEDEW_WEEK_OPEN = null; // null = nog niet geïnitialiseerd; Set zodra renderMedewerkersOverzicht eerste keer draait
 let PVA_AUTOSAVE_TIMERS = {}; // debounce-timers per bmNaam zodat getypte tekst nooit verloren gaat
 function getRecentWeeks(n) {
   const out = [];
@@ -594,6 +603,11 @@ function togglePvaLog(bmNaam, jaar, week) {
 function toggleMedewerkersWeek(jaar, week) {
   const key = `${jaar}-${week}`;
   if (MEDEW_WEEK_OPEN.has(key)) MEDEW_WEEK_OPEN.delete(key); else MEDEW_WEEK_OPEN.add(key);
+  render();
+}
+function togglePipeWeek(week, jaar) {
+  const key = `${jaar}_${week}`;
+  if (PIPE_WEEK_COLLAPSED.has(key)) PIPE_WEEK_COLLAPSED.delete(key); else PIPE_WEEK_COLLAPSED.add(key);
   render();
 }
 
@@ -616,7 +630,7 @@ const KAM_NORM_FIX = { intakes: 0, bezoeken: 4, aanbiedingen: 0, matchgesprekken
 let BMS = [
   { naam: 'Jelle van Schijndel', doel: 18, kleur: '#1a56db' },
   { naam: 'Mike Wijnen',         doel: 18, kleur: '#0e9f6e' },
-  { naam: 'Robin Amory',         doel: 14, kleur: '#7e3af2' },
+  { naam: 'Robin Amory',         doel: 14, kleur: '#f97316' },
   { naam: 'Charlotte Gigase',    doel:  8, kleur: '#e02424', doelCurve: 'exponentieel' },
   { naam: 'Robin Farnes',        doel: 14, kleur: '#d97706', doelStartFraction: 26/52 }, // start 1 juli 2026 (ISO-week 27) — YTD-norm bouwt pas vanaf dan op
   { naam: 'Luc Kools',           doel:  6, kleur: '#0891b2', rol: 'Key Accountmanager', normFix: KAM_NORM_FIX },
@@ -655,11 +669,11 @@ const AANB_PER_INTAKE_P75   = 6.3;  // datagedreven P75 (excl. outliers)
 const AANB_PER_INTAKE_2X    = null; // wordt dynamisch berekend als 2× teamratio
 const KPIS  = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 const KPI_LABELS = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen', matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
-const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424', contractvoorstellen:'#9d174d' };
+const KPI_FIXED_COLORS = { intakes:'#253151', bezoeken:'#0e9f6e', aanbiedingen:'#7e3af2', matchgesprekken:'#e02424', contractvoorstellen:'#9d174d', starters:'#16a34a' };
 // Expliciete koppeling KPI -> pipeline-fase (positioneel sinds PIPE_STAGES inmiddels
 // 6 fases heeft; 'contractvoorstellen' telt nu ook volwaardig mee als KPI).
 const KPI_STAGE_MAP = { intakes:'Intake', bezoeken:'Bezoeken', aanbiedingen:'Aanbieden', matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstel', starters:'Starter' };
-function kpiColor(k, bm) { return k==='starters' ? (bm?.kleur || '#F4CB3C') : KPI_FIXED_COLORS[k]; }
+function kpiColor(k) { return KPI_FIXED_COLORS[k] || '#F4CB3C'; }
 function toggleKpiDataset(el) {
   const chart = charts[el.dataset.chart];
   if (!chart) return;
@@ -854,6 +868,7 @@ let bmSubTab = 'kpis';
 // vandaag. 0 = standaardvenster (-2 t/m +1 week). Wordt gereset bij wisselen
 // van medewerker, zodat je niet per ongeluk in een oude week blijft hangen.
 let pipeWeekOffset = 0;
+let PIPE_WEEK_COLLAPSED = null; // null = nog niet geïnitialiseerd; Set zodra renderPipeline loopt
 
 function renderTabs() {
   // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
@@ -1678,11 +1693,12 @@ function renderMedewerkersOverzicht() {
     return t;
   };
 
-  // Weken: altijd open = volgende week, huidige week, 2 weken terug
-  // Inklapbaar = weken 3 t/m 10 geleden (max 10 terug)
+  // Alle weken inklapbaar; initialiseer de open-set eenmalig met alleen de huidige week
   const recentWks = getRecentWeeks(10); // index 0 = CUR-1, index 1 = CUR-2, ...
-  const alwaysOpen  = [NEXT, CUR, recentWks[0], recentWks[1]].filter(Boolean);
-  const collapsible = recentWks.slice(2, 10).filter(Boolean);
+  const allWeeks  = [NEXT, CUR, ...recentWks.slice(0, 10)].filter(Boolean);
+  if (MEDEW_WEEK_OPEN === null) {
+    MEDEW_WEEK_OPEN = new Set([CUR.year + '-' + CUR.week]);
+  }
 
   // Badge naast weeknummer
   const weekBadge = (jaar, week) => {
@@ -1824,8 +1840,7 @@ function renderMedewerkersOverzicht() {
       '<tbody>' + rankRows + '</tbody>' +
     '</table></div>' +
     '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">📊 KPI\'s per week — teamtotaal</span></div>' +
-    alwaysOpen.map(w => renderOpenWeek(w.year, w.week)).join('') +
-    collapsible.map(w => renderClosedWeek(w.year, w.week)).join('') +
+    allWeeks.map(w => renderClosedWeek(w.year, w.week)).join('') +
   '</div>';
 }
 
@@ -2693,8 +2708,8 @@ async function loadBeheerData() {
     if (d.jaar === huidigJaar) doelenMap[d.naam] = d.jaardoel;
   }
 
-  const fallbackKleuren = ['#1a56db','#0e9f6e','#7e3af2','#e02424','#d97706',
-                           '#0891b2','#7c3aed','#059669','#dc2626','#2563eb'];
+  const fallbackKleuren = ['#db2777','#15803d','#854d0e','#0369a1','#4338ca',
+                           '#be185d','#0f766e','#b45309','#6d28d9','#0c4a6e'];
   let kleurIdx = 0;
   const nieuweBMS = [];
 
@@ -5716,8 +5731,8 @@ async function kandidaatSetStatus(bmNaam, cardId, status) {
 
 // Navigeer het Pipeline-weekvenster: delta in stappen van 4 weken (een hele
 // schermbreedte tegelijk), zodat je snel door oudere weken kunt bladeren.
-function pipeNavWeek(delta) { pipeWeekOffset += delta * 4; render(); }
-function pipeNavWeekReset()  { pipeWeekOffset = 0; render(); }
+function pipeNavWeek(delta) { pipeWeekOffset += delta * 4; PIPE_WEEK_COLLAPSED = null; render(); }
+function pipeNavWeekReset()  { pipeWeekOffset = 0; PIPE_WEEK_COLLAPSED = null; render(); }
 
 // New key (pipeline2_) so old v1 data doesn't conflict
 function pipeKey(bmNaam) { return 'pipeline2_' + btoa(unescape(encodeURIComponent(bmNaam))); }
@@ -10971,14 +10986,59 @@ function renderPipeline(bm) {
   const weeks    = getPipeWeeks();
   const bmE      = escApos(bm.naam);
   const editable = canEdit(bm.naam);
+  const KPI_LABELS_SHORT = ['Int','Bez','Aanb','Match','Contr','Start'];
 
-  // Week rows — nieuwste week bovenaan (reverse: volgend → huidig → vorige → -2 wkn)
-  const rows = [...weeks].reverse().map(wk => {
-    const isCur   = wk.offset === 0;
-    const isPast  = wk.offset < 0;
-    const wkTag   = isCur ? 'huidig' : wk.offset === 1 ? 'volgend' : wk.offset === -1 ? 'vorige' : '-2 wkn';
-    const wkTotal = cards.filter(c => c.week === wk.week && c.jaar === wk.year).length;
+  // Initialiseer collapsed-set eenmalig: offset<0 (vorige weken) standaard dicht
+  if (PIPE_WEEK_COLLAPSED === null) {
+    PIPE_WEEK_COLLAPSED = new Set(
+      weeks.filter(wk => wk.offset < 0).map(wk => `${wk.year}_${wk.week}`)
+    );
+  }
 
+  // Week blokken — nieuwste week bovenaan (reverse: volgend → huidig → vorige → -2 wkn)
+  const blocks = [...weeks].reverse().map(wk => {
+    const isCur    = wk.offset === 0;
+    const isNext   = wk.offset === 1;
+    const isPast   = wk.offset < 0;
+    const wkTag    = isCur ? 'huidig' : isNext ? 'volgend' : wk.offset === -1 ? 'vorige' : '-2 wkn';
+    const colKey   = `${wk.year}_${wk.week}`;
+    const isCollapsed = PIPE_WEEK_COLLAPSED.has(colKey);
+
+    // Per-stage tellingen voor de summary-balk
+    const stageCounts = PIPE_STAGES.map((stage, si) => {
+      const isAanb = stage === 'Aanbieden';
+      const cc = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
+      return isAanb ? cc.reduce((s,c) => s + (+c.aanb || 0), 0) : cc.length;
+    });
+    const summaryText = stageCounts.map((n,i) => `${KPI_LABELS_SHORT[i]}: ${n}`).join(' · ');
+
+    // Opslaan / Wijzigen knop in de balk
+    let weekBtnHtml = '';
+    let weekFrozen  = false;
+    if (editable) {
+      const lockKey     = `${bm.naam}|${wk.year}|${wk.week}`;
+      const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === wk.year && d.week === wk.week);
+      const frozen      = !!existingRow && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
+      weekFrozen = frozen;
+      const bStyle = 'font-size:.72rem;font-weight:700;border-radius:6px;padding:3px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;line-height:1.6;';
+      if (frozen) {
+        weekBtnHtml = `<button onclick="event.stopPropagation();unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bStyle}background:#fff;color:var(--primary);border:1px solid var(--primary);">✏️ Wijzigen</button>`;
+      } else {
+        weekBtnHtml = `<button onclick="event.stopPropagation();saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bStyle}background:var(--primary);color:#fff;border:none;">🔒 Opslaan</button>`;
+      }
+    }
+
+    // Badge naast weeknummer in de balk
+    const barBadge = isCur
+      ? '<span style="background:var(--success);color:#fff;font-size:.65rem;padding:1px 6px;border-radius:9px;margin-left:4px;">huidig</span>'
+      : isNext
+      ? '<span style="background:var(--primary);color:#fff;font-size:.65rem;padding:1px 6px;border-radius:9px;margin-left:4px;">volgend</span>'
+      : '';
+
+    // Pijl-indicator (frozen-status kleurt de balk iets groen)
+    const barExtraStyle = weekFrozen ? 'background:rgba(240,253,244,0.7);border-color:#bbf7d0;' : '';
+
+    // Pipeline cellen (content)
     const cells = PIPE_STAGES.map((stage, si) => {
       const col       = PIPE_STAGE_COLORS[si];
       const isAanb    = stage === 'Aanbieden';
@@ -11031,31 +11091,18 @@ function renderPipeline(bm) {
       </div>`;
     }).join('');
 
-    // Save/wijzigen button in the week label — for all 4 weeks when editable
-    const isNextWeek = wk.offset === 1;
-    let weekBtnHtml = '';
-    let weekFrozen = false;
-    if (editable) {
-      const lockKey     = `${bm.naam}|${wk.year}|${wk.week}`;
-      const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === wk.year && d.week === wk.week);
-      const frozen      = !!existingRow && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
-      weekFrozen = frozen;
-      // Compact button style that fits within the 68px column
-      const bBase = 'display:block;width:calc(100% - 6px);box-sizing:border-box;margin-top:4px;font-size:.58rem;font-weight:700;border-radius:5px;padding:2px 3px;cursor:pointer;text-align:center;line-height:1.5;';
-      if (frozen) {
-        weekBtnHtml = `<button onclick="unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bBase}background:#fff;color:var(--primary);border:1px solid var(--primary);" title="Wijzigen">✏️ Wijzig</button>`;
-      } else {
-        weekBtnHtml = `<button onclick="saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bBase}background:var(--primary);color:#fff;border:none;" title="Opslaan">🔒 Opsl.</button>`;
-      }
-    }
-
-    return `<div class="pipe-row">
-      <div class="pipe-week-label${isCur?' pipe-wk-now':isPast?' pipe-wk-past':''}"${weekFrozen ? ' style="background:rgba(240,253,244,0.45);"' : ''}>
-        <span class="pipe-wk-num">W${wk.week}</span>
-        <span class="pipe-wk-tag">${wkTag}<br/>${wk.year}</span>
+    return `<div class="pipe-week-block">
+      <div class="pipe-week-bar${isCur?' wk-now':isNext?' wk-next':''}" style="${barExtraStyle}" onclick="togglePipeWeek(${wk.week},${wk.year})">
+        <span class="pipe-week-bar-toggle">${isCollapsed ? '▶' : '▼'}</span>
+        <span class="pipe-week-bar-title">W${wk.week}${barBadge}</span>
+        <span class="pipe-week-bar-summary">${summaryText}</span>
         ${weekBtnHtml}
       </div>
-      ${cells}
+      <div class="pipe-week-content" style="display:${isCollapsed?'none':'block'}">
+        <div class="pipe-grid-wrap"><div class="pipe-grid">
+          <div class="pipe-row">${cells}</div>
+        </div></div>
+      </div>
     </div>`;
   }).join('');
 
@@ -11067,9 +11114,7 @@ function renderPipeline(bm) {
       <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
     </span>
   </div>
-  <div class="pipe-grid-wrap"><div class="pipe-grid">
-    ${rows}
-  </div></div>`;
+  ${blocks}`;
 }
 
 // ── Drag & drop ───────────────────────────────────────────────────────────────
