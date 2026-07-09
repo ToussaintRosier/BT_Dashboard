@@ -8173,9 +8173,28 @@ let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_
 let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,50); } catch(_) { return []; } })();
 let _gesprekRecsLoaded = false;
 let _bezoekRecsLoaded  = false;
+let _herlaadStatus = { gesprek: '', bezoek: '' };
 
-function gesprekHerlaadRecords() { _gesprekRecsLoaded = false; loadGesprekRecordsFromDb(); }
-function bezoekHerlaadRecords()  { _bezoekRecsLoaded  = false; loadBezoekRecordsFromDb();  }
+function gesprekHerlaadRecords() {
+  _gesprekRecsLoaded = false;
+  _herlaadStatus.gesprek = 'loading';
+  renderGesprekRecords();
+  loadGesprekRecordsFromDb().then(() => {
+    _herlaadStatus.gesprek = 'done';
+    renderGesprekRecords();
+    setTimeout(() => { _herlaadStatus.gesprek = ''; renderGesprekRecords(); }, 2000);
+  });
+}
+function bezoekHerlaadRecords() {
+  _bezoekRecsLoaded = false;
+  _herlaadStatus.bezoek = 'loading';
+  renderBezoekRecords();
+  loadBezoekRecordsFromDb().then(() => {
+    _herlaadStatus.bezoek = 'done';
+    renderBezoekRecords();
+    setTimeout(() => { _herlaadStatus.bezoek = ''; renderBezoekRecords(); }, 2000);
+  });
+}
 
 function _saveGesprekRec() { try { localStorage.setItem('bt_gesprek_records', JSON.stringify(GESPREK_RECORDS)); } catch(_) {} }
 function _saveBezoekRec()  { try { localStorage.setItem('bt_bezoek_records',  JSON.stringify(BEZOEK_RECORDS));  } catch(_) {} }
@@ -8208,6 +8227,25 @@ async function loadGesprekRecordsFromDb() {
   }));
   _saveGesprekRec();
   if (currentTab === 'gesprek') renderGesprek();
+  // Automatisch duplicaten samenvoegen na laden
+  autoMergeGesprekDuplicaten();
+}
+
+async function autoMergeGesprekDuplicaten() {
+  // Vind alle groepen met ≥2 records
+  const telling = {};
+  GESPREK_RECORDS.forEach(r => {
+    const k = [r.naam||'', r.functie||'', r.datum||''].join('|');
+    telling[k] = (telling[k] || 0) + 1;
+  });
+  const dupGroepen = Object.keys(telling).filter(k => telling[k] >= 2);
+  for (const groepKey of dupGroepen) {
+    // Na elke merge herberekenen (GESPREK_RECORDS is gewijzigd)
+    const nog = GESPREK_RECORDS.filter(r => [r.naam||'', r.functie||'', r.datum||''].join('|') === groepKey);
+    if (nog.length >= 2) {
+      await gesprekSamenvoegGroep(groepKey, true); // silent=true: geen confirm
+    }
+  }
 }
 
 async function loadBezoekRecordsFromDb() {
@@ -8262,37 +8300,43 @@ function gesprekRecordWisAlles() {
 
 // Samenvoeg-functie: combineert meerdere records met dezelfde naam+functie+datum tot 1
 let _samenvoegBusy = false;
-async function gesprekSamenvoegGroep(groepKey) {
+async function gesprekSamenvoegGroep(groepKey, silent) {
   if (_samenvoegBusy) return;
   const groep = GESPREK_RECORDS.filter(r => [r.naam||'', r.functie||'', r.datum||''].join('|') === groepKey);
   if (groep.length < 2) return;
-  if (!confirm(`${groep.length} opnames van "${groep[0].naam || groep[0].functie || 'deze persoon'}" samenvoegen tot 1 transcriptie en heranalyseren?`)) return;
+  if (!silent && !confirm(`${groep.length} opnames van "${groep[0].naam || groep[0].functie || 'deze persoon'}" samenvoegen tot 1 transcriptie en heranalyseren?`)) return;
   _samenvoegBusy = true;
   // Statusbericht tonen
   const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
   const statusEl = document.getElementById('samenvoeg-status-' + safeKey);
-  if (statusEl) { statusEl.textContent = '⏳ Transcripties samenvoegen en heranalyseren…'; statusEl.style.display='inline'; }
+  if (statusEl) { statusEl.textContent = '⏳ Samenvoegen…'; statusEl.style.display='inline'; }
   try {
     // Transcripties samenvoegen (met scheidingstekens)
     const combined = groep.map((r, i) => {
-      const deel = r.transcript ? `--- [Deel ${i+1}] ---\n${r.transcript}` : '';
-      return deel;
+      return r.transcript ? `--- [Deel ${i+1}] ---\n${r.transcript}` : '';
     }).filter(Boolean).join('\n\n');
-    if (!combined.trim()) throw new Error('Geen transcripties beschikbaar om samen te voegen.');
-    // Heranalyseren via gesprek-analyse Edge Function
-    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
-      },
-      body: JSON.stringify({ naam: groep[0].naam, functie: groep[0].functie, transcript: combined }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || 'Analyse mislukt');
-    const analyse = data.analyse;
-    if (!analyse || !analyse.samenvatting) throw new Error('Ongeldige analyse ontvangen');
+    // Bepaal analyse: heranalyseer als transcripties beschikbaar, anders beste bestaande overnemen
+    let analyse = null;
+    if (combined.trim()) {
+      const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+      const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
+        },
+        body: JSON.stringify({ naam: groep[0].naam, functie: groep[0].functie, transcript: combined }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Analyse mislukt');
+      analyse = data.analyse;
+      if (!analyse || !analyse.samenvatting) throw new Error('Ongeldige analyse ontvangen');
+    } else {
+      // Geen transcripties — gebruik de bestaande analyse van het eerste record met resultaat
+      const metResult = groep.find(r => r.result && r.result.samenvatting);
+      if (!metResult) throw new Error('Geen transcripties en geen bestaande analyse beschikbaar.');
+      analyse = metResult.result;
+    }
     // Oud verwijderen (lokaal + Supabase)
     const oldIds = groep.map(r => r.id);
     GESPREK_RECORDS = GESPREK_RECORDS.filter(r => !oldIds.includes(r.id));
@@ -8488,7 +8532,11 @@ function renderGesprekRecords() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS.length} records — gedeeld tussen collega's</span>
       <div style="display:flex;gap:8px;">
-        <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="gesprekHerlaadRecords()">🔄 Herlaad</button>
+        ${_herlaadStatus.gesprek==='loading'
+          ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;opacity:.6;" disabled>⏳ Laden…</button>`
+          : _herlaadStatus.gesprek==='done'
+          ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;background:#d1fae5;border-color:#10b981;color:#065f46;" disabled>✅ Klaar</button>`
+          : `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="gesprekHerlaadRecords()">🔄 Herlaad</button>`}
         ${GESPREK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="gesprekRecordWisAlles()">🗑 Alles wissen</button>`:''}
       </div>
     </div>
@@ -8563,7 +8611,11 @@ function renderBezoekRecords() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS.length} records — gedeeld tussen collega's</span>
       <div style="display:flex;gap:8px;">
-        <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="bezoekHerlaadRecords()">🔄 Herlaad</button>
+        ${_herlaadStatus.bezoek==='loading'
+          ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;opacity:.6;" disabled>⏳ Laden…</button>`
+          : _herlaadStatus.bezoek==='done'
+          ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;background:#d1fae5;border-color:#10b981;color:#065f46;" disabled>✅ Klaar</button>`
+          : `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="bezoekHerlaadRecords()">🔄 Herlaad</button>`}
         ${BEZOEK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="bezoekRecordWisAlles()">🗑 Alles wissen</button>`:''}
       </div>
     </div>
