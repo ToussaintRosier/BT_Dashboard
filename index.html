@@ -3341,12 +3341,14 @@ function renderBmCoachingTab(bm) {
             ? ([rec.naam, rec.functie].filter(Boolean).join(' — ') || 'Sollicitatiegesprek')
             : ([rec.bedrijf, rec.contactpersoon].filter(Boolean).join(' — ') || 'Bedrijfsbezoek');
           const fnAnalyse = type === 'itk' ? `gesprekCoachAnalyse('${rec.id}')` : `bezoekCoachAnalyse('${rec.id}')`;
+          const fnVerwijder = type === 'itk' ? `gesprekRecordVerwijder('${rec.id}');setTimeout(refreshCoachingTab,200)` : `bezoekRecordVerwijder('${rec.id}');setTimeout(refreshCoachingTab,200)`;
           return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;">
               <span style="font-size:.75rem;color:var(--muted);min-width:110px;flex-shrink:0;">${escHtml(rec.datum)}</span>
               <span style="font-weight:600;font-size:.86rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
               ${!cr ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="${fnAnalyse}">🔍 Analyseer</button>` : ''}
               ${cr && cr.loading ? `<span style="font-size:.8rem;color:var(--muted);flex-shrink:0;">⏳ Analyseren…</span>` : ''}
+              ${CURRENT_USER?.rol === 'manager' ? `<button onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">🗑</button>` : ''}
             </div>
             ${cr && !cr.loading && cr.result ? `
             <div style="padding:12px 14px;border-top:1px solid var(--border);background:#fafafa;">
