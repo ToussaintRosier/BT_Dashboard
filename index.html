@@ -5155,9 +5155,20 @@ function _bonussenUpdateTotals(filtered, q) {
       if (s.isNew)  hasNew[s.label] = true;
     }
   }
+  // ── LK en AN: vaste formule over projecten ZONDER definitieve einddatum ─────
+  // LK = som van (marge_pw / 4.333 × 1%) per project zonder defn
+  // AN = helft van LK-totaal
+  let lkTotal = 0;
+  for (const r of filtered) {
+    if (r.defn) continue;  // Projecten met definitieve einddatum tellen niet mee
+    const mp = parseFloat(r.marge_pw) || 0;
+    if (mp) lkTotal += mp / 4.333 * 0.01;
+  }
+  const anTotal = lkTotal / 2;
+
   const el = document.getElementById('bonus-totaal');
   if (el) {
-    if (!Object.keys(totals).length && !Object.keys(hasNew).length) { el.innerHTML = ''; return; }
+    if (!Object.keys(totals).length && !Object.keys(hasNew).length && !lkTotal) { el.innerHTML = ''; return; }
     const parts = Object.entries(totals).map(([ini, sum]) => {
       const red = hasNew[ini];
       const style = red ? 'color:#ef4444;' : 'color:#0e9f6e;';
@@ -5167,6 +5178,9 @@ function _bonussenUpdateTotals(filtered, q) {
     for (const [ini] of Object.entries(hasNew)) {
       if (!totals[ini]) parts.push(`<span style="color:#ef4444;">${ini}: onbekend ⚠</span>`);
     }
+    // LK en AN altijd als laatste tonen
+    if (lkTotal) parts.push(`<span style="color:#0e9f6e;">LK: €${lkTotal.toFixed(2)}</span>`);
+    if (anTotal) parts.push(`<span style="color:#0e9f6e;">AN: €${anTotal.toFixed(2)}</span>`);
     el.innerHTML = parts.length ? '💰 Totaal bonus: ' + parts.join(' &nbsp;·&nbsp; ') : '';
   }
 }
