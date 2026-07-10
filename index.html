@@ -4103,10 +4103,14 @@ function _refreshContractRow(safeId) {
 
 // ── Contract-veldenrij (uitvouwbaar, naast eval-rij) ─────────────────────────
 function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
+  // Auto-detect gedeeld-info als niet meegegeven (bijv. bij _refreshContractRow)
+  if (!gedeeldInfo) gedeeldInfo = (window._projGedeeldInfo || {})[String(id)] || null;
   const data    = projContractLoad(src, id);
   const canEdit = isHrmEditor();
   const frozen  = projContractFrozenLoad(src, id);
   const editable = canEdit && !frozen;
+  // Bonus: alleen Toussaint kan invoeren, maar iedereen ziet de waarde
+  const bonusEditable = isBeheerder() && !frozen;
   const baseFields = CONTRACT_FIELDS.filter(f => f.key !== 'bonus');
   const cells = baseFields.map(f => {
     const val   = String(data[f.key] ?? '').trim();
@@ -4171,34 +4175,41 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
     }
     return `<input type="${f.type}" value="${escHtml(val)}" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
   });
-  // Bonus-veld(en): enkelvoudig voor normale projecten, tweevoudig voor gedeelde plaatsingen
+  // Bonus-veld(en): aantal velden = aantal collega-chips (of 2 voor gedeeld paar).
+  // Iedereen ziet de waarde; alleen Toussaint (isBeheerder) kan bewerken.
   {
-    const bgBon = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
+    const bgBon = bonusEditable ? '#fffbeb' : (frozen ? '#e8edf2' : '#f9fafb');
     const stBon = `font-size:.6rem;padding:1px 2px;width:54px;box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgBon};${frozen?'color:#555;':''}`;
+    // Bepaal welke bonus-sleutels + labels we tonen
+    let bonusSlots; // [{ key, label }]
     if (gedeeldInfo && gedeeldInfo.bm1 && gedeeldInfo.bm2) {
-      const ini1 = bmInitialen(gedeeldInfo.bm1), ini2 = bmInitialen(gedeeldInfo.bm2);
-      const v1 = String(data['bonus_bm1'] ?? '').trim();
-      const v2 = String(data['bonus_bm2'] ?? '').trim();
-      if (!editable) {
-        cells.push(`<span style="${stBon}display:inline-block;" title="Bonus ${ini1}">${escHtml(v1||'—')}</span>`);
-        cells.push(`<span style="${stBon}display:inline-block;" title="Bonus ${ini2}">${escHtml(v2||'—')}</span>`);
-      } else {
-        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(v1)}" placeholder="0.00" title="Bonus ${ini1}" onchange="projContractSet('${src}','${id}','bonus_bm1',this.value)" style="${stBon}">`);
-        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(v2)}" placeholder="0.00" title="Bonus ${ini2}" onchange="projContractSet('${src}','${id}','bonus_bm2',this.value)" style="${stBon}">`);
-      }
+      // Gedeeld paar: bonus voor elk van de twee BMs
+      bonusSlots = [
+        { key: `bonus_${bmInitialen(gedeeldInfo.bm1)}`, label: bmInitialen(gedeeldInfo.bm1) },
+        { key: `bonus_${bmInitialen(gedeeldInfo.bm2)}`, label: bmInitialen(gedeeldInfo.bm2) },
+      ];
     } else {
-      const valBon = String(data['bonus'] ?? '').trim();
-      if (!editable) {
-        cells.push(`<span style="${stBon}display:inline-block;">${escHtml(valBon||'—')}</span>`);
+      // Normaal project: bonus per collega-chip
+      const collegaInits = projCollegaLoad(src, id);
+      bonusSlots = collegaInits.length > 0
+        ? collegaInits.map(ini => ({ key: `bonus_${ini}`, label: ini }))
+        : [{ key: 'bonus', label: '' }];
+    }
+    for (const { key, label } of bonusSlots) {
+      const v = String(data[key] ?? '').trim();
+      const titleAttr = label ? ` title="Bonus ${label}"` : '';
+      if (!bonusEditable) {
+        cells.push(`<span style="${stBon}display:inline-block;"${titleAttr}>${escHtml(v||'—')}</span>`);
       } else {
-        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(valBon)}" placeholder="0.00" onchange="projContractSet('${src}','${id}','bonus',this.value)" style="${stBon}">`);
+        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(v)}" placeholder="0.00"${titleAttr} onchange="projContractSet('${src}','${id}','${key}',this.value)" style="${stBon}">`);
       }
     }
+    // Sla bonusSlots op voor gebruik in headerRow
+    window._lastBonusSlots = bonusSlots;
   }
-  const bonusHdr = (gedeeldInfo && gedeeldInfo.bm1 && gedeeldInfo.bm2)
-    ? [bmInitialen(gedeeldInfo.bm1), bmInitialen(gedeeldInfo.bm2)].map(ini =>
-        `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:54px;text-align:center;box-sizing:border-box;">Bonus ${ini}</span>`).join('')
-    : `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:54px;text-align:center;box-sizing:border-box;">Bonus</span>`;
+  const bonusHdr = (window._lastBonusSlots || [{ key: 'bonus', label: '' }]).map(({ label }) =>
+    `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:54px;text-align:center;box-sizing:border-box;">Bonus${label?' '+label:''}</span>`
+  ).join('');
   const headerRow = baseFields.map(f =>
     `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:${f.w};text-align:center;box-sizing:border-box;">${f.label}</span>`
   ).join('') + bonusHdr;
@@ -4637,12 +4648,17 @@ async function pipeSetGedeeldAkkoord(bmNaam1, id1, bmNaam2, id2) {
 
 async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
   if (!confirm('Beide plaatsingen afwijzen?\n\nBeide kaarten worden definitief verwijderd uit de pipeline.')) return;
-  for (const [bmNaam, cardId] of [[bmNaam1, id1],[bmNaam2, id2]]) {
-    const cards = pipeLoad(bmNaam);
-    pipeSave(bmNaam, cards.filter(c => c.id !== cardId));
-    if (supa) await supa.from('pipeline_cards').delete().eq('id', cardId).catch(() => {});
+  // Lokale verwijdering (String-vergelijking om type-mismatch te voorkomen)
+  const cards1 = pipeLoad(bmNaam1);
+  pipeSave(bmNaam1, cards1.filter(c => String(c.id) !== String(id1)));
+  const cards2 = pipeLoad(bmNaam2);
+  pipeSave(bmNaam2, cards2.filter(c => String(c.id) !== String(id2)));
+  render(); // direct hertekenen
+  // Supabase-verwijdering op de achtergrond
+  if (supa) {
+    supa.from('pipeline_cards').delete().eq('id', id1).catch(() => {});
+    supa.from('pipeline_cards').delete().eq('id', id2).catch(() => {});
   }
-  render();
 }
 
 async function _pipeGedeeldAkkoordProceed(bmNaam1, id1, bmNaam2, id2) {
