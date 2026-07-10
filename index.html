@@ -5565,6 +5565,64 @@ function renderPrognose() {
   // projecten blijven wel meegerekend in de historische projectenlijn.
   const overzichtRanges = getCombinedProjectRanges().filter(r => !r.verwijderdOp);
 
+  window._projSubTab = window._projSubTab || 'overzicht';
+  const _onBon = window._projSubTab === 'bonussen';
+  // Sub-tab navigatie (alleen voor Toussaint)
+  const _projSubNavHtml = !isBeheerder() ? '' : (() => {
+    const btn = (tab, label) => {
+      const act = window._projSubTab === tab;
+      return `<button onclick="window._projSubTab='${tab}';render()" style="font-size:.78rem;padding:5px 18px;border-radius:20px;border:none;cursor:pointer;font-weight:${act?700:400};background:${act?'var(--primary)':'#e5e7eb'};color:${act?'#fff':'var(--text)'};">${label}</button>`;
+    };
+    return `<div style="display:flex;gap:6px;margin-bottom:16px;">${btn('overzicht','Overzicht')}${btn('bonussen','Bonussen 💰')}</div>`;
+  })();
+  // Bonussen-tabel HTML (alleen voor Toussaint)
+  const _bonussenHtml = !isBeheerder() ? '' : (() => {
+    const TH = t => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${t}</th>`;
+    const rows = overzichtRanges.map(r => {
+      const collegaInits = projCollegaLoad(r.source, r.id);
+      const gInfo = (window._projGedeeldInfo || {})[String(r.id)] || null;
+      const data  = projContractLoad(r.source, r.id);
+      let bonusSlots;
+      if (gInfo && gInfo.bm1 && gInfo.bm2) {
+        bonusSlots = [
+          { key: `bonus_${bmInitialen(gInfo.bm1)}`, label: bmInitialen(gInfo.bm1) },
+          { key: `bonus_${bmInitialen(gInfo.bm2)}`, label: bmInitialen(gInfo.bm2) }
+        ];
+      } else if (collegaInits.length > 0) {
+        bonusSlots = collegaInits.map(ini => ({ key: `bonus_${ini}`, label: ini }));
+      } else {
+        bonusSlots = [{ key: 'bonus', label: '' }];
+      }
+      const bonusCells = bonusSlots.map(({ key, label }) => {
+        const v = String(data[key] ?? '').trim();
+        const lbl = label ? `Bonus ${label}` : 'Bonus';
+        return `<div style="display:inline-block;margin-right:6px;">` +
+          `<div style="font-size:.58rem;color:var(--muted);text-align:center;">${escHtml(lbl)}</div>` +
+          `<input type="number" step="0.01" min="0" value="${escHtml(v)}" placeholder="0.00"` +
+          ` onchange="projContractSet('${r.source}','${r.id}','${key}',this.value)"` +
+          ` style="width:64px;font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:#fffbeb;">` +
+          `</div>`;
+      }).join('');
+      const defn = projDefEindLoad(r.source, r.id) || '—';
+      return `<tr style="border-bottom:1px solid var(--border);">` +
+        `<td style="padding:5px 8px;font-size:.78rem;"><strong>${escHtml(r.naam || '—')}</strong></td>` +
+        `<td style="padding:5px 8px;font-size:.78rem;">${escHtml(r.bm || '—')}</td>` +
+        `<td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.begin) || '—'}</td>` +
+        `<td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind) || '—'}</td>` +
+        `<td style="padding:5px 8px;font-size:.78rem;${defn !== '—' ? 'color:#0e9f6e;font-weight:700;' : ''}">${escHtml(defn)}</td>` +
+        `<td style="padding:5px 8px;font-size:.78rem;">${escHtml(collegaInits.join(', ') || '—')}</td>` +
+        `<td style="padding:5px 8px;">${bonusCells}</td>` +
+        `</tr>`;
+    }).join('');
+    return `<div class="section-title">Bonussen 💰</div>` +
+      `<div class="chart-card" style="padding:10px 14px;">` +
+      `<div class="sub" style="margin-bottom:8px;font-size:.75rem;">💰 Bonus per collega — alleen voor jou zichtbaar. Invoeren via de velden hieronder; wordt direct opgeslagen.</div>` +
+      `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">` +
+      `<thead><tr style="border-bottom:2px solid var(--border);">${TH('Kandidaat')}${TH('Medewerker')}${TH('Start')}${TH('Verwacht eind')}${TH('Def. eind')}${TH("Collega's")}${TH('Bonus')}</tr></thead>` +
+      `<tbody>${rows || '<tr><td colspan="7" style="padding:10px;text-align:center;color:var(--muted);">Geen actieve projecten.</td></tr>'}</tbody>` +
+      `</table></div></div>`;
+  })();
+
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
       <div class="person-name">📈 Projecten & Groeiplanning</div>
@@ -5576,6 +5634,10 @@ function renderPrognose() {
     </div>
 
     ${!canEditProj ? '<div class="info-box blue">ℹ️ Alleen-lezen overzicht — wijzigingen (import, goedkeuring, datums) kunnen alleen Yoël en Toussaint doorvoeren.</div>' : ''}
+
+    ${_projSubNavHtml}
+
+    <div id="proj-overzicht-wrap" ${_onBon ? 'style="display:none"' : ''}>
 
     <!-- Projectenlijn -->
     <div class="section-title">Projectenlijn — actieve projecten per week (${year})</div>
@@ -5728,6 +5790,8 @@ function renderPrognose() {
         <span id="begroting-import-status" class="sub"></span>
       </div>
     </div>` : ''}
+    </div>
+    ${_bonussenHtml ? '<div id="proj-bonussen-wrap"' + (_onBon ? '' : ' style="display:none"') + '>' + _bonussenHtml + '</div>' : ''}
   </div>`;
 
   setTimeout(() => {
