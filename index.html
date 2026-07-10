@@ -2643,7 +2643,7 @@ async function loadProjEvaluaties() {
   (data || []).forEach(r => {
     const key = `${r.src}_${r.project_id}`;
     if (!PROJ_EVAL_CACHE[key]) PROJ_EVAL_CACHE[key] = [];
-    if (r.afgevinkt) PROJ_EVAL_CACHE[key].push(r.eval_key);
+    if (r.afgevinkt) PROJ_EVAL_CACHE[key].push(Number(r.eval_key));
   });
 }
 
@@ -3975,13 +3975,14 @@ function projEvalSave(src, id, arr) {
   if (!supa) return;
   // Lees bestaande keys, upsert elke key
   supa.from('project_evaluaties').select('eval_key').eq('src', src).eq('project_id', String(id)).then(({ data }) => {
-    const existing = new Set((data||[]).map(r => r.eval_key));
-    const allKeys  = new Set([...(data||[]).map(r => r.eval_key), ...arr]);
-    const upserts  = [...allKeys].map(key => ({
-      src, project_id: String(id), eval_key: key,
-      afgevinkt: arr.includes(key),
-      afgevinkt_door: arr.includes(key) ? (CURRENT_USER?.naam || null) : null,
-      afgevinkt_op:   arr.includes(key) ? new Date().toISOString() : null,
+    // Normaliseer DB-keys naar Number zodat types altijd overeenkomen
+    const dbKeys  = (data||[]).map(r => Number(r.eval_key));
+    const allKeys = new Set([...dbKeys, ...arr]);
+    const upserts = [...allKeys].map(numKey => ({
+      src, project_id: String(id), eval_key: String(numKey),
+      afgevinkt: arr.includes(numKey),
+      afgevinkt_door: arr.includes(numKey) ? (CURRENT_USER?.naam || null) : null,
+      afgevinkt_op:   arr.includes(numKey) ? new Date().toISOString() : null,
     }));
     if (upserts.length > 0) {
       supa.from('project_evaluaties').upsert(upserts, { onConflict: 'src,project_id,eval_key' })
