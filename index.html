@@ -5010,12 +5010,23 @@ function bonusFiltApply() {
   // ── Rijen opbouwen ─────────────────────────────────────────────────────────
   const TD = (t, st='') => `<td style="padding:5px 8px;font-size:.78rem;text-align:left;${st}">${t}</td>`;
   const SEL_ST = `font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--card);color:var(--text);`;
+  const BONUS_EXCL = ['GS','MK','BB','OS'];
   const rowsHtml = filtered.map(r => {
     const vb = parseFloat(r.verdeling_bonus) || 0;
+    // Aantal actieve (niet-uitgesloten) collega's bepaalt max VB en max VP
+    const activeSlots = r.bonusSlots.filter(s => !BONUS_EXCL.includes(s.label));
+    const multiActive = activeSlots.length >= 2;
     // ── Per-slot % select + bonus (read-only) ───────────────────────────────
     const pctCells = r.bonusSlots.map(s => {
       const slotField = 'vp_' + (s.label || 'default');
       const vp = s.verdeling_pct;
+      const isExcl = BONUS_EXCL.includes(s.label);
+      // Uitgesloten collega's: vast 0%, read-only
+      if (isExcl) {
+        const lbl = `<span style="font-size:.58rem;color:var(--muted);">${escHtml(s.label)}</span>`;
+        const lockSt = `font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;background:#f3f4f6;color:#9ca3af;display:inline-block;cursor:not-allowed;min-width:42px;`;
+        return `<div style="display:inline-block;margin-right:6px;"><div>${lbl}</div><span style="${lockSt}" title="Vast op 0%">🔒 0%</span></div>`;
+      }
       const selSt = s.isNew
         ? SEL_ST + 'border-color:#ef4444;outline:1px solid #ef4444;'
         : SEL_ST;
@@ -5032,12 +5043,20 @@ function bonusFiltApply() {
         `</select></div>`;
     }).join('');
     const bonusCells = r.bonusSlots.map(s => {
-      const vp = parseFloat(s.verdeling_pct) || 0;
+      const isExclBonus = BONUS_EXCL.includes(s.label);
+      const vp = isExclBonus ? 0 : (parseFloat(s.verdeling_pct) || 0);
       const computedBonus = (vb && vp) ? r.marge_pw * (vp / 100) * vb : 0;
       const lbl = s.label ? `Bonus ${s.label}` : 'Bonus';
       const hl  = q && s.label && s.label.toLowerCase().includes(q);
       const display = computedBonus ? `€${computedBonus.toFixed(2)}` : '—';
       const slotLabelSafe = (s.label || 'default').replace(/'/g, "\\'");
+      // Uitgesloten collega's: altijd tonen als — (0), nooit rood, geen Akkoord-knop
+      if (isExclBonus) {
+        return `<div style="display:inline-block;margin-right:6px;">` +
+          `<div style="font-size:.58rem;color:var(--muted);">${escHtml(lbl)}</div>` +
+          `<div style="min-width:64px;font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;background:#f3f4f6;color:#9ca3af;display:inline-block;">—</div>` +
+          `</div>`;
+      }
       if (s.isNew) {
         // Rood: onbekende/gewijzigde collega
         return `<div style="display:inline-block;margin-right:6px;">` +
@@ -5052,11 +5071,11 @@ function bonusFiltApply() {
         `<div style="min-width:64px;font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;background:${hl?'#fef3c7':'#fffbeb'};font-weight:600;color:${computedBonus?'#0e9f6e':'var(--muted)'};display:inline-block;">${display}</div>` +
         `</div>`;
     }).join('');
-    // ── Verdeling select (per project) ──────────────────────────────────────
+    // ── Verdeling select (per project) — bij 2+ actieve collega's max 0,5 ───
     const selVb = `<select onchange="bonusVerdelingSave('${r.src}','${r.id}','vb',this.value)" style="${SEL_ST}">` +
       `<option value="">—</option>` +
       `<option value="0.5"${r.verdeling_bonus==='0.5'?' selected':''}>0,5</option>` +
-      `<option value="1"${r.verdeling_bonus==='1'?' selected':''}>1</option>` +
+      (!multiActive ? `<option value="1"${r.verdeling_bonus==='1'?' selected':''}>1</option>` : '') +
       `</select>`;
     let row = TD(`<strong>${escHtml(r.naam)}</strong>`);
     if (cols.start   !== false) row += TD(escHtml(r.start||'—'));
@@ -5121,12 +5140,14 @@ function _bonussenSyncVal(src, id, key, val) {
 }
 
 function _bonussenUpdateTotals(filtered, q) {
+  const BONUS_EXCL = ['GS','MK','BB','OS'];
   const totals = {};   // label → sum
   const hasNew = {};   // label → bool (heeft ongekeurde slots)
   for (const r of filtered) {
     const vb = parseFloat(r.verdeling_bonus) || 0;
     for (const s of r.bonusSlots) {
       if (!s.label) continue;
+      if (BONUS_EXCL.includes(s.label)) continue;  // Uitgesloten collega's niet in totalen
       if (q && !s.label.toLowerCase().includes(q)) continue;
       const vp = parseFloat(s.verdeling_pct) || 0;
       const computed = (vb && vp) ? r.marge_pw * (vp / 100) * vb : 0;
