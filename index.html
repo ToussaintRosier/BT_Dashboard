@@ -4847,6 +4847,21 @@ function projFiltSort(col) {
 }
 
 // ── Bonussen-tab live filter/total functie ────────────────────────────────────
+// ── Verdeling bonus / % opslaan per project ────────────────────────────────
+function bonusVerdelingKey(src, id, field) { return `bt_bverd_${src}_${id}_${field}`; }
+function bonusVerdelingLoad(src, id, field) {
+  return localStorage.getItem(bonusVerdelingKey(src, id, field)) || '';
+}
+function bonusVerdelingSave(src, id, field, val) {
+  localStorage.setItem(bonusVerdelingKey(src, id, field), val);
+  // Cache in rowData direct updaten zodat re-render klopt
+  const r = (window._bonussenRowData || []).find(x => x.src === src && String(x.id) === String(id));
+  if (r) {
+    if (field === 'vb') r.verdeling_bonus = val;
+    if (field === 'vp') r.verdeling_pct   = val;
+  }
+  bonusFiltApply();
+}
 function bonusDfToggle(colKey, type, val) {
   if (!window._bonussenDateFilters) window._bonussenDateFilters = {};
   if (!window._bonussenDateFilters[colKey]) window._bonussenDateFilters[colKey] = {};
@@ -4962,7 +4977,9 @@ function bonusFiltApply() {
   if (cols.eind    !== false) { hdr1 += TH('Verwacht eind'); hdr2 += dateFiltRow('eind');  }
   if (cols.defn    !== false) { hdr1 += TH('Def. eind');     hdr2 += dateFiltRow('defn');  }
   if (cols.collega !== false) { hdr1 += TH("Collega's");     hdr2 += emptyFiltTh(); }
-  hdr1 += TH('Bonus'); hdr2 += emptyFiltTh();
+  hdr1 += TH('Verdeling'); hdr2 += emptyFiltTh();
+  hdr1 += TH('%');          hdr2 += emptyFiltTh();
+  hdr1 += TH('Bonus');      hdr2 += emptyFiltTh();
 
   const thead = document.getElementById('bonus-thead');
   if (thead) thead.innerHTML =
@@ -4971,26 +4988,43 @@ function bonusFiltApply() {
 
   // ── Rijen opbouwen ─────────────────────────────────────────────────────────
   const TD = (t, st='') => `<td style="padding:5px 8px;font-size:.78rem;text-align:left;${st}">${t}</td>`;
+  const SEL_ST = `font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--card);color:var(--text);`;
   const rowsHtml = filtered.map(r => {
+    // ── Bereken bonus (read-only) ────────────────────────────────────────────
+    const vb = parseFloat(r.verdeling_bonus) || 0;
+    const vp = parseFloat(r.verdeling_pct)   || 0;
+    const computedBonus = (vb && vp) ? r.marge_pw * (vp / 100) * vb : 0;
     const bonusCells = r.bonusSlots.map(s => {
       const lbl = s.label ? `Bonus ${s.label}` : 'Bonus';
       const hl  = q && s.label && s.label.toLowerCase().includes(q);
+      const display = computedBonus ? `€${computedBonus.toFixed(2)}` : '—';
       return `<div style="display:inline-block;margin-right:6px;">` +
         `<div style="font-size:.58rem;color:var(--muted);">${escHtml(lbl)}</div>` +
-        `<input type="number" step="0.01" min="0" value="${escHtml(s.value)}" placeholder="0.00"` +
-        ` onchange="projContractSet('${r.src}','${r.id}','${s.key}',this.value);_bonussenSyncVal('${r.src}','${r.id}','${s.key}',this.value)"` +
-        ` style="width:64px;font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:${hl?'#fef3c7':'#fffbeb'};">` +
+        `<div style="min-width:64px;font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;background:${hl?'#fef3c7':'#fffbeb'};font-weight:600;color:${computedBonus?'#0e9f6e':'var(--muted)'};display:inline-block;">${display}</div>` +
         `</div>`;
     }).join('');
+    // ── Verdeling selects ────────────────────────────────────────────────────
+    const selVb = `<select onchange="bonusVerdelingSave('${r.src}','${r.id}','vb',this.value)" style="${SEL_ST}">` +
+      `<option value="">—</option>` +
+      `<option value="0.5"${r.verdeling_bonus==='0.5'?' selected':''}>0,5</option>` +
+      `<option value="1"${r.verdeling_bonus==='1'?' selected':''}>1</option>` +
+      `</select>`;
+    const selVp = `<select onchange="bonusVerdelingSave('${r.src}','${r.id}','vp',this.value)" style="${SEL_ST}">` +
+      `<option value="">—</option>` +
+      `<option value="2.5"${r.verdeling_pct==='2.5'?' selected':''}>2,5%</option>` +
+      `<option value="5"${r.verdeling_pct==='5'?' selected':''}>5%</option>` +
+      `</select>`;
     let row = TD(`<strong>${escHtml(r.naam)}</strong>`);
     if (cols.start   !== false) row += TD(escHtml(r.start||'—'));
     if (cols.eind    !== false) row += TD(escHtml(r.eind||'—'));
     if (cols.defn    !== false) row += TD(escHtml(r.defn||'—'), r.defn ? 'color:#0e9f6e;font-weight:700;' : '');
     if (cols.collega !== false) row += TD(escHtml(r.collegaInits.join(', ')||'—'));
+    row += TD(selVb);
+    row += TD(selVp);
     row += TD(bonusCells);
     return `<tr style="border-bottom:1px solid var(--border);">${row}</tr>`;
   }).join('');
-  const nCols = 2 + (cols.start!==false?1:0) + (cols.eind!==false?1:0) + (cols.defn!==false?1:0) + (cols.collega!==false?1:0);
+  const nCols = 4 + (cols.start!==false?1:0) + (cols.eind!==false?1:0) + (cols.defn!==false?1:0) + (cols.collega!==false?1:0);
   const tbody = document.getElementById('bonus-tbody');
   if (tbody) tbody.innerHTML = rowsHtml || `<tr><td colspan="${nCols}" style="padding:10px;color:var(--muted);">Geen projecten gevonden.</td></tr>`;
 
@@ -5045,11 +5079,14 @@ function _bonussenSyncVal(src, id, key, val) {
 function _bonussenUpdateTotals(filtered, q) {
   const totals = {};
   for (const r of filtered) {
+    const vb = parseFloat(r.verdeling_bonus) || 0;
+    const vp = parseFloat(r.verdeling_pct)   || 0;
+    const computed = (vb && vp) ? r.marge_pw * (vp / 100) * vb : 0;
+    if (!computed) continue;
     for (const s of r.bonusSlots) {
       if (!s.label) continue;
-      if (q && !s.label.toLowerCase().includes(q)) continue; // alleen matching initialen
-      const v = parseFloat(s.value) || 0;
-      if (v) totals[s.label] = (totals[s.label] || 0) + v;
+      if (q && !s.label.toLowerCase().includes(q)) continue;
+      totals[s.label] = (totals[s.label] || 0) + computed;
     }
   }
   const el = document.getElementById('bonus-totaal');
@@ -5909,6 +5946,9 @@ function renderPrognose() {
         defn:  projDefEindLoad(r.source, r.id) || '',
         collegaInits,
         bonusSlots: bonusSlots.map(s => ({ ...s, value: String(data[s.key] ?? '') })),
+        marge_pw:        parseFloat(data.marge_pw) || 0,
+        verdeling_bonus: bonusVerdelingLoad(r.source, r.id, 'vb'),
+        verdeling_pct:   bonusVerdelingLoad(r.source, r.id, 'vp'),
       };
     });
 
@@ -11291,7 +11331,7 @@ const CONTRACT_FIELDS = [
   {key:'frequentie', label:'Frequentie',   type:'select',  w:'84px',  required:true, opts:['','per dag','per week','Maandelijks','4-wekelijks','Wekelijks']},
   {key:'marge',      label:'Marge (€)',    type:'number',  w:'68px',  computed:true},
   {key:'marge_pct',  label:'Marge %',      type:'number',  w:'62px',  computed:true},
-  {key:'marge_pw',   label:'M/week (€)',   type:'number',  w:'76px',  computed:true},
+  {key:'marge_pw',   label:'M/mnd (€)',    type:'number',  w:'76px',  computed:true},
   {key:'eju',        label:'EJU',          type:'text',    w:'300px', required:true},
   {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
 ];
