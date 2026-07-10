@@ -6188,6 +6188,7 @@ function renderPrognose() {
       <span style="font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
         ${isHrmEditor() ? `<button onclick="projFreezeAll()" style="font-size:.7rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">💾 Alles opslaan</button>` : ''}
+        ${isBeheerder() ? `<button onclick="projContractRecalcAll()" style="font-size:.7rem;padding:3px 10px;background:#d97706;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">🔄 Herbereken alles</button>` : ''}
         <button onclick="projExportExcel()" style="font-size:.7rem;padding:3px 10px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">⬇️ Exporteer Excel</button>
         <button onclick="projSluitAlle()" style="font-size:.7rem;padding:3px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">✕ Alles sluiten</button>
       </span>
@@ -11433,6 +11434,54 @@ const CONTRACT_FIELDS = [
   {key:'eju',        label:'EJU',          type:'text',    w:'300px', required:true},
   {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
 ];
+// ── Bulk herberekening alle projecten (Supabase) ─────────────────────────────
+// Loopt door alle PROJECTEN, herrekent kostprijs/marge/marge_pw incl. WTTA en
+// stuurt de nieuwe waarden direct naar Supabase. Vereist beheerder-rol.
+async function projContractRecalcAll() {
+  if (!supa) { alert('Database niet gekoppeld.'); return; }
+  const btn = [...document.querySelectorAll('button')].find(b => b.textContent.includes('Herbereken alles'));
+  const origTxt = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Bezig…'; }
+  let ok = 0, skip = 0, err = 0;
+  for (const p of PROJECTEN) {
+    const d = projContractLoad('excel', p.id);
+    // Sla over als de basisgegevens ontbreken (salaris + uren verplicht voor formule)
+    const salaris = parseFloat(d.salaris_bpm) || 0;
+    const uren    = parseFloat(d.uren)        || 0;
+    const tarief  = parseFloat(d.tarief)      || 0;
+    if (!salaris || !uren) { skip++; continue; }
+    const calc = _projAutoCalc(d);
+    Object.assign(d, calc);
+    // Schrijf berekende velden naar Supabase
+    const n = v => (v !== '' && v != null) ? +v : null;
+    const updates = {
+      compensatie: n(d.comp),
+      kostprijs:   n(d.kostprijs),
+      marge:       n(d.marge),
+      marge_pct:   n(d.marge_pct),
+      marge_pw:    n(d.marge_pw),
+      updated_at:  new Date().toISOString(),
+    };
+    // Cache bijwerken
+    Object.assign(p, {
+      compensatie: updates.compensatie,
+      kostprijs:   updates.kostprijs,
+      marge:       updates.marge,
+      marge_pct:   updates.marge_pct,
+      marge_pw:    updates.marge_pw,
+    });
+    const { error } = await supa.from('projecten').update(updates).eq('id', p.id);
+    if (error) { console.error('Recalc fout project', p.id, error); err++; }
+    else ok++;
+    // Voortgang tonen
+    if (btn) btn.textContent = `⏳ ${ok + skip + err}/${PROJECTEN.length}`;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = origTxt; }
+  const msg = `✅ ${ok} projecten herberekend${skip ? `, ${skip} overgeslagen (geen salaris/uren)` : ''}${err ? `, ${err} fouten (zie console)` : ''}.`;
+  alert(msg);
+  render(); // contractrijen verversen
+}
+
 // ── Auto-berekeningen contractvelden ──────────────────────────────────────────
 // Formules: comp=adv/260; kostprijs=salaris*(1+comp)/(uren*4.333)*2.12
 //           marge=tarief-kostprijs; marge_pct=marge/tarief; marge_pw=marge*uren*4.333
