@@ -489,7 +489,8 @@ let CURRENT_USER = null;   // profiel van de ingelogde gebruiker (rol, naam, bm_
 let GESPREK_COACHING_RESULTS = {}; // keyed by record.id → { loading, result, error }
 let BEZOEK_COACHING_RESULTS  = {}; // keyed by record.id → { loading, result, error }
 const AGENDA_STATE = {};           // keyed by naam → { imagePreview, imageB64, imageMime, imageName, loading, result, error, selectedWeekKey }
-let PIPE_CACHE   = {};     // pipeline-kaarten per BM, gevuld vanuit de database
+let PIPE_CACHE      = {};  // pipeline-kaarten per BM, gevuld vanuit de database
+let PROJ_EVAL_CACHE = {};  // evaluatie-checkboxen per project: { 'excel_123': ['ev_0','ev_2',...] }
 let PROJECTEN    = [];     // projectenlijst (geïmporteerd uit Excel), gevuld vanuit de database
 let PLAN_VA      = [];     // "Plan van aanpak" weekrijen per BM, gevuld vanuit de database
 // Motivatieladder-afbeelding: data-URI (bv. "data:image/png;base64,...."). Leeg = nog niet aangeleverd.
@@ -2633,6 +2634,19 @@ async function loadProjecten() {
   PROJECTEN = data || [];
 }
 
+// ── Database: Project-evaluaties laden ────────────────────────────────────────
+async function loadProjEvaluaties() {
+  if (!supa) return;
+  const { data, error } = await supa.from('project_evaluaties').select('src,project_id,eval_key,afgevinkt');
+  if (error) { console.error('Project evaluaties laden mislukt:', error); return; }
+  PROJ_EVAL_CACHE = {};
+  (data || []).forEach(r => {
+    const key = `${r.src}_${r.project_id}`;
+    if (!PROJ_EVAL_CACHE[key]) PROJ_EVAL_CACHE[key] = [];
+    if (r.afgevinkt) PROJ_EVAL_CACHE[key].push(r.eval_key);
+  });
+}
+
 // ── Database: Plan van aanpak laden ────────────────────────────────────────────
 async function loadPlanVanAanpak() {
   if (!supa) return;
@@ -2820,6 +2834,7 @@ async function loadAllData() {
   await loadKpiWeekly();
   await pipeFetchAll();
   await loadProjecten();
+  await loadProjEvaluaties();
   await loadPlanVanAanpak();
   await accountsFetchAll();
   await salesLeadsFetchAll();
@@ -3909,13 +3924,71 @@ function _collegaChips(src, id, selected, containerId) {
 
 // ── Definitieve einddatum (localStorage) — stopt telling in projectenlijn ────
 function projDefEindKey(src, id)         { return `bt_proj_defn_${src}_${id}`; }
-function projDefEindLoad(src, id)        { return localStorage.getItem(projDefEindKey(src,id)) || ''; }
-function projDefEindSave(src, id, val)   { try { val ? localStorage.setItem(projDefEindKey(src,id), val) : localStorage.removeItem(projDefEindKey(src,id)); } catch(_){} }
+function projDefEindLoad(src, id) {
+  // 1. Supabase-cache (meest actueel, gedeeld met alle gebruikers)
+  if (src === 'excel') {
+    const p = PROJECTEN.find(x => String(x.id) === String(id));
+    if (p && p.definitieve_einddatum) return p.definitieve_einddatum;
+  } else if (src === 'pipeline') {
+    const hit = _pipeCardById(id);
+    if (hit && hit.card.definitieve_einddatum) return hit.card.definitieve_einddatum;
+  }
+  // 2. localStorage fallback (offline / demo)
+  return localStorage.getItem(projDefEindKey(src, id)) || '';
+}
+function projDefEindSave(src, id, val) {
+  // localStorage als directe fallback
+  try { val ? localStorage.setItem(projDefEindKey(src,id), val) : localStorage.removeItem(projDefEindKey(src,id)); } catch(_) {}
+  if (!supa) return;
+  const isoVal = val || null;
+  if (src === 'excel') {
+    // Update PROJECTEN-cache direct
+    const p = PROJECTEN.find(x => String(x.id) === String(id));
+    if (p) p.definitieve_einddatum = isoVal;
+    supa.from('projecten').update({ definitieve_einddatum: isoVal }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Def. einddatum opslaan (excel) mislukt:', error);
+    });
+  } else if (src === 'pipeline') {
+    // Update PIPE_CACHE direct
+    const hit = _pipeCardById(id);
+    if (hit) hit.card.definitieve_einddatum = isoVal;
+    supa.from('pipeline_cards').update({ definitieve_einddatum: isoVal }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Def. einddatum opslaan (pipeline) mislukt:', error);
+    });
+  }
+}
 
 // ── Evaluatie-checkboxen (localStorage) — index van afgevinkte momenten ─────
 function projEvalKey(src, id)            { return `bt_proj_eval_${src}_${id}`; }
-function projEvalLoad(src, id)           { try { return JSON.parse(localStorage.getItem(projEvalKey(src,id))||'[]'); } catch(_){ return []; } }
-function projEvalSave(src, id, arr)      { try { localStorage.setItem(projEvalKey(src,id), JSON.stringify(arr)); } catch(_){} }
+function projEvalLoad(src, id) {
+  const cacheKey = `${src}_${id}`;
+  if (PROJ_EVAL_CACHE[cacheKey] !== undefined) return PROJ_EVAL_CACHE[cacheKey];
+  // localStorage fallback (offline / demo)
+  try { return JSON.parse(localStorage.getItem(projEvalKey(src,id))||'[]'); } catch(_){ return []; }
+}
+function projEvalSave(src, id, arr) {
+  // Update cache direct zodat UI meteen klopt
+  const cacheKey = `${src}_${id}`;
+  PROJ_EVAL_CACHE[cacheKey] = arr;
+  // localStorage backup
+  try { localStorage.setItem(projEvalKey(src,id), JSON.stringify(arr)); } catch(_) {}
+  if (!supa) return;
+  // Lees bestaande keys, upsert elke key
+  supa.from('project_evaluaties').select('eval_key').eq('src', src).eq('project_id', String(id)).then(({ data }) => {
+    const existing = new Set((data||[]).map(r => r.eval_key));
+    const allKeys  = new Set([...(data||[]).map(r => r.eval_key), ...arr]);
+    const upserts  = [...allKeys].map(key => ({
+      src, project_id: String(id), eval_key: key,
+      afgevinkt: arr.includes(key),
+      afgevinkt_door: arr.includes(key) ? (CURRENT_USER?.naam || null) : null,
+      afgevinkt_op:   arr.includes(key) ? new Date().toISOString() : null,
+    }));
+    if (upserts.length > 0) {
+      supa.from('project_evaluaties').upsert(upserts, { onConflict: 'src,project_id,eval_key' })
+        .then(({ error }) => { if (error) console.error('Evaluaties opslaan mislukt:', error); });
+    }
+  });
+}
 
 // Toont/verbergt de evaluatierij (klik op naam van de medewerker).
 function projEvalToggle_vis(safeId) {
@@ -4061,6 +4134,16 @@ function projContractFrozenSave(src, id, val) {
   else localStorage.removeItem(projContractFrozenKey(src, id));
 }
 function projContractFreeze(src, id, safeId) {
+  // Valideer verplichte velden
+  const d = projContractLoad(src, id);
+  const missing = CONTRACT_FIELDS.filter(f => f.required).filter(f => {
+    const v = d[f.key];
+    return v === undefined || v === null || String(v).trim() === '';
+  });
+  if (missing.length > 0) {
+    alert('⚠️ Vul eerst alle verplichte velden in:\n\n' + missing.map(f => '• ' + f.label).join('\n'));
+    return;
+  }
   if (!confirm('Contractgegevens opslaan?\n\nKlik daarna op "Wijzigen" om aanpassingen te doen.')) return;
   projContractFrozenSave(src, id, true);
   _refreshContractRow(safeId);
@@ -4116,6 +4199,25 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
     const val   = String(data[f.key] ?? '').trim();
     const bgCol = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
     const stIn  = `font-size:.6rem;padding:1px 2px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgCol};${frozen?'color:#555;':''}`;
+
+    // Computed velden: altijd read-only span met id voor live-update
+    if (f.computed) {
+      let display;
+      if (f.key === 'comp') {
+        const raw = val !== '' ? parseFloat(val) : null;
+        const pct = raw != null ? +(raw * 100).toFixed(4) : null;
+        display = pct != null && pct !== 0 ? pct.toString().replace(/\.?0+$/, '') + ' %' : '—';
+      } else if (f.key === 'marge_pct') {
+        const raw = val !== '' ? parseFloat(val) : null;
+        const pct = raw != null ? +(raw * 100).toFixed(4) : null;
+        display = pct != null && pct !== 0 ? pct.toString().replace(/\.?0+$/, '') + ' %' : '—';
+      } else {
+        const num = val !== '' ? parseFloat(val) : null;
+        display = num != null && num !== 0 ? '€ ' + num.toFixed(2) : '—';
+      }
+      const stComp = `font-size:.6rem;padding:1px 4px;width:${f.w};box-sizing:border-box;border:1px solid #d1d5db;border-radius:3px;background:#f0f4ff;color:#374151;font-style:italic;`;
+      return `<span id="pr-calc-${f.key}-${safeId}" style="${stComp}display:inline-block;">${escHtml(display)}</span>`;
+    }
 
     // Compensatie: DB-waarde is decimaal (0.0192), UI toont/ontvangt percentage (1.92)
     if (f.key === 'comp') {
@@ -4488,8 +4590,10 @@ function getGedeeldPairs(cards) {
       used.add(c1.id); used.add(partner.id);
     }
   }
-  const singles = cards.filter(c => !used.has(c.id));
-  return { pairs, singles };
+  // halfPlaatsingen: gedeeld=true maar nog geen partner (wacht op tweede 0,5)
+  const halfPlaatsingen = cards.filter(c => !used.has(c.id) && c.gedeeld);
+  const singles         = cards.filter(c => !used.has(c.id) && !c.gedeeld);
+  return { pairs, singles, halfPlaatsingen };
 }
 
 // ── Project verwijderen uit de lijst (soft-delete: historie blijft behouden) ──
@@ -4765,9 +4869,11 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   const safeId      = String(r.id).replace(/[^a-zA-Z0-9]/g, '');
   const containerId = `pr-collega-${safeId}`;
   const overdue     = r.eind && r.eind < nuVoorOverdue;
+  const incomplete  = !projContractIsComplete(r.source, r.id);
   const src         = r.source === 'excel' ? '📄' : '🧩';
   const badge       = overdue ? ' <span class="badge badge-red" style="font-size:.65rem;padding:1px 5px;">vervallen</span>' : '';
-  const bg          = overdue ? 'background:#fef2f2;' : '';
+  const incompleteBadge = incomplete ? ' <span style="font-size:.6rem;color:#b45309;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:1px 6px;margin-left:3px;">⚠️ onvolledig</span>' : '';
+  const bg          = overdue ? 'background:#fef2f2;' : (incomplete ? 'background:#fffbeb;' : '');
   const collega     = projCollegaLoadOrDefault(r.source, r.id, r.bm);
   const defnVal     = projDefEindLoad(r.source, r.id);
   const startStr    = toISODate(r.begin) || '';
@@ -4786,7 +4892,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
-      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
@@ -4801,7 +4907,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
-      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
@@ -5698,7 +5804,22 @@ function renderPrognose() {
             </div>
           </div>`;
         });
-        return [...pairCards, ...singleCards].join('');
+        // Halve plaatsingen: gedeeld=true maar nog geen matching partner
+        const halfCards = halfPlaatsingen.map(c => {
+          const cid = `gc-collega-${String(c.id).replace(/[^a-zA-Z0-9]/g,'')}`;
+          const chips = _collegaChips('pipeline', c.id, projCollegaLoad('pipeline', c.id), cid);
+          return `<div style="${cs}border-left:4px solid #f59e0b;background:#fffbeb;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+              <strong>${escHtml(c.naam)}</strong>
+              <span style="background:#fef3c7;color:#92400e;font-size:.65rem;padding:1px 8px;border-radius:10px;font-weight:600;">½ plaatsing · wacht op 2e 0,5</span>
+              <span style="font-size:.75rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}</span>
+              <span style="font-size:.72rem;color:var(--muted);">BM: ${escHtml(c.bmNaam)}</span>
+            </div>
+            <div id="${cid}" style="margin-bottom:6px;">${chips}</div>
+            <div style="font-size:.72rem;color:#92400e;font-style:italic;">⏳ Akkoord is pas mogelijk zodra een tweede BM een 0,5 plaatsing met identieke naam aanmaakt.</div>
+          </div>`;
+        });
+        return [...pairCards, ...singleCards, ...halfCards].join('');
       })()}
     </div>
 
@@ -6029,18 +6150,51 @@ function pipeSave(bmNaam, cards) {
   try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {}
 }
 
-// Haalt alle pipeline-kaarten op uit de database (RLS zorgt dat een BM alleen
-// eigen kaarten terugkrijgt; de manager krijgt alles).
+// Helper: bouw een pipeline-card object uit een DB-rij
+function _pipeCardFromRow(c) {
+  return { id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage,
+    week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie,
+    regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever,
+    salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden,
+    bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie,
+    goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht,
+    definitieve_einddatum: c.definitieve_einddatum || null,
+    verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten,
+    kand_status: c.kand_status || null, bm_naam: c.bm_naam };
+}
+
+// Haalt alle pipeline-kaarten op uit de database.
+// De RLS-basisregel geeft elke BM eigen kaarten + een extra policy geeft
+// iedereen leesrecht op akkoord-kaarten (voor het Projecten-overzicht).
 async function pipeFetchAll() {
   if (!supa) return;
+  // Eigen kaarten (via BM-specifieke RLS)
   const { data, error } = await supa.from('pipeline_cards').select('*');
   if (error) { console.error('Pipeline laden mislukt:', error); return; }
   const next = {};
   (data || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
-    next[c.bm_naam].push({ id: c.id, naam: c.naam, notitie: c.notitie, datum: c.datum, stage: c.stage, week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie, regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever, salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden, bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht, verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten, kand_status: c.kand_status || null });
+    next[c.bm_naam].push(_pipeCardFromRow(c));
+  });
+  // Akkoord-kaarten van alle BMs (zichtbaar via RLS-policy "Akkoord plaatsingen leesbaar voor iedereen")
+  const { data: akkoordData } = await supa.from('pipeline_cards').select('*').eq('goedkeuring', 'akkoord');
+  (akkoordData || []).forEach(c => {
+    if (!next[c.bm_naam]) next[c.bm_naam] = [];
+    // Niet dubbel toevoegen als de BM al zichtbaar was via eigen kaarten
+    if (!next[c.bm_naam].some(x => String(x.id) === String(c.id))) {
+      next[c.bm_naam].push(_pipeCardFromRow(c));
+    }
   });
   PIPE_CACHE = next;
+}
+
+// Zoekt een pipeline-card op via ID (over alle BMs)
+function _pipeCardById(id) {
+  for (const [bmNaam, cards] of Object.entries(PIPE_CACHE)) {
+    const card = cards.find(c => String(c.id) === String(id));
+    if (card) return { card, bmNaam };
+  }
+  return null;
 }
 
 // ── Accountmanagement: klantscoretabel ────────────────────────────────────────
@@ -10900,27 +11054,54 @@ function projExportExcel() {
 }
 
 const CONTRACT_FIELDS = [
-  {key:'projectnr',  label:'Projectnr',    type:'text',    w:'70px'},
-  {key:'cao',        label:'CAO',          type:'text',    w:'150px'},
-  {key:'contract',   label:'Contractvorm', type:'select',  w:'90px', opts:['','OT','Fase 3','Bepaald','Onbepaald','Oproep','Uitzend']},
-  {key:'salaris_bpm',label:'Salaris (BPM)',type:'number',  w:'84px'},
-  {key:'wtta',       label:'WTTA',         type:'number',  w:'66px'},
-  {key:'tarief',     label:'Tarief 2026',  type:'number',  w:'72px'},
-  {key:'allin',      label:'All-in?',      type:'select',  w:'58px', opts:['','Ja','Nee']},
-  {key:'verlof',     label:'Verlof',       type:'number',  w:'54px'},
-  {key:'adv',        label:'ADV',          type:'number',  w:'50px'},
-  {key:'comp',       label:'Comp %',       type:'number',  w:'70px'},
-  {key:'kostprijs',  label:'Kostprijs',    type:'number',  w:'72px'},
+  {key:'projectnr',  label:'Projectnr',    type:'text',    w:'70px',  required:true},
+  {key:'cao',        label:'CAO',          type:'text',    w:'150px', required:true},
+  {key:'contract',   label:'Contractvorm', type:'select',  w:'90px',  required:true, opts:['','OT','Fase 3','Bepaald','Onbepaald','Oproep','Uitzend']},
+  {key:'uren',       label:'Uren',         type:'number',  w:'54px',  required:true},
+  {key:'salaris_bpm',label:'Salaris (BPM)',type:'number',  w:'84px',  required:true},
+  {key:'wtta',       label:'WTTA',         type:'number',  w:'66px',  required:true},
+  {key:'tarief',     label:'Tarief 2026',  type:'number',  w:'72px',  required:true},
+  {key:'allin',      label:'All-in?',      type:'select',  w:'58px',  required:true, opts:['','Ja','Nee']},
+  {key:'verlof',     label:'Verlof',       type:'number',  w:'54px',  required:true},
+  {key:'adv',        label:'ADV',          type:'number',  w:'50px',  required:true},
+  {key:'comp',       label:'Comp %',       type:'number',  w:'70px',  computed:true},
+  {key:'kostprijs',  label:'Kostprijs',    type:'number',  w:'72px',  computed:true},
   {key:'grondslag',  label:'Grondslag',    type:'number',  w:'72px'},
-  {key:'vergoeding', label:'Vergoeding',   type:'number',  w:'76px'},
-  {key:'frequentie', label:'Frequentie',   type:'select',  w:'84px', opts:['','per dag','per week','Maandelijks','4-wekelijks','Wekelijks']},
-  {key:'marge',      label:'Marge (€)',    type:'number',  w:'68px'},
-  {key:'marge_pct',  label:'Marge %',      type:'number',  w:'62px'},
-  {key:'uren',       label:'Uren',         type:'number',  w:'54px'},
-  {key:'marge_pw',   label:'M/week (€)',   type:'number',  w:'76px'},
-  {key:'eju',        label:'EJU',          type:'text',    w:'300px'},
+  {key:'vergoeding', label:'Vergoeding',   type:'number',  w:'76px',  required:true},
+  {key:'frequentie', label:'Frequentie',   type:'select',  w:'84px',  required:true, opts:['','per dag','per week','Maandelijks','4-wekelijks','Wekelijks']},
+  {key:'marge',      label:'Marge (€)',    type:'number',  w:'68px',  computed:true},
+  {key:'marge_pct',  label:'Marge %',      type:'number',  w:'62px',  computed:true},
+  {key:'marge_pw',   label:'M/week (€)',   type:'number',  w:'76px',  computed:true},
+  {key:'eju',        label:'EJU',          type:'text',    w:'300px', required:true},
   {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
 ];
+// ── Auto-berekeningen contractvelden ──────────────────────────────────────────
+// Formules: comp=adv/260; kostprijs=salaris*(1+comp)/(uren*4.333)*2.05
+//           marge=tarief-kostprijs; marge_pct=marge/tarief; marge_pw=marge*uren*4.333
+function _projAutoCalc(d) {
+  const salaris = parseFloat(d.salaris_bpm) || 0;
+  const adv     = parseFloat(d.adv)         || 0;
+  const uren    = parseFloat(d.uren)        || 0;
+  const tarief  = parseFloat(d.tarief)      || 0;
+  const comp      = adv > 0 ? adv / 260 : 0;
+  const kostprijs = (salaris > 0 && uren > 0) ? salaris * (1 + comp) / (uren * 4.333) * 2.05 : 0;
+  const marge     = tarief > 0 && kostprijs > 0 ? tarief - kostprijs : 0;
+  const marge_pct = tarief > 0 && marge !== 0 ? marge / tarief : 0;
+  const marge_pw  = marge !== 0 && uren > 0 ? marge * uren * 4.333 : 0;
+  return { comp: comp ? comp.toFixed(4) : '', kostprijs: kostprijs ? kostprijs.toFixed(2) : '',
+           marge: marge ? marge.toFixed(2) : '', marge_pct: marge_pct ? marge_pct.toFixed(4) : '',
+           marge_pw: marge_pw ? marge_pw.toFixed(2) : '' };
+}
+
+// Geeft true als alle required CONTRACT_FIELDS een waarde hebben
+function projContractIsComplete(src, id) {
+  const d = projContractLoad(src, id);
+  return CONTRACT_FIELDS.filter(f => f.required).every(f => {
+    const v = d[f.key];
+    return v !== undefined && v !== null && String(v).trim() !== '';
+  });
+}
+
 function projContractKey(src, id) { return `bt_proj_contract_${src}_${id}`; }
 
 // Laadt contractdata:
@@ -11014,7 +11195,37 @@ function projContractSave(src, id, obj) {
 function projContractSet(src, id, key, val) {
   const d = projContractLoad(src, id);
   d[key] = val;
+  // Auto-berekenen en in data-object schrijven
+  const calc = _projAutoCalc(d);
+  Object.assign(d, calc);
   projContractSave(src, id, d);
+  // Computed-cellen direct in DOM bijwerken (geen volledige render)
+  _projUpdateCalcCells(src, id, d, calc);
+}
+
+// Werkt de read-only computed-spans bij zonder de hele rij te herrenderen
+function _projUpdateCalcCells(src, id, d, calc) {
+  const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
+  // comp: opslaan als decimaal maar weergeven als %
+  const compEl = document.getElementById(`pr-calc-comp-${safeId}`);
+  if (compEl) {
+    const raw = parseFloat(calc.comp) || 0;
+    compEl.textContent = raw ? (+(raw * 100).toFixed(4)).toString().replace(/\.?0+$/, '') + ' %' : '—';
+  }
+  // kostprijs, marge, marge_pw: eurobedragen
+  for (const key of ['kostprijs', 'marge', 'marge_pw']) {
+    const el = document.getElementById(`pr-calc-${key}-${safeId}`);
+    if (el) {
+      const v = parseFloat(calc[key]) || 0;
+      el.textContent = v ? '€ ' + parseFloat(v).toFixed(2) : '—';
+    }
+  }
+  // marge_pct: decimaal → %
+  const pctEl = document.getElementById(`pr-calc-marge_pct-${safeId}`);
+  if (pctEl) {
+    const raw = parseFloat(calc.marge_pct) || 0;
+    pctEl.textContent = raw ? (+(raw * 100).toFixed(4)).toString().replace(/\.?0+$/, '') + ' %' : '—';
+  }
 }
 
 function selectRankingSort(key) {
