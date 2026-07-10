@@ -5991,7 +5991,8 @@ function renderPrognose() {
   const nuVoorOverdue  = new Date();
   // Alleen niet-verwijderde projecten tonen in het overzicht; verwijderde
   // projecten blijven wel meegerekend in de historische projectenlijn.
-  const overzichtRanges = getCombinedProjectRanges().filter(r => !r.verwijderdOp);
+  const overzichtRanges = getCombinedProjectRanges().filter(r => !r.verwijderdOp)
+    .sort((a, b) => (b.begin || '') > (a.begin || '') ? 1 : (b.begin || '') < (a.begin || '') ? -1 : 0);
 
   window._projSubTab = window._projSubTab || 'overzicht';
   const _onBon = window._projSubTab === 'bonussen';
@@ -6009,7 +6010,7 @@ function renderPrognose() {
       const defn = projDefEindLoad(r.source, r.id);
       if (!defn) return true; // Geen einddatum = altijd tonen
       return new Date(defn) >= today;
-    });
+    }).sort((a, b) => (b.begin || '') > (a.begin || '') ? 1 : (b.begin || '') < (a.begin || '') ? -1 : 0);
 
     // Bouw rijdata en sla op in window voor bonusFiltApply()
     window._bonussenRowData = bonussenRanges.map(r => {
