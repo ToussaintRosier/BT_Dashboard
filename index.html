@@ -4277,44 +4277,10 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
     }
     return `<input type="${f.type}" value="${escHtml(val)}" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
   });
-  // Bonus-veld(en): aantal velden = aantal collega-chips (of 2 voor gedeeld paar).
-  // Iedereen ziet de waarde; alleen Toussaint (isBeheerder) kan bewerken.
-  {
-    const bgBon = bonusEditable ? '#fffbeb' : (frozen ? '#e8edf2' : '#f9fafb');
-    const stBon = `font-size:.6rem;padding:1px 2px;width:54px;box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgBon};${frozen?'color:#555;':''}`;
-    // Bepaal welke bonus-sleutels + labels we tonen
-    let bonusSlots; // [{ key, label }]
-    if (gedeeldInfo && gedeeldInfo.bm1 && gedeeldInfo.bm2) {
-      // Gedeeld paar: bonus voor elk van de twee BMs
-      bonusSlots = [
-        { key: `bonus_${bmInitialen(gedeeldInfo.bm1)}`, label: bmInitialen(gedeeldInfo.bm1) },
-        { key: `bonus_${bmInitialen(gedeeldInfo.bm2)}`, label: bmInitialen(gedeeldInfo.bm2) },
-      ];
-    } else {
-      // Normaal project: bonus per collega-chip
-      const collegaInits = projCollegaLoad(src, id);
-      bonusSlots = collegaInits.length > 0
-        ? collegaInits.map(ini => ({ key: `bonus_${ini}`, label: ini }))
-        : [{ key: 'bonus', label: '' }];
-    }
-    for (const { key, label } of bonusSlots) {
-      const v = String(data[key] ?? '').trim();
-      const titleAttr = label ? ` title="Bonus ${label}"` : '';
-      if (!bonusEditable) {
-        cells.push(`<span style="${stBon}display:inline-block;"${titleAttr}>${escHtml(v||'—')}</span>`);
-      } else {
-        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(v)}" placeholder="0.00"${titleAttr} onchange="projContractSet('${src}','${id}','${key}',this.value)" style="${stBon}">`);
-      }
-    }
-    // Sla bonusSlots op voor gebruik in headerRow
-    window._lastBonusSlots = bonusSlots;
-  }
-  const bonusHdr = (window._lastBonusSlots || [{ key: 'bonus', label: '' }]).map(({ label }) =>
-    `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:54px;text-align:center;box-sizing:border-box;">Bonus${label?' '+label:''}</span>`
-  ).join('');
+  // Bonus-velden zijn verplaatst naar het Bonussen-tabblad — niet meer in de contractrij
   const headerRow = baseFields.map(f =>
     `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:${f.w};text-align:center;box-sizing:border-box;">${f.label}</span>`
-  ).join('') + bonusHdr;
+  ).join('');
   const btnHtml = canEdit ? `<div style="display:flex;flex-direction:column;gap:4px;justify-content:center;padding-left:10px;flex-shrink:0;">
       ${!frozen
         ? `<button onclick="projContractFreeze('${src}','${id}','${safeId}')" style="font-size:.68rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">💾 Opslaan</button>`
@@ -4637,12 +4603,15 @@ async function pipeSetGoedkeuring(bmNaam, cardId, status) {
   const card  = cards.find(c => c.id === cardId);
 
   if (status === 'niet_akkoord') {
-    if (!confirm('Deze kandidaat afwijzen?\n\nDe kaart wordt definitief verwijderd uit de pipeline en kan niet worden teruggehaald.')) return;
-    pipeSave(bmNaam, cards.filter(c => c.id !== cardId));
+    if (!confirm('Deze kandidaat afwijzen?\n\nDe kaart verdwijnt definitief uit de goedkeuringslijst.')) return;
+    // String-vergelijking om type-mismatch te voorkomen (DB geeft soms number, onclick geeft string)
+    pipeSave(bmNaam, cards.filter(c => String(c.id) !== String(cardId)));
     render();
     if (supa) {
-      const { error } = await supa.from('pipeline_cards').delete().eq('id', cardId);
-      if (error) { alert('Verwijderen mislukt: ' + error.message); }
+      // UPDATE ipv DELETE: werkt ook als RLS delete blokkeert voor andere BMs;
+      // goedkeuring='niet_akkoord' sluit de kaart overal uit zonder hem te verwijderen.
+      supa.from('pipeline_cards').update({ goedkeuring: 'niet_akkoord', updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
+        .eq('id', cardId).then(({ error }) => { if (error) console.error('Niet-akkoord opslaan mislukt:', error); });
     }
     return;
   }
@@ -4751,17 +4720,18 @@ async function pipeSetGedeeldAkkoord(bmNaam1, id1, bmNaam2, id2) {
 }
 
 async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
-  if (!confirm('Beide plaatsingen afwijzen?\n\nBeide kaarten worden definitief verwijderd uit de pipeline.')) return;
+  if (!confirm('Beide plaatsingen afwijzen?\n\nBeide kaarten verdwijnen definitief uit de goedkeuringslijst.')) return;
   // Lokale verwijdering (String-vergelijking om type-mismatch te voorkomen)
-  const cards1 = pipeLoad(bmNaam1);
-  pipeSave(bmNaam1, cards1.filter(c => String(c.id) !== String(id1)));
-  const cards2 = pipeLoad(bmNaam2);
-  pipeSave(bmNaam2, cards2.filter(c => String(c.id) !== String(id2)));
-  render(); // direct hertekenen
-  // Supabase-verwijdering op de achtergrond
+  pipeSave(bmNaam1, (PIPE_CACHE[bmNaam1]||[]).filter(c => String(c.id) !== String(id1)));
+  pipeSave(bmNaam2, (PIPE_CACHE[bmNaam2]||[]).filter(c => String(c.id) !== String(id2)));
+  render();
+  // UPDATE ipv DELETE zodat RLS bij andere BM's niet blokkeert
   if (supa) {
-    supa.from('pipeline_cards').delete().eq('id', id1).catch(() => {});
-    supa.from('pipeline_cards').delete().eq('id', id2).catch(() => {});
+    const ts = { updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
+    supa.from('pipeline_cards').update({ goedkeuring: 'niet_akkoord', ...ts }).eq('id', id1)
+      .then(({ error }) => { if (error) console.error('Niet-akkoord (1) mislukt:', error); });
+    supa.from('pipeline_cards').update({ goedkeuring: 'niet_akkoord', ...ts }).eq('id', id2)
+      .then(({ error }) => { if (error) console.error('Niet-akkoord (2) mislukt:', error); });
   }
 }
 
@@ -4863,6 +4833,97 @@ function projFiltSort(col) {
     el.style.color   = active ? 'var(--primary)' : '';
   });
   projFiltApply();
+}
+
+// ── Bonussen-tab live filter/total functie ────────────────────────────────────
+function bonusFiltApply() {
+  const rows = window._bonussenRowData;
+  if (!rows) return;
+  const q    = (window._bonussenQ || '').toLowerCase().trim();
+  const cols = window._bonussenCols || {};
+
+  // Filter rijen
+  const filtered = q ? rows.filter(r => {
+    if ((r.naam||'').toLowerCase().includes(q)) return true;
+    if ((r.bm||'').toLowerCase().includes(q)) return true;
+    if (r.collegaInits.some(i => i.toLowerCase().includes(q))) return true;
+    if (r.bonusSlots.some(s => s.label.toLowerCase().includes(q))) return true;
+    return false;
+  }) : rows;
+
+  // Header
+  const TH = t => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${t}</th>`;
+  let hdr = TH('Kandidaat');
+  if (cols.bm    !== false) hdr += TH('Medewerker');
+  if (cols.start !== false) hdr += TH('Start');
+  if (cols.eind  !== false) hdr += TH('Verwacht eind');
+  if (cols.defn  !== false) hdr += TH('Def. eind');
+  if (cols.collega !== false) hdr += TH("Collega's");
+  hdr += TH('Bonus');
+  const thead = document.getElementById('bonus-thead');
+  if (thead) thead.innerHTML = `<tr style="border-bottom:2px solid var(--border);">${hdr}</tr>`;
+
+  // Rijen
+  const TD = (t, st='') => `<td style="padding:5px 8px;font-size:.78rem;${st}">${t}</td>`;
+  const rowsHtml = filtered.map(r => {
+    const bonusCells = r.bonusSlots.map(s => {
+      const lbl = s.label ? `Bonus ${s.label}` : 'Bonus';
+      const hl  = q && s.label && s.label.toLowerCase().includes(q);
+      return `<div style="display:inline-block;margin-right:6px;">` +
+        `<div style="font-size:.58rem;color:var(--muted);">${escHtml(lbl)}</div>` +
+        `<input type="number" step="0.01" min="0" value="${escHtml(s.value)}" placeholder="0.00"` +
+        ` onchange="projContractSet('${r.src}','${r.id}','${s.key}',this.value);_bonussenSyncVal('${r.src}','${r.id}','${s.key}',this.value)"` +
+        ` style="width:64px;font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:${hl?'#fef3c7':'#fffbeb'};">` +
+        `</div>`;
+    }).join('');
+    let row = TD(`<strong>${escHtml(r.naam)}</strong>`);
+    if (cols.bm    !== false) row += TD(escHtml(r.bm));
+    if (cols.start !== false) row += TD(escHtml(r.start||'—'));
+    if (cols.eind  !== false) row += TD(escHtml(r.eind||'—'));
+    if (cols.defn  !== false) row += TD(escHtml(r.defn||'—'), r.defn ? 'color:#0e9f6e;font-weight:700;' : '');
+    if (cols.collega !== false) row += TD(escHtml(r.collegaInits.join(', ')||'—'));
+    row += TD(bonusCells);
+    return `<tr style="border-bottom:1px solid var(--border);">${row}</tr>`;
+  }).join('');
+  const tbody = document.getElementById('bonus-tbody');
+  if (tbody) tbody.innerHTML = rowsHtml || `<tr><td colspan="7" style="padding:10px;color:var(--muted);">Geen projecten gevonden.</td></tr>`;
+
+  _bonussenUpdateTotals(filtered, q);
+}
+
+// Bijwerken totaalregel zonder de tabel te herrenderen (focus behoud bij typen)
+function _bonussenSyncVal(src, id, key, val) {
+  if (!window._bonussenRowData) return;
+  const r = window._bonussenRowData.find(r => r.src === src && String(r.id) === String(id));
+  if (!r) return;
+  const s = r.bonusSlots.find(s => s.key === key);
+  if (s) s.value = val;
+  const q = (window._bonussenQ || '').toLowerCase().trim();
+  const filtered = q ? window._bonussenRowData.filter(r2 => {
+    if ((r2.naam||'').toLowerCase().includes(q)) return true;
+    if ((r2.bm||'').toLowerCase().includes(q)) return true;
+    if (r2.collegaInits.some(i => i.toLowerCase().includes(q))) return true;
+    if (r2.bonusSlots.some(s2 => s2.label.toLowerCase().includes(q))) return true;
+    return false;
+  }) : window._bonussenRowData;
+  _bonussenUpdateTotals(filtered, q);
+}
+
+function _bonussenUpdateTotals(filtered, q) {
+  const totals = {};
+  for (const r of filtered) {
+    for (const s of r.bonusSlots) {
+      if (!s.label) continue;
+      if (q && !s.label.toLowerCase().includes(q)) continue; // alleen matching initialen
+      const v = parseFloat(s.value) || 0;
+      if (v) totals[s.label] = (totals[s.label] || 0) + v;
+    }
+  }
+  const el = document.getElementById('bonus-totaal');
+  if (el) {
+    const parts = Object.entries(totals).map(([ini, sum]) => `${ini}: €${sum.toFixed(2)}`);
+    el.textContent = parts.length ? '💰 Totaal bonus: ' + parts.join(' · ') : '';
+  }
 }
 
 function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
@@ -5683,8 +5744,17 @@ function renderPrognose() {
   })();
   // Bonussen-tabel HTML (alleen voor Toussaint)
   const _bonussenHtml = !isBeheerder() ? '' : (() => {
-    const TH = t => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${t}</th>`;
-    const rows = overzichtRanges.map(r => {
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // Filter: toon alleen projecten waarvan de definitieve einddatum NIET verstreken is
+    const bonussenRanges = overzichtRanges.filter(r => {
+      const defn = projDefEindLoad(r.source, r.id);
+      if (!defn) return true; // Geen einddatum = altijd tonen
+      return new Date(defn) >= today;
+    });
+
+    // Bouw rijdata en sla op in window voor bonusFiltApply()
+    window._bonussenRowData = bonussenRanges.map(r => {
       const collegaInits = projCollegaLoad(r.source, r.id);
       const gInfo = (window._projGedeeldInfo || {})[String(r.id)] || null;
       const data  = projContractLoad(r.source, r.id);
@@ -5699,34 +5769,53 @@ function renderPrognose() {
       } else {
         bonusSlots = [{ key: 'bonus', label: '' }];
       }
-      const bonusCells = bonusSlots.map(({ key, label }) => {
-        const v = String(data[key] ?? '').trim();
-        const lbl = label ? `Bonus ${label}` : 'Bonus';
-        return `<div style="display:inline-block;margin-right:6px;">` +
-          `<div style="font-size:.58rem;color:var(--muted);text-align:center;">${escHtml(lbl)}</div>` +
-          `<input type="number" step="0.01" min="0" value="${escHtml(v)}" placeholder="0.00"` +
-          ` onchange="projContractSet('${r.source}','${r.id}','${key}',this.value)"` +
-          ` style="width:64px;font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:#fffbeb;">` +
-          `</div>`;
-      }).join('');
-      const defn = projDefEindLoad(r.source, r.id) || '—';
-      return `<tr style="border-bottom:1px solid var(--border);">` +
-        `<td style="padding:5px 8px;font-size:.78rem;"><strong>${escHtml(r.naam || '—')}</strong></td>` +
-        `<td style="padding:5px 8px;font-size:.78rem;">${escHtml(r.bm || '—')}</td>` +
-        `<td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.begin) || '—'}</td>` +
-        `<td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind) || '—'}</td>` +
-        `<td style="padding:5px 8px;font-size:.78rem;${defn !== '—' ? 'color:#0e9f6e;font-weight:700;' : ''}">${escHtml(defn)}</td>` +
-        `<td style="padding:5px 8px;font-size:.78rem;">${escHtml(collegaInits.join(', ') || '—')}</td>` +
-        `<td style="padding:5px 8px;">${bonusCells}</td>` +
-        `</tr>`;
+      return {
+        src: r.source, id: r.id,
+        naam: r.naam || '—', bm: r.bm || '—',
+        start: toISODate(r.begin) || '—',
+        eind:  toISODate(r.eind)  || '—',
+        defn:  projDefEindLoad(r.source, r.id) || '',
+        collegaInits,
+        bonusSlots: bonusSlots.map(s => ({ ...s, value: String(data[s.key] ?? '') })),
+      };
+    });
+
+    // Kolom-zichtbaarheidsstatus (persistent across renders via window)
+    if (!window._bonussenCols) {
+      window._bonussenCols = { bm: true, start: true, eind: true, defn: true, collega: true };
+    }
+
+    // Kolom-toggle checkboxes
+    const colDefs = [
+      { key: 'bm',     label: 'Medewerker' },
+      { key: 'start',  label: 'Start' },
+      { key: 'eind',   label: 'Verwacht eind' },
+      { key: 'defn',   label: 'Def. eind' },
+      { key: 'collega',label: "Collega's" },
+    ];
+    const colToggles = colDefs.map(c => {
+      const chk = window._bonussenCols[c.key] !== false ? 'checked' : '';
+      return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72rem;cursor:pointer;margin-right:10px;">` +
+        `<input type="checkbox" ${chk} onchange="window._bonussenCols['${c.key}']=this.checked;bonusFiltApply()"> ${escHtml(c.label)}` +
+        `</label>`;
     }).join('');
-    return `<div class="section-title">Bonussen 💰</div>` +
+
+    return `<div class="section-title" style="text-align:left;">Bonussen 💰</div>` +
       `<div class="chart-card" style="padding:10px 14px;">` +
-      `<div class="sub" style="margin-bottom:8px;font-size:.75rem;">💰 Bonus per collega — alleen voor jou zichtbaar. Invoeren via de velden hieronder; wordt direct opgeslagen.</div>` +
-      `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">` +
-      `<thead><tr style="border-bottom:2px solid var(--border);">${TH('Kandidaat')}${TH('Medewerker')}${TH('Start')}${TH('Verwacht eind')}${TH('Def. eind')}${TH("Collega's")}${TH('Bonus')}</tr></thead>` +
-      `<tbody>${rows || '<tr><td colspan="7" style="padding:10px;text-align:center;color:var(--muted);">Geen actieve projecten.</td></tr>'}</tbody>` +
-      `</table></div></div>`;
+      `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;">` +
+        `<input id="bonus-search" type="text" placeholder="🔍 Zoek op naam, medewerker, collega…"` +
+          ` value="${escHtml(window._bonussenQ||'')}"` +
+          ` oninput="window._bonussenQ=this.value;bonusFiltApply()"` +
+          ` style="flex:1;min-width:180px;max-width:320px;padding:5px 10px;font-size:.78rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);">` +
+      `</div>` +
+      `<div style="margin-bottom:8px;font-size:.7rem;color:var(--muted);">Kolommen: ${colToggles}</div>` +
+      `<div id="bonus-totaal" style="font-size:.78rem;font-weight:700;color:#0e9f6e;margin-bottom:8px;text-align:left;"></div>` +
+      `<div style="overflow-x:auto;">` +
+        `<table id="bonus-table" style="width:100%;border-collapse:collapse;text-align:left;">` +
+          `<thead id="bonus-thead"></thead>` +
+          `<tbody id="bonus-tbody"></tbody>` +
+        `</table>` +
+      `</div></div>`;
   })();
 
   document.getElementById('main').innerHTML = `<div>
@@ -5920,6 +6009,7 @@ function renderPrognose() {
       { label: 'Actieve projecten', data: projLineCounts, borderColor: '#1a56db', backgroundColor: '#1a56db22', fill: true, tension: .3, pointRadius: 2, borderWidth: 2 },
       { label: 'Begrote lijn', data: begroteLijn, borderColor: '#E87400', borderDash: [5,4], pointRadius: 0, borderWidth: 2, fill: false },
     ], 'line', { legend: begroteLijn.some(v => v !== null) });
+    if (isBeheerder()) bonusFiltApply();
   }, 50);
 }
 
