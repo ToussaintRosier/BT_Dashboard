@@ -4846,6 +4846,23 @@ function projFiltSort(col) {
 }
 
 // ── Bonussen-tab live filter/total functie ────────────────────────────────────
+function bonusDfToggle(colKey, type, val) {
+  if (!window._bonussenDateFilters) window._bonussenDateFilters = {};
+  if (!window._bonussenDateFilters[colKey]) window._bonussenDateFilters[colKey] = {};
+  let cur = window._bonussenDateFilters[colKey][type];
+  if (!Array.isArray(cur)) cur = cur ? [String(cur)] : [];
+  const sv = String(val);
+  const idx = cur.indexOf(sv);
+  if (idx >= 0) cur.splice(idx, 1); else cur.push(sv);
+  window._bonussenDateFilters[colKey][type] = cur;
+  bonusFiltApply();
+}
+function bonusDfClear(colKey, type) {
+  if (!window._bonussenDateFilters) window._bonussenDateFilters = {};
+  if (!window._bonussenDateFilters[colKey]) window._bonussenDateFilters[colKey] = {};
+  window._bonussenDateFilters[colKey][type] = [];
+  bonusFiltApply();
+}
 function bonusFiltApply() {
   const rows = window._bonussenRowData;
   if (!rows) return;
@@ -4863,12 +4880,15 @@ function bonusFiltApply() {
   }
   function matchDate(dateStr, colKey) {
     const f = df[colKey] || {};
-    if (!f.jaar && !f.maand && !f.week) return true;
+    const J = Array.isArray(f.jaar)  ? f.jaar  : (f.jaar  ? [String(f.jaar)]  : []);
+    const M = Array.isArray(f.maand) ? f.maand : (f.maand ? [String(f.maand)] : []);
+    const W = Array.isArray(f.week)  ? f.week  : (f.week  ? [String(f.week)]  : []);
+    if (!J.length && !M.length && !W.length) return true;
     const d = parseDate(dateStr);
     if (!d) return false;
-    if (f.jaar  && d.getFullYear()    !== +f.jaar)  return false;
-    if (f.maand && (d.getMonth() + 1) !== +f.maand) return false;
-    if (f.week  && getISOWeek(d)      !== +f.week)  return false;
+    if (J.length && !J.includes(String(d.getFullYear())))   return false;
+    if (M.length && !M.includes(String(d.getMonth() + 1)))  return false;
+    if (W.length && !W.includes(String(getISOWeek(d))))     return false;
     return true;
   }
 
@@ -4900,25 +4920,36 @@ function bonusFiltApply() {
     }
   }
   const MNDNM = ['','Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
-  function mkSel(colKey, type) {
-    const cur = (df[colKey] || {})[type] || '';
+  function mkMulti(colKey, type) {
+    const raw = (df[colKey] || {})[type];
+    const sel = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
     const placeholder = type === 'jaar' ? 'Jaar' : type === 'maand' ? 'Maand' : 'Week';
     let vals;
     if (type === 'jaar')  vals = [...allY[colKey]].sort();
     if (type === 'maand') vals = [...allM[colKey]].sort((a,b) => a-b);
     if (type === 'week')  vals = [...allW[colKey]].sort((a,b) => a-b);
-    let opts = `<option value="">${placeholder}</option>`;
-    for (const v of (vals||[])) {
-      const lbl = type === 'maand' ? MNDNM[v] : (type === 'week' ? `Wk ${v}` : v);
-      opts += `<option value="${v}"${String(cur)===String(v)?' selected':''}>${lbl}</option>`;
-    }
-    const onch = `if(!window._bonussenDateFilters)window._bonussenDateFilters={};`+
-      `if(!window._bonussenDateFilters['${colKey}'])window._bonussenDateFilters['${colKey}']={};`+
-      `window._bonussenDateFilters['${colKey}']['${type}']=this.value;bonusFiltApply()`;
-    return `<select onchange="${onch}" style="font-size:.63rem;padding:1px 2px;border:1px solid var(--border);border-radius:3px;max-width:58px;background:var(--bg);margin-right:2px;">${opts}</select>`;
+    const count = sel.length;
+    const sumLabel = count > 0 ? `${placeholder}&nbsp;(${count})` : `${placeholder}&nbsp;▾`;
+    const sumBg    = count > 0 ? 'var(--primary-light)' : 'var(--bg)';
+    const sumColor = count > 0 ? 'var(--primary)' : 'var(--text)';
+    const items = (vals||[]).map(v => {
+      const lbl = type === 'maand' ? MNDNM[v] : (type === 'week' ? `Wk&nbsp;${v}` : v);
+      const chk = sel.includes(String(v)) ? 'checked' : '';
+      return `<label style="display:block;padding:1px 3px;font-size:.61rem;white-space:nowrap;cursor:pointer;">` +
+        `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
+        `onchange="bonusDfToggle('${colKey}','${type}','${v}')">&nbsp;${lbl}</label>`;
+    }).join('');
+    const wis = count > 0
+      ? `<div onclick="bonusDfClear('${colKey}','${type}')" style="font-size:.58rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:2px 3px;border-top:1px solid var(--border);margin-top:2px;">wis</div>` : '';
+    return `<details style="display:inline-block;margin-right:2px;vertical-align:top;">` +
+      `<summary style="font-size:.61rem;padding:1px 5px;border:1px solid var(--border);border-radius:3px;` +
+      `background:${sumBg};color:${sumColor};cursor:pointer;list-style:none;white-space:nowrap;">${sumLabel}</summary>` +
+      `<div style="padding:2px;border:1px solid var(--border);border-radius:3px;background:#fff;margin-top:1px;min-width:60px;">` +
+      `${items || '<span style="font-size:.6rem;color:var(--muted);padding:2px;">—</span>'}${wis}` +
+      `</div></details>`;
   }
   function dateFiltRow(colKey) {
-    return `<th style="padding:3px 8px;text-align:left;">${mkSel(colKey,'jaar')}${mkSel(colKey,'maand')}${mkSel(colKey,'week')}</th>`;
+    return `<th style="padding:3px 8px;text-align:left;vertical-align:top;">${mkMulti(colKey,'jaar')}${mkMulti(colKey,'maand')}${mkMulti(colKey,'week')}</th>`;
   }
   function emptyFiltTh() { return `<th style="padding:3px 8px;"></th>`; }
 
@@ -4984,12 +5015,15 @@ function _bonussenSyncVal(src, id, key, val) {
   }
   function matchDate(dateStr, colKey) {
     const f = df[colKey] || {};
-    if (!f.jaar && !f.maand && !f.week) return true;
+    const J = Array.isArray(f.jaar)  ? f.jaar  : (f.jaar  ? [String(f.jaar)]  : []);
+    const M = Array.isArray(f.maand) ? f.maand : (f.maand ? [String(f.maand)] : []);
+    const W = Array.isArray(f.week)  ? f.week  : (f.week  ? [String(f.week)]  : []);
+    if (!J.length && !M.length && !W.length) return true;
     const d = parseDate(dateStr);
     if (!d) return false;
-    if (f.jaar  && d.getFullYear()    !== +f.jaar)  return false;
-    if (f.maand && (d.getMonth() + 1) !== +f.maand) return false;
-    if (f.week  && getISOWeek(d)      !== +f.week)  return false;
+    if (J.length && !J.includes(String(d.getFullYear())))   return false;
+    if (M.length && !M.includes(String(d.getMonth() + 1)))  return false;
+    if (W.length && !W.includes(String(getISOWeek(d))))     return false;
     return true;
   }
   const filtered = window._bonussenRowData.filter(r2 => {
@@ -5836,11 +5870,8 @@ function renderPrognose() {
   const _onBon = window._projSubTab === 'bonussen';
   // Sub-tab navigatie (alleen voor Toussaint)
   const _projSubNavHtml = !isBeheerder() ? '' : (() => {
-    const btn = (tab, label) => {
-      const act = window._projSubTab === tab;
-      return `<button onclick="window._projSubTab='${tab}';render()" style="font-size:.78rem;padding:5px 18px;border-radius:20px;border:none;cursor:pointer;font-weight:${act?700:400};background:${act?'var(--primary)':'#e5e7eb'};color:${act?'#fff':'var(--text)'};">${label}</button>`;
-    };
-    return `<div style="display:flex;gap:6px;margin-bottom:16px;">${btn('overzicht','Overzicht')}${btn('bonussen','Bonussen 💰')}</div>`;
+    const btn = (tab, label) => `<button class="bm-subtab-btn ${window._projSubTab===tab?'active':''}" onclick="window._projSubTab='${tab}';render()">${label}</button>`;
+    return `<div class="bm-subtabs" style="margin-bottom:18px;">${btn('overzicht','Overzicht')}${btn('bonussen','Bonussen 💰')}</div>`;
   })();
   // Bonussen-tabel HTML (alleen voor Toussaint)
   const _bonussenHtml = !isBeheerder() ? '' : (() => {
