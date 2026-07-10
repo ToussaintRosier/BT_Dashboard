@@ -4427,7 +4427,6 @@ async function importProjectenExcel(inputEl) {
           adv:         fmtN(exact(row, 'ADV')),
           comp:        fmtN(exact(row, 'Compensatie:')),
           kostprijs:   fmtN(exact(row, 'Kostprijs:')),
-          grondslag:   fmtN(exact(row, 'Grondslag')),
           vergoeding:  fmtN(exact(row, 'Vergoedingen:')),
           frequentie:  String(exact(row, 'Frequentie:') || '').trim(),
           marge:       fmtN(exact(row, 'Marge:')),
@@ -4947,13 +4946,15 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     : '';
   const detBtn = `<span id="pr-det-btn-${safeId}" onclick="projEvalToggle_vis('${safeId}')" style="font-size:.6rem;color:var(--muted);cursor:pointer;opacity:.7;user-select:none;display:inline-block;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:var(--card);margin-right:5px;">▼ detail</span>`;
   const projnrBadge = r.projectnr ? `<span style="font-size:.7rem;color:var(--muted);margin-right:5px;">${r.projectnr}</span>` : '';
+  const contractData   = projContractLoad(r.source, r.id);
+  const contractvorm   = contractData.contract ? `<span style="font-size:.62rem;padding:1px 6px;border-radius:8px;background:#e0e7ff;color:#3730a3;margin-left:4px;font-weight:600;">${escHtml(contractData.contract)}</span>` : '';
   const chipHtml = canEditProj
     ? `<td style="padding:3px 8px;text-align:left;"><div id="${containerId}" data-src="${r.source}" data-pid="${r.id}">${_collegaChips(r.source, r.id, collega, containerId)}</div></td>`
     : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:left;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
-      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${contractvorm}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
@@ -4968,7 +4969,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
-      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
+      <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${contractvorm}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
       <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
@@ -11084,7 +11085,7 @@ function projExportExcel() {
     'Projectnr', 'CAO', 'Contractvorm', 'All-in?',
     'Salaris BPM (€)', 'WTTA (€)', 'Tarief 2026 (€)',
     'Verlof (dgn)', 'ADV (dgn)', 'Comp (%)',
-    'Kostprijs (€)', 'Grondslag (€)', 'Vergoeding (€)', 'Frequentie',
+    'Kostprijs (€)', 'Vergoeding (€)', 'Frequentie',
     'Marge (€)', 'Marge (%)', 'Uren/wk', 'Marge/week (€)', 'EJU'
   ];
 
@@ -11109,7 +11110,6 @@ function projExportExcel() {
       fmtNum(cd.adv),
       fmtPct(cd.comp),
       fmtNum(cd.kostprijs),
-      fmtNum(cd.grondslag),
       fmtNum(cd.vergoeding),
       cd.frequentie || '',
       fmtNum(cd.marge),
@@ -11156,7 +11156,6 @@ const CONTRACT_FIELDS = [
   {key:'adv',        label:'ADV',          type:'number',  w:'50px',  required:true},
   {key:'comp',       label:'Comp %',       type:'number',  w:'70px',  computed:true},
   {key:'kostprijs',  label:'Kostprijs',    type:'number',  w:'72px',  computed:true},
-  {key:'grondslag',  label:'Grondslag',    type:'number',  w:'72px'},
   {key:'vergoeding', label:'Vergoeding',   type:'number',  w:'76px',  required:true},
   {key:'frequentie', label:'Frequentie',   type:'select',  w:'84px',  required:true, opts:['','per dag','per week','Maandelijks','4-wekelijks','Wekelijks']},
   {key:'marge',      label:'Marge (€)',    type:'number',  w:'68px',  computed:true},
@@ -11166,7 +11165,7 @@ const CONTRACT_FIELDS = [
   {key:'bonus',      label:'Bonus',        type:'number',  w:'54px'},
 ];
 // ── Auto-berekeningen contractvelden ──────────────────────────────────────────
-// Formules: comp=adv/260; kostprijs=salaris*(1+comp)/(uren*4.333)*2.05
+// Formules: comp=adv/260; kostprijs=salaris*(1+comp)/(uren*4.333)*2.12
 //           marge=tarief-kostprijs; marge_pct=marge/tarief; marge_pw=marge*uren*4.333
 function _projAutoCalc(d) {
   const salaris = parseFloat(d.salaris_bpm) || 0;
@@ -11174,7 +11173,7 @@ function _projAutoCalc(d) {
   const uren    = parseFloat(d.uren)        || 0;
   const tarief  = parseFloat(d.tarief)      || 0;
   const comp      = adv > 0 ? adv / 260 : 0;
-  const kostprijs = (salaris > 0 && uren > 0) ? salaris * (1 + comp) / (uren * 4.333) * 2.05 : 0;
+  const kostprijs = (salaris > 0 && uren > 0) ? salaris * (1 + comp) / (uren * 4.333) * 2.12 : 0;
   const marge     = tarief > 0 && kostprijs > 0 ? tarief - kostprijs : 0;
   const marge_pct = tarief > 0 && marge !== 0 ? marge / tarief : 0;
   const marge_pw  = marge !== 0 && uren > 0 ? marge * uren * 4.333 : 0;
@@ -11214,7 +11213,6 @@ function projContractLoad(src, id) {
       adv:         p.adv          != null ? String(p.adv)          : '',
       comp:        p.compensatie  != null ? String(p.compensatie)  : '',
       kostprijs:   p.kostprijs    != null ? String(p.kostprijs)    : '',
-      grondslag:   p.grondslag    != null ? String(p.grondslag)    : '',
       vergoeding:  p.vergoeding   != null ? String(p.vergoeding)   : '',
       frequentie:  String(p.frequentie   ?? ''),
       marge:       p.marge        != null ? String(p.marge)        : '',
@@ -11252,7 +11250,6 @@ function projContractSave(src, id, obj) {
       adv:          n(obj.adv),
       compensatie:  n(obj.comp),
       kostprijs:    n(obj.kostprijs),
-      grondslag:    n(obj.grondslag),
       vergoeding:   n(obj.vergoeding),
       frequentie:   obj.frequentie || null,
       marge:        n(obj.marge),
@@ -11271,7 +11268,7 @@ function projContractSave(src, id, obj) {
         salaris_bpm: updates.salaris_bpm, wtta: updates.wtta,
         tarief_2026: updates.tarief_2026, allin: updates.allin,
         verlof: updates.verlof, adv: updates.adv, compensatie: updates.compensatie,
-        kostprijs: updates.kostprijs, grondslag: updates.grondslag,
+        kostprijs: updates.kostprijs,
         vergoeding: updates.vergoeding, frequentie: updates.frequentie,
         marge: updates.marge, marge_pct: updates.marge_pct,
         uren: updates.uren, marge_pw: updates.marge_pw, eju: updates.eju,
