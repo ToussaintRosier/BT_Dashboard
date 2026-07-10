@@ -3805,14 +3805,38 @@ function getCombinedProjectRanges() {
       begin: new Date(p.begin_ovk), eind: p.einde_ovk ? new Date(p.einde_ovk) : null,
       verwijderdOp: p.verwijderd_op ? new Date(p.verwijderd_op) : null });
   }
+  // Verzamel pipeline-entries inclusief kaart-object voor gedeeld-detectie
+  const pipeEntries = [];
   for (const bm of BMS) {
     const cards = pipeLoad(bm.naam);
     for (const c of cards) {
       if (c.stage !== 'Starter' || c.goedkeuring !== 'akkoord' || !c.start_datum) continue;
-      ranges.push({ id: c.id, source: 'pipeline', bmNaam: bm.naam, naam: c.naam, bm: bm.naam, opdrachtgever: c.opdrachtgever || '',
+      pipeEntries.push({ _card: c, id: c.id, source: 'pipeline', bmNaam: bm.naam, naam: c.naam, bm: bm.naam, opdrachtgever: c.opdrachtgever || '',
         begin: new Date(c.start_datum), eind: c.eind_datum_verwacht ? new Date(c.eind_datum_verwacht) : null,
         verwijderdOp: c.verwijderd_op ? new Date(c.verwijderd_op) : null });
     }
+  }
+  // Samenvoegen van gedeelde paren (zelfde naam, beide gedeeld=true) → 1 project-entry
+  window._projGedeeldInfo = {};
+  const usedIds = new Set();
+  for (const e of pipeEntries) {
+    if (usedIds.has(e.id) || !e._card.gedeeld) continue;
+    const partner = pipeEntries.find(p => p.id !== e.id && !usedIds.has(p.id) && p._card.gedeeld && p.naam === e.naam);
+    if (partner) {
+      e.bm2     = partner.bm;
+      e.bmNaam2 = partner.bmNaam;
+      e.cardId2 = partner.id;
+      e.isGedeeld = true;
+      window._projGedeeldInfo[String(e.id)] = { bm1: e.bm, bm2: partner.bm };
+      usedIds.add(e.id);
+      usedIds.add(partner.id);
+    }
+  }
+  // Voeg pipeline-entries toe: primaire kaarten en niet-gedeelden, sla secundaire over
+  for (const e of pipeEntries) {
+    if (usedIds.has(e.id) && !e.isGedeeld) continue; // secundaire gedeeld-kaart overslaan
+    const { _card, ...rest } = e;
+    ranges.push(rest);
   }
   return ranges;
 }
@@ -4078,12 +4102,13 @@ function _refreshContractRow(safeId) {
 }
 
 // ── Contract-veldenrij (uitvouwbaar, naast eval-rij) ─────────────────────────
-function renderContractRow(src, id, nCols, safeId) {
+function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
   const data    = projContractLoad(src, id);
   const canEdit = isHrmEditor();
   const frozen  = projContractFrozenLoad(src, id);
   const editable = canEdit && !frozen;
-  const cells = CONTRACT_FIELDS.map(f => {
+  const baseFields = CONTRACT_FIELDS.filter(f => f.key !== 'bonus');
+  const cells = baseFields.map(f => {
     const val   = String(data[f.key] ?? '').trim();
     const bgCol = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
     const stIn  = `font-size:.6rem;padding:1px 2px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgCol};${frozen?'color:#555;':''}`;
@@ -4146,9 +4171,37 @@ function renderContractRow(src, id, nCols, safeId) {
     }
     return `<input type="${f.type}" value="${escHtml(val)}" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
   });
-  const headerRow = CONTRACT_FIELDS.map(f =>
+  // Bonus-veld(en): enkelvoudig voor normale projecten, tweevoudig voor gedeelde plaatsingen
+  {
+    const bgBon = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
+    const stBon = `font-size:.6rem;padding:1px 2px;width:54px;box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgBon};${frozen?'color:#555;':''}`;
+    if (gedeeldInfo && gedeeldInfo.bm1 && gedeeldInfo.bm2) {
+      const ini1 = bmInitialen(gedeeldInfo.bm1), ini2 = bmInitialen(gedeeldInfo.bm2);
+      const v1 = String(data['bonus_bm1'] ?? '').trim();
+      const v2 = String(data['bonus_bm2'] ?? '').trim();
+      if (!editable) {
+        cells.push(`<span style="${stBon}display:inline-block;" title="Bonus ${ini1}">${escHtml(v1||'—')}</span>`);
+        cells.push(`<span style="${stBon}display:inline-block;" title="Bonus ${ini2}">${escHtml(v2||'—')}</span>`);
+      } else {
+        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(v1)}" placeholder="0.00" title="Bonus ${ini1}" onchange="projContractSet('${src}','${id}','bonus_bm1',this.value)" style="${stBon}">`);
+        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(v2)}" placeholder="0.00" title="Bonus ${ini2}" onchange="projContractSet('${src}','${id}','bonus_bm2',this.value)" style="${stBon}">`);
+      }
+    } else {
+      const valBon = String(data['bonus'] ?? '').trim();
+      if (!editable) {
+        cells.push(`<span style="${stBon}display:inline-block;">${escHtml(valBon||'—')}</span>`);
+      } else {
+        cells.push(`<input type="number" step="0.01" min="0" value="${escHtml(valBon)}" placeholder="0.00" onchange="projContractSet('${src}','${id}','bonus',this.value)" style="${stBon}">`);
+      }
+    }
+  }
+  const bonusHdr = (gedeeldInfo && gedeeldInfo.bm1 && gedeeldInfo.bm2)
+    ? [bmInitialen(gedeeldInfo.bm1), bmInitialen(gedeeldInfo.bm2)].map(ini =>
+        `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:54px;text-align:center;box-sizing:border-box;">Bonus ${ini}</span>`).join('')
+    : `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:54px;text-align:center;box-sizing:border-box;">Bonus</span>`;
+  const headerRow = baseFields.map(f =>
     `<span style="font-size:.55rem;color:var(--muted);display:inline-block;width:${f.w};text-align:center;box-sizing:border-box;">${f.label}</span>`
-  ).join('');
+  ).join('') + bonusHdr;
   const btnHtml = canEdit ? `<div style="display:flex;flex-direction:column;gap:4px;justify-content:center;padding-left:10px;flex-shrink:0;">
       ${!frozen
         ? `<button onclick="projContractFreeze('${src}','${id}','${safeId}')" style="font-size:.68rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">💾 Opslaan</button>`
@@ -4411,6 +4464,23 @@ function getStarterCards() {
   return out;
 }
 
+// Helper: detecteer gedeelde paren in de starters-goedkeuringslijst.
+// Twee kaarten vormen een paar als ze dezelfde naam hebben én beide gedeeld=true zijn.
+function getGedeeldPairs(cards) {
+  const gedeeld = cards.filter(c => c.gedeeld);
+  const pairs = [], used = new Set();
+  for (const c1 of gedeeld) {
+    if (used.has(c1.id)) continue;
+    const partner = gedeeld.find(c2 => c2.id !== c1.id && !used.has(c2.id) && c2.naam === c1.naam);
+    if (partner) {
+      pairs.push([c1, partner]);
+      used.add(c1.id); used.add(partner.id);
+    }
+  }
+  const singles = cards.filter(c => !used.has(c.id));
+  return { pairs, singles };
+}
+
 // ── Project verwijderen uit de lijst (soft-delete: historie blijft behouden) ──
 // Markeert het project als verwijderd vanaf vandaag. Verleden weken in de
 // projectenlijn blijven het meetellen; vanaf nu/toekomst niet meer, en het
@@ -4504,8 +4574,12 @@ function showContractModal(bmNaam, cardId) {
 function contractModalConfirm() {
   const modal = document.getElementById('hrm-contract-modal');
   if (!modal) return;
-  const bmNaam = modal.dataset.bmNaam;
-  const cardId = modal.dataset.cardId;
+  const bmNaam  = modal.dataset.bmNaam;
+  const cardId  = modal.dataset.cardId;
+  const bmNaam2 = modal.dataset.gedeeldBmNaam2 || '';
+  const cardId2 = modal.dataset.gedeeldCardId2 || '';
+  modal.dataset.gedeeldBmNaam2 = '';
+  modal.dataset.gedeeldCardId2 = '';
   if (isHrmEditor()) {
     const data   = projContractLoad('pipeline', cardId);
     const fields = CONTRACT_FIELDS.filter(f => f.key !== 'bonus');
@@ -4516,7 +4590,11 @@ function contractModalConfirm() {
     projContractSave('pipeline', cardId, data);
   }
   modal.style.display = 'none';
-  _pipeGoedkeuringAkkoordProceed(bmNaam, cardId);
+  if (bmNaam2 && cardId2) {
+    _pipeGedeeldAkkoordProceed(bmNaam, cardId, bmNaam2, cardId2);
+  } else {
+    _pipeGoedkeuringAkkoordProceed(bmNaam, cardId);
+  }
 }
 function contractModalCancel() {
   const modal = document.getElementById('hrm-contract-modal');
@@ -4535,6 +4613,53 @@ async function _pipeGoedkeuringAkkoordProceed(bmNaam, cardId) {
   }
   if (card) { card.goedkeuring = 'akkoord'; card.start_datum = startDatum; }
   pipeSave(bmNaam, cards);
+  render();
+}
+
+// ── Gedeelde plaatsing: beide BMs akkoord → 1 project in de lijst ────────────
+// Koppelt automatisch elkaars initialen als collega en hergebruikt de bestaande
+// contract-modal voor het invullen van projectgegevens.
+async function pipeSetGedeeldAkkoord(bmNaam1, id1, bmNaam2, id2) {
+  // Auto-koppel initialen zodat beide BMs als collega zichtbaar zijn
+  const ini1 = bmInitialen(bmNaam1), ini2 = bmInitialen(bmNaam2);
+  const c1col = projCollegaLoad('pipeline', id1);
+  if (!c1col.includes(ini2)) { c1col.push(ini2); projCollegaSave('pipeline', id1, c1col); }
+  const c2col = projCollegaLoad('pipeline', id2);
+  if (!c2col.includes(ini1)) { c2col.push(ini1); projCollegaSave('pipeline', id2, c2col); }
+  // Gedeeld-context opslaan op modal; bestaande showContractModal hergebruiken
+  const modal = document.getElementById('hrm-contract-modal');
+  if (modal) {
+    modal.dataset.gedeeldBmNaam2 = bmNaam2;
+    modal.dataset.gedeeldCardId2 = id2;
+  }
+  showContractModal(bmNaam1, id1);
+}
+
+async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
+  if (!confirm('Beide plaatsingen afwijzen?\n\nBeide kaarten worden definitief verwijderd uit de pipeline.')) return;
+  for (const [bmNaam, cardId] of [[bmNaam1, id1],[bmNaam2, id2]]) {
+    const cards = pipeLoad(bmNaam);
+    pipeSave(bmNaam, cards.filter(c => c.id !== cardId));
+    if (supa) await supa.from('pipeline_cards').delete().eq('id', cardId).catch(() => {});
+  }
+  render();
+}
+
+async function _pipeGedeeldAkkoordProceed(bmNaam1, id1, bmNaam2, id2) {
+  const startDatum = toISODate(new Date());
+  for (const [bmNaam, cardId] of [[bmNaam1, id1],[bmNaam2, id2]]) {
+    if (supa) {
+      const { error } = await supa.from('pipeline_cards').update({
+        goedkeuring: 'akkoord', start_datum: startDatum,
+        updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString()
+      }).eq('id', cardId);
+      if (error) { alert('Bijwerken mislukt: ' + error.message); return; }
+    }
+    const cards = pipeLoad(bmNaam);
+    const card  = cards.find(c => c.id === cardId);
+    if (card) { card.goedkeuring = 'akkoord'; card.start_datum = startDatum; }
+    pipeSave(bmNaam, cards);
+  }
   render();
 }
 
@@ -4580,7 +4705,10 @@ function projFiltApply() {
       if ((r.naam||'').toLowerCase().includes(lq)) return true;
       if ((r.opdrachtgever||'').toLowerCase().includes(lq)) return true;
       const inits = projCollegaLoad(r.source, r.id);
-      return inits.some(init => init.toLowerCase().includes(lq));
+      if (inits.some(init => init.toLowerCase().includes(lq))) return true;
+      if (r.bm2 && r.bm2.toLowerCase().includes(lq)) return true;
+      if (r.bm2 && bmInitialen(r.bm2).toLowerCase().includes(lq)) return true;
+      return false;
     });
   }
   if (sort) {
@@ -4654,7 +4782,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
         <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
         <span class="sub" id="pr-status-${safeId}" style="font-size:.67rem;display:block;margin-top:2px;"></span>
       </td>
-    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId)}`;
+    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   } else {
     return `<tr style="border-bottom:1px solid var(--border);${bg}">
       <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan} <span style="font-size:.72rem;">${src}</span>${badge}</td>
@@ -4664,7 +4792,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
       <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
-    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId)}`;
+    </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   }
 }
 
@@ -5445,24 +5573,54 @@ function renderPrognose() {
     <div class="chart-card" style="padding:10px 14px;">
       <div class="sub" style="margin-bottom:8px;font-size:.75rem;">✅ Akkoord = opnemen in Projecten overzicht (start vandaag, datums aan te passen) &nbsp;·&nbsp; ❌ Niet akkoord = definitief verwijderen &nbsp;·&nbsp; <span style="color:var(--danger);font-weight:600;">Collega's zijn verplicht voor akkoord.</span></div>
       ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : (() => {
-        const TH = txt => `<th style="text-align:left;padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;">${txt}</th>`;
-        const rows = starterCards.map(c => {
-          const safeId      = String(c.id).replace(/[^a-zA-Z0-9]/g,'');
-          const containerId = `gc-collega-${safeId}`;
-          const chips       = _collegaChips('pipeline', c.id, projCollegaLoad('pipeline', c.id), containerId);
-          return `<tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:5px 8px;"><strong>${escHtml(c.naam)}</strong></td>
-            <td style="padding:5px 8px;font-size:.78rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span class="badge badge-red" style="font-size:.65rem;">gedeeld 0,5</span>':''}</td>
-            <td style="padding:5px 8px;"><div id="${containerId}">${chips}</div></td>
-            <td style="padding:5px 8px;white-space:nowrap;text-align:right;">
-              ${canEditProj
-                ? `<button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
-                   <button class="goedkeur-btn" style="margin-left:4px;" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>`
-                : '<span class="sub">Alleen-lezen</span>'}
-            </td>
-          </tr>`;
-        }).join('');
-        return `<table style="width:100%;border-collapse:collapse;"><colgroup><col style="width:28%"><col style="width:22%"><col style="width:auto"><col style="width:220px"></colgroup><thead><tr style="border-bottom:2px solid var(--border);">${TH('Kandidaat')}${TH('Opdrachtgever')}${TH('Collega\'s — verplicht')}<th></th></tr></thead><tbody>${rows}</tbody></table>`;
+        const { pairs, singles } = getGedeeldPairs(starterCards);
+        const cs = `border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:8px;background:var(--card);`;
+        const pairCards = pairs.map(([c1, c2]) => {
+          const cid1 = `gc-collega-${String(c1.id).replace(/[^a-zA-Z0-9]/g,'')}`;
+          const cid2 = `gc-collega-${String(c2.id).replace(/[^a-zA-Z0-9]/g,'')}`;
+          const chips1 = _collegaChips('pipeline', c1.id, projCollegaLoad('pipeline', c1.id), cid1);
+          const chips2 = _collegaChips('pipeline', c2.id, projCollegaLoad('pipeline', c2.id), cid2);
+          const ini1 = bmInitialen(c1.bmNaam), ini2 = bmInitialen(c2.bmNaam);
+          const btns = canEditProj
+            ? `<button class="goedkeur-btn" style="background:#0e9f6e;color:#fff;border:none;" onclick="pipeSetGedeeldAkkoord('${c1.bmNaam}','${c1.id}','${c2.bmNaam}','${c2.id}')">✅ Gedeeld akkoord → 1 project</button>
+               <button class="goedkeur-btn" style="margin-left:6px;" onclick="pipeSetGedeeldNietAkkoord('${c1.bmNaam}','${c1.id}','${c2.bmNaam}','${c2.id}')">❌ Niet akkoord</button>`
+            : '<span class="sub">Alleen-lezen</span>';
+          return `<div style="${cs}border-left:4px solid #0e9f6e;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+              <strong>${escHtml(c1.naam)}</strong>
+              <span style="background:#dcfce7;color:#166534;font-size:.65rem;padding:1px 8px;border-radius:10px;font-weight:600;">Gedeeld 2× 0,5</span>
+              <span style="font-size:.75rem;color:var(--muted);">${c1.opdrachtgever?escHtml(c1.opdrachtgever):'—'}</span>
+            </div>
+            <div style="display:flex;gap:24px;margin-bottom:10px;flex-wrap:wrap;">
+              <div>
+                <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px;">${escHtml(c1.bmNaam)} <span style="font-weight:700;">(${ini1})</span></div>
+                <div id="${cid1}">${chips1}</div>
+              </div>
+              <div>
+                <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px;">${escHtml(c2.bmNaam)} <span style="font-weight:700;">(${ini2})</span></div>
+                <div id="${cid2}">${chips2}</div>
+              </div>
+            </div>
+            <div>${btns}</div>
+          </div>`;
+        });
+        const singleCards = singles.map(c => {
+          const cid = `gc-collega-${String(c.id).replace(/[^a-zA-Z0-9]/g,'')}`;
+          const chips = _collegaChips('pipeline', c.id, projCollegaLoad('pipeline', c.id), cid);
+          const btns = canEditProj
+            ? `<button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">✅ Akkoord</button>
+               <button class="goedkeur-btn" style="margin-left:4px;" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">❌ Niet akkoord</button>`
+            : '<span class="sub">Alleen-lezen</span>';
+          return `<div style="${cs}">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <strong>${escHtml(c.naam)}</strong>
+              <span style="font-size:.75rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span style="background:#fee2e2;color:#991b1b;font-size:.65rem;padding:1px 6px;border-radius:10px;">gedeeld 0,5</span>':''}</span>
+              <div id="${cid}" style="flex:1;min-width:100px;">${chips}</div>
+              <div style="white-space:nowrap;">${btns}</div>
+            </div>
+          </div>`;
+        });
+        return [...pairCards, ...singleCards].join('');
       })()}
     </div>
 
