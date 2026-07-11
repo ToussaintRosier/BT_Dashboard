@@ -5524,9 +5524,10 @@ async function comrapAnalyse() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyse genereren…'; }
 
   try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/comrap-analyse`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'anthropic-beta': 'interleaved-thinking-2025-05-14' },
+      headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
       body: JSON.stringify({ week: w, jaar: y, bm_data: bmData, kanban, notities: st.notities + tekstImports, images: imageBlokken }),
     });
     const json = await resp.json();
