@@ -890,13 +890,14 @@ function renderTabs() {
         </div>
       </div>
       <div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab===BMS.length||currentTab===BMS.length+1||currentTab==='hrm')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+        <div class="sidebar-cat-btn ${(currentTab===BMS.length||currentTab===BMS.length+1||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           <span style="flex:1;">🏛️ Management</span>
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
           <button class="sidebar-item ${currentTab===BMS.length?'active':''}" onclick="selectTab(${BMS.length})">📊 Team Resultaten</button>
           <button class="sidebar-item ${currentTab===BMS.length+1?'active':''}" onclick="selectTab(${BMS.length+1})">📈 Projecten</button>
+          <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">📋 Commerciële Rapportage</button>
           <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">🗂️ HRM/Backoffice</button>
         </div>
       </div>
@@ -941,7 +942,7 @@ function renderTabs() {
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel'||currentTab==='hrm')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         <span style="flex:1;">🏛️ Management</span>
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
@@ -949,6 +950,7 @@ function renderTabs() {
         <button class="sidebar-item ${currentTab===teamIdx?'active':''}" onclick="selectTab(${teamIdx})">📊 Team Resultaten</button>
         <button class="sidebar-item ${currentTab===prognoseIdx?'active':''}" onclick="selectTab(${prognoseIdx})">📈 Projecten</button>
         <button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">💰 Financieel</button>
+        <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">📋 Commerciële Rapportage</button>
         <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">🗂️ HRM/Backoffice</button>
       </div>
     </div>
@@ -2054,6 +2056,11 @@ function render() {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
     if (!CURRENT_USER || (!isManagerLevel() && CURRENT_USER.rol !== 'backoffice')) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
     renderFinancieel();
+    return;
+  }
+  if (currentTab === 'comrap') {
+    if (!CURRENT_USER || !isManagerLevel()) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+    renderComrap();
     return;
   }
   if (currentTab === 'hrm') {
@@ -5237,6 +5244,300 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
+  }
+}
+
+// ── Commerciële Rapportage ─────────────────────────────────────────────────────
+// State: geselecteerde week/jaar, geüploade bestanden (base64), notities, analyse-resultaat
+if (!window._comrapState) window._comrapState = {
+  week: null, jaar: null,
+  imports: [],          // [{naam, type, b64}]  — afbeeldingen + tekstbestanden
+  notities: '',
+  resultaat: '',
+  bezig: false,
+};
+
+function comrapPrevWeek(w, y) {
+  if (w <= 1) { return { w: isoWeeksInYear(y - 1), y: y - 1 }; }
+  return { w: w - 1, y };
+}
+function isoWeeksInYear(y) {
+  // P28-dec methode: als 28 dec in week 53 zit, het jaar heeft 53 weken
+  const d = new Date(y, 11, 28);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() + (4 - day));
+  return Math.round((d - new Date(d.getFullYear(), 0, 1)) / 864e5 / 7) + 1;
+}
+
+function renderComrap() {
+  const el = document.getElementById('main');
+  const st = window._comrapState;
+
+  // Standaard: vorige week
+  if (!st.week) {
+    const nu = getWeek(); // {week, year}
+    const prev = comrapPrevWeek(nu.week, nu.year);
+    st.week = prev.w; st.jaar = prev.y;
+  }
+
+  const w = st.week; const y = st.jaar;
+
+  // KPI-data verzamelen
+  const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
+  const kpiLabels = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen',
+    matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
+
+  // Per BM: gevonden weekrij + norm
+  const bmRows = BMS.filter(bm => !bm.special).map(bm => {
+    const row = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
+    const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
+    return { naam: bm.naam, row, norm };
+  });
+
+  // Team-totalen (som per KPI)
+  const teamTot  = {};
+  const teamNorm = {};
+  for (const k of kpiKeys) {
+    teamTot[k]  = bmRows.reduce((s, b) => s + (parseFloat(b.row[k]) || 0), 0);
+    teamNorm[k] = +bmRows.reduce((s, b) => s + (b.norm[k] || 0), 0).toFixed(1);
+  }
+
+  // Kanban: actieve procedures (pipeline cards niet verwijderd, fase matchgesprek/intake/aanbieding/contractvoorstel)
+  const ACTIVE_STAGES = ['match_1e','match_2e','match_3e','intake','aanbieden','contractvoorstel'];
+  let kanbanAantal = 0;
+  for (const bm of BMS.filter(b => !b.special)) {
+    const cards = pipeLoad(bm.naam);
+    for (const c of cards) {
+      if (!c.verwijderd_op && ACTIVE_STAGES.includes(c.stage)) kanbanAantal++;
+    }
+  }
+
+  // Render KPI-tabel rij-kleur
+  function kleur(val, norm) {
+    if (!norm || norm === 0) return '';
+    return val >= norm ? 'background:#f0fdf4;color:#166534;' : 'background:#fff7ed;color:#92400e;';
+  }
+
+  // Per-BM tabelrijen
+  const bmRijen = bmRows.map(b => {
+    const cellen = kpiKeys.map(k => {
+      const v = parseFloat(b.row[k]) || 0;
+      const n = b.norm[k] || 0;
+      const toon = n > 0 || v > 0;
+      if (!toon) return `<td style="padding:5px 8px;text-align:center;color:#ccc;">—</td>`;
+      const ico = v >= n ? '✅' : '⚠️';
+      return `<td style="padding:5px 8px;text-align:center;font-size:.82rem;${kleur(v,n)}">${ico} <strong>${v}</strong><br><span style="font-size:.7rem;color:#888;">/ ${n}</span></td>`;
+    }).join('');
+    return `<tr><td style="padding:5px 10px;font-size:.83rem;font-weight:600;">${escHtml(b.naam)}</td>${cellen}</tr>`;
+  }).join('');
+
+  // Team-rij
+  const teamRij = `<tr style="background:#253151;color:#fff;font-weight:700;">
+    <td style="padding:6px 10px;font-size:.84rem;">Team totaal</td>
+    ${kpiKeys.map(k => {
+      const v = teamTot[k]; const n = teamNorm[k];
+      const ico = v >= n ? '✅' : (n > 0 ? '⚠️' : '');
+      return `<td style="padding:6px 8px;text-align:center;font-size:.82rem;">${ico} ${v}<br><span style="font-size:.7rem;opacity:.7;">/ ${n}</span></td>`;
+    }).join('')}
+  </tr>`;
+
+  // Import-badge
+  const importBadge = st.imports.length
+    ? `<span style="background:#253151;color:#fff;border-radius:10px;padding:2px 8px;font-size:.75rem;margin-left:8px;">${st.imports.length} bestand${st.imports.length > 1 ? 'en' : ''}</span>` : '';
+
+  el.innerHTML = `
+  <div style="max-width:1100px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+      <h2 style="margin:0;font-size:1.35rem;font-weight:800;color:var(--primary);">📋 Commerciële Rapportage</h2>
+      <div style="display:flex;align-items:center;gap:8px;background:#f4f6f9;border:1px solid var(--border);border-radius:8px;padding:6px 12px;">
+        <button onclick="comrapNavWeek(-1)" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;">◀</button>
+        <span style="font-weight:700;font-size:.92rem;">Week ${w}, ${y}</span>
+        <button onclick="comrapNavWeek(1)" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;">▶</button>
+      </div>
+    </div>
+
+    <!-- KPI TABEL -->
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:18px;">
+      <h3 style="margin:0 0 12px;font-size:1rem;font-weight:700;color:var(--primary);">📊 KPI-resultaten week ${w}</h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);">
+              <th style="text-align:left;padding:6px 10px;font-size:.8rem;color:var(--muted);">Medewerker</th>
+              ${kpiKeys.map(k => `<th style="text-align:center;padding:6px 8px;font-size:.8rem;color:var(--muted);">${kpiLabels[k]}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${bmRijen}
+            ${teamRij}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- KANBAN -->
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:18px;display:flex;align-items:center;gap:16px;">
+      <span style="font-size:1.5rem;">🗂️</span>
+      <div>
+        <div style="font-weight:700;font-size:.95rem;">Kanban — actieve procedures</div>
+        <div style="font-size:.85rem;color:var(--muted);">Match- / intake- / aanbiedings- / contractkaarten die nog open staan</div>
+      </div>
+      <div style="margin-left:auto;font-size:2rem;font-weight:800;color:var(--primary);">${kanbanAantal}</div>
+    </div>
+
+    <!-- IMPORT SECTIE -->
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:18px;">
+      <h3 style="margin:0 0 10px;font-size:1rem;font-weight:700;color:var(--primary);">📎 Extra informatie importeren${importBadge}</h3>
+      <p style="margin:0 0 12px;font-size:.85rem;color:var(--muted);">Sleep of klik om beldata-screenshots, LinkedIn-rapportages of andere bestanden toe te voegen. Afbeeldingen worden direct door de AI gelezen.</p>
+
+      <div id="comrap-drop" onclick="document.getElementById('comrap-file-in').click()"
+        style="border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;background:#f9fafb;transition:background .15s;"
+        ondragover="event.preventDefault();this.style.background='#eff6ff';"
+        ondragleave="this.style.background='#f9fafb';"
+        ondrop="comrapDrop(event)">
+        📂 Klik of sleep bestanden hierheen<br><span style="font-size:.78rem;color:#9ca3af;">PNG, JPG, PDF, TXT, XLSX (max 20MB per bestand)</span>
+      </div>
+      <input id="comrap-file-in" type="file" multiple accept="image/*,.pdf,.txt,.xlsx,.csv" style="display:none;" onchange="comrapFileSelect(this.files)">
+
+      ${st.imports.length ? `
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
+        ${st.imports.map((f, i) => `
+          <div style="background:#f4f6f9;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.78rem;display:flex;align-items:center;gap:8px;">
+            ${f.type.startsWith('image/') ? '🖼️' : '📄'} ${escHtml(f.naam)}
+            <button onclick="comrapRemoveImport(${i})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:.9rem;padding:0 2px;" title="Verwijderen">✕</button>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <div style="margin-top:14px;">
+        <label style="font-size:.85rem;font-weight:600;color:var(--primary);display:block;margin-bottom:6px;">📝 Extra notities / beldata / LinkedIn-context</label>
+        <textarea id="comrap-notities" rows="5"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem;resize:vertical;font-family:inherit;"
+          placeholder="Plak hier tekst over beldata, LinkedIn-cijfers per persoon, bijzonderheden, kanban-context, of kopieer de relevante info uit de mail…"
+          oninput="window._comrapState.notities=this.value">${escHtml(st.notities)}</textarea>
+      </div>
+    </div>
+
+    <!-- ANALYSE KNOP -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <button id="comrap-btn" onclick="comrapAnalyse()"
+        style="background:var(--primary);color:#fff;border:none;border-radius:10px;padding:14px 36px;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .15s;">
+        🤖 Genereer Commerciële Analyse
+      </button>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:6px;">Combineert KPI-data, kanban, geüploade bestanden en notities tot een volledige Comrap-analyse</div>
+    </div>
+
+    <!-- RESULTAAT -->
+    ${st.resultaat ? `
+    <div id="comrap-resultaat" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:20px 24px;line-height:1.7;font-size:.89rem;">
+      ${simpleMarkdown(st.resultaat)}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="comrapKopieer()" style="background:#f4f6f9;border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">📋 Kopieer tekst</button>
+      <button onclick="window._comrapState.resultaat='';renderComrap();" style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">🗑️ Wis resultaat</button>
+    </div>
+    ` : ''}
+  </div>`;
+}
+
+function comrapNavWeek(dir) {
+  const st = window._comrapState;
+  if (dir < 0) {
+    const p = comrapPrevWeek(st.week, st.jaar);
+    st.week = p.w; st.jaar = p.y;
+  } else {
+    const maxW = isoWeeksInYear(st.jaar);
+    if (st.week >= maxW) { st.week = 1; st.jaar++; }
+    else st.week++;
+  }
+  renderComrap();
+}
+
+function comrapDrop(event) {
+  event.preventDefault();
+  document.getElementById('comrap-drop').style.background = '#f9fafb';
+  comrapFileSelect(event.dataTransfer.files);
+}
+
+function comrapFileSelect(files) {
+  if (!files || !files.length) return;
+  const promises = Array.from(files).map(f => new Promise(res => {
+    const reader = new FileReader();
+    reader.onload = e => res({ naam: f.name, type: f.type, b64: e.target.result });
+    reader.readAsDataURL(f);
+  }));
+  Promise.all(promises).then(results => {
+    window._comrapState.imports.push(...results);
+    renderComrap();
+  });
+}
+
+function comrapRemoveImport(i) {
+  window._comrapState.imports.splice(i, 1);
+  renderComrap();
+}
+
+function comrapKopieer() {
+  const text = window._comrapState.resultaat;
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target; btn.textContent = '✅ Gekopieerd'; setTimeout(() => { btn.textContent = '📋 Kopieer tekst'; }, 2000);
+  });
+}
+
+async function comrapAnalyse() {
+  const st = window._comrapState;
+  if (st.bezig) return;
+
+  const w = st.week; const y = st.jaar;
+  const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
+
+  // Bouw structured data
+  const bmData = BMS.filter(bm => !bm.special).map(bm => {
+    const row   = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
+    const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
+    const kpis   = {};
+    for (const k of kpiKeys) kpis[k] = { realisatie: parseFloat(row[k]) || 0, norm: norm[k] || 0 };
+    return { naam: bm.naam, rol: bm.rol || 'Business Manager', kpis };
+  });
+
+  // Kanban
+  const ACTIVE_STAGES = ['match_1e','match_2e','match_3e','intake','aanbieden','contractvoorstel'];
+  let kanban = 0;
+  for (const bm of BMS.filter(b => !b.special)) {
+    const cards = pipeLoad(bm.naam);
+    for (const c of cards) if (!c.verwijderd_op && ACTIVE_STAGES.includes(c.stage)) kanban++;
+  }
+
+  // Afbeeldingen als content-blokken
+  const imageBlokken = st.imports.filter(f => f.type && f.type.startsWith('image/')).map(f => ({
+    type: 'image',
+    source: { type: 'base64', media_type: f.type, data: f.b64.split(',')[1] },
+    naam: f.naam,
+  }));
+  // Tekstbestanden als platte tekst
+  const tekstImports = st.imports.filter(f => !f.type.startsWith('image/')).map(f => {
+    try { return `\n[Bijlage: ${f.naam}]\n${atob(f.b64.split(',')[1])}`; } catch(_) { return ''; }
+  }).join('\n');
+
+  st.bezig = true;
+  const btn = document.getElementById('comrap-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyse genereren…'; }
+
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/comrap-analyse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'anthropic-beta': 'interleaved-thinking-2025-05-14' },
+      body: JSON.stringify({ week: w, jaar: y, bm_data: bmData, kanban, notities: st.notities + tekstImports, images: imageBlokken }),
+    });
+    const json = await resp.json();
+    if (json.error) throw new Error(json.error);
+    st.resultaat = json.analyse || json.content || '(Geen resultaat ontvangen)';
+  } catch(e) {
+    st.resultaat = '❌ Fout bij analyse: ' + e.message;
+  } finally {
+    st.bezig = false;
+    renderComrap();
   }
 }
 
