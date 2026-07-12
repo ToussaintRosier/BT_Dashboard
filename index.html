@@ -9420,10 +9420,35 @@ function addBezoekRecord() {
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
   const recNaam = CURRENT_USER?.naam || '';
   const soort = b.soortBezoek || 'bedrijfsbezoek';
-  BEZOEK_RECORDS.unshift({ id: Date.now(), datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam });
-  if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
+  // Dedup: vervang bestaand record met zelfde bedrijf+soort+datum+recorder i.p.v. nieuw aanmaken.
+  const dupIdx = BEZOEK_RECORDS.findIndex(r =>
+    r.bedrijf === b.bedrijf && r.soortBezoek === soort &&
+    r.datum === datum && r.recorder_naam === recNaam
+  );
+  const record = { datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam };
+  if (dupIdx >= 0) {
+    const existingId = BEZOEK_RECORDS[dupIdx].id;
+    BEZOEK_RECORDS[dupIdx] = { ...record, id: existingId };
+    // Update bestaand DB-record
+    _updateBezoekVerslagInSupa(existingId, b.result, b.transcript);
+  } else {
+    BEZOEK_RECORDS.unshift({ ...record, id: Date.now() });
+    if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
+    _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript);
+  }
   _saveBezoekRec();
-  _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript);
+}
+
+async function _updateBezoekVerslagInSupa(localId, result, transcript) {
+  if (!supa) return;
+  try {
+    // localId kan een UUID zijn (uit DB) of een timestamp-getal (lokaal).
+    if (typeof localId === 'string' && localId.includes('-')) {
+      await supa.from('verslagen').update({ result, transcript }).eq('id', localId);
+    }
+    // Tijdelijke records (id = timestamp) staan nog niet in DB — die worden bij herlaad automatisch gedupliceerd.
+    // In dat geval niets doen; het in-memory record is al bijgewerkt.
+  } catch(_) {}
 }
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
