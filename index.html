@@ -9394,6 +9394,7 @@ async function loadBezoekRecordsFromDb() {
     id: r.id,
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
+    soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
     recorder_naam: r.meta?.recorder_naam || '',
     result: r.result, transcript: r.transcript,
   }));
@@ -9418,10 +9419,11 @@ function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
   const recNaam = CURRENT_USER?.naam || '';
-  BEZOEK_RECORDS.unshift({ id: Date.now(), datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, result:b.result, transcript:b.transcript, recorder_naam:recNaam });
+  const soort = b.soortBezoek || 'bedrijfsbezoek';
+  BEZOEK_RECORDS.unshift({ id: Date.now(), datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam });
   if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
   _saveBezoekRec();
-  _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, datum, recorder_naam:recNaam }, b.result, b.transcript);
+  _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript);
 }
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
@@ -9566,25 +9568,22 @@ function gesprekRecordKopieer(id) {
 
 // Per-record HTML builder + acties – Bezoek
 function _bezoekRecordHtml(rec) {
-  const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{};
+  const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{}, cf=r.coachingFeedback||{};
+  const soort=rec.soortBezoek||'bedrijfsbezoek';
+  const soortLabel=soort==='evaluatie_medewerker'?'Evaluatie Medewerker':soort==='voorbereiding_matchgesprek'?'Voorbereiding Matchgesprek':'Bedrijfsbezoek';
   const e=(s)=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
   const rij=(lbl,val)=>val?`<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${lbl}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>`:'';
-  return `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><title>Bezoekverslag${rec.bedrijf?' – '+rec.bedrijf:''}</title>
+  const cfBlok=cf.samenvatting?`<h2 style="color:#7c3aed;border-bottom:1px solid #ede9fe;">🎯 Coaching feedback${cf.score?' — '+(cf.score==='goed'?'✅ Goed':cf.score==='aandacht'?'⚠️ Aandacht':'🟡 Voldoende'):''}</h2><p>${e(cf.samenvatting)}</p>${cf.sterktePunten?.length?`<p style="color:#15803d;font-weight:700;">Sterke punten:</p><ul>${cf.sterktePunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>`:''}${cf.verbeterpunten?.length?`<p style="color:#b91c1c;font-weight:700;">Verbeterpunten:</p><ul>${cf.verbeterpunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>`:''}`:'';
+  let body='';
+  if(soort==='bedrijfsbezoek'){body=`<div class="drie"><div class="dc"><h2>Bedrijfsprofiel</h2><table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table><h2 style="margin-top:16px;">Wervingsbehoefte</h2><table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table></div><div class="dc"><h2>Huidige personeelssituatie</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie||'—')}</p><h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div></div><h2>Commercieel potentieel</h2><div class="pot">${e(r.commercieelePotentie||'—')}</div>`;}
+  else if(soort==='evaluatie_medewerker'){body=`<div class="drie"><div class="dc"><h2>Welzijn &amp; sfeer</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.welzijn||'—')}</p><h2 style="margin-top:16px;">Werkprestaties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.werkprestaties||'—')}</p></div><div class="dc"><h2>Aandachtspunten</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.aandachtspunten||'—')}</p><h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div></div>`;}
+  else if(soort==='voorbereiding_matchgesprek'){body=`<div class="drie"><div class="dc"><h2>Kandidaatprofiel</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.kandidaatprofiel||'—')}</p><h2 style="margin-top:16px;">Bedrijfskennis kandidaat</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.bedrijfskennis||'—')}</p></div><div class="dc"><h2>Geoefende situaties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.oefening||'—')}</p><h2 style="margin-top:16px;">Advies voor het gesprek</h2><div class="pot">${e(r.advies||'—')}</div><h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div></div>`;}
+  return `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><title>${soortLabel}${rec.bedrijf?' – '+rec.bedrijf:''}</title>
 <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:2cm;color:#1a1a1a;line-height:1.5}h1{font-size:18pt;color:#253151;border-bottom:2px solid #E87400;padding-bottom:8px;margin-bottom:4px}.meta{font-size:10pt;color:#666;margin-bottom:20px}h2{font-size:12pt;color:#253151;margin-top:20px;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:10.5pt}.sam{background:#f5f7fb;padding:12px 16px;border-radius:4px;line-height:1.65;font-size:10.5pt}.drie{display:table;width:100%;border-spacing:16px 0;margin:0 -16px}.dc{display:table-cell;vertical-align:top;width:50%}.pot{background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:12px 16px;font-size:10.5pt;line-height:1.65}@media print{body{margin:1.5cm}@page{margin:1.5cm}}</style></head><body>
-<h1>🏢 Bezoekverslag</h1>
+<h1>🏢 ${soortLabel}</h1>
 <div class="meta">${rec.bedrijf?`<strong>${e(rec.bedrijf)}</strong>`:''}${rec.contactpersoon?` &mdash; ${e(rec.contactpersoon)}`:''} &nbsp;|&nbsp; ${rec.datum||''}</div>
 <h2>Samenvatting</h2><div class="sam">${e(r.samenvatting||'')}</div>
-<div class="drie" style="margin-top:20px;">
-  <div class="dc">
-    <h2>Bedrijfsprofiel</h2><table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table>
-    <h2 style="margin-top:16px;">Wervingsbehoefte</h2><table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table>
-  </div>
-  <div class="dc">
-    <h2>Huidige personeelssituatie</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie||'—')}</p>
-    <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p>
-  </div>
-</div>
-<h2 style="margin-top:20px;">Commercieel potentieel</h2><div class="pot">${e(r.commercieelePotentie||'—')}</div>
+${body}${cfBlok}
 </body></html>`;
 }
 function bezoekRecordPrint(id) { const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return; const w=window.open('','_blank'); w.document.write(_bezoekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
@@ -9596,15 +9595,28 @@ function bezoekRecordDownload(id,fmt) {
 }
 function bezoekRecordKopieer(id) {
   const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return;
-  const res=rec.result||{}, bp=res.bedrijfsprofiel||{}, wb=res.wervingsbehoefte||{};
-  const lines=['=== BEZOEKVERSLAG ===',res.samenvatting||'','','--- BEDRIJFSPROFIEL ---',
-    bp.sector?'Sector: '+bp.sector:'', bp.omvang?'Omvang: '+bp.omvang:'', bp.activiteit?'Activiteit: '+bp.activiteit:'',
-    '','--- WERVINGSBEHOEFTE ---',
-    wb.functies?'Functies: '+wb.functies:'', wb.aantallen?'Aantallen: '+wb.aantallen:'', wb.profiel?'Profiel: '+wb.profiel:'', wb.urgentie?'Urgentie: '+wb.urgentie:'',
-    '','--- HUIDIGE SITUATIE ---',res.huidigePersoneelssituatie||'',
-    '','--- COMMERCIEEL POTENTIEEL ---',res.commercieelePotentie||'',
-    '','--- AFSPRAKEN ---',res.afspraken||''].filter(Boolean).join('\n');
-  navigator.clipboard.writeText(lines).catch(()=>{});
+  const res=rec.result||{}, bp=res.bedrijfsprofiel||{}, wb=res.wervingsbehoefte||{}, cf=res.coachingFeedback||{};
+  const soort=rec.soortBezoek||'bedrijfsbezoek';
+  let lines=[];
+  if(soort==='bedrijfsbezoek'){
+    lines=['=== BEZOEKVERSLAG ===',res.samenvatting||'','','--- BEDRIJFSPROFIEL ---',
+      bp.sector?'Sector: '+bp.sector:'',bp.omvang?'Omvang: '+bp.omvang:'',bp.activiteit?'Activiteit: '+bp.activiteit:'',
+      '','--- WERVINGSBEHOEFTE ---',
+      wb.functies?'Functies: '+wb.functies:'',wb.aantallen?'Aantallen: '+wb.aantallen:'',wb.profiel?'Profiel: '+wb.profiel:'',wb.urgentie?'Urgentie: '+wb.urgentie:'',
+      '','--- HUIDIGE SITUATIE ---',res.huidigePersoneelssituatie||'',
+      '','--- COMMERCIEEL POTENTIEEL ---',res.commercieelePotentie||'',
+      '','--- AFSPRAKEN ---',res.afspraken||''];
+  } else if(soort==='evaluatie_medewerker'){
+    lines=['=== EVALUATIE MEDEWERKER ===',res.samenvatting||'','','--- WELZIJN ---',res.welzijn||'',
+      '','--- WERKPRESTATIES ---',res.werkprestaties||'','','--- AANDACHTSPUNTEN ---',res.aandachtspunten||'',
+      '','--- AFSPRAKEN ---',res.afspraken||''];
+  } else {
+    lines=['=== VOORBEREIDING MATCHGESPREK ===',res.samenvatting||'','','--- KANDIDAATPROFIEL ---',res.kandidaatprofiel||'',
+      '','--- BEDRIJFSKENNIS ---',res.bedrijfskennis||'','','--- OEFENING ---',res.oefening||'',
+      '','--- ADVIES ---',res.advies||'','','--- AFSPRAKEN ---',res.afspraken||''];
+  }
+  if(cf.samenvatting){lines.push('','--- COACHING ---',cf.samenvatting);if(cf.sterktePunten?.length)lines.push('Sterk:',...cf.sterktePunten.map(p=>'+ '+p));if(cf.verbeterpunten?.length)lines.push('Verbeteren:',...cf.verbeterpunten.map(p=>'- '+p));}
+  navigator.clipboard.writeText(lines.filter(Boolean).join('\n')).catch(()=>{});
 }
 
 // Records-weergave – Gesprek
@@ -9702,15 +9714,25 @@ function renderBezoekRecords() {
   const items=BEZOEK_RECORDS.length===0
     ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen bezoekverslagen.</div>`
     :BEZOEK_RECORDS.map(rec=>{
-      const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{};
+      const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{}, cf=r.coachingFeedback||{};
+      const soort=rec.soortBezoek||'bedrijfsbezoek';
+      const soortEmoji=soort==='evaluatie_medewerker'?'👤':soort==='voorbereiding_matchgesprek'?'🎯':'🏢';
+      const soortLabel=soort==='evaluatie_medewerker'?'Evaluatie':soort==='voorbereiding_matchgesprek'?'Match Prep':'Bedrijfsbezoek';
       const open=BEZOEK_OPEN.has(rec.id), showTr=BEZOEK_SHOW_TR.has(rec.id);
       const title=[rec.bedrijf,rec.contactpersoon].filter(Boolean).join(' — ')||'Bezoek';
       const brecIni = _recInitials(rec.recorder_naam);
+      // Type-aware uitklap inhoud
+      let openContent='';
+      if(soort==='bedrijfsbezoek'){openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏭 Bedrijfsprofiel</div>${PT([['Sector',bp.sector],['Omvang',bp.omvang],['Activiteit',bp.activiteit]])}<div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 6px;">📋 Wervingsbehoefte</div>${PT([['Functies',wb.functies],['Aantallen',wb.aantallen],['Profiel',wb.profiel],['Urgentie',wb.urgentie]])}</div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👥 Huidige personeelssituatie</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.huidigePersoneelssituatie||'—')}</p></div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div><div class="chart-card" style="padding:12px 14px;border-left:3px solid var(--success);"><div style="font-size:.7rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Commercieel potentieel</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.commercieelePotentie||'—')}</p></div></div></div>`;}
+      else if(soort==='evaluatie_medewerker'){openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">😊 Welzijn &amp; sfeer</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.welzijn||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💼 Werkprestaties</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.werkprestaties||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid #f59e0b;"><div style="font-size:.7rem;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">⚠️ Aandachtspunten</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.aandachtspunten||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div></div></div>`;}
+      else{openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👤 Kandidaatprofiel</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.kandidaatprofiel||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏢 Bedrijfskennis</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.bedrijfskennis||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🎭 Oefening</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.oefening||'—')}</p></div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--primary);"><div style="font-size:.7rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Advies</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.advies||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div></div></div>`;}
+      const cfHtml=cf.samenvatting?`<div class="chart-card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid #7c3aed;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.4px;">🎯 Coaching feedback</div>${cf.score?`<span style="font-size:.7rem;font-weight:700;color:${cf.score==='goed'?'#15803d':cf.score==='aandacht'?'#b91c1c':'#a16207'};">${cf.score==='goed'?'✅ Goed':cf.score==='aandacht'?'⚠️ Aandacht':'🟡 Voldoende'}</span>`:''}</div><p style="margin:0 0 8px;line-height:1.6;font-size:.84rem;">${escHtml(cf.samenvatting)}</p>${cf.sterktePunten?.length?`<div style="font-size:.76rem;color:#15803d;font-weight:700;margin-bottom:3px;">✅ Sterk:</div><ul style="margin:0 0 6px;padding-left:16px;font-size:.83rem;">${cf.sterktePunten.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>`:''}${cf.verbeterpunten?.length?`<div style="font-size:.76rem;color:#b91c1c;font-weight:700;margin-bottom:3px;">⚠️ Verbeteren:</div><ul style="margin:0;padding-left:16px;font-size:.83rem;">${cf.verbeterpunten.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>`:''}</div>`:'';
       return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
         <div onclick="toggleBezoekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
+          <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;">${soortEmoji} ${escHtml(soortLabel)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
@@ -9719,28 +9741,8 @@ function renderBezoekRecords() {
             <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">📝 Samenvatting</div>
             <p style="margin:0;line-height:1.7;font-size:.85rem;white-space:pre-wrap;">${escHtml(r.samenvatting||'—')}</p>
           </div>
-          <div class="two-col" style="gap:10px;margin-bottom:12px;">
-            <div class="chart-card" style="padding:12px 14px;">
-              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏭 Bedrijfsprofiel</div>
-              ${PT([['Sector',bp.sector],['Omvang',bp.omvang],['Activiteit',bp.activiteit]])}
-              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 6px;">📋 Wervingsbehoefte</div>
-              ${PT([['Functies',wb.functies],['Aantallen',wb.aantallen],['Profiel',wb.profiel],['Urgentie',wb.urgentie]])}
-            </div>
-            <div>
-              <div class="chart-card" style="padding:12px 14px;margin-bottom:10px;">
-                <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👥 Huidige personeelssituatie</div>
-                <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.huidigePersoneelssituatie||'—')}</p>
-              </div>
-              <div class="chart-card" style="padding:12px 14px;margin-bottom:10px;">
-                <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken &amp; vervolgacties</div>
-                <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p>
-              </div>
-              <div class="chart-card" style="padding:12px 14px;border-left:3px solid var(--success);">
-                <div style="font-size:.7rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Commercieel potentieel</div>
-                <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.commercieelePotentie||'—')}</p>
-              </div>
-            </div>
-          </div>
+          ${openContent}
+          ${cfHtml}
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${showTr&&rec.transcript?'10px':'0'};">
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordKopieer('${rec.id}')">📋 Kopieer</button>
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordPrint('${rec.id}')">🖨️ Printen/PDF</button>
@@ -9993,12 +9995,13 @@ function pvaRecFill(bmNaam, fields) {
 // ── BZK-Recorder (bedrijfsbezoek opnemen + verslag genereren via AI) ──────────
 
 let BEZOEK = {
-  bedrijf: '', contactpersoon: '', transcript: '',
+  bedrijf: '', contactpersoon: '', soortBezoek: 'bedrijfsbezoek', transcript: '',
   recording: false, analyzing: false,
   statusMsg: '', result: null,
   transcriptId: null, pollingTimer: null,
   mediaRecorder: null, audioChunks: [],
   recordingTime: 0, timerInterval: null,
+  _audioStoragePath: null,
 };
 
 async function bezoekStart() {
@@ -10046,14 +10049,31 @@ async function bezoekUpload(blob, mimeType) {
   try {
     const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-    const fd = new FormData();
 
-    // Audio altijd direct als blob meesturen (geen Storage-bucket nodig).
-    BEZOEK.statusMsg = '⏳ Audio uploaden… (even geduld bij lange opnames)';
+    // Stap 1: Upload audio direct naar Supabase Storage (browser → Storage, geen Edge Function timeout).
+    BEZOEK.statusMsg = '⏳ Audio uploaden naar opslag… (even geduld bij lange opnames)';
     renderBezoekRecorder();
-    fd.append('audio', blob, 'bezoek.' + ext);
+    const ts = Date.now();
+    const userId = (await supa.auth.getUser())?.data?.user?.id || 'anon';
+    const storagePath = `bezoek/${userId}/${ts}.${ext}`;
+    const { error: uploadErr } = await supa.storage
+      .from('audio-opnames')
+      .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
+    if (uploadErr) throw new Error('Opslag-upload mislukt: ' + uploadErr.message);
+    BEZOEK._audioStoragePath = storagePath;
+
+    // Stap 2: Haal signed URL op (1 uur geldig — ruim voor AssemblyAI).
+    const { data: urlData, error: urlErr } = await supa.storage
+      .from('audio-opnames')
+      .createSignedUrl(storagePath, 3600);
+    if (urlErr || !urlData?.signedUrl) throw new Error('Signed URL ophalen mislukt');
+
+    // Stap 3: Stuur alleen de URL naar bezoek-start (klein payload, geen timeout risico).
+    const fd = new FormData();
+    fd.append('audio_url', urlData.signedUrl);
     if (BEZOEK.bedrijf) fd.append('bedrijf', BEZOEK.bedrijf);
     if (BEZOEK.contactpersoon) fd.append('contactpersoon', BEZOEK.contactpersoon);
+    fd.append('soort_bezoek', BEZOEK.soortBezoek || 'bedrijfsbezoek');
 
     BEZOEK.statusMsg = '⏳ Transcriptie wordt gestart…';
     renderBezoekRecorder();
@@ -10069,6 +10089,11 @@ async function bezoekUpload(blob, mimeType) {
     renderBezoekRecorder();
     bezoekPoll();
   } catch(err) {
+    // Opruimen bij fout.
+    if (BEZOEK._audioStoragePath && supa) {
+      supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
+      BEZOEK._audioStoragePath = null;
+    }
     BEZOEK.analyzing = false;
     BEZOEK.statusMsg = '⚠️ Fout: ' + err.message;
     renderBezoekRecorder();
@@ -10084,6 +10109,7 @@ function bezoekPoll() {
       const params = new URLSearchParams({ id: BEZOEK.transcriptId });
       if (BEZOEK.bedrijf) params.set('bedrijf', BEZOEK.bedrijf);
       if (BEZOEK.contactpersoon) params.set('contactpersoon', BEZOEK.contactpersoon);
+      params.set('soort_bezoek', BEZOEK.soortBezoek || 'bedrijfsbezoek');
       const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-check?' + params.toString(), {
         headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
       });
@@ -10094,12 +10120,22 @@ function bezoekPoll() {
         BEZOEK.result = data.analyse || null;
         BEZOEK.analyzing = false;
         BEZOEK.statusMsg = '✅ Verslag klaar!';
+        // Opruimen: tijdelijk Storage-bestand verwijderen.
+        if (BEZOEK._audioStoragePath && supa) {
+          supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
+          BEZOEK._audioStoragePath = null;
+        }
         addBezoekRecord();
         renderBezoekRecorder();
       } else if (data.status === 'error' || data.error) {
         clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
         BEZOEK.analyzing = false;
         BEZOEK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt');
+        // Opruimen: tijdelijk Storage-bestand verwijderen bij fout.
+        if (BEZOEK._audioStoragePath && supa) {
+          supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
+          BEZOEK._audioStoragePath = null;
+        }
         renderBezoekRecorder();
       }
     } catch(_) { /* keep polling on network error */ }
@@ -10112,15 +10148,21 @@ function bezoekReset() {
   if (BEZOEK.mediaRecorder && BEZOEK.mediaRecorder.state !== 'inactive') {
     try { BEZOEK.mediaRecorder.stop(); } catch(_) {}
   }
+  // Opruimen: verwijder tijdelijk Storage-bestand als het er nog is (bv. bij annuleren).
+  if (BEZOEK._audioStoragePath && supa) {
+    supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
+  }
   const bewaarBedrijf = BEZOEK.bedrijf;
   const bewaarContact = BEZOEK.contactpersoon;
+  const bewaarSoort   = BEZOEK.soortBezoek;
   BEZOEK = {
-    bedrijf: bewaarBedrijf, contactpersoon: bewaarContact,
+    bedrijf: bewaarBedrijf, contactpersoon: bewaarContact, soortBezoek: bewaarSoort,
     transcript: '', recording: false, analyzing: false,
     statusMsg: '', result: null,
     transcriptId: null, pollingTimer: null,
     mediaRecorder: null, audioChunks: [],
     recordingTime: 0, timerInterval: null,
+    _audioStoragePath: null,
   };
   renderBezoekRecorder();
 }
@@ -10128,31 +10170,45 @@ function bezoekReset() {
 function bezoekKopieer() {
   const r = BEZOEK.result;
   if (!r) return;
-  const lines = [
-    '=== BEZOEKVERSLAG ===',
-    r.samenvatting || '',
-    '',
-    '--- BEDRIJFSPROFIEL ---',
-    r.bedrijfsprofiel?.sector      ? 'Sector: '       + r.bedrijfsprofiel.sector      : '',
-    r.bedrijfsprofiel?.omvang      ? 'Omvang: '       + r.bedrijfsprofiel.omvang      : '',
-    r.bedrijfsprofiel?.activiteit  ? 'Activiteit: '   + r.bedrijfsprofiel.activiteit  : '',
-    '',
-    '--- WERVINGSBEHOEFTE ---',
-    r.wervingsbehoefte?.functies    ? 'Functies: '    + r.wervingsbehoefte.functies    : '',
-    r.wervingsbehoefte?.aantallen   ? 'Aantallen: '   + r.wervingsbehoefte.aantallen   : '',
-    r.wervingsbehoefte?.profiel     ? 'Profiel: '     + r.wervingsbehoefte.profiel     : '',
-    r.wervingsbehoefte?.urgentie    ? 'Urgentie: '    + r.wervingsbehoefte.urgentie    : '',
-    '',
-    '--- HUIDIGE SITUATIE ---',
-    r.huidigePersoneelssituatie || '',
-    '',
-    '--- COMMERCIEEL POTENTIEEL ---',
-    r.commercieelePotentie || '',
-    '',
-    '--- AFSPRAKEN ---',
-    r.afspraken || '',
-  ].filter(Boolean).join('\n');
-  navigator.clipboard.writeText(lines).then(() => {
+  const soort = BEZOEK.soortBezoek || 'bedrijfsbezoek';
+  const cf = r.coachingFeedback || {};
+  let lines = [];
+  if (soort === 'bedrijfsbezoek') {
+    const bp = r.bedrijfsprofiel || {}, wb = r.wervingsbehoefte || {};
+    lines = [
+      '=== BEZOEKVERSLAG ===', r.samenvatting || '', '',
+      '--- BEDRIJFSPROFIEL ---',
+      bp.sector ? 'Sector: ' + bp.sector : '', bp.omvang ? 'Omvang: ' + bp.omvang : '', bp.activiteit ? 'Activiteit: ' + bp.activiteit : '',
+      '', '--- WERVINGSBEHOEFTE ---',
+      wb.functies ? 'Functies: ' + wb.functies : '', wb.aantallen ? 'Aantallen: ' + wb.aantallen : '', wb.profiel ? 'Profiel: ' + wb.profiel : '', wb.urgentie ? 'Urgentie: ' + wb.urgentie : '',
+      '', '--- HUIDIGE SITUATIE ---', r.huidigePersoneelssituatie || '',
+      '', '--- COMMERCIEEL POTENTIEEL ---', r.commercieelePotentie || '',
+      '', '--- AFSPRAKEN ---', r.afspraken || '',
+    ];
+  } else if (soort === 'evaluatie_medewerker') {
+    lines = [
+      '=== EVALUATIE MEDEWERKER ===', r.samenvatting || '', '',
+      '--- WELZIJN & SFEER ---', r.welzijn || '',
+      '', '--- WERKPRESTATIES ---', r.werkprestaties || '',
+      '', '--- AANDACHTSPUNTEN ---', r.aandachtspunten || '',
+      '', '--- AFSPRAKEN ---', r.afspraken || '',
+    ];
+  } else if (soort === 'voorbereiding_matchgesprek') {
+    lines = [
+      '=== VOORBEREIDING MATCHGESPREK ===', r.samenvatting || '', '',
+      '--- KANDIDAATPROFIEL ---', r.kandidaatprofiel || '',
+      '', '--- BEDRIJFSKENNIS KANDIDAAT ---', r.bedrijfskennis || '',
+      '', '--- GEOEFENDE SITUATIES ---', r.oefening || '',
+      '', '--- CONCREET ADVIES ---', r.advies || '',
+      '', '--- AFSPRAKEN ---', r.afspraken || '',
+    ];
+  }
+  if (cf.samenvatting) {
+    lines.push('', '--- COACHING FEEDBACK ---', cf.samenvatting);
+    if (cf.sterktePunten?.length) lines.push('', 'Sterk:', ...cf.sterktePunten.map(p => '+ ' + p));
+    if (cf.verbeterpunten?.length) lines.push('', 'Verbeteren:', ...cf.verbeterpunten.map(p => '- ' + p));
+  }
+  navigator.clipboard.writeText(lines.filter(l => l !== undefined && l !== null).join('\n')).then(() => {
     BEZOEK.statusMsg = '📋 Gekopieerd naar klembord!'; renderBezoekRecorder();
     setTimeout(() => { BEZOEK.statusMsg = '✅ Verslag klaar!'; renderBezoekRecorder(); }, 2000);
   });
@@ -10161,9 +10217,11 @@ function bezoekKopieer() {
 function _bezoekBouwHtml(inclTranscript) {
   const r = BEZOEK.result;
   if (!r) return '';
+  const soort = BEZOEK.soortBezoek || 'bedrijfsbezoek';
   const e = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
   const bp = r.bedrijfsprofiel || {};
   const wb = r.wervingsbehoefte || {};
+  const cf = r.coachingFeedback || {};
   const bedrijf = BEZOEK.bedrijf || '';
   const contact = BEZOEK.contactpersoon || '';
   const datum = new Date().toLocaleDateString('nl-NL', { day:'2-digit', month:'long', year:'numeric' });
@@ -10171,9 +10229,71 @@ function _bezoekBouwHtml(inclTranscript) {
   const transcriptBlok = inclTranscript && BEZOEK.transcript ? `
     <h2 style="font-size:12pt;color:#253151;margin-top:24px;border-bottom:1px solid #ddd;padding-bottom:4px;">Transcriptie</h2>
     <pre style="font-size:9pt;line-height:1.55;white-space:pre-wrap;background:#f9f9f9;padding:12px;border-radius:4px;font-family:monospace;">${e(BEZOEK.transcript)}</pre>` : '';
+  const soortLabel = soort === 'evaluatie_medewerker' ? 'Evaluatie Medewerker' : soort === 'voorbereiding_matchgesprek' ? 'Voorbereiding Matchgesprek' : 'Bedrijfsbezoek';
+  const cfBlok = cf.samenvatting ? `
+    <h2 style="font-size:12pt;color:#7c3aed;margin-top:20px;border-bottom:1px solid #ede9fe;padding-bottom:4px;">🎯 Coaching feedback${cf.score ? ' — ' + (cf.score === 'goed' ? '✅ Goed' : cf.score === 'aandacht' ? '⚠️ Aandacht' : '🟡 Voldoende') : ''}</h2>
+    <p style="font-size:10.5pt;line-height:1.65;">${e(cf.samenvatting)}</p>
+    ${cf.sterktePunten?.length ? `<p style="font-size:10pt;color:#15803d;font-weight:700;">Sterke punten:</p><ul style="font-size:10.5pt;">${cf.sterktePunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>` : ''}
+    ${cf.verbeterpunten?.length ? `<p style="font-size:10pt;color:#b91c1c;font-weight:700;">Verbeterpunten:</p><ul style="font-size:10.5pt;">${cf.verbeterpunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>` : ''}` : '';
+
+  let inhoudsBlok = '';
+  if (soort === 'bedrijfsbezoek') {
+    inhoudsBlok = `
+    <div class="drie" style="margin-top:20px;">
+      <div class="drie-cel">
+        <h2>Bedrijfsprofiel</h2>
+        <table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table>
+        <h2 style="margin-top:16px;">Wervingsbehoefte</h2>
+        <table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table>
+      </div>
+      <div class="drie-cel">
+        <h2>Huidige personeelssituatie</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie || '—')}</p>
+        <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken || '—')}</p>
+      </div>
+    </div>
+    <h2 style="margin-top:20px;">Commercieel potentieel</h2>
+    <div class="potentie">${e(r.commercieelePotentie || '—')}</div>`;
+  } else if (soort === 'evaluatie_medewerker') {
+    inhoudsBlok = `
+    <div class="drie" style="margin-top:20px;">
+      <div class="drie-cel">
+        <h2>Welzijn &amp; sfeer</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.welzijn || '—')}</p>
+        <h2 style="margin-top:16px;">Werkprestaties</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.werkprestaties || '—')}</p>
+      </div>
+      <div class="drie-cel">
+        <h2>Aandachtspunten</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.aandachtspunten || '—')}</p>
+        <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken || '—')}</p>
+      </div>
+    </div>`;
+  } else if (soort === 'voorbereiding_matchgesprek') {
+    inhoudsBlok = `
+    <div class="drie" style="margin-top:20px;">
+      <div class="drie-cel">
+        <h2>Kandidaatprofiel</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.kandidaatprofiel || '—')}</p>
+        <h2 style="margin-top:16px;">Bedrijfskennis kandidaat</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.bedrijfskennis || '—')}</p>
+      </div>
+      <div class="drie-cel">
+        <h2>Geoefende situaties &amp; vragen</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.oefening || '—')}</p>
+        <h2 style="margin-top:16px;">Concreet advies voor het gesprek</h2>
+        <div class="potentie">${e(r.advies || '—')}</div>
+        <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2>
+        <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken || '—')}</p>
+      </div>
+    </div>`;
+  }
+
   return `<!DOCTYPE html>
 <html lang="nl"><head><meta charset="UTF-8">
-<title>Bezoekverslag${bedrijf ? ' – ' + bedrijf : ''}</title>
+<title>${soortLabel}${bedrijf ? ' – ' + bedrijf : ''}</title>
 <style>
   body { font-family: Arial, sans-serif; font-size: 11pt; margin: 2cm; color: #1a1a1a; line-height: 1.5; }
   h1 { font-size: 18pt; color: #253151; border-bottom: 2px solid #E87400; padding-bottom: 8px; margin-bottom: 4px; }
@@ -10186,26 +10306,12 @@ function _bezoekBouwHtml(inclTranscript) {
   .potentie { background: #f0fdf4; border: 1px solid #86efac; border-radius: 4px; padding: 12px 16px; font-size: 10.5pt; line-height: 1.65; }
   @media print { body { margin: 1.5cm; } @page { margin: 1.5cm; } }
 </style></head><body>
-<h1>🏢 Bezoekverslag</h1>
+<h1>🏢 ${soortLabel}</h1>
 <div class="meta">${bedrijf ? `<strong>${e(bedrijf)}</strong>` : ''}${contact ? ` &mdash; ${e(contact)}` : ''} &nbsp;|&nbsp; ${datum}</div>
 <h2>Samenvatting</h2>
 <div class="samenvatting">${e(r.samenvatting || '')}</div>
-<div class="drie" style="margin-top:20px;">
-  <div class="drie-cel">
-    <h2>Bedrijfsprofiel</h2>
-    <table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table>
-    <h2 style="margin-top:16px;">Wervingsbehoefte</h2>
-    <table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table>
-  </div>
-  <div class="drie-cel">
-    <h2>Huidige personeelssituatie</h2>
-    <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie || '—')}</p>
-    <h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2>
-    <p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken || '—')}</p>
-  </div>
-</div>
-<h2 style="margin-top:20px;">Commercieel potentieel</h2>
-<div class="potentie">${e(r.commercieelePotentie || '—')}</div>
+${inhoudsBlok}
+${cfBlok}
 ${transcriptBlok}
 </body></html>`;
 }
@@ -10263,43 +10369,115 @@ function renderBezoekRecorder() {
 
   const bp = r ? (r.bedrijfsprofiel  || {}) : {};
   const wb = r ? (r.wervingsbehoefte || {}) : {};
+  const cf = r ? (r.coachingFeedback || {}) : {};
+
+  // Coaching feedback kaart (voor alle types)
+  const _cfScoreBg = cf.score === 'goed' ? '#dcfce7' : cf.score === 'aandacht' ? '#fef2f2' : '#fef9c3';
+  const _cfScoreClr = cf.score === 'goed' ? '#15803d' : cf.score === 'aandacht' ? '#b91c1c' : '#a16207';
+  const _cfScoreLabel = cf.score === 'goed' ? '✅ Goed' : cf.score === 'aandacht' ? '⚠️ Aandacht' : '🟡 Voldoende';
+  const coachingHtml = (r && (cf.samenvatting || cf.sterktePunten || cf.verbeterpunten)) ? `
+    <div class="chart-card" style="margin-bottom:14px;border-left:3px solid #7c3aed;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <h3 style="margin:0;">🎯 Coaching feedback</h3>
+        ${cf.score ? `<span style="background:${_cfScoreBg};color:${_cfScoreClr};border-radius:12px;padding:2px 10px;font-size:.78rem;font-weight:700;">${_cfScoreLabel}</span>` : ''}
+      </div>
+      ${cf.samenvatting ? `<p style="line-height:1.65;margin:0 0 10px;font-size:.86rem;">${escHtml(cf.samenvatting)}</p>` : ''}
+      <div class="two-col" style="gap:12px;">
+        ${cf.sterktePunten?.length ? `<div><div style="font-size:.76rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">✅ Sterke punten</div><ul style="margin:0;padding-left:18px;font-size:.84rem;line-height:1.6;">${(cf.sterktePunten||[]).map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul></div>` : '<div></div>'}
+        ${cf.verbeterpunten?.length ? `<div><div style="font-size:.76rem;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">⚠️ Verbeterpunten</div><ul style="margin:0;padding-left:18px;font-size:.84rem;line-height:1.6;">${(cf.verbeterpunten||[]).map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul></div>` : '<div></div>'}
+      </div>
+    </div>` : '';
+
+  // Type-specifieke inhoud
+  let typeHtml = '';
+  const soort = b.soortBezoek || 'bedrijfsbezoek';
+  if (r) {
+    if (soort === 'bedrijfsbezoek') {
+      typeHtml = `
+        <div class="two-col" style="margin-bottom:14px;gap:14px;">
+          <div class="chart-card">
+            <h3 style="margin-bottom:10px;">🏭 Bedrijfsprofiel</h3>
+            ${profielTabel([['Sector',bp.sector],['Omvang',bp.omvang],['Activiteit',bp.activiteit]])}
+            <h3 style="margin-top:14px;margin-bottom:10px;">📋 Wervingsbehoefte</h3>
+            ${profielTabel([['Functies',wb.functies],['Aantallen',wb.aantallen],['Profiel',wb.profiel],['Urgentie',wb.urgentie]])}
+          </div>
+          <div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:10px;">👥 Huidige personeelssituatie</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.huidigePersoneelssituatie||'—')}</p>
+            </div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:10px;">🤝 Afspraken &amp; vervolgacties</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken||'—')}</p>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card" style="margin-bottom:14px;border-left:3px solid var(--success);">
+          <h3 style="margin-bottom:8px;color:var(--success);">💡 Commercieel potentieel</h3>
+          <p style="line-height:1.7;white-space:pre-wrap;margin:0;">${escHtml(r.commercieelePotentie||'—')}</p>
+        </div>`;
+    } else if (soort === 'evaluatie_medewerker') {
+      typeHtml = `
+        <div class="two-col" style="margin-bottom:14px;gap:14px;">
+          <div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">😊 Welzijn &amp; sfeer</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.welzijn||'—')}</p>
+            </div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">💼 Werkprestaties</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.werkprestaties||'—')}</p>
+            </div>
+          </div>
+          <div>
+            <div class="chart-card" style="margin-bottom:14px;border-left:3px solid #f59e0b;">
+              <h3 style="margin-bottom:8px;color:#b45309;">⚠️ Aandachtspunten</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.aandachtspunten||'—')}</p>
+            </div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">🤝 Afspraken &amp; vervolgacties</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken||'—')}</p>
+            </div>
+          </div>
+        </div>`;
+    } else if (soort === 'voorbereiding_matchgesprek') {
+      typeHtml = `
+        <div class="two-col" style="margin-bottom:14px;gap:14px;">
+          <div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">👤 Kandidaatprofiel</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.kandidaatprofiel||'—')}</p>
+            </div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">🏢 Bedrijfskennis kandidaat</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.bedrijfskennis||'—')}</p>
+            </div>
+          </div>
+          <div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">🎭 Geoefende situaties &amp; vragen</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.oefening||'—')}</p>
+            </div>
+            <div class="chart-card" style="margin-bottom:14px;border-left:3px solid var(--primary);">
+              <h3 style="margin-bottom:8px;color:var(--primary);">💡 Concreet advies voor het gesprek</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.advies||'—')}</p>
+            </div>
+            <div class="chart-card" style="margin-bottom:14px;">
+              <h3 style="margin-bottom:8px;">🤝 Afspraken &amp; vervolgacties</h3>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken||'—')}</p>
+            </div>
+          </div>
+        </div>`;
+    }
+  }
 
   const resultHtml = r ? `
     <div class="chart-card" style="margin-bottom:14px;">
-      <h3 style="margin-bottom:8px;">📝 Samenvatting bezoek</h3>
+      <h3 style="margin-bottom:8px;">📝 Samenvatting</h3>
       <p style="line-height:1.7;white-space:pre-wrap;margin:0;">${escHtml(r.samenvatting || '')}</p>
     </div>
-    <div class="two-col" style="margin-bottom:14px;gap:14px;">
-      <div class="chart-card">
-        <h3 style="margin-bottom:10px;">🏭 Bedrijfsprofiel</h3>
-        ${profielTabel([
-          ['Sector',     bp.sector],
-          ['Omvang',     bp.omvang],
-          ['Activiteit', bp.activiteit],
-        ])}
-        <h3 style="margin-top:14px;margin-bottom:10px;">📋 Wervingsbehoefte</h3>
-        ${profielTabel([
-          ['Functies',  wb.functies],
-          ['Aantallen', wb.aantallen],
-          ['Profiel',   wb.profiel],
-          ['Urgentie',  wb.urgentie],
-        ])}
-      </div>
-      <div>
-        <div class="chart-card" style="margin-bottom:14px;">
-          <h3 style="margin-bottom:10px;">👥 Huidige personeelssituatie</h3>
-          <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.huidigePersoneelssituatie || '—')}</p>
-        </div>
-        <div class="chart-card" style="margin-bottom:14px;">
-          <h3 style="margin-bottom:10px;">🤝 Afspraken &amp; vervolgacties</h3>
-          <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken || '—')}</p>
-        </div>
-      </div>
-    </div>
-    <div class="chart-card" style="margin-bottom:14px;border-left:3px solid var(--success);">
-      <h3 style="margin-bottom:8px;color:var(--success);">💡 Commercieel potentieel</h3>
-      <p style="line-height:1.7;white-space:pre-wrap;margin:0;">${escHtml(r.commercieelePotentie || '—')}</p>
-    </div>
+    ${typeHtml}
+    ${coachingHtml}
     <div style="margin-top:4px;margin-bottom:18px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="proj-save-btn" onclick="bezoekKopieer()">📋 Kopieer naar klembord</button>
       <button class="btn-secondary" onclick="bezoekPrint()">🖨️ Printen / PDF</button>
@@ -10322,15 +10500,25 @@ function renderBezoekRecorder() {
     </div>
 
     <div class="chart-card" style="margin-bottom:14px;">
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">Type bezoek</label>
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:100%;">
+          ${[
+            ['bedrijfsbezoek',          '🏢 Bedrijfsbezoek'],
+            ['evaluatie_medewerker',    '👤 Evaluatie Medewerker'],
+            ['voorbereiding_matchgesprek','🎯 Voorbereiding Matchgesprek'],
+          ].map(([val,lbl])=>`<button onclick="BEZOEK.soortBezoek='${val}';renderBezoekRecorder()" ${b.recording||b.analyzing?'disabled':''} style="flex:1;padding:8px 6px;font-size:.78rem;font-weight:${b.soortBezoek===val?'700':'500'};border:none;border-right:1px solid var(--border);cursor:pointer;background:${b.soortBezoek===val?'var(--primary)':'#fff'};color:${b.soortBezoek===val?'#fff':'var(--text)'};transition:background .15s;last-child:border-right:none;">${escHtml(lbl)}</button>`).join('')}
+        </div>
+      </div>
       <div class="two-col" style="gap:12px;margin-bottom:14px;">
         <div>
-          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Bedrijfsnaam</label>
-          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Acme BV"
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Naam medewerker':'Bedrijfsnaam'}</label>
+          <input type="text" class="acc-text-input" style="width:100%;" placeholder="${b.soortBezoek==='evaluatie_medewerker'?'bijv. Jan de Vries':'bijv. Acme BV'}"
             value="${escHtml(b.bedrijf)}" oninput="BEZOEK.bedrijf=this.value" ${b.recording||b.analyzing?'disabled':''}>
         </div>
         <div>
-          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Contactpersoon</label>
-          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Piet Janssen – HR-manager"
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Opdrachtgever':b.soortBezoek==='voorbereiding_matchgesprek'?'Kandidaat naam':'Contactpersoon'}</label>
+          <input type="text" class="acc-text-input" style="width:100%;" placeholder="${b.soortBezoek==='evaluatie_medewerker'?'bijv. Acme BV – productieomgeving':b.soortBezoek==='voorbereiding_matchgesprek'?'bijv. Jan de Vries':'bijv. Piet Janssen – HR-manager'}"
             value="${escHtml(b.contactpersoon)}" oninput="BEZOEK.contactpersoon=this.value" ${b.recording||b.analyzing?'disabled':''}>
         </div>
       </div>
