@@ -2227,7 +2227,7 @@ async function saveWeeklyEntry(bmNaam, week, year) {
 //  Terugblik:        doel_vorige_week, behaald ('ja'/'nee'), verklaring
 //  Nieuw weekdoel:   nieuw_weekdoel
 //  Acties:           acties
-//  Recruitmentfocus: vacature_focus, obstakel
+//  Recruitmentfocus/Accountmanagement: vacature_focus, obstakel
 //  Afsluiting/focus: focuspunt, team_support
 // Doorschuiven: doel_vorige_week van week N wordt automatisch voorgevuld met
 // nieuw_weekdoel van week N-1 (PREV) — zo verdwijnt een afspraak nooit en
@@ -2290,6 +2290,8 @@ function renderPlanVanAanpak(bm) {
 
   // Manager-notitie variabelen (nodig in rightCol hieronder)
   const mgrNoteAlready  = !!(d.manager_notitie && String(d.manager_notitie).trim() !== '');
+  // Carry-forward: als deze week nog geen notitie heeft, voorvullen vanuit vorige week
+  const mgrNotitieCarry = mgrNoteAlready ? d.manager_notitie : (prevRow.manager_notitie || '');
   const mgrNoteLockKey  = `mgrnote|${bm.naam}|${CUR.year}|${CUR.week}`;
   const mgrNoteUnlocked = !mgrNoteAlready || WEEKLY_EDIT_UNLOCKED.has(mgrNoteLockKey);
   const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
@@ -2317,7 +2319,7 @@ function renderPlanVanAanpak(bm) {
     ${planField(`pva-verklaring-${safeId}`, 'Geef een korte verklaring: wat werkte, wat werkte niet?', d.verklaring, {disabled:frozen, bmNaam:bm.naam, field:'verklaring'})}
     <div style="margin-top:12px;padding:10px 12px;background:rgba(109,40,217,.05);border:1px solid rgba(109,40,217,.18);border-radius:8px;">
       <div style="font-size:.72rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🗒️ Review manager${isManager && !mgrNoteFrozen ? ' <span style="font-weight:400;text-transform:none;letter-spacing:0;color:rgba(109,40,217,.6);">— wordt automatisch opgeslagen</span>' : ''}</div>
-      ${planField(`pva-manager_notitie-${safeId}`, '', d.manager_notitie, {disabled: !isManager || mgrNoteFrozen, rows:3, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
+      ${planField(`pva-manager_notitie-${safeId}`, '', mgrNotitieCarry, {disabled: !isManager || mgrNoteFrozen, rows:3, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
       ${mgrNoteActionBtn ? `<div style="margin-top:6px">${mgrNoteActionBtn}</div>` : ''}
       <div id="pva-mgrnote-status-${safeId}"></div>
     </div>
@@ -2328,8 +2330,8 @@ function renderPlanVanAanpak(bm) {
     <div class="section-title" style="margin:18px 0 8px">Acties</div>
     ${planField(`pva-acties-${safeId}`, 'Maak een lijst van geplande acties deze week (KPI).', d.acties, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'acties'})}
 
-    <div class="section-title" style="margin:18px 0 8px">Recruitmentfocus</div>
-    ${planField(`pva-vacature_focus-${safeId}`, 'Op welke vacature ligt je focus?', d.vacature_focus, {disabled:frozen, bmNaam:bm.naam, field:'vacature_focus'})}
+    <div class="section-title" style="margin:18px 0 8px">Recruitmentfocus/Accountmanagement</div>
+    ${planField(`pva-vacature_focus-${safeId}`, 'Op welke vacature of welke opdrachtgever(s) ligt je focus?', d.vacature_focus, {disabled:frozen, bmNaam:bm.naam, field:'vacature_focus'})}
     ${planField(`pva-obstakel-${safeId}`, 'Loop je hierbij ergens tegenaan?', d.obstakel, {disabled:frozen, bmNaam:bm.naam, field:'obstakel'})}
 
     <div class="section-title" style="margin:18px 0 8px">Afsluiting / focus</div>
@@ -2370,7 +2372,7 @@ function renderPvaLogboek(bm, safeId) {
           <div class="plan-field"><div class="plan-field-title">Verklaring</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.verklaring||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Nieuw weekdoel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.nieuw_weekdoel||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Acties</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.acties||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Recruitmentfocus</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.vacature_focus||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Recruitmentfocus/Accountmanagement</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.vacature_focus||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.obstakel||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.focuspunt||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.team_support||'')}</textarea></div>
@@ -2420,7 +2422,7 @@ function printPlanVanAanpak(bmNaam, year, week) {
         <h2>📌 Wat hebben we afgesproken — week ${prevWk.week} · ${prevWk.year}</h2>
         <div class="field"><div class="lbl">Nieuw weekdoel (toen afgesproken)</div><div class="v">${val(prevRow.nieuw_weekdoel)}</div></div>
         <div class="field"><div class="lbl">Geplande acties</div><div class="v">${val(prevRow.acties)}</div></div>
-        <div class="field"><div class="lbl">Recruitmentfocus</div><div class="v">${val(prevRow.vacature_focus)}</div></div>
+        <div class="field"><div class="lbl">Recruitmentfocus/Accountmanagement</div><div class="v">${val(prevRow.vacature_focus)}</div></div>
         <div class="field"><div class="lbl">Obstakel</div><div class="v">${val(prevRow.obstakel)}</div></div>
         <div class="field"><div class="lbl">Focuspunt</div><div class="v">${val(prevRow.focuspunt)}</div></div>
         <div class="field"><div class="lbl">Benodigde teamondersteuning</div><div class="v">${val(prevRow.team_support)}</div></div>
@@ -2432,7 +2434,7 @@ function printPlanVanAanpak(bmNaam, year, week) {
         <div class="field"><div class="lbl">Verklaring</div><div class="v">${val(curRow.verklaring)}</div></div>
         <div class="field"><div class="lbl">Nieuw weekdoel</div><div class="v">${val(curRow.nieuw_weekdoel)}</div></div>
         <div class="field"><div class="lbl">Acties</div><div class="v">${val(curRow.acties)}</div></div>
-        <div class="field"><div class="lbl">Recruitmentfocus</div><div class="v">${val(curRow.vacature_focus)}</div></div>
+        <div class="field"><div class="lbl">Recruitmentfocus/Accountmanagement</div><div class="v">${val(curRow.vacature_focus)}</div></div>
         <div class="field"><div class="lbl">Obstakel</div><div class="v">${val(curRow.obstakel)}</div></div>
         <div class="field"><div class="lbl">Focuspunt</div><div class="v">${val(curRow.focuspunt)}</div></div>
         <div class="field"><div class="lbl">Benodigde teamondersteuning</div><div class="v">${val(curRow.team_support)}</div></div>
@@ -11209,7 +11211,9 @@ function computeBegrotingPeriode(jaar) {
   if (BEGROTING_GRANULARITEIT === 'week') {
     const week = BEGROTING_PERIODE;
     const chartLabels = [`wk ${week}`];
-    const actualRow = FINANCIEEL_OMZET_WEEK_CACHE.find(r => +r.jaar === jaar && +r.week === week);
+    // Omzet in Moneybird wordt een week later verwerkt: week N omzet staat in week N-1 in de DB.
+    const prevWk = weekBefore(jaar, week);
+    const actualRow = FINANCIEEL_OMZET_WEEK_CACHE.find(r => +r.jaar === prevWk.year && +r.week === prevWk.week);
     const chartActual = [actualRow ? (+actualRow.omzet || 0) : 0];
     const chartBudget = [getBegrotingWeekBudget(jaar, week)];
     const totaalActual = chartActual[0];
