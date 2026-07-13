@@ -189,7 +189,7 @@
   .plan-col.afgesproken { background:#f8faff; border:1px solid #dbeafe; border-radius:var(--radius); padding:12px 14px; }
   .plan-col.nieuw { background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
   .plan-field-title { font-size:.78rem; font-weight:600; color:var(--text); margin-bottom:5px; }
-  .plan-field textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.85rem; font-family:inherit; resize:vertical; min-height:56px; }
+  .plan-field textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.85rem; font-family:inherit; resize:none; overflow:hidden; min-height:56px; }
   .plan-field textarea:disabled { background:#f3f4f6; color:#4b5563; }
   .plan-field { margin-bottom:12px; }
   .cvgen-toolbar { display:flex; gap:5px; margin-bottom:6px; flex-wrap:wrap; align-items:center; }
@@ -1540,6 +1540,7 @@ function renderBM(bm) {
 
   if (bmSubTab === 'plan') {
     document.getElementById('bm-subtab-content').innerHTML = renderPlanVanAanpak(bm);
+    setTimeout(pvaTaResizeAll, 0);
     return;
   }
   if (bmSubTab === 'coaching') {
@@ -2027,6 +2028,15 @@ function renderTeam() {
 // omdat render() ook door live updates van andere gebruikers getriggerd kan worden
 // (zie subscribeRealtime) — zonder dit vangnet zou nog niet-geautosavede tekst dan
 // even kunnen "terugspringen" naar de laatst opgeslagen waarde.
+// Auto-resize PVA textareas op basis van inhoud
+function pvaTaResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+function pvaTaResizeAll() {
+  document.querySelectorAll('textarea[data-pva-ta]').forEach(pvaTaResize);
+}
+
 function snapshotPvaInputs() {
   document.querySelectorAll('textarea[data-pva-bm]').forEach(ta => {
     if (ta.disabled) return;
@@ -2235,11 +2245,11 @@ function planField(id, title, value, opts) {
   // bevroren/vergrendelde status van de medewerker zelf altijd opslaanbaar moet zijn).
   const autosaveFn = opts.autosaveFn || 'pvaScheduleAutosave';
   const autosaveAttr = (!opts.disabled && opts.bmNaam)
-    ? ` oninput="${autosaveFn}('${escApos(opts.bmNaam)}')" data-pva-bm="${escHtml(opts.bmNaam)}" data-pva-field="${escHtml(opts.field||'')}"`
-    : '';
+    ? ` oninput="pvaTaResize(this);${autosaveFn}('${escApos(opts.bmNaam)}')" data-pva-bm="${escHtml(opts.bmNaam)}" data-pva-field="${escHtml(opts.field||'')}"`
+    : (!opts.disabled ? ' oninput="pvaTaResize(this)"' : '');
   return `<div class="plan-field">
     <div class="plan-field-title">${title}</div>
-    <textarea id="${id}" rows="${opts.rows||2}" placeholder="${opts.placeholder||''}" ${disabled}${autosaveAttr}>${escHtml(value||'')}</textarea>
+    <textarea id="${id}" rows="${opts.rows||2}" placeholder="${opts.placeholder||''}" data-pva-ta="1" ${disabled}${autosaveAttr}>${escHtml(value||'')}</textarea>
   </div>`;
 }
 
@@ -2367,16 +2377,16 @@ function renderPvaLogboek(bm, safeId) {
         content = `<div class="pva-log-content"><span class="sub">Geen plan van aanpak opgeslagen voor week ${w.week} · ${w.year}.</span></div>`;
       } else {
         content = `<div class="pva-log-content">
-          <div class="plan-field"><div class="plan-field-title">Doel vorige week</div><textarea rows="2" disabled>${escHtml(row.doel_vorige_week||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Behaald?</div><textarea rows="1" disabled>${row.behaald==='ja'?'Ja':row.behaald==='nee'?'Nee':'—'}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Verklaring</div><textarea rows="2" disabled>${escHtml(row.verklaring||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Nieuw weekdoel</div><textarea rows="2" disabled>${escHtml(row.nieuw_weekdoel||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Acties</div><textarea rows="2" disabled>${escHtml(row.acties||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Recruitmentfocus</div><textarea rows="2" disabled>${escHtml(row.vacature_focus||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" disabled>${escHtml(row.obstakel||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" disabled>${escHtml(row.focuspunt||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" disabled>${escHtml(row.team_support||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">🗒️ Managernotitie</div><textarea rows="2" disabled>${escHtml(row.manager_notitie||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Doel vorige week</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.doel_vorige_week||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Behaald?</div><textarea rows="1" data-pva-ta="1" disabled>${row.behaald==='ja'?'Ja':row.behaald==='nee'?'Nee':'—'}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Verklaring</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.verklaring||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Nieuw weekdoel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.nieuw_weekdoel||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Acties</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.acties||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Recruitmentfocus</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.vacature_focus||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.obstakel||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.focuspunt||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.team_support||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">🗒️ Managernotitie</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.manager_notitie||'')}</textarea></div>
           <div style="margin-top:8px">
             <button onclick="printPlanVanAanpak('${escApos(bm.naam)}',${w.year},${w.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-weight:700;font-size:.78rem;cursor:pointer;">🖨️ Printen — week ${w.week}</button>
           </div>
