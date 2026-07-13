@@ -11163,7 +11163,16 @@ function getBegrotingYears() {
 
 function selectBegrotingGranulariteit(g) {
   BEGROTING_GRANULARITEIT = g;
-  BEGROTING_PERIODE = g === 'week' ? getIsoWeekInfo(new Date()).isoWeek : 1;
+  // Bij week-view standaard de vorige week tonen: facturen van week N = omzet van week N-1,
+  // dus de meest actuele data zit in "vorige week" (niet de lopende week).
+  if (g === 'week') {
+    const cur = getIsoWeekInfo(new Date());
+    const prev = weekBefore(cur.isoYear, cur.isoWeek);
+    BEGROTING_PERIODE = prev.week;
+    BEGROTING_JAAR = prev.year;
+  } else {
+    BEGROTING_PERIODE = 1;
+  }
   renderFinancieel();
 }
 function selectBegrotingPeriode(p) { BEGROTING_PERIODE = +p; renderFinancieel(); }
@@ -11211,9 +11220,11 @@ function computeBegrotingPeriode(jaar) {
   if (BEGROTING_GRANULARITEIT === 'week') {
     const week = BEGROTING_PERIODE;
     const chartLabels = [`wk ${week}`];
-    // Omzet in Moneybird wordt een week later verwerkt: week N omzet staat in week N-1 in de DB.
-    const prevWk = weekBefore(jaar, week);
-    const actualRow = FINANCIEEL_OMZET_WEEK_CACHE.find(r => +r.jaar === prevWk.year && +r.week === prevWk.week);
+    // Facturen worden een week later ingeboekt: werk van week N verschijnt in Moneybird als
+    // week N+1. Om week N's werkelijke omzet te tonen, halen we dus week N+1 op uit de cache.
+    const nextWkDate = new Date(+isoWeekStartDate(jaar, week) + 7 * 86400000);
+    const nextWk = isoWeek(nextWkDate);
+    const actualRow = FINANCIEEL_OMZET_WEEK_CACHE.find(r => +r.jaar === nextWk.year && +r.week === nextWk.week);
     const chartActual = [actualRow ? (+actualRow.omzet || 0) : 0];
     const chartBudget = [getBegrotingWeekBudget(jaar, week)];
     const totaalActual = chartActual[0];
