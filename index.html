@@ -2676,6 +2676,23 @@ function getPlanRow(bmNaam, jaar, week) {
   return PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === jaar && p.week === week) || null;
 }
 
+async function loadAanmeldSaved() {
+  if (!supa) return;
+  try {
+    const { data, error } = await supa.from('aanmeld_formulieren')
+      .select('*').order('created_at', { ascending: false }).limit(200);
+    if (error) throw error;
+    AANMELD_SAVED = (data || []).map(r => ({
+      id: r.id, label: r.label, ts: r.created_at,
+      created_by_naam: r.created_by_naam || null, data: r.data,
+    }));
+  } catch(e) {
+    console.error('aanmeld_formulieren laden mislukt:', e);
+    // Fallback: localStorage (legacy)
+    AANMELD_SAVED = JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]');
+  }
+}
+
 // ── Database: Financieel (omzet per opdrachtgever, gevuld via Moneybird) ─────
 async function loadFinancieelOmzet() {
   if (!supa) return;
@@ -2848,6 +2865,7 @@ async function loadAllData() {
   // loadBeheerData in try/catch: als het misgaat (bijv. doelen-tabel mist of
   // onverwachte DB-fout), blijft de rest van de data gewoon laden.
   try { await loadBeheerData(); } catch(e) { console.error('loadBeheerData fout (niet fataal):', e); }
+  try { await loadAanmeldSaved(); } catch(e) { console.error('loadAanmeldSaved fout (niet fataal):', e); }
   await loadKpiWeekly();
   await pipeFetchAll();
   await loadProjecten();
@@ -11446,6 +11464,7 @@ function isHrmEditor() {
 // State voor HRM sub-tab
 let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier' | 'opgeslagen'
 let OPGESL_OPEN = {}; // id → bool (uitvouwbaar)
+let AANMELD_SAVED = []; // opgeslagen formulieren (vanuit Supabase, gedeeld met alle collega's)
 let STANDAARD_EXPANDED = {}; // id → bool
 let STANDAARD_MODAL_DATA = {}; // live form state in modal
 let STANDAARD_MODAL_EDIT_ID = null; // null = nieuw, id = bewerken
@@ -11859,33 +11878,48 @@ function renderStandaardTab() {
   </div>`;
 }
 
-function aanmeldSaveForm() {
+async function aanmeldSaveForm() {
   const d = aanmeldLoad();
   const naam = String(d.naam_achternaam || '').trim();
   const opdr = String(d.opdrachtgever_naam || '').trim();
   if (!naam) { alert('Vul eerst de naam van de medewerker in.'); return; }
   const label = naam + (opdr ? ' – ' + opdr : '');
-  const saved = aanmeldLoadSaved();
-  const entry = { id: Date.now(), label, ts: new Date().toISOString(), data: JSON.parse(JSON.stringify(d)) };
-  saved.unshift(entry);
-  try { localStorage.setItem('bt_aanmeld_saved', JSON.stringify(saved)); } catch(_) {}
-  alert('Formulier opgeslagen als: ' + label);
+  if (supa) {
+    try {
+      const { error } = await supa.from('aanmeld_formulieren').insert({
+        label, data: d,
+        created_by: CURRENT_USER?.id || null,
+        created_by_naam: CURRENT_USER?.naam || CURRENT_USER?.bm_naam || null,
+      });
+      if (error) throw error;
+      await loadAanmeldSaved();
+      alert('Formulier opgeslagen als: ' + label);
+    } catch(e) { alert('Opslaan mislukt: ' + e.message); return; }
+  } else {
+    AANMELD_SAVED = [{ id: Date.now(), label, ts: new Date().toISOString(), data: JSON.parse(JSON.stringify(d)) }, ...AANMELD_SAVED];
+    try { localStorage.setItem('bt_aanmeld_saved', JSON.stringify(AANMELD_SAVED)); } catch(_) {}
+    alert('Formulier opgeslagen als: ' + label);
+  }
   HRM_SUBTAB = 'opgeslagen';
   render();
 }
 function aanmeldLoadSaved() {
-  try { return JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]'); } catch(_) { return []; }
+  return AANMELD_SAVED;
 }
-function aanmeldDeleteSaved(id) {
+async function aanmeldDeleteSaved(id) {
   if (!confirm('Weet je zeker dat je dit formulier wilt verwijderen?')) return;
-  const saved = aanmeldLoadSaved().filter(e => e.id !== id);
-  try { localStorage.setItem('bt_aanmeld_saved', JSON.stringify(saved)); } catch(_) {}
+  if (supa) {
+    try {
+      const { error } = await supa.from('aanmeld_formulieren').delete().eq('id', id);
+      if (error) throw error;
+    } catch(e) { alert('Verwijderen mislukt: ' + e.message); return; }
+  }
+  AANMELD_SAVED = AANMELD_SAVED.filter(e => String(e.id) !== String(id));
   delete OPGESL_OPEN[id];
   render();
 }
 function aanmeldEditSaved(id) {
-  const saved = aanmeldLoadSaved();
-  const entry = saved.find(e => e.id === id);
+  const entry = AANMELD_SAVED.find(e => String(e.id) === String(id));
   if (!entry) return;
   try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(entry.data)); } catch(_) {}
   HRM_SUBTAB = 'aanmeldformulier';
@@ -11897,14 +11931,17 @@ function aanmeldToggleOpgesl(id) {
 }
 function renderOpgeslagenFormulieren() {
   const saved = aanmeldLoadSaved();
-  if (!saved.length) return `<div style="padding:24px;color:rgba(255,255,255,.6);font-size:.87rem;text-align:center;">Nog geen opgeslagen formulieren. Ga naar <strong>📝 Aanmeldformulier</strong> en klik op "Opslaan als formulier".</div>`;
+  const herlaadBtn = `<button onclick="loadAanmeldSaved().then(()=>render())" style="font-size:.72rem;padding:4px 10px;background:transparent;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.2);border-radius:5px;cursor:pointer;margin-left:8px;">🔄 Herlaad</button>`;
+  if (!saved.length) return `<div style="padding:24px;color:rgba(255,255,255,.6);font-size:.87rem;text-align:center;">Nog geen opgeslagen formulieren. Ga naar <strong>📝 Aanmeldformulier</strong> en klik op "Opslaan als formulier".${herlaadBtn}</div>`;
   const rows = saved.map(e => {
     const open = !!OPGESL_OPEN[e.id];
     const d = e.data || {};
     const v = k => d[k] ? escHtml(String(d[k])) : '—';
     const nlDate = k => { const s = String(d[k]||''); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.split('-').reverse().join('-') : s||'—'; };
     const ts = new Date(e.ts).toLocaleDateString('nl-NL', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const door = e.created_by_naam ? ` · door ${escHtml(e.created_by_naam)}` : '';
     const glans = 'background:linear-gradient(135deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,.03) 100%);backdrop-filter:blur(4px);';
+    const eid = escApos(String(e.id));
     const detail = open ? `<div style="padding:10px 14px 14px;${glans}border-top:1px solid rgba(255,255,255,.08);font-size:.78rem;display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;">
       <div><span style="color:rgba(255,255,255,.55);">Geboortedatum</span> <strong>${nlDate('geb_datum')}</strong></div>
       <div><span style="color:rgba(255,255,255,.55);">Telefoon</span> <strong>${v('telefoon')}</strong></div>
@@ -11916,19 +11953,19 @@ function renderOpgeslagenFormulieren() {
       <div><span style="color:rgba(255,255,255,.55);">Opdrachtgever</span> <strong>${v('opdrachtgever_naam')}</strong></div>
     </div>` : '';
     return `<div style="border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.12);margin-bottom:10px;${glans}">
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;" onclick="aanmeldToggleOpgesl(${e.id})">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;" onclick="aanmeldToggleOpgesl('${eid}')">
         <span style="font-size:.85rem;color:#fff;flex:1;font-weight:600;">${escHtml(e.label)}</span>
-        <span style="font-size:.7rem;color:rgba(255,255,255,.45);">${ts}</span>
+        <span style="font-size:.7rem;color:rgba(255,255,255,.45);">${ts}${door}</span>
         <span style="color:rgba(255,255,255,.5);font-size:.8rem;">${open?'▲':'▼'}</span>
       </div>
       ${detail}
       ${open ? `<div style="display:flex;gap:8px;padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);">
-        <button onclick="aanmeldEditSaved(${e.id})" style="padding:5px 14px;font-size:.75rem;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;">✏️ Bewerken</button>
-        <button onclick="aanmeldDeleteSaved(${e.id})" style="padding:5px 14px;font-size:.75rem;background:transparent;color:#ef4444;border:1px solid #ef4444;border-radius:5px;cursor:pointer;">🗑 Verwijderen</button>
+        <button onclick="aanmeldEditSaved('${eid}')" style="padding:5px 14px;font-size:.75rem;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;">✏️ Bewerken</button>
+        <button onclick="aanmeldDeleteSaved('${eid}')" style="padding:5px 14px;font-size:.75rem;background:transparent;color:#ef4444;border:1px solid #ef4444;border-radius:5px;cursor:pointer;">🗑 Verwijderen</button>
       </div>` : ''}
     </div>`;
   }).join('');
-  return `<div style="max-width:860px;"><p style="font-size:.78rem;color:rgba(255,255,255,.55);margin-bottom:12px;">${saved.length} opgeslagen formulier${saved.length!==1?'en':''}. Klik op een formulier om het uit te vouwen.</p>${rows}</div>`;
+  return `<div style="max-width:860px;"><p style="font-size:.78rem;color:rgba(255,255,255,.55);margin-bottom:12px;">${saved.length} opgeslagen formulier${saved.length!==1?'en':''}. Klik op een formulier om het uit te vouwen.${herlaadBtn}</p>${rows}</div>`;
 }
 
 // ── Contract-velden (localStorage) per project ───────────────────────────────
