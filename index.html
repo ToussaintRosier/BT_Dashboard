@@ -2288,6 +2288,17 @@ function renderPlanVanAanpak(bm) {
 
   const isManager = isManagerLevel();
 
+  // Manager-notitie variabelen (nodig in rightCol hieronder)
+  const mgrNoteAlready  = !!(d.manager_notitie && String(d.manager_notitie).trim() !== '');
+  const mgrNoteLockKey  = `mgrnote|${bm.naam}|${CUR.year}|${CUR.week}`;
+  const mgrNoteUnlocked = !mgrNoteAlready || WEEKLY_EDIT_UNLOCKED.has(mgrNoteLockKey);
+  const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
+  const mgrNoteActionBtn = isManager
+    ? (mgrNoteFrozen
+        ? `<button onclick="unlockManagerNotitie('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:6px 14px;font-weight:700;font-size:.8rem;cursor:pointer;">✏️ Wijzigen</button>`
+        : `<button onclick="saveManagerNotitie('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:700;font-size:.8rem;cursor:pointer;">🔒 Opslaan</button>`)
+    : '';
+
   // Linkerkolom: logboek met de laatste weken — elke week is een inklapbare balk,
   // zodat oudere afspraken niet meer altijd standaard zichtbaar zijn maar wel
   // makkelijk terug op te zoeken zijn (incl. printknop per week).
@@ -2299,10 +2310,17 @@ function renderPlanVanAanpak(bm) {
 
     ${!frozen ? _renderPvaRec(bm.naam, safeId) : ''}
 
-    <div class="section-title" style="margin:0 0 8px">Terugblik (weekdoel vorige week)</div>
+    <div class="section-title" style="margin:0 0 4px">Review &amp; Preview Werkafspraken</div>
+    <div style="font-size:.75rem;color:rgba(0,0,0,.4);margin:0 0 10px;font-style:italic;">Terugblik door collega</div>
     ${planField(`pva-doel_vorige_week-${safeId}`, 'Noteer je doel van vorige week.', doelVorigeWeek, {disabled:frozen, placeholder:'Doel van vorige week…', bmNaam:bm.naam, field:'doel_vorige_week'})}
     ${jaNeeHtml}
     ${planField(`pva-verklaring-${safeId}`, 'Geef een korte verklaring: wat werkte, wat werkte niet?', d.verklaring, {disabled:frozen, bmNaam:bm.naam, field:'verklaring'})}
+    <div style="margin-top:12px;padding:10px 12px;background:rgba(109,40,217,.05);border:1px solid rgba(109,40,217,.18);border-radius:8px;">
+      <div style="font-size:.72rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🗒️ Review manager${isManager && !mgrNoteFrozen ? ' <span style="font-weight:400;text-transform:none;letter-spacing:0;color:rgba(109,40,217,.6);">— wordt automatisch opgeslagen</span>' : ''}</div>
+      ${planField(`pva-manager_notitie-${safeId}`, '', d.manager_notitie, {disabled: !isManager || mgrNoteFrozen, rows:3, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
+      ${mgrNoteActionBtn ? `<div style="margin-top:6px">${mgrNoteActionBtn}</div>` : ''}
+      <div id="pva-mgrnote-status-${safeId}"></div>
+    </div>
 
     <div class="section-title" style="margin:18px 0 8px">Nieuw weekdoel</div>
     ${planField(`pva-nieuw_weekdoel-${safeId}`, 'Bespreek weekdoel + planning komende week.', d.nieuw_weekdoel, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'nieuw_weekdoel'})}
@@ -2325,37 +2343,7 @@ function renderPlanVanAanpak(bm) {
     </div>
   </div>`;
 
-  // Managernotitie staat los van de bevroren/vergrendelde status van de medewerker
-  // zelf (eigen lockKey met prefix "mgrnote|" i.p.v. "plan|"): de manager kan deze
-  // altijd bewerken, ook als de medewerker zijn eigen plan voor deze week al heeft
-  // opgeslagen. De notitie is gekoppeld aan de huidige week (CUR.year/CUR.week) en
-  // blijft, net als alle andere velden, voor altijd bewaard in het logboek links
-  // zodra de week voorbij is (zie renderPvaLogboek). Net als bij de medewerker is
-  // er continu autosave (pvaScheduleAutosaveManagerNotitie) ÉN een expliciete
-  // "Opslaan"/"Wijzigen"-knop die het veld bevriest tot het weer ontgrendeld wordt.
-  // Alleen de manager mag dit veld bewerken; de medewerker ziet het altijd read-only.
-  const mgrNoteAlready  = !!(d.manager_notitie && String(d.manager_notitie).trim() !== '');
-  const mgrNoteLockKey  = `mgrnote|${bm.naam}|${CUR.year}|${CUR.week}`;
-  const mgrNoteUnlocked = !mgrNoteAlready || WEEKLY_EDIT_UNLOCKED.has(mgrNoteLockKey);
-  const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
-  const mgrNoteStatusText = mgrNoteFrozen
-    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">🔒 Bevroren &amp; opgeslagen voor deze week</span>`
-    : '';
-  const mgrNoteActionBtn = isManager
-    ? (mgrNoteUnlocked
-        ? `<button onclick="saveManagerNotitie('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">🔒 Opslaan</button>`
-        : `<button onclick="unlockManagerNotitie('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">✏️ Wijzigen</button>`)
-    : '';
-  const managerNoteBlock = `<div class="plan-manager-note">
-    <div class="plan-col-label">🗒️ Managernotitie — week ${CUR.week} · ${CUR.year} (zichtbaar voor iedereen)</div>
-    ${planField(`pva-manager_notitie-${safeId}`, 'Observaties of aandachtspunten van de manager over deze medewerker.', d.manager_notitie, {disabled: !isManager || mgrNoteFrozen, rows:4, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
-    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-      ${mgrNoteActionBtn}
-      <span id="pva-mgrnote-status-${safeId}">${mgrNoteStatusText}</span>
-    </div>
-  </div>`;
-
-  return `<div class="plan-grid" style="grid-template-columns:1fr;">${rightCol}${managerNoteBlock}${leftCol}</div>`;
+  return `<div class="plan-grid" style="grid-template-columns:1fr;">${rightCol}${leftCol}</div>`;
 }
 
 // Logboek: toont de laatste PVA_LOG_WEEKS weken als inklapbare balken, ieder met
@@ -2386,7 +2374,7 @@ function renderPvaLogboek(bm, safeId) {
           <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.obstakel||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.focuspunt||'')}</textarea></div>
           <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.team_support||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">🗒️ Managernotitie</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.manager_notitie||'')}</textarea></div>
+          <div class="plan-field"><div class="plan-field-title">🗒️ Review manager</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.manager_notitie||'')}</textarea></div>
           <div style="margin-top:8px">
             <button onclick="printPlanVanAanpak('${escApos(bm.naam)}',${w.year},${w.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-weight:700;font-size:.78rem;cursor:pointer;">🖨️ Printen — week ${w.week}</button>
           </div>
@@ -2448,7 +2436,7 @@ function printPlanVanAanpak(bmNaam, year, week) {
         <div class="field"><div class="lbl">Obstakel</div><div class="v">${val(curRow.obstakel)}</div></div>
         <div class="field"><div class="lbl">Focuspunt</div><div class="v">${val(curRow.focuspunt)}</div></div>
         <div class="field"><div class="lbl">Benodigde teamondersteuning</div><div class="v">${val(curRow.team_support)}</div></div>
-        <div class="field"><div class="lbl">🗒️ Managernotitie</div><div class="v">${val(curRow.manager_notitie)}</div></div>
+        <div class="field"><div class="lbl">🗒️ Review manager</div><div class="v">${val(curRow.manager_notitie)}</div></div>
       </div>
     </div>
   </body></html>`);
@@ -2577,26 +2565,26 @@ async function saveManagerNotitie(bmNaam) {
   if (!supa || !CURRENT_USER || !isManagerLevel()) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
-  clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]); // handmatige save overschrijft een wachtende autosave
+  clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]);
   const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
-  // id eruit halen: dat is de door de database toegekende identity-kolom en
-  // mag nooit zelf worden meegestuurd in een insert/upsert (anders: "cannot
-  // insert a non-DEFAULT value into column \"id\"").
+  const existing = getPlanRow(bmNaam, CUR.year, CUR.week);
   const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week };
   const payload  = {
     ...existingRest,
     manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
   };
-  if (statusEl) statusEl.textContent = 'Opslaan…';
+  if (statusEl) statusEl.innerHTML = '<span style="color:#6b7280;font-size:.78rem;">Opslaan…</span>';
   const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
   if (error) {
     console.error('Managernotitie opslaan mislukt:', error);
-    if (statusEl) statusEl.textContent = '❌ ' + error.message;
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444;font-size:.78rem;">❌ ${escHtml(error.message)}</span>`;
     return;
   }
+  // Groene bevestiging tonen, daarna vergrendelen
+  if (statusEl) statusEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 12px;font-size:.78rem;font-weight:700;">✅ Opgeslagen</span>';
   WEEKLY_EDIT_UNLOCKED.delete(`mgrnote|${bmNaam}|${CUR.year}|${CUR.week}`);
   await loadPlanVanAanpak();
-  render();
+  setTimeout(() => render(), 1200); // korte pauze zodat de groene bevestiging zichtbaar is
 }
 function unlockManagerNotitie(bmNaam) {
   WEEKLY_EDIT_UNLOCKED.add(`mgrnote|${bmNaam}|${CUR.year}|${CUR.week}`);
@@ -11929,10 +11917,42 @@ function aanmeldToggleOpgesl(id) {
   OPGESL_OPEN[id] = !OPGESL_OPEN[id];
   render();
 }
+async function aanmeldMigreerLokaal() {
+  let lokaal = [];
+  try { lokaal = JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]'); } catch(_) {}
+  if (!lokaal.length) { alert('Geen lokale formulieren gevonden op dit apparaat.'); return; }
+  if (!supa) { alert('Geen Supabase-verbinding.'); return; }
+  if (!confirm(`${lokaal.length} lokaal opgeslagen formulier${lokaal.length!==1?'en':''} uploaden naar de gedeelde omgeving?`)) return;
+  let ok = 0, fail = 0;
+  for (const e of lokaal) {
+    try {
+      const { error } = await supa.from('aanmeld_formulieren').insert({
+        label: e.label || '(onbekend)',
+        data: e.data || {},
+        created_by: CURRENT_USER?.id || null,
+        created_by_naam: CURRENT_USER?.naam || CURRENT_USER?.bm_naam || null,
+        created_at: e.ts || new Date().toISOString(),
+      });
+      if (error) throw error;
+      ok++;
+    } catch(_) { fail++; }
+  }
+  if (ok > 0) localStorage.removeItem('bt_aanmeld_saved');
+  await loadAanmeldSaved();
+  alert(`${ok} formulier${ok!==1?'en':''} geüpload${fail?', '+fail+' mislukt':''}.`);
+  render();
+}
 function renderOpgeslagenFormulieren() {
   const saved = aanmeldLoadSaved();
   const herlaadBtn = `<button onclick="loadAanmeldSaved().then(()=>render())" style="font-size:.72rem;padding:4px 10px;background:transparent;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.2);border-radius:5px;cursor:pointer;margin-left:8px;">🔄 Herlaad</button>`;
-  if (!saved.length) return `<div style="padding:24px;color:rgba(255,255,255,.6);font-size:.87rem;text-align:center;">Nog geen opgeslagen formulieren. Ga naar <strong>📝 Aanmeldformulier</strong> en klik op "Opslaan als formulier".${herlaadBtn}</div>`;
+  // Toon migratie-banner als gebruiker nog lokale formulieren heeft
+  let lokaalAantal = 0;
+  try { lokaalAantal = JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]').length; } catch(_) {}
+  const migratieBanner = lokaalAantal > 0 ? `<div style="background:rgba(255,180,0,.12);border:1px solid rgba(255,180,0,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.8rem;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:12px;">
+    <span>⚠️ Je hebt nog <strong>${lokaalAantal}</strong> formulier${lokaalAantal!==1?'en':''} lokaal staan (alleen zichtbaar op dit apparaat).</span>
+    <button onclick="aanmeldMigreerLokaal()" style="white-space:nowrap;padding:5px 12px;font-size:.75rem;background:rgba(255,180,0,.25);color:#ffd54f;border:1px solid rgba(255,180,0,.4);border-radius:5px;cursor:pointer;">⬆️ Uploaden naar gedeeld</button>
+  </div>` : '';
+  if (!saved.length) return `<div style="padding:24px;color:rgba(255,255,255,.6);font-size:.87rem;text-align:center;">${migratieBanner}Nog geen opgeslagen formulieren. Ga naar <strong>📝 Aanmeldformulier</strong> en klik op "Opslaan als formulier".${herlaadBtn}</div>`;
   const rows = saved.map(e => {
     const open = !!OPGESL_OPEN[e.id];
     const d = e.data || {};
