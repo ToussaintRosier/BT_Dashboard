@@ -4925,6 +4925,9 @@ function bonusDfClear(colKey, type) {
   window._bonussenDateFilters[colKey][type] = [];
   bonusFiltApply();
 }
+// jaarmaand = gecombineerde "2026-7"-sleutel
+function bonusDfToggleJM(colKey, val) { bonusDfToggle(colKey, 'jaarmaand', val); }
+function bonusDfClearJM(colKey) { bonusDfClear(colKey, 'jaarmaand'); }
 function bonusFiltApply() {
   const rows = window._bonussenRowData;
   if (!rows) return;
@@ -4942,15 +4945,14 @@ function bonusFiltApply() {
   }
   function matchDate(dateStr, colKey) {
     const f = df[colKey] || {};
-    const J = Array.isArray(f.jaar)  ? f.jaar  : (f.jaar  ? [String(f.jaar)]  : []);
-    const M = Array.isArray(f.maand) ? f.maand : (f.maand ? [String(f.maand)] : []);
-    const W = Array.isArray(f.week)  ? f.week  : (f.week  ? [String(f.week)]  : []);
-    if (!J.length && !M.length && !W.length) return true;
+    // Gecombineerde jaar-maand filter ("2026-7")
+    const JM = Array.isArray(f.jaarmaand) ? f.jaarmaand : (f.jaarmaand ? [String(f.jaarmaand)] : []);
+    const W  = Array.isArray(f.week) ? f.week : (f.week ? [String(f.week)] : []);
+    if (!JM.length && !W.length) return true;
     const d = parseDate(dateStr);
     if (!d) return false;
-    if (J.length && !J.includes(String(d.getFullYear())))   return false;
-    if (M.length && !M.includes(String(d.getMonth() + 1)))  return false;
-    if (W.length && !W.includes(String(getISOWeek(d))))     return false;
+    if (JM.length && !JM.includes(`${d.getFullYear()}-${d.getMonth()+1}`)) return false;
+    if (W.length  && !W.includes(String(getISOWeek(d)))) return false;
     return true;
   }
 
@@ -4969,40 +4971,64 @@ function bonusFiltApply() {
   });
 
   // ── Unieke waarden voor dropdown-opties (uit ALLE rijen) ───────────────────
-  const allY = {start:new Set(),eind:new Set(),defn:new Set()};
-  const allM = {start:new Set(),eind:new Set(),defn:new Set()};
-  const allW = {start:new Set(),eind:new Set(),defn:new Set()};
+  const allJM = {start:new Map(),eind:new Map(),defn:new Map()}; // key="2026-7" → label
+  const allW  = {start:new Set(),eind:new Set(),defn:new Set()};
+  const MNDNM = ['','Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
   for (const r of rows) {
     for (const k of ['start','eind','defn']) {
       const d = parseDate(r[k]);
       if (!d) continue;
-      allY[k].add(d.getFullYear());
-      allM[k].add(d.getMonth() + 1);
+      const jmKey = `${d.getFullYear()}-${d.getMonth()+1}`;
+      const jmLbl = `${MNDNM[d.getMonth()+1]} ${d.getFullYear()}`;
+      if (!allJM[k].has(jmKey)) allJM[k].set(jmKey, jmLbl);
       allW[k].add(getISOWeek(d));
     }
   }
-  const MNDNM = ['','Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
-  function mkMulti(colKey, type) {
-    const raw = (df[colKey] || {})[type];
+  // Gecombineerde jaar-maand dropdown
+  function mkJaarMaand(colKey) {
+    const raw = (df[colKey] || {}).jaarmaand;
     const sel = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
-    const placeholder = type === 'jaar' ? 'Jaar' : type === 'maand' ? 'Maand' : 'Week';
-    let vals;
-    if (type === 'jaar')  vals = [...allY[colKey]].sort();
-    if (type === 'maand') vals = [...allM[colKey]].sort((a,b) => a-b);
-    if (type === 'week')  vals = [...allW[colKey]].sort((a,b) => a-b);
     const count = sel.length;
-    const sumLabel = count > 0 ? `${placeholder}&nbsp;(${count})` : `${placeholder}&nbsp;▾`;
+    const sumLabel = count > 0 ? `Periode&nbsp;(${count})` : `Periode&nbsp;▾`;
     const sumBg    = count > 0 ? 'var(--primary-light)' : 'var(--bg)';
     const sumColor = count > 0 ? 'var(--primary)' : 'var(--text)';
-    const items = (vals||[]).map(v => {
-      const lbl = type === 'maand' ? MNDNM[v] : (type === 'week' ? `Wk&nbsp;${v}` : v);
+    // Sorteer op jaar desc, maand desc
+    const sorted = [...allJM[colKey].entries()].sort((a, b) => {
+      const [ay, am] = a[0].split('-').map(Number);
+      const [by, bm] = b[0].split('-').map(Number);
+      return by !== ay ? by - ay : bm - am;
+    });
+    const items = sorted.map(([v, lbl]) => {
+      const chk = sel.includes(v) ? 'checked' : '';
+      return `<label style="display:block;padding:1px 3px;font-size:.61rem;white-space:nowrap;cursor:pointer;">` +
+        `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
+        `onchange="bonusDfToggleJM('${colKey}','${v}')">&nbsp;${lbl}</label>`;
+    }).join('');
+    const wis = count > 0
+      ? `<div onclick="bonusDfClearJM('${colKey}')" style="font-size:.58rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:2px 3px;border-top:1px solid var(--border);margin-top:2px;">wis</div>` : '';
+    return `<details style="display:inline-block;margin-right:2px;vertical-align:top;">` +
+      `<summary style="font-size:.61rem;padding:1px 5px;border:1px solid var(--border);border-radius:3px;` +
+      `background:${sumBg};color:${sumColor};cursor:pointer;list-style:none;white-space:nowrap;">${sumLabel}</summary>` +
+      `<div style="padding:2px;border:1px solid var(--border);border-radius:3px;background:#fff;margin-top:1px;min-width:80px;">` +
+      `${items || '<span style="font-size:.6rem;color:var(--muted);padding:2px;">—</span>'}${wis}` +
+      `</div></details>`;
+  }
+  function mkWeek(colKey) {
+    const raw = (df[colKey] || {}).week;
+    const sel = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
+    const count = sel.length;
+    const sumLabel = count > 0 ? `Week&nbsp;(${count})` : `Week&nbsp;▾`;
+    const sumBg    = count > 0 ? 'var(--primary-light)' : 'var(--bg)';
+    const sumColor = count > 0 ? 'var(--primary)' : 'var(--text)';
+    const vals = [...allW[colKey]].sort((a,b) => a-b);
+    const items = vals.map(v => {
       const chk = sel.includes(String(v)) ? 'checked' : '';
       return `<label style="display:block;padding:1px 3px;font-size:.61rem;white-space:nowrap;cursor:pointer;">` +
         `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
-        `onchange="bonusDfToggle('${colKey}','${type}','${v}')">&nbsp;${lbl}</label>`;
+        `onchange="bonusDfToggle('${colKey}','week','${v}')">&nbsp;Wk&nbsp;${v}</label>`;
     }).join('');
     const wis = count > 0
-      ? `<div onclick="bonusDfClear('${colKey}','${type}')" style="font-size:.58rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:2px 3px;border-top:1px solid var(--border);margin-top:2px;">wis</div>` : '';
+      ? `<div onclick="bonusDfClear('${colKey}','week')" style="font-size:.58rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:2px 3px;border-top:1px solid var(--border);margin-top:2px;">wis</div>` : '';
     return `<details style="display:inline-block;margin-right:2px;vertical-align:top;">` +
       `<summary style="font-size:.61rem;padding:1px 5px;border:1px solid var(--border);border-radius:3px;` +
       `background:${sumBg};color:${sumColor};cursor:pointer;list-style:none;white-space:nowrap;">${sumLabel}</summary>` +
@@ -5011,7 +5037,7 @@ function bonusFiltApply() {
       `</div></details>`;
   }
   function dateFiltRow(colKey) {
-    return `<th style="padding:3px 8px;text-align:left;vertical-align:top;">${mkMulti(colKey,'jaar')}${mkMulti(colKey,'maand')}${mkMulti(colKey,'week')}</th>`;
+    return `<th style="padding:3px 8px;text-align:left;vertical-align:top;">${mkJaarMaand(colKey)}${mkWeek(colKey)}</th>`;
   }
   function emptyFiltTh() { return `<th style="padding:3px 8px;"></th>`; }
 
@@ -5102,10 +5128,15 @@ function bonusFiltApply() {
       `<option value="0.5"${r.verdeling_bonus==='0.5'?' selected':''}>0,5</option>` +
       (!multiActive ? `<option value="1"${r.verdeling_bonus==='1'?' selected':''}>1</option>` : '') +
       `</select>`;
+    function fmtNL(s) {
+      if (!s || s === '—') return '—';
+      const d = new Date(s); if (isNaN(d)) return s;
+      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    }
     let row = TD(`<strong>${escHtml(r.naam)}</strong>`);
-    if (cols.start   !== false) row += TD(escHtml(r.start||'—'));
-    if (cols.eind    !== false) row += TD(escHtml(r.eind||'—'));
-    if (cols.defn    !== false) row += TD(escHtml(r.defn||'—'), r.defn ? 'color:#0e9f6e;font-weight:700;' : '');
+    if (cols.start   !== false) row += TD(fmtNL(r.start));
+    if (cols.eind    !== false) row += TD(fmtNL(r.eind));
+    if (cols.defn    !== false) row += TD(fmtNL(r.defn), r.defn ? 'color:#0e9f6e;font-weight:700;' : '');
     if (cols.collega !== false) row += TD(escHtml(r.collegaInits.join(', ')||'—'));
     row += TD(selVb);
     row += TD(pctCells);
@@ -5138,15 +5169,13 @@ function _bonussenSyncVal(src, id, key, val) {
   }
   function matchDate(dateStr, colKey) {
     const f = df[colKey] || {};
-    const J = Array.isArray(f.jaar)  ? f.jaar  : (f.jaar  ? [String(f.jaar)]  : []);
-    const M = Array.isArray(f.maand) ? f.maand : (f.maand ? [String(f.maand)] : []);
-    const W = Array.isArray(f.week)  ? f.week  : (f.week  ? [String(f.week)]  : []);
-    if (!J.length && !M.length && !W.length) return true;
+    const JM = Array.isArray(f.jaarmaand) ? f.jaarmaand : (f.jaarmaand ? [String(f.jaarmaand)] : []);
+    const W  = Array.isArray(f.week) ? f.week : (f.week ? [String(f.week)] : []);
+    if (!JM.length && !W.length) return true;
     const d = parseDate(dateStr);
     if (!d) return false;
-    if (J.length && !J.includes(String(d.getFullYear())))   return false;
-    if (M.length && !M.includes(String(d.getMonth() + 1)))  return false;
-    if (W.length && !W.includes(String(getISOWeek(d))))     return false;
+    if (JM.length && !JM.includes(`${d.getFullYear()}-${d.getMonth()+1}`)) return false;
+    if (W.length  && !W.includes(String(getISOWeek(d)))) return false;
     return true;
   }
   const filtered = window._bonussenRowData.filter(r2 => {
@@ -6377,11 +6406,23 @@ function renderPrognose() {
   const _bonussenHtml = !isBeheerder() ? '' : (() => {
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // Filter: toon alleen projecten waarvan de definitieve einddatum NIET verstreken is
+    // Filter: alleen actieve projecten (gestart + niet eindigend deze maand)
+    const curY = today.getFullYear(), curM = today.getMonth();
     const bonussenRanges = overzichtRanges.filter(r => {
+      // 1. Startdatum moet al in de lopende maand of eerder liggen
+      const startD = r.begin ? new Date(r.begin) : null;
+      if (startD) {
+        // Uitsluiten als startdatum nog niet in de lopende maand valt
+        if (startD.getFullYear() > curY || (startD.getFullYear() === curY && startD.getMonth() > curM)) return false;
+      }
+      // 2. Definitieve einddatum: uitsluiten als verstreken of in de lopende maand
       const defn = projDefEindLoad(r.source, r.id);
-      if (!defn) return true; // Geen einddatum = altijd tonen
-      return new Date(defn) >= today;
+      if (defn) {
+        const defnD = new Date(defn);
+        if (defnD < today) return false; // Al verstreken
+        if (defnD.getFullYear() === curY && defnD.getMonth() === curM) return false; // Eindigt deze maand
+      }
+      return true;
     }).sort((a, b) => (b.begin || '') > (a.begin || '') ? 1 : (b.begin || '') < (a.begin || '') ? -1 : 0);
 
     // Bouw rijdata en sla op in window voor bonusFiltApply()
