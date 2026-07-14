@@ -9608,7 +9608,21 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
       const metResult = groep.find(r => r.result && r.result.samenvatting);
       analyse = metResult ? metResult.result : { samenvatting: '(Samengevoegde opnames — heranalyse niet beschikbaar)', segmenten: [] };
     }
-    // Oud verwijderen (lokaal + Supabase) — await zodat dit daadwerkelijk lukt vóór opslaan
+    const datum = groep[0].datum;
+    const newMeta = { naam: groep[0].naam, functie: groep[0].functie, datum };
+
+    // STAP 1: Nieuw record EERST opslaan in Supabase — bevestig succes vóór verwijderen
+    let newSupaId = null;
+    if (supa) {
+      if (statusEl) statusEl.textContent = '⏳ Opslaan…';
+      const { data: ins, error: insErr } = await supa.from('verslagen')
+        .insert({ type: 'gesprek', meta: newMeta, result: analyse, transcript: combined, created_by: CURRENT_USER?.id || null })
+        .select('id').single();
+      if (insErr) throw new Error('Opslaan in database mislukt: ' + insErr.message);
+      newSupaId = ins?.id;
+    }
+
+    // STAP 2: Pas NU oude records verwijderen (opslaan is bevestigd)
     const oldIds = groep.map(r => r.id);
     GESPREK_RECORDS = GESPREK_RECORDS.filter(r => !oldIds.includes(r.id));
     oldIds.forEach(id => { GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id); });
@@ -9616,13 +9630,12 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
       const uuidIds = oldIds.filter(id => typeof id === 'string' && id.includes('-'));
       await Promise.all(uuidIds.map(id => supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{})));
     }
-    // Nieuw merged record opslaan
-    const datum = groep[0].datum;
-    const newRec = { id: Date.now(), datum, naam: groep[0].naam, functie: groep[0].functie, result: analyse, transcript: combined };
+
+    // STAP 3: Nieuw record in lokale cache (gebruik echte Supabase-UUID zodat Herlaad geen duplicaat maakt)
+    const newRec = { id: newSupaId || Date.now(), datum, naam: groep[0].naam, functie: groep[0].functie, result: analyse, transcript: combined };
     GESPREK_RECORDS.unshift(newRec);
     if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
     _saveGesprekRec();
-    _saveVerslagToSupa('gesprek', { naam: newRec.naam, functie: newRec.functie, datum }, analyse, combined);
   } catch(err) {
     if (statusEl) { statusEl.textContent = '⚠️ ' + err.message; }
     _samenvoegBusy = false;
