@@ -9466,13 +9466,13 @@ async function autoMergeGesprekDuplicaten() {
   // Vind alle groepen met ≥2 records
   const telling = {};
   GESPREK_RECORDS.forEach(r => {
-    const k = [r.naam||'', r.functie||'', r.datum||''].join('|');
+    const k = _gspKey(r);
     telling[k] = (telling[k] || 0) + 1;
   });
   const dupGroepen = Object.keys(telling).filter(k => telling[k] >= 2);
   for (const groepKey of dupGroepen) {
     // Na elke merge herberekenen (GESPREK_RECORDS is gewijzigd)
-    const nog = GESPREK_RECORDS.filter(r => [r.naam||'', r.functie||'', r.datum||''].join('|') === groepKey);
+    const nog = GESPREK_RECORDS.filter(r => _gspKey(r) === groepKey);
     if (nog.length >= 2) {
       await gesprekSamenvoegGroep(groepKey, true); // silent=true: geen confirm
     }
@@ -9499,6 +9499,9 @@ function _recInitials(naam) {
   if (!naam) return '';
   return naam.trim().split(/\s+/).filter(w=>w).map(w=>w[0].toUpperCase()).slice(0,2).join('');
 }
+// Normalize naam/functie voor merge-key: trim + collapse whitespace
+function _gspNorm(s) { return (s||'').trim().replace(/\s+/g,' '); }
+function _gspKey(r)  { return [_gspNorm(r.naam), _gspNorm(r.functie), r.datum||''].join('|'); }
 function addGesprekRecord() {
   const g = GESPREK; if (!g.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
@@ -9567,7 +9570,7 @@ function gesprekRecordWisAlles() {
 let _samenvoegBusy = false;
 async function gesprekSamenvoegGroep(groepKey, silent) {
   if (_samenvoegBusy) return;
-  const groep = GESPREK_RECORDS.filter(r => [r.naam||'', r.functie||'', r.datum||''].join('|') === groepKey);
+  const groep = GESPREK_RECORDS.filter(r => _gspKey(r) === groepKey);
   if (groep.length < 2) return;
   if (!silent && !confirm(`${groep.length} opnames van "${groep[0].naam || groep[0].functie || 'deze persoon'}" samenvoegen tot 1 transcriptie en heranalyseren?`)) return;
   _samenvoegBusy = true;
@@ -9602,8 +9605,7 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
     if (!analyse) {
       // Geen heranalyse gelukt — gebruik de beste bestaande analyse
       const metResult = groep.find(r => r.result && r.result.samenvatting);
-      if (!metResult) throw new Error('Geen transcripties en geen bestaande analyse beschikbaar.');
-      analyse = metResult.result;
+      analyse = metResult ? metResult.result : { samenvatting: '(Samengevoegde opnames — heranalyse niet beschikbaar)', segmenten: [] };
     }
     // Oud verwijderen (lokaal + Supabase) — await zodat dit daadwerkelijk lukt vóór opslaan
     const oldIds = groep.map(r => r.id);
@@ -9746,7 +9748,7 @@ function renderGesprekRecords() {
   // Groepeer records op naam+functie+datum; toon samenvoegknop als groep ≥ 2 heeft
   const groepTelling = {};
   GESPREK_RECORDS.forEach(r => {
-    const k = [r.naam||'', r.functie||'', r.datum||''].join('|');
+    const k = _gspKey(r);
     groepTelling[k] = (groepTelling[k] || 0) + 1;
   });
 
@@ -9756,7 +9758,7 @@ function renderGesprekRecords() {
       const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
       const open=GESPREK_OPEN.has(rec.id), showTr=GESPREK_SHOW_TR.has(rec.id);
       const title=[rec.naam,rec.functie].filter(Boolean).join(' — ')||'Gesprek';
-      const groepKey=[rec.naam||'',rec.functie||'',rec.datum||''].join('|');
+      const groepKey=_gspKey(rec);
       const isDup = groepTelling[groepKey] >= 2;
       const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
       const recIni = _recInitials(rec.recorder_naam);
