@@ -9629,15 +9629,15 @@ function _gesprekRecordHtml(rec) {
   <div class="dc"><h2>Afspraken</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div>
 </div></body></html>`;
 }
-function gesprekRecordPrint(id) { const rec=GESPREK_RECORDS.find(r=>r.id===id); if(!rec)return; const w=window.open('','_blank'); w.document.write(_gesprekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
+function gesprekRecordPrint(id) { const rec=GESPREK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return; const w=window.open('','_blank'); w.document.write(_gesprekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
 function gesprekRecordDownload(id,fmt) {
-  const rec=GESPREK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const rec=GESPREK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return;
   const html=_gesprekRecordHtml(rec), naam=(rec.naam||'gespreksverslag').replace(/\s+/g,'_');
   if(fmt==='word'){ const b=new Blob([html],{type:'application/msword'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=naam+'.doc'; a.click(); URL.revokeObjectURL(a.href); }
   else { const w=window.open('','_blank'); w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
 }
 function gesprekRecordKopieer(id) {
-  const rec=GESPREK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const rec=GESPREK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return;
   const res=rec.result||{}, hw=res.hardeWensen||{}, zf=res.zachteFactoren||{};
   const lines=['=== SOLLICITATIEGESPREK ===',res.samenvatting||'','','--- HARDE WENSEN ---',
     hw.functie?'Functie: '+hw.functie:'', hw.regio?'Regio: '+hw.regio:'', hw.salaris?'Salaris: '+hw.salaris:'',
@@ -9654,7 +9654,7 @@ function _bezoekRecordHtml(rec) {
   const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{}, cf=r.coachingFeedback||{};
   const soort=rec.soortBezoek||'bedrijfsbezoek';
   const soortLabel=soort==='evaluatie_medewerker'?'Evaluatie Medewerker':soort==='voorbereiding_matchgesprek'?'Voorbereiding Matchgesprek':'Bedrijfsbezoek';
-  const e=(s)=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const e=(s)=>(strVal(s)||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
   const rij=(lbl,val)=>val?`<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${lbl}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>`:'';
   const cfBlok=cf.samenvatting?`<h2 style="color:#7c3aed;border-bottom:1px solid #ede9fe;">🎯 Coaching feedback${cf.score?' — '+(cf.score==='goed'?'✅ Goed':cf.score==='aandacht'?'⚠️ Aandacht':'🟡 Voldoende'):''}</h2><p>${e(cf.samenvatting)}</p>${cf.sterktePunten?.length?`<p style="color:#15803d;font-weight:700;">Sterke punten:</p><ul>${cf.sterktePunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>`:''}${cf.verbeterpunten?.length?`<p style="color:#b91c1c;font-weight:700;">Verbeterpunten:</p><ul>${cf.verbeterpunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>`:''}`:'';
   let body='';
@@ -9669,15 +9669,15 @@ function _bezoekRecordHtml(rec) {
 ${body}${cfBlok}
 </body></html>`;
 }
-function bezoekRecordPrint(id) { const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return; const w=window.open('','_blank'); w.document.write(_bezoekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
+function bezoekRecordPrint(id) { const rec=BEZOEK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return; const w=window.open('','_blank'); w.document.write(_bezoekRecordHtml(rec)); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
 function bezoekRecordDownload(id,fmt) {
-  const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const rec=BEZOEK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return;
   const html=_bezoekRecordHtml(rec), naam=(rec.bedrijf||'bezoekverslag').replace(/\s+/g,'_');
   if(fmt==='word'){ const b=new Blob([html],{type:'application/msword'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=naam+'.doc'; a.click(); URL.revokeObjectURL(a.href); }
   else { const w=window.open('','_blank'); w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400); }
 }
 function bezoekRecordKopieer(id) {
-  const rec=BEZOEK_RECORDS.find(r=>r.id===id); if(!rec)return;
+  const rec=BEZOEK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return;
   const res=rec.result||{}, bp=res.bedrijfsprofiel||{}, wb=res.wervingsbehoefte||{}, cf=res.coachingFeedback||{};
   const soort=rec.soortBezoek||'bedrijfsbezoek';
   let lines=[];
@@ -9694,9 +9694,9 @@ function bezoekRecordKopieer(id) {
       '','--- WERKPRESTATIES ---',res.werkprestaties||'','','--- AANDACHTSPUNTEN ---',res.aandachtspunten||'',
       '','--- AFSPRAKEN ---',res.afspraken||''];
   } else {
-    lines=['=== VOORBEREIDING MATCHGESPREK ===',res.samenvatting||'','','--- KANDIDAATPROFIEL ---',res.kandidaatprofiel||'',
-      '','--- BEDRIJFSKENNIS ---',res.bedrijfskennis||'','','--- OEFENING ---',res.oefening||'',
-      '','--- ADVIES ---',res.advies||'','','--- AFSPRAKEN ---',res.afspraken||''];
+    lines=['=== VOORBEREIDING MATCHGESPREK ===',strVal(res.samenvatting)||'','','--- KANDIDAATPROFIEL ---',strVal(res.kandidaatprofiel)||'',
+      '','--- BEDRIJFSKENNIS ---',strVal(res.bedrijfskennis)||'','','--- OEFENING ---',strVal(res.oefening)||'',
+      '','--- ADVIES ---',strVal(res.advies)||'','','--- AFSPRAKEN ---',strVal(res.afspraken)||''];
   }
   if(cf.samenvatting){lines.push('','--- COACHING ---',cf.samenvatting);if(cf.sterktePunten?.length)lines.push('Sterk:',...cf.sterktePunten.map(p=>'+ '+p));if(cf.verbeterpunten?.length)lines.push('Verbeteren:',...cf.verbeterpunten.map(p=>'- '+p));}
   navigator.clipboard.writeText(lines.filter(Boolean).join('\n')).catch(()=>{});
@@ -9808,7 +9808,7 @@ function renderBezoekRecords() {
       let openContent='';
       if(soort==='bedrijfsbezoek'){openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏭 Bedrijfsprofiel</div>${PT([['Sector',bp.sector],['Omvang',bp.omvang],['Activiteit',bp.activiteit]])}<div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 6px;">📋 Wervingsbehoefte</div>${PT([['Functies',wb.functies],['Aantallen',wb.aantallen],['Profiel',wb.profiel],['Urgentie',wb.urgentie]])}</div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👥 Huidige personeelssituatie</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.huidigePersoneelssituatie||'—')}</p></div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div><div class="chart-card" style="padding:12px 14px;border-left:3px solid var(--success);"><div style="font-size:.7rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Commercieel potentieel</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.commercieelePotentie||'—')}</p></div></div></div>`;}
       else if(soort==='evaluatie_medewerker'){openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">😊 Welzijn &amp; sfeer</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.welzijn||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💼 Werkprestaties</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.werkprestaties||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid #f59e0b;"><div style="font-size:.7rem;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">⚠️ Aandachtspunten</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.aandachtspunten||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div></div></div>`;}
-      else{openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👤 Kandidaatprofiel</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.kandidaatprofiel||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏢 Bedrijfskennis</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.bedrijfskennis||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🎭 Oefening</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.oefening||'—')}</p></div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--primary);"><div style="font-size:.7rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Advies</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.advies||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div></div></div>`;}
+      else{openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">👤 Kandidaatprofiel</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.kandidaatprofiel)||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🏢 Bedrijfskennis</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.bedrijfskennis)||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🎭 Oefening</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.oefening)||'—')}</p></div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--primary);"><div style="font-size:.7rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💡 Advies</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.advies)||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">🤝 Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.afspraken)||'—')}</p></div></div></div>`;}
       const cfHtml=cf.samenvatting?`<div class="chart-card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid #7c3aed;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.4px;">🎯 Coaching feedback</div>${cf.score?`<span style="font-size:.7rem;font-weight:700;color:${cf.score==='goed'?'#15803d':cf.score==='aandacht'?'#b91c1c':'#a16207'};">${cf.score==='goed'?'✅ Goed':cf.score==='aandacht'?'⚠️ Aandacht':'🟡 Voldoende'}</span>`:''}</div><p style="margin:0 0 8px;line-height:1.6;font-size:.84rem;">${escHtml(cf.samenvatting)}</p>${cf.sterktePunten?.length?`<div style="font-size:.76rem;color:#15803d;font-weight:700;margin-bottom:3px;">✅ Sterk:</div><ul style="margin:0 0 6px;padding-left:16px;font-size:.83rem;">${cf.sterktePunten.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>`:''}${cf.verbeterpunten?.length?`<div style="font-size:.76rem;color:#b91c1c;font-weight:700;margin-bottom:3px;">⚠️ Verbeteren:</div><ul style="margin:0;padding-left:16px;font-size:.83rem;">${cf.verbeterpunten.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>`:''}</div>`:'';
       return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
         <div onclick="toggleBezoekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
@@ -10279,11 +10279,11 @@ function bezoekKopieer() {
   } else if (soort === 'voorbereiding_matchgesprek') {
     lines = [
       '=== VOORBEREIDING MATCHGESPREK ===', r.samenvatting || '', '',
-      '--- KANDIDAATPROFIEL ---', r.kandidaatprofiel || '',
-      '', '--- BEDRIJFSKENNIS KANDIDAAT ---', r.bedrijfskennis || '',
-      '', '--- GEOEFENDE SITUATIES ---', r.oefening || '',
-      '', '--- CONCREET ADVIES ---', r.advies || '',
-      '', '--- AFSPRAKEN ---', r.afspraken || '',
+      '--- KANDIDAATPROFIEL ---', strVal(r.kandidaatprofiel) || '',
+      '', '--- BEDRIJFSKENNIS KANDIDAAT ---', strVal(r.bedrijfskennis) || '',
+      '', '--- GEOEFENDE SITUATIES ---', strVal(r.oefening) || '',
+      '', '--- CONCREET ADVIES ---', strVal(r.advies) || '',
+      '', '--- AFSPRAKEN ---', strVal(r.afspraken) || '',
     ];
   }
   if (cf.samenvatting) {
@@ -10529,25 +10529,25 @@ function renderBezoekRecorder() {
           <div>
             <div class="chart-card" style="margin-bottom:14px;">
               <h3 style="margin-bottom:8px;">👤 Kandidaatprofiel</h3>
-              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.kandidaatprofiel||'—')}</p>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(strVal(r.kandidaatprofiel)||'—')}</p>
             </div>
             <div class="chart-card" style="margin-bottom:14px;">
               <h3 style="margin-bottom:8px;">🏢 Bedrijfskennis kandidaat</h3>
-              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.bedrijfskennis||'—')}</p>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(strVal(r.bedrijfskennis)||'—')}</p>
             </div>
           </div>
           <div>
             <div class="chart-card" style="margin-bottom:14px;">
               <h3 style="margin-bottom:8px;">🎭 Geoefende situaties &amp; vragen</h3>
-              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.oefening||'—')}</p>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(strVal(r.oefening)||'—')}</p>
             </div>
             <div class="chart-card" style="margin-bottom:14px;border-left:3px solid var(--primary);">
               <h3 style="margin-bottom:8px;color:var(--primary);">💡 Concreet advies voor het gesprek</h3>
-              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.advies||'—')}</p>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(strVal(r.advies)||'—')}</p>
             </div>
             <div class="chart-card" style="margin-bottom:14px;">
               <h3 style="margin-bottom:8px;">🤝 Afspraken &amp; vervolgacties</h3>
-              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(r.afspraken||'—')}</p>
+              <p style="line-height:1.65;white-space:pre-wrap;margin:0;font-size:.86rem;">${escHtml(strVal(r.afspraken)||'—')}</p>
             </div>
           </div>
         </div>`;
@@ -12724,6 +12724,20 @@ var _pipeDrag = { bmNaam: null, stage: null, week: null, jaar: null, cardId: nul
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+// Veilig veld → string: objecten worden leesbaar gemaakt i.p.v. [object Object]
+function strVal(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v)) return v.map(x => strVal(x)).filter(Boolean).join('\n');
+  if (typeof v === 'object') {
+    // Probeer bekende tekstvelden
+    const t = v.tekst || v.text || v.inhoud || v.content || v.waarde || v.samenvatting || v.value;
+    if (t) return strVal(t);
+    // Laatste redmiddel: JSON zonder accolades
+    return Object.entries(v).map(([k,val]) => `${k}: ${strVal(val)}`).join('\n');
+  }
+  return String(v);
 }
 function escApos(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
