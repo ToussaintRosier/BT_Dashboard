@@ -596,6 +596,13 @@ function getRecentWeeks(n) {
   for (let i = 1; i <= n; i++) out.push(isoWeek(new Date(+TODAY - i * 7 * 86400000)));
   return out;
 }
+// PvA-logboek: start vanuit CUR (i=0) zodat de historierij 1 week opschuift
+// t.o.v. getRecentWeeks (die start bij i=1 = vorige week).
+function getPvaLogWeeks(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(isoWeek(new Date(+TODAY - i * 7 * 86400000)));
+  return out;
+}
 function togglePvaLog(bmNaam, jaar, week) {
   const key = `${bmNaam}|${jaar}|${week}`;
   if (PVA_LOG_OPEN.has(key)) PVA_LOG_OPEN.delete(key); else PVA_LOG_OPEN.add(key);
@@ -2042,15 +2049,15 @@ function snapshotPvaInputs() {
     if (ta.disabled) return;
     const bmNaam = ta.dataset.pvaBm, field = ta.dataset.pvaField;
     if (!bmNaam || !field) return;
-    let row = PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
-    if (!row) { row = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }; PLAN_VA.push(row); }
+    let row = PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === NEXT.year && p.week === NEXT.week);
+    if (!row) { row = { bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week }; PLAN_VA.push(row); }
     row[field] = ta.value;
   });
   document.querySelectorAll('input[data-pva-bm][type="radio"]:checked').forEach(r => {
     const bmNaam = r.dataset.pvaBm;
     if (!bmNaam) return;
-    let row = PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
-    if (!row) { row = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }; PLAN_VA.push(row); }
+    let row = PLAN_VA.find(p => p.bm_naam === bmNaam && p.jaar === NEXT.year && p.week === NEXT.week);
+    if (!row) { row = { bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week }; PLAN_VA.push(row); }
     row.behaald = r.value;
   });
 }
@@ -2265,9 +2272,10 @@ function renderPlanVanAanpak(bm) {
   if (!supa) return `<div class="info-box blue">📝 <strong>Plan van aanpak</strong> komt beschikbaar zodra de database is gekoppeld.</div>`;
 
   const safeId    = bm.naam.replace(/\s+/g,'_');
-  const prevRow   = getPlanRow(bm.naam, PREV.year, PREV.week) || {};
-  const curRow    = getPlanRow(bm.naam, CUR.year, CUR.week);
-  const lockKey   = `plan|${bm.naam}|${CUR.year}|${CUR.week}`;
+  // PvA loopt 1 week vooruit: actieve rij = NEXT, terugblik = CUR (was PREV).
+  const prevRow   = getPlanRow(bm.naam, CUR.year, CUR.week) || {};
+  const curRow    = getPlanRow(bm.naam, NEXT.year, NEXT.week);
+  const lockKey   = `plan|${bm.naam}|${NEXT.year}|${NEXT.week}`;
   const already   = !!curRow;
   const unlocked  = !already || WEEKLY_EDIT_UNLOCKED.has(lockKey);
   const frozen    = already && !unlocked;
@@ -2299,7 +2307,7 @@ function renderPlanVanAanpak(bm) {
   const mgrNoteAlready  = !!(d.manager_notitie && String(d.manager_notitie).trim() !== '');
   // Carry-forward: als deze week nog geen notitie heeft, voorvullen vanuit vorige week
   const mgrNotitieCarry = mgrNoteAlready ? d.manager_notitie : (prevRow.manager_notitie || '');
-  const mgrNoteLockKey  = `mgrnote|${bm.naam}|${CUR.year}|${CUR.week}`;
+  const mgrNoteLockKey  = `mgrnote|${bm.naam}|${NEXT.year}|${NEXT.week}`;
   const mgrNoteUnlocked = !mgrNoteAlready || WEEKLY_EDIT_UNLOCKED.has(mgrNoteLockKey);
   const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
   const mgrNoteActionBtn = isManager
@@ -2315,7 +2323,7 @@ function renderPlanVanAanpak(bm) {
 
   // Rechterkolom: deze week — terugblik + nieuwe afspraken (bewerkbaar, opslaan/wijzigen)
   const rightCol = `<div class="plan-col nieuw">
-    <div class="plan-col-label">✍️ Nieuwe afspraken — week ${CUR.week} · ${CUR.year}</div>
+    <div class="plan-col-label">✍️ Nieuwe afspraken — week ${NEXT.week} · ${NEXT.year}</div>
 
     ${!frozen ? _renderPvaRec(bm.naam, safeId) : ''}
 
@@ -2359,7 +2367,7 @@ function renderPlanVanAanpak(bm) {
 // het volledige opgeslagen plan van die week (incl. managernotitie, nu zichtbaar
 // voor iedereen) en een eigen printknop.
 function renderPvaLogboek(bm, safeId) {
-  const weeks = getRecentWeeks(PVA_LOG_WEEKS);
+  const weeks = getPvaLogWeeks(PVA_LOG_WEEKS);
   const rows = weeks.map(w => {
     const row  = getPlanRow(bm.naam, w.year, w.week);
     const key  = `${bm.naam}|${w.year}|${w.week}`;
@@ -2401,8 +2409,8 @@ function renderPvaLogboek(bm, safeId) {
 // (niet via innerHTML van het scherm). De managernotitie is zichtbaar voor
 // iedereen en wordt daarom ook meegenomen in de afdruk.
 function printPlanVanAanpak(bmNaam, year, week) {
-  const y = (year != null) ? year : CUR.year;
-  const w = (week != null) ? week : CUR.week;
+  const y = (year != null) ? year : NEXT.year;
+  const w = (week != null) ? week : NEXT.week;
   const prevWk  = weekBefore(y, w);
   const prevRow = getPlanRow(bmNaam, prevWk.year, prevWk.week) || {};
   const curRow  = getPlanRow(bmNaam, y, w) || {};
@@ -2477,7 +2485,7 @@ function renderWerkintensiteitsladder(bm) {
 }
 
 function unlockPlanVanAanpak(bmNaam) {
-  WEEKLY_EDIT_UNLOCKED.add(`plan|${bmNaam}|${CUR.year}|${CUR.week}`);
+  WEEKLY_EDIT_UNLOCKED.add(`plan|${bmNaam}|${NEXT.year}|${NEXT.week}`);
   render();
 }
 
@@ -2489,7 +2497,7 @@ function buildPvaPayload(bmNaam) {
   const val = (id) => document.getElementById(id)?.value?.trim() || '';
   const behaaldEl = document.querySelector(`input[name="plan-behaald-${safeId}"]:checked`);
   const payload = {
-    bm_naam: bmNaam, jaar: CUR.year, week: CUR.week,
+    bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week,
     doel_vorige_week: val(`pva-doel_vorige_week-${safeId}`),
     behaald: behaaldEl ? behaaldEl.value : null,
     verklaring: val(`pva-verklaring-${safeId}`),
@@ -2517,14 +2525,14 @@ function buildPvaPayload(bmNaam) {
 async function pvaAutosave(bmNaam) {
   if (!supa || !CURRENT_USER) return;
   const safeId    = bmNaam.replace(/\s+/g,'_');
-  const lockKey   = `plan|${bmNaam}|${CUR.year}|${CUR.week}`;
-  const already   = !!getPlanRow(bmNaam, CUR.year, CUR.week);
+  const lockKey   = `plan|${bmNaam}|${NEXT.year}|${NEXT.week}`;
+  const already   = !!getPlanRow(bmNaam, NEXT.year, NEXT.week);
   if (already && !WEEKLY_EDIT_UNLOCKED.has(lockKey)) return; // bevroren week: niet autosaven
   const statusEl  = document.getElementById(`pva-status-${safeId}`);
   const payload   = buildPvaPayload(bmNaam);
   const { error } = await supa.from('plan_van_aanpak').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
   if (error) { console.error('Automatisch opslaan plan van aanpak mislukt:', error); return; }
-  const idx = PLAN_VA.findIndex(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
+  const idx = PLAN_VA.findIndex(p => p.bm_naam === bmNaam && p.jaar === NEXT.year && p.week === NEXT.week);
   if (idx >= 0) PLAN_VA[idx] = { ...PLAN_VA[idx], ...payload }; else PLAN_VA.push(payload);
   if (statusEl) statusEl.innerHTML = `<span style="color:var(--muted);font-size:.78rem;">✓ Automatisch opgeslagen om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</span>`;
 }
@@ -2545,7 +2553,7 @@ async function pvaAutosaveManagerNotitie(bmNaam) {
   // id eruit halen: dat is de door de database toegekende identity-kolom en
   // mag nooit zelf worden meegestuurd in een insert/upsert (anders: "cannot
   // insert a non-DEFAULT value into column \"id\"").
-  const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week };
+  const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week };
   const payload  = {
     ...existingRest,
     manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
@@ -2556,7 +2564,7 @@ async function pvaAutosaveManagerNotitie(bmNaam) {
     if (statusEl) statusEl.textContent = '❌ ' + error.message;
     return;
   }
-  const idx = PLAN_VA.findIndex(p => p.bm_naam === bmNaam && p.jaar === CUR.year && p.week === CUR.week);
+  const idx = PLAN_VA.findIndex(p => p.bm_naam === bmNaam && p.jaar === NEXT.year && p.week === NEXT.week);
   if (idx >= 0) PLAN_VA[idx] = { ...PLAN_VA[idx], ...payload }; else PLAN_VA.push(payload);
   if (statusEl) statusEl.innerHTML = `✓ Notitie automatisch opgeslagen om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}`;
 }
@@ -2576,8 +2584,8 @@ async function saveManagerNotitie(bmNaam) {
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
   clearTimeout(PVA_AUTOSAVE_TIMERS['mgrnote_' + bmNaam]);
   const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
-  const existing = getPlanRow(bmNaam, CUR.year, CUR.week);
-  const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week };
+  const existing = getPlanRow(bmNaam, NEXT.year, NEXT.week);
+  const { id: _ignoredId, ...existingRest } = existing || { bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week };
   const payload  = {
     ...existingRest,
     manager_notitie: val, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
@@ -2591,12 +2599,12 @@ async function saveManagerNotitie(bmNaam) {
   }
   // Groene bevestiging tonen, daarna vergrendelen
   if (statusEl) statusEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 12px;font-size:.78rem;font-weight:700;">✅ Opgeslagen</span>';
-  WEEKLY_EDIT_UNLOCKED.delete(`mgrnote|${bmNaam}|${CUR.year}|${CUR.week}`);
+  WEEKLY_EDIT_UNLOCKED.delete(`mgrnote|${bmNaam}|${NEXT.year}|${NEXT.week}`);
   await loadPlanVanAanpak();
   setTimeout(() => render(), 1200); // korte pauze zodat de groene bevestiging zichtbaar is
 }
 function unlockManagerNotitie(bmNaam) {
-  WEEKLY_EDIT_UNLOCKED.add(`mgrnote|${bmNaam}|${CUR.year}|${CUR.week}`);
+  WEEKLY_EDIT_UNLOCKED.add(`mgrnote|${bmNaam}|${NEXT.year}|${NEXT.week}`);
   render();
 }
 
@@ -2615,7 +2623,7 @@ async function savePlanVanAanpak(bmNaam) {
     if (statusEl) statusEl.textContent = '❌ ' + error.message;
     return;
   }
-  WEEKLY_EDIT_UNLOCKED.delete(`plan|${bmNaam}|${CUR.year}|${CUR.week}`);
+  WEEKLY_EDIT_UNLOCKED.delete(`plan|${bmNaam}|${NEXT.year}|${NEXT.week}`);
   await loadPlanVanAanpak();
   render();
 }
@@ -10129,8 +10137,8 @@ function pvaRecFill(bmNaam, fields) {
       el.dispatchEvent(new Event('input'));
     }
     // Also update PLAN_VA cache
-    let row = PLAN_VA.find(p2 => p2.bm_naam === bmNaam && p2.jaar === CUR.year && p2.week === CUR.week);
-    if (!row) { row = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week }; PLAN_VA.push(row); }
+    let row = PLAN_VA.find(p2 => p2.bm_naam === bmNaam && p2.jaar === NEXT.year && p2.week === NEXT.week);
+    if (!row) { row = { bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week }; PLAN_VA.push(row); }
     if (val) row[fieldKey] = val;
   };
 
@@ -10149,10 +10157,10 @@ function pvaRecFill(bmNaam, fields) {
   // Direct opslaan naar Supabase — omzeilt de frozen/vergrendeld-check van pvaAutosave,
   // zodat recorder-data altijd wordt bewaard ook als de week al een bestaande rij heeft.
   if (supa && CURRENT_USER) {
-    const pvRow = PLAN_VA.find(r => r.bm_naam === bmNaam && r.jaar === CUR.year && r.week === CUR.week);
+    const pvRow = PLAN_VA.find(r => r.bm_naam === bmNaam && r.jaar === NEXT.year && r.week === NEXT.week);
     const pvPayload = {
       ...(pvRow || {}),
-      bm_naam: bmNaam, jaar: CUR.year, week: CUR.week,
+      bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week,
       updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
     };
     supa.from('plan_van_aanpak').upsert(pvPayload, { onConflict: 'bm_naam,jaar,week' })
@@ -10160,7 +10168,7 @@ function pvaRecFill(bmNaam, fields) {
         if (error) console.error('PVA recorder opslaan mislukt:', error);
         else {
           // Week ontgrendelen zodat vervolgbewerkingen ook autosaven
-          WEEKLY_EDIT_UNLOCKED.add(`plan|${bmNaam}|${CUR.year}|${CUR.week}`);
+          WEEKLY_EDIT_UNLOCKED.add(`plan|${bmNaam}|${NEXT.year}|${NEXT.week}`);
         }
       });
   }
