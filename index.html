@@ -3907,8 +3907,37 @@ function bmInitialen(naam) {
   return (signif[0][0] + signif[signif.length - 1][0]).toUpperCase();
 }
 function projCollegaKey(src, id)       { return `bt_proj_collega_${src}_${id}`; }
-function projCollegaLoad(src, id)      { try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; } }
-function projCollegaSave(src, id, arr) { try { localStorage.setItem(projCollegaKey(src,id), JSON.stringify(arr)); } catch(_){} }
+function projCollegaLoad(src, id) {
+  // 1. Supabase-cache (gedeeld met alle gebruikers)
+  if (src === 'excel') {
+    const p = PROJECTEN.find(x => String(x.id) === String(id));
+    if (p && p.collega_initials) { try { return JSON.parse(p.collega_initials); } catch(_) {} }
+  } else if (src === 'pipeline') {
+    const hit = _pipeCardById(id);
+    if (hit && hit.card.collega_initials) { try { return JSON.parse(hit.card.collega_initials); } catch(_) {} }
+  }
+  // 2. localStorage fallback (offline / demo)
+  try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; }
+}
+function projCollegaSave(src, id, arr) {
+  // localStorage als directe fallback (ook offline beschikbaar)
+  try { localStorage.setItem(projCollegaKey(src,id), JSON.stringify(arr)); } catch(_) {}
+  if (!supa) return;
+  const jsonVal = arr.length > 0 ? JSON.stringify(arr) : null;
+  if (src === 'excel') {
+    const p = PROJECTEN.find(x => String(x.id) === String(id));
+    if (p) p.collega_initials = jsonVal;
+    supa.from('projecten').update({ collega_initials: jsonVal }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Collega initialen opslaan (excel) mislukt:', error);
+    });
+  } else if (src === 'pipeline') {
+    const hit = _pipeCardById(id);
+    if (hit) hit.card.collega_initials = jsonVal;
+    supa.from('pipeline_cards').update({ collega_initials: jsonVal }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Collega initialen opslaan (pipeline) mislukt:', error);
+    });
+  }
+}
 // Laad collega's; als nog niets opgeslagen, pre-fill vanuit bmField (bijv. "GS/LK")
 function projCollegaLoadOrDefault(src, id, bmField) {
   const stored = projCollegaLoad(src, id);
@@ -6963,7 +6992,8 @@ function _pipeCardFromRow(c) {
     goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht,
     definitieve_einddatum: c.definitieve_einddatum || null,
     verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten,
-    kand_status: c.kand_status || null, bm_naam: c.bm_naam };
+    kand_status: c.kand_status || null, bm_naam: c.bm_naam,
+    collega_initials: c.collega_initials || null };
 }
 
 // Haalt alle pipeline-kaarten op uit de database.
