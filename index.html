@@ -2131,20 +2131,23 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
   const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === year && d.week === week);
   const existing     = existingRow || {};
   const alreadySaved = !!existingRow;
-  const unlocked      = !alreadySaved || WEEKLY_EDIT_UNLOCKED.has(lockKey);
+  const unlocked      = WEEKLY_EDIT_UNLOCKED.has(lockKey); // altijd bevroren tot expliciete Wijzigen-klik
 
-  const frozen = alreadySaved && !unlocked;
+  const frozen = !unlocked;
 
-  // Concept-aantallen: zolang de week nog niet bevroren is, komen de velden
-  // automatisch overeen met het aantal kaartjes per fase in de pipeline van
-  // deze week. De BM moet alsnog op "Opslaan" drukken om te accorderen.
+  // Weergavewaarden: als al opgeslagen → toon opgeslagen waarde; anders pipeline-telling als preview.
+  // Bij bewerken (unlocked): toon opgeslagen waarde als die er is, anders pipeline-telling.
   const pipeCounts = getPipeCountsForWeek(bm.naam, week, year);
   const fields = KPIS.map(k => {
-    const conceptVal = frozen ? (existing[k] ?? 0) : pipeCounts[k];
+    const displayVal = alreadySaved ? (existing[k] ?? 0) : pipeCounts[k];
+    const savedStyle   = 'border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;font-weight:700;';
+    const editStyle    = 'border:1px solid var(--border);background:#fff;';
+    const previewStyle = 'border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-weight:400;'; // bevroren maar nog niet opgeslagen
+    const inputStyle   = unlocked ? editStyle : (alreadySaved ? savedStyle : previewStyle);
     return `
     <div>
       <label style="display:block;font-size:.72rem;color:var(--muted);margin-bottom:3px;">${KPI_LABELS[k]}</label>
-      <input type="number" min="0" ${(k==='starters'||k==='contractvoorstellen')?'step="0.5"':''} id="inv-${k}-${safeId}" value="${conceptVal}" ${unlocked?'':'disabled'} style="width:74px;border:1px solid ${frozen?'#bbf7d0':'var(--border)'};border-radius:6px;padding:5px 7px;font-size:.85rem;font-weight:${frozen?'700':'400'};${frozen?'background:#f0fdf4;color:#15803d;':''}">
+      <input type="number" min="0" ${(k==='starters'||k==='contractvoorstellen')?'step="0.5"':''} id="inv-${k}-${safeId}" value="${displayVal}" ${unlocked?'':'disabled'} style="width:74px;${inputStyle}border-radius:6px;padding:5px 7px;font-size:.85rem;">
     </div>`;
   }).join('');
 
@@ -2153,7 +2156,9 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
     : `<button onclick="unlockWeeklyEntry('${escApos(bm.naam)}',${week},${year})" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:7px 16px;font-weight:700;font-size:.85rem;cursor:pointer;">✏️ Wijzigen</button>`;
 
   const statusText = frozen
-    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">🔒 Bevroren &amp; opgeslagen voor deze week</span>`
+    ? alreadySaved
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">🔒 Bevroren &amp; opgeslagen voor deze week</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:4px;background:#f8f9fa;color:#6b7280;border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:.78rem;">⬜ Nog niet ingevoerd — klik Wijzigen</span>`
     : '';
 
   return `<div class="week-actions" style="margin-bottom:16px;${frozen ? 'background:rgba(240,253,244,0.55);border-radius:10px;padding:6px 8px;' : ''}">
