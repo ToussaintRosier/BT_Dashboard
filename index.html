@@ -12829,13 +12829,15 @@ function renderPipeline(bm) {
     const summaryText = stageCounts.map((n,i) => `${KPI_LABELS_SHORT[i]}: ${n}`).join(' · ');
 
     // Opslaan / Wijzigen knop in de balk
-    let weekBtnHtml = '';
-    let weekFrozen  = false;
+    let weekBtnHtml  = '';
+    let weekFrozen   = false;
+    let weekEditable = false;
     if (editable) {
       const lockKey     = `${bm.naam}|${wk.year}|${wk.week}`;
       const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === wk.year && d.week === wk.week);
       const frozen      = !!existingRow && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
-      weekFrozen = frozen;
+      weekFrozen   = frozen;
+      weekEditable = !frozen;
       const bStyle = 'font-size:.72rem;font-weight:700;border-radius:6px;padding:3px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;line-height:1.6;';
       if (frozen) {
         weekBtnHtml = `<button onclick="event.stopPropagation();unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bStyle}background:#fff;color:var(--primary);border:1px solid var(--primary);">✏️ Wijzigen</button>`;
@@ -12867,7 +12869,7 @@ function renderPipeline(bm) {
           ? `<input class="card-aanb-input" type="number" min="0" max="99" value="${c.aanb||0}"
                onchange="pipeUpdateAanb('${bmE}','${c.id}',this.value)"
                onclick="event.stopPropagation()" ondragstart="event.stopPropagation()"
-               style="width:28px;margin-right:2px;" ${editable?'':'disabled readonly'}/>`
+               style="width:28px;margin-right:2px;" ${weekEditable?'':'disabled readonly'}/>`
           : '';
         const aanbHtml = '';
         const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
@@ -12875,7 +12877,7 @@ function renderPipeline(bm) {
           ? `<div class="card-aanb-row">
                <select class="card-aanb-input" style="width:auto;flex:1;font-weight:600;"
                  onchange="pipeUpdateGesprek('${bmE}','${c.id}',this.value)"
-                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" ${editable?'':'disabled'}>
+                 onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" ${weekEditable?'':'disabled'}>
                  <option value="">Gesprek —</option>
                  ${gesprekOpts}
                </select>
@@ -12883,10 +12885,10 @@ function renderPipeline(bm) {
           : '';
         const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
-        return `<div class="pipe-card" draggable="${editable?'true':'false'}"
-          ondragstart="pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')"
+        return `<div class="pipe-card" draggable="${weekEditable?'true':'false'}"
+          ondragstart="${weekEditable ? `pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')` : ''}"
           ondragend="pipeDragEnd(event)">
-          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${aanbInlineHtml}${editable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
+          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${aanbInlineHtml}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">✏️</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
           ${metaHtml}
           ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
           ${gesprekHtml}
@@ -12895,15 +12897,15 @@ function renderPipeline(bm) {
       }).join('');
 
       return `<div class="pipe-cell${isCur?' pipe-cell-now':isPast?' pipe-cell-past':''}"
-        ondragover="pipeDragOver(event)"
-        ondragleave="pipeDragLeave(event)"
-        ondrop="pipeDrop(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year})">
+        ondragover="${weekEditable ? 'pipeDragOver(event)' : ''}"
+        ondragleave="${weekEditable ? 'pipeDragLeave(event)' : ''}"
+        ondrop="${weekEditable ? `pipeDrop(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year})` : ''}">
         <div class="pipe-cell-hdr" style="background:${col.bg}">
           <span class="pipe-cell-hdr-name" style="color:${col.text}">${stage}</span>
           <span class="pipe-cell-hdr-cnt" style="background:${col.text}22;color:${col.text}">${cellCount}</span>
         </div>
         ${cardsHtml}
-        ${editable ? `<button class="pipe-add-btn" onclick="pipeOpenModal('${bmE}','${escApos(stage)}',${wk.week},${wk.year})">+ toevoegen</button>` : ''}
+        ${weekEditable ? `<button class="pipe-add-btn" onclick="pipeOpenModal('${bmE}','${escApos(stage)}',${wk.week},${wk.year})">+ toevoegen</button>` : ''}
       </div>`;
     }).join('');
 
