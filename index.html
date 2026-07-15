@@ -890,13 +890,13 @@ function renderTabs() {
         </div>
       </div>
       <div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab===BMS.length||currentTab===BMS.length+1||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+        <div class="sidebar-cat-btn ${(currentTab===BMS.length||currentTab==='projecten'||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           <span style="flex:1;">🏛️ Management</span>
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
           <button class="sidebar-item ${currentTab===BMS.length?'active':''}" onclick="selectTab(${BMS.length})">📊 Team Resultaten</button>
-          <button class="sidebar-item ${currentTab===BMS.length+1?'active':''}" onclick="selectTab(${BMS.length+1})">📈 Projecten</button>
+          <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">📈 Projecten</button>
           <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">📋 Commerciële Rapportage</button>
           <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">🗂️ HRM/Backoffice</button>
         </div>
@@ -942,13 +942,13 @@ function renderTabs() {
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab===prognoseIdx||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+      <div class="sidebar-cat-btn ${(currentTab===teamIdx||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         <span style="flex:1;">🏛️ Management</span>
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
         <button class="sidebar-item ${currentTab===teamIdx?'active':''}" onclick="selectTab(${teamIdx})">📊 Team Resultaten</button>
-        <button class="sidebar-item ${currentTab===prognoseIdx?'active':''}" onclick="selectTab(${prognoseIdx})">📈 Projecten</button>
+        <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">📈 Projecten</button>
         <button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">💰 Financieel</button>
         <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">📋 Commerciële Rapportage</button>
         <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">🗂️ HRM/Backoffice</button>
@@ -1462,7 +1462,7 @@ function selectTab(i) {
   gesprekSubView='recorder'; bezoekSubView='recorder';
   try { localStorage.setItem('bt_last_tab', JSON.stringify(i)); } catch(_) {}
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
-  if (i === 'financieel' || i === 'hrm' || i === 'comrap' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
+  if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
@@ -2087,6 +2087,7 @@ function render() {
   if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
   if (currentTab === 'beheer') { if (isBeheerder()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
+  if (currentTab === 'projecten') { renderPrognose(); return; }
   if (currentTab < BMS.length) renderBM(BMS[currentTab]);
   else if (currentTab === BMS.length) renderTeam();
   else                                 renderPrognose();
@@ -2915,10 +2916,13 @@ async function loadProfileAndStart() {
     try {
       const saved = JSON.parse(localStorage.getItem('bt_last_tab'));
       if (saved !== null && saved !== undefined) {
-        const validStr = ['accounts','financieel','hrm','kandidaten','cvgen','plaatsing','gesprek','bezoek','medewerkers'];
+        const validStr = ['accounts','financieel','hrm','kandidaten','cvgen','plaatsing','gesprek','bezoek','medewerkers','projecten','comrap'];
         if (validStr.includes(saved)) {
           currentTab = saved;
-        } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved <= BMS.length + 1) {
+        } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved < BMS.length) {
+          // Alleen numerieke BM-tabs herstellen (< BMS.length); Team/Prognose
+          // hebben nu string-keys zodat stale numerieke Projecten-index niet meer
+          // per ongeluk renderTeam() triggert.
           currentTab = saved;
         }
       }
