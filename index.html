@@ -7139,7 +7139,7 @@ async function accountsSaveRow(id) {
     op_cp:    textOrNull(getVal('opcp')),
     voorwaarden_bekend: getVal('voorw') || null,
     actief_aanbieden:   getVal('actief') || null,
-    notitie:  (() => { const el = document.getElementById(`acc-top11-${safeId}`); return el && el.checked ? 'top11' : null; })(),
+    notitie:  (() => { const el = document.getElementById(`acc-top11-${safeId}`); return el ? (el.value || null) : null; })(),
   };
   ACC_SCORE_FIELDS.forEach(([f]) => { updates[f] = clampScore(getVal('score-' + f)); });
 
@@ -7193,7 +7193,7 @@ function accountsOpenNewModal() {
   document.getElementById('acc-modal-opcp').value = '';
   document.getElementById('acc-modal-voorw').value = '';
   document.getElementById('acc-modal-actief').value = '';
-  document.getElementById('acc-modal-notitie').checked = false;
+  document.getElementById('acc-modal-notitie').value = '';
   document.getElementById('acc-modal').classList.add('open');
   setTimeout(() => document.getElementById('acc-modal-naam').focus(), 50);
 }
@@ -7214,7 +7214,7 @@ async function accountsConfirmNew() {
     op_cp: textOrNull(document.getElementById('acc-modal-opcp').value),
     voorwaarden_bekend: document.getElementById('acc-modal-voorw').value || null,
     actief_aanbieden: document.getElementById('acc-modal-actief').value || null,
-    notitie: document.getElementById('acc-modal-notitie').checked ? 'top11' : null,
+    notitie: document.getElementById('acc-modal-notitie').value || null,
   };
   ACC_SCORE_FIELDS.forEach(([f]) => {
     const el = document.getElementById(`acc-modal-score-${f}`);
@@ -8255,12 +8255,16 @@ function renderStrategischeLeadsHtml(subTabBtns) {
          </select>`
       : (a.actief_aanbieden==='ja' ? `<span class="badge badge-green">Ja</span>` : a.actief_aanbieden==='nee' ? `<span class="badge badge-red">Nee</span>` : `<span style="color:var(--muted);">—</span>`);
     const top11Cell = editing
-      ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;justify-content:center;">
-           <input type="checkbox" id="acc-top11-${safeId}" ${a.notitie==='top11'?'checked':''}
-             style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;">
-           <span style="font-size:.78rem;font-weight:600;">Top 11</span>
-         </label>`
-      : (a.notitie==='top11' ? `<span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #fde68a;">⭐ Top 11</span>` : `<span style="color:var(--muted);">—</span>`);
+      ? `<select id="acc-top11-${safeId}" class="acc-select" style="width:100%;font-size:.78rem;">
+           <option value="" ${!a.notitie?'selected':''}>—</option>
+           <option value="top11" ${a.notitie==='top11'?'selected':''}>⭐ Top 11</option>
+           <option value="gwnst11" ${a.notitie==='gwnst11'?'selected':''}>🔵 Gwnst 11</option>
+         </select>`
+      : a.notitie==='top11'
+        ? `<span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #fde68a;">⭐ Top 11</span>`
+        : a.notitie==='gwnst11'
+          ? `<span style="background:#dbeafe;color:#1e40af;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #93c5fd;">🔵 Gwnst 11</span>`
+          : `<span style="color:var(--muted);">—</span>`;
 
     const actionsCell = !canEditAccounts
       ? ''
@@ -13313,10 +13317,14 @@ function pipeDelete(bmNaam, cardId) {
         <option value="nee">Nee</option>
       </select>
     </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer;margin:4px 0 10px;">
-      <input type="checkbox" id="acc-modal-notitie" style="width:16px;height:16px;accent-color:var(--primary);">
-      Markeren als Top 11 klant
-    </label>
+    <div style="margin:4px 0 10px;">
+      <label style="display:block;font-size:.72rem;color:var(--muted);margin-bottom:4px;">Markering</label>
+      <select id="acc-modal-notitie" style="width:100%;font-size:.85rem;">
+        <option value="">— Geen markering</option>
+        <option value="top11">⭐ Top 11</option>
+        <option value="gwnst11">🔵 Gwnst 11</option>
+      </select>
+    </div>
     <div class="pipe-modal-btns">
       <button class="pipe-modal-cancel" onclick="accountsCloseNewModal()">Annuleren</button>
       <button class="pipe-modal-ok" onclick="accountsConfirmNew()">Invoeren</button>
