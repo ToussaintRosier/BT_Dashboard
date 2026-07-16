@@ -7511,7 +7511,11 @@ function renderAccountplannenHtml(subTabBtns) {
     const sid    = apSafeId(rec.id);
     const isOpen = ACCOUNTPLAN_OPEN.has(String(rec.id));
 
-    const _apAcc = ACCOUNTS_CACHE.find(a => (a.naam||'').toLowerCase() === (rec.opdrachtgever||'').toLowerCase());
+    const _apNaamPlan = (rec.opdrachtgever||'').trim().toLowerCase();
+    const _apAcc = ACCOUNTS_CACHE.find(a => {
+      const n = (a.naam||'').trim().toLowerCase();
+      return n === _apNaamPlan || (n.length > 3 && (n.includes(_apNaamPlan) || _apNaamPlan.includes(n)));
+    });
     const _apNotitie = _apAcc ? _apAcc.notitie : null;
     const _apBadge = _apNotitie === 'top11'
       ? `<span style="background:#fef3c7;color:#92400e;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #fde68a;white-space:nowrap;">⭐ Top 11</span>`
