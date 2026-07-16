@@ -7001,7 +7001,15 @@ function _pipeCardFromRow(c) {
     definitieve_einddatum: c.definitieve_einddatum || null,
     verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten,
     kand_status: c.kand_status || null, bm_naam: c.bm_naam,
-    collega_initials: c.collega_initials || null };
+    collega_initials: c.collega_initials || null,
+    cao: c.cao || null, contractvorm: c.contractvorm || null,
+    salaris_bpm: c.salaris_bpm ?? null, wtta: c.wtta ?? null,
+    tarief_2026: c.tarief_2026 ?? null, allin: c.allin || null,
+    verlof: c.verlof ?? null, adv: c.adv ?? null, compensatie: c.compensatie ?? null,
+    kostprijs: c.kostprijs ?? null, vergoeding: c.vergoeding ?? null,
+    frequentie: c.frequentie || null, marge: c.marge ?? null,
+    marge_pct: c.marge_pct ?? null, uren: c.uren ?? null,
+    marge_pw: c.marge_pw ?? null, eju: c.eju || null };
 }
 
 // Haalt alle pipeline-kaarten op uit de database.
@@ -12448,12 +12456,37 @@ function projContractLoad(src, id) {
       bonus:       lsBonus,
     };
   }
-  try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}'); } catch(_){ return {}; }
+  // pipeline → lees uit PIPE_CACHE (Supabase-gebaseerd, gedeeld met alle gebruikers)
+  const hit = _pipeCardById(id);
+  if (!hit) return {};
+  const card = hit.card;
+  const lsBonus = (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
+  return {
+    projectnr:   '',
+    cao:         String(card.cao          ?? ''),
+    contract:    String(card.contractvorm ?? ''),
+    salaris_bpm: card.salaris_bpm  != null ? String(card.salaris_bpm)  : '',
+    wtta:        card.wtta         != null ? String(card.wtta)         : '0',
+    tarief:      card.tarief_2026  != null ? String(card.tarief_2026)  : '',
+    allin:       String(card.allin        ?? ''),
+    verlof:      card.verlof       != null ? String(card.verlof)       : '',
+    adv:         card.adv          != null ? String(card.adv)          : '',
+    comp:        card.compensatie  != null ? String(card.compensatie)  : '',
+    kostprijs:   card.kostprijs    != null ? String(card.kostprijs)    : '',
+    vergoeding:  card.vergoeding   != null ? String(card.vergoeding)   : '',
+    frequentie:  String(card.frequentie   ?? ''),
+    marge:       card.marge        != null ? String(card.marge)        : '',
+    marge_pct:   card.marge_pct    != null ? String(card.marge_pct)    : '',
+    uren:        card.uren         != null ? String(card.uren)         : '',
+    marge_pw:    card.marge_pw     != null ? String(card.marge_pw)     : '',
+    eju:         String(card.eju          ?? '') || 'NVT',
+    bonus:       lsBonus,
+  };
 }
 
 // Slaat contractdata op:
 //   src='excel'    → Supabase UPDATE (fire-and-forget) + lokale cache bijwerken; bonus in localStorage
-//   src='pipeline' → localStorage
+//   src='pipeline' → Supabase UPDATE op pipeline_cards + PIPE_CACHE bijwerken; bonus in localStorage
 function projContractSave(src, id, obj) {
   if (src === 'excel') {
     // Bonus is niet in DB — bewaar apart in localStorage
@@ -12501,7 +12534,50 @@ function projContractSave(src, id, obj) {
     });
     return;
   }
-  try { localStorage.setItem(projContractKey(src,id), JSON.stringify(obj)); } catch(_) {}
+  // pipeline → Supabase UPDATE op pipeline_cards; bonus apart in localStorage
+  try {
+    const ls = JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}');
+    ls.bonus = obj.bonus || '';
+    localStorage.setItem(projContractKey(src,id), JSON.stringify(ls));
+  } catch(_) {}
+  const _hit = _pipeCardById(id);
+  if (_hit) {
+    const _n = v => (v !== '' && v != null) ? +v : null;
+    const _upd = {
+      cao:          obj.cao        || null,
+      contractvorm: obj.contract   || null,
+      salaris_bpm:  _n(obj.salaris_bpm),
+      wtta:         _n(obj.wtta),
+      tarief_2026:  _n(obj.tarief),
+      allin:        obj.allin      || null,
+      verlof:       _n(obj.verlof),
+      adv:          _n(obj.adv),
+      compensatie:  _n(obj.comp),
+      kostprijs:    _n(obj.kostprijs),
+      vergoeding:   _n(obj.vergoeding),
+      frequentie:   obj.frequentie || null,
+      marge:        _n(obj.marge),
+      marge_pct:    _n(obj.marge_pct),
+      uren:         _n(obj.uren),
+      marge_pw:     _n(obj.marge_pw),
+      eju:          obj.eju        || null,
+      updated_at:   new Date().toISOString(),
+    };
+    // PIPE_CACHE synchroon bijwerken zodat herrender direct de juiste waarden toont
+    Object.assign(_hit.card, {
+      cao: _upd.cao, contractvorm: _upd.contractvorm,
+      salaris_bpm: _upd.salaris_bpm, wtta: _upd.wtta,
+      tarief_2026: _upd.tarief_2026, allin: _upd.allin,
+      verlof: _upd.verlof, adv: _upd.adv, compensatie: _upd.compensatie,
+      kostprijs: _upd.kostprijs, vergoeding: _upd.vergoeding,
+      frequentie: _upd.frequentie, marge: _upd.marge,
+      marge_pct: _upd.marge_pct, uren: _upd.uren,
+      marge_pw: _upd.marge_pw, eju: _upd.eju,
+    });
+    if (supa) supa.from('pipeline_cards').update(_upd).eq('id', id).then(({ error }) => {
+      if (error) console.error('Contract opslaan (pipeline) mislukt:', error);
+    });
+  }
 }
 
 function projContractSet(src, id, key, val) {
