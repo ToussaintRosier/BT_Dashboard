@@ -7457,10 +7457,19 @@ function renderAccountplannenHtml(subTabBtns) {
     const sid    = apSafeId(rec.id);
     const isOpen = ACCOUNTPLAN_OPEN.has(String(rec.id));
 
+    const _apAcc = ACCOUNTS_CACHE.find(a => (a.naam||'').toLowerCase() === (rec.opdrachtgever||'').toLowerCase());
+    const _apNotitie = _apAcc ? _apAcc.notitie : null;
+    const _apBadge = _apNotitie === 'top11'
+      ? `<span style="background:#fef3c7;color:#92400e;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #fde68a;white-space:nowrap;">⭐ Top 11</span>`
+      : _apNotitie === 'gwnst11'
+        ? `<span style="background:#dbeafe;color:#1e40af;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid #93c5fd;white-space:nowrap;">🔵 Gwnst 11</span>`
+        : '';
+
     const header = `
       <div onclick="apToggle('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none;background:${isOpen?'var(--primary-light)':'#fff'};">
         <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${isOpen?90:0}deg);transition:transform .15s;">▶</span>
         <strong style="flex:1;font-size:.88rem;">${escHtml(rec.opdrachtgever)}</strong>
+        ${_apBadge}
         <span id="ap-save-badge-${sid}" style="font-size:.72rem;color:var(--primary);margin-right:8px;"></span>
         <span id="ap-date-${sid}" style="font-size:.75rem;color:var(--muted);white-space:nowrap;">Bijgewerkt: ${escHtml(apFmtDate(rec.updated_at))}</span>
         <span onclick="event.stopPropagation();apDelete('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 8px;margin-left:4px;" title="Verwijder plan">🗑</span>
