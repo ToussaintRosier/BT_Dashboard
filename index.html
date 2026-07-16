@@ -7354,9 +7354,63 @@ async function apNew() {
 
 async function apDelete(id) {
   if (!confirm('Weet je zeker dat je dit accountplan wilt verwijderen?')) return;
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (rec?.overeenkomst_path && supa) {
+    supa.storage.from('accountplannen-docs').remove([rec.overeenkomst_path]).catch(() => {});
+  }
   ACCOUNTPLAN_RECORDS = ACCOUNTPLAN_RECORDS.filter(r => String(r.id) !== String(id));
   ACCOUNTPLAN_OPEN.delete(String(id));
   if (supa) { try { await supa.from('accountplannen').delete().eq('id', id); } catch(e) {} }
+  renderAccounts();
+}
+
+async function apOvereenkomstUpload(id) {
+  if (!supa) { alert('Geen verbinding met database.'); return; }
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  const sid = apSafeId(id);
+  const inp = document.getElementById('ap-overeenkomst-input-' + sid);
+  if (!inp || !inp.files[0]) return;
+  const file = inp.files[0];
+  const statusEl = document.getElementById('ap-overeenkomst-status-' + sid);
+  if (statusEl) statusEl.textContent = 'Uploaden…';
+  // Verwijder oud bestand eerst
+  if (rec.overeenkomst_path) {
+    await supa.storage.from('accountplannen-docs').remove([rec.overeenkomst_path]).catch(() => {});
+  }
+  const storagePath = `${id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const { error: uploadErr } = await supa.storage
+    .from('accountplannen-docs')
+    .upload(storagePath, file, { upsert: true });
+  if (uploadErr) {
+    if (statusEl) statusEl.textContent = 'Upload mislukt: ' + uploadErr.message;
+    return;
+  }
+  rec.overeenkomst_path = storagePath;
+  rec.overeenkomst_naam = file.name;
+  await apSaveToSupa(id);
+  renderAccounts();
+}
+
+async function apOvereenkomstOpen(id) {
+  if (!supa) return;
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec?.overeenkomst_path) return;
+  const { data, error } = await supa.storage
+    .from('accountplannen-docs')
+    .createSignedUrl(rec.overeenkomst_path, 3600);
+  if (error || !data?.signedUrl) { alert('Bestand openen mislukt.'); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function apOvereenkomstDelete(id) {
+  if (!confirm('Samenwerkingsovereenkomst verwijderen van dit accountplan?')) return;
+  const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec?.overeenkomst_path) return;
+  if (supa) { await supa.storage.from('accountplannen-docs').remove([rec.overeenkomst_path]).catch(() => {}); }
+  rec.overeenkomst_path = null;
+  rec.overeenkomst_naam = null;
+  await apSaveToSupa(id);
   renderAccounts();
 }
 
@@ -7651,10 +7705,35 @@ function renderAccountplannenHtml(subTabBtns) {
         <div>${_apLabel('Succesmetingen')}${_apTxt(rec.id,'succesmetingen',rec.succesmetingen,'Hoe meten we succes?')}</div>
       </div>`);
 
+    // ── Samenwerkingsovereenkomst ─────────────────────────────────────────────
+    const overeenkomstBlock = rec.overeenkomst_path
+      ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+           <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📄 Samenwerkingsovereenkomst</div>
+           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+             <span style="font-size:.85rem;font-weight:600;">📎 ${escHtml(rec.overeenkomst_naam||'Bestand')}</span>
+             <button onclick="apOvereenkomstOpen('${rec.id}')" style="font-size:.78rem;padding:4px 12px;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;">📂 Openen</button>
+             <label style="font-size:.78rem;padding:4px 12px;background:transparent;color:var(--primary);border:1px solid var(--primary);border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+               🔄 Vervangen
+               <input type="file" id="ap-overeenkomst-input-${sid}" style="display:none;" onchange="apOvereenkomstUpload('${rec.id}')">
+             </label>
+             <button onclick="apOvereenkomstDelete('${rec.id}')" style="font-size:.78rem;padding:4px 10px;background:transparent;color:#e02424;border:1px solid #e02424;border-radius:5px;cursor:pointer;">🗑 Verwijderen</button>
+           </div>
+         </div>`
+      : `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+           <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📄 Samenwerkingsovereenkomst</div>
+           <div style="display:flex;align-items:center;gap:10px;">
+             <label style="font-size:.78rem;padding:5px 14px;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+               📎 Bestand toevoegen
+               <input type="file" id="ap-overeenkomst-input-${sid}" style="display:none;" onchange="apOvereenkomstUpload('${rec.id}')">
+             </label>
+             <span id="ap-overeenkomst-status-${sid}" style="font-size:.78rem;color:var(--muted);"></span>
+           </div>
+         </div>`;
+
     return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
       ${header}
       <div style="padding:18px 20px;border-top:1px solid var(--border);background:#fafbfd;">
-        ${kamBlock}${s1}${s5}${s2}${s3}${s4}
+        ${kamBlock}${s1}${s5}${s2}${s3}${s4}${overeenkomstBlock}
       </div>
     </div>`;
   }).join('');
