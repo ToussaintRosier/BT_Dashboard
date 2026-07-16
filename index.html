@@ -9645,8 +9645,11 @@ async function loadBezoekRecordsFromDb() {
 }
 
 function _recInitials(naam) {
-  if (!naam) return '';
-  return naam.trim().split(/\s+/).filter(w=>w).map(w=>w[0].toUpperCase()).slice(0,2).join('');
+  const tv = new Set(['van','de','den','der','ter','het',"'t",'op','in','aan','bij','tot','uit','over','voor','ten']);
+  const parts = (naam||'').trim().split(/\s+/).filter(w => w && !tv.has(w.toLowerCase()));
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
 }
 // Normalize naam/functie voor merge-key: trim + collapse whitespace
 function _gspNorm(s) { return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
