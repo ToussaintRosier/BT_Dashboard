@@ -9516,12 +9516,14 @@ let BEZOEK_OPEN         = new Set();
 let GESPREK_SHOW_TR     = new Set();
 let BEZOEK_SHOW_TR      = new Set();
 let GESPREK_HERANALYSE_BUSY = new Set(); // ids die momenteel worden hergeanalyseerd
+let BEZOEK_HERANALYSE_BUSY  = new Set();
 let _PROFILES_CACHE = null; // {id → naam} map, geladen bij eerste verslagen-fetch
 let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_records')||'[]').slice(0,50); } catch(_) { return []; } })();
 let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,50); } catch(_) { return []; } })();
 let _gesprekRecsLoaded = false;
 let _bezoekRecsLoaded  = false;
 let _gesprekResultOverrides = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_result_overrides')||'{}'); } catch(_) { return {}; } })();
+let _bezoekResultOverrides  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_result_overrides') ||'{}'); } catch(_) { return {}; } })();
 let _herlaadStatus = { gesprek: '', bezoek: '' };
 
 function gesprekHerlaadRecords() {
@@ -9620,7 +9622,7 @@ async function loadBezoekRecordsFromDb() {
     bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
     soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
     recorder_naam: r.meta?.recorder_naam || '',
-    result: r.result, transcript: r.transcript,
+    result: _bezoekResultOverrides[String(r.id)] ?? r.result, transcript: r.transcript,
   }));
   _saveBezoekRec();
   if (currentTab === 'bezoek') renderBezoekRecorder();
@@ -9633,6 +9635,14 @@ function _setResultOverride(id, result) {
 function _clearResultOverride(id) {
   delete _gesprekResultOverrides[String(id)];
   try { localStorage.setItem('bt_gesprek_result_overrides', JSON.stringify(_gesprekResultOverrides)); } catch(_) {}
+}
+function _setBezoekResultOverride(id, result) {
+  _bezoekResultOverrides[String(id)] = result;
+  try { localStorage.setItem('bt_bezoek_result_overrides', JSON.stringify(_bezoekResultOverrides)); } catch(_) {}
+}
+function _clearBezoekResultOverride(id) {
+  delete _bezoekResultOverrides[String(id)];
+  try { localStorage.setItem('bt_bezoek_result_overrides', JSON.stringify(_bezoekResultOverrides)); } catch(_) {}
 }
 function _recInitials(naam) {
   const tv = new Set(['van','de','den','der','ter','het',"'t",'op','in','aan','bij','tot','uit','over','voor','ten']);
@@ -9884,6 +9894,45 @@ async function gesprekRecordHeranalyse(id) {
   }
 }
 
+async function bezoekRecordHeranalyse(id) {
+  const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  if (!rec.transcript || rec.transcript.trim().length < 20) {
+    alert('Geen transcript beschikbaar voor heranalyse.');
+    return;
+  }
+  if (BEZOEK_HERANALYSE_BUSY.has(id)) return;
+  BEZOEK_HERANALYSE_BUSY.add(id);
+  renderBezoekRecords();
+  try {
+    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-analyse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
+      },
+      body: JSON.stringify({ bedrijf: rec.bedrijf, contactpersoon: rec.contactpersoon, soortBezoek: rec.soortBezoek || 'bedrijfsbezoek', transcript: rec.transcript }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error || !data.analyse || !data.analyse.samenvatting) {
+      throw new Error(data.error || 'Heranalyse mislukt.');
+    }
+    rec.result = data.analyse;
+    _setBezoekResultOverride(rec.id, data.analyse);
+    _saveBezoekRec();
+    if (supa) {
+      const { data: updData, error: updErr } = await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id).select('id').single();
+      if (!updErr && updData) _clearBezoekResultOverride(rec.id);
+    }
+  } catch(e) {
+    alert('Heranalyse mislukt: ' + e.message);
+  } finally {
+    BEZOEK_HERANALYSE_BUSY.delete(id);
+    renderBezoekRecords();
+  }
+}
+
 // Per-record HTML builder + acties – Bezoek
 function _bezoekRecordHtml(rec) {
   const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{}, cf=r.coachingFeedback||{};
@@ -10068,6 +10117,7 @@ function renderBezoekRecords() {
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordPrint('${rec.id}')">🖨️ Printen/PDF</button>
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordDownload('${rec.id}','word')">📄 Word</button>
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleBezoekTranscript('${rec.id}')">📜 ${showTr?'Verberg':'Toon'} transcript</button>
+            ${rec.transcript?(BEZOEK_HERANALYSE_BUSY.has(rec.id)?`<button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;opacity:.6;" disabled>⏳ Analyseren…</button>`:`<button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="bezoekRecordHeranalyse('${rec.id}')">🔄 Heranalyse</button>`):''}
           </div>
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
