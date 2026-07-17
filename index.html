@@ -9873,8 +9873,8 @@ async function gesprekRecordHeranalyse(id) {
     _setResultOverride(rec.id, data.analyse); // overleeft page-refresh én DB-reload
     _saveGesprekRec();
     if (supa) {
-      const { error: updErr } = await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id);
-      if (!updErr) _clearResultOverride(rec.id); // DB bijgewerkt → override niet meer nodig
+      const { data: updData, error: updErr } = await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id).select('id').single();
+      if (!updErr && updData) _clearResultOverride(rec.id); // DB echt bijgewerkt (rij teruggekregen) → override niet meer nodig
     }
   } catch(e) {
     alert('Heranalyse mislukt: ' + e.message);
