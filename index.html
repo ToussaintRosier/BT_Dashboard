@@ -4287,6 +4287,11 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
     const bgCol = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
     const stIn  = `font-size:.6rem;padding:1px 2px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgCol};${frozen?'color:#555;':''}`;
 
+    // Projectnr: voor excel-projecten altijd read-only (het is de DB-sleutel)
+    if (f.key === 'projectnr' && src === 'excel') {
+      return `<span style="${stIn}display:inline-block;">${escHtml(val||'—')}</span>`;
+    }
+
     // Computed velden: altijd read-only span met id voor live-update
     if (f.computed) {
       let display;
@@ -12462,7 +12467,7 @@ function projContractLoad(src, id) {
   const card = hit.card;
   const lsBonus = (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
   return {
-    projectnr:   '',
+    projectnr:   String(card.projectnr ?? ''),
     cao:         String(card.cao          ?? ''),
     contract:    String(card.contractvorm ?? ''),
     salaris_bpm: card.salaris_bpm  != null ? String(card.salaris_bpm)  : '',
@@ -12544,6 +12549,7 @@ function projContractSave(src, id, obj) {
   if (_hit) {
     const _n = v => (v !== '' && v != null) ? +v : null;
     const _upd = {
+      projectnr:    obj.projectnr  || null,
       cao:          obj.cao        || null,
       contractvorm: obj.contract   || null,
       salaris_bpm:  _n(obj.salaris_bpm),
@@ -12565,6 +12571,7 @@ function projContractSave(src, id, obj) {
     };
     // PIPE_CACHE synchroon bijwerken zodat herrender direct de juiste waarden toont
     Object.assign(_hit.card, {
+      projectnr: _upd.projectnr,
       cao: _upd.cao, contractvorm: _upd.contractvorm,
       salaris_bpm: _upd.salaris_bpm, wtta: _upd.wtta,
       tarief_2026: _upd.tarief_2026, allin: _upd.allin,
