@@ -5388,9 +5388,13 @@ function renderComrap() {
   const kpiLabels = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen',
     matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
 
-  // Per BM: gevonden weekrij + norm
+  // Per BM: gevonden weekrij + pipeline-telling samenvoegen (MAX), zodat niet-opgeslagen
+  // weken (bv. doorkijk week 30) toch pipeline-aantallen tonen.
   const bmRows = BMS.filter(bm => !bm.special).map(bm => {
-    const row = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const raw  = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const pipe = getPipeCountsForWeek(bm.naam, w, y);
+    const row  = {};
+    for (const k of kpiKeys) row[k] = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     return { naam: bm.naam, row, norm };
@@ -5647,13 +5651,18 @@ async function comrapAnalyse() {
   const w = st.week; const y = st.jaar;
   const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 
-  // Bouw structured data
+  // Bouw structured data — gebruik MAX(opgeslagen, pipeline) zodat pipeline-aantallen
+  // altijd meegaan, ook als de weekrij nog niet handmatig is opgeslagen.
   const bmData = BMS.filter(bm => !bm.special).map(bm => {
-    const row   = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const raw    = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const pipe   = getPipeCountsForWeek(bm.naam, w, y);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     const kpis   = {};
-    for (const k of kpiKeys) kpis[k] = { realisatie: parseFloat(row[k]) || 0, norm: norm[k] || 0 };
+    for (const k of kpiKeys) {
+      const realisatie = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
+      kpis[k] = { realisatie, norm: norm[k] || 0 };
+    }
     return { naam: bm.naam, rol: bm.rol || 'Business Manager', kpis };
   });
 
