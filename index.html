@@ -5403,23 +5403,12 @@ function renderComrap() {
   const kpiLabels = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen',
     matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
 
-  // Toekomstige weken (doorkijk): contractvoorstellen komen uit de huidige week,
-  // want kaartjes dragen de week van aanmaak (niet de toekomstige week).
-  const isFutureWeek = (y > CUR.year) || (y === CUR.year && w > CUR.week);
-
-  // Per BM: gevonden weekrij + pipeline-telling samenvoegen (MAX).
+  // Per BM: MAX(opgeslagen, pipeline) — zelfde logica als teamtotaal-view.
   const bmRows = BMS.filter(bm => !bm.special).map(bm => {
-    const raw      = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
-    const weekPipe = getPipeCountsForWeek(bm.naam, w, y);
-    // Voor toekomstige weken: contractvoorstellen van de huidige week als proxy
-    const curPipe  = isFutureWeek ? getPipeCountsForWeek(bm.naam, CUR.week, CUR.year) : {};
+    const raw  = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const pipe = getPipeCountsForWeek(bm.naam, w, y);
     const row  = {};
-    for (const k of kpiKeys) {
-      const rawVal  = parseFloat(raw[k]) || 0;
-      const weekVal = weekPipe[k] || 0;
-      const curVal  = (isFutureWeek && k === 'contractvoorstellen') ? (curPipe[k] || 0) : 0;
-      row[k] = Math.max(rawVal, weekVal, curVal);
-    }
+    for (const k of kpiKeys) row[k] = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     return { naam: bm.naam, row, norm };
@@ -5676,21 +5665,15 @@ async function comrapAnalyse() {
   const w = st.week; const y = st.jaar;
   const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 
-  // Bouw structured data — toekomstige weken: contractvoorstellen uit de huidige week
-  // als proxy (kaartjes dragen week van aanmaak, niet toekomstige week).
-  const isFutureWeekA = (y > CUR.year) || (y === CUR.year && w > CUR.week);
+  // Bouw structured data — MAX(opgeslagen, pipeline), zelfde als teamtotaal-view.
   const bmData = BMS.filter(bm => !bm.special).map(bm => {
-    const raw      = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
-    const weekPipe = getPipeCountsForWeek(bm.naam, w, y);
-    const curPipe  = isFutureWeekA ? getPipeCountsForWeek(bm.naam, CUR.week, CUR.year) : {};
+    const raw    = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const pipe   = getPipeCountsForWeek(bm.naam, w, y);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     const kpis   = {};
     for (const k of kpiKeys) {
-      const rawVal = parseFloat(raw[k]) || 0;
-      const weekVal = weekPipe[k] || 0;
-      const curVal  = (isFutureWeekA && k === 'contractvoorstellen') ? (curPipe[k] || 0) : 0;
-      kpis[k] = { realisatie: Math.max(rawVal, weekVal, curVal), norm: norm[k] || 0 };
+      kpis[k] = { realisatie: Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0), norm: norm[k] || 0 };
     }
     return { naam: bm.naam, rol: bm.rol || 'Business Manager', kpis };
   });
