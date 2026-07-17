@@ -9085,19 +9085,10 @@ async function gesprekStart() {
     mr.ondataavailable = (e) => { if (e.data.size > 0) GESPREK.audioChunks.push(e.data); };
     mr.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
+      // Één blob van alle chunks — ook na meerdere pauze/hervat-cycli
       const blob = new Blob(GESPREK.audioChunks, { type: mr.mimeType || 'audio/webm' });
-      if (GESPREK._stopMode === 'pauze') {
-        GESPREK.pendingBlobs.push(blob);
-        GESPREK.recording = false;
-        GESPREK.paused = true;
-        GESPREK.statusMsg = '';
-        renderGesprek();
-      } else {
-        const allBlobs = [...GESPREK.pendingBlobs, blob];
-        const combined = new Blob(allBlobs, { type: mr.mimeType || 'audio/webm' });
-        GESPREK.pendingBlobs = [];
-        gesprekUpload(combined, mr.mimeType || 'audio/webm');
-      }
+      GESPREK.pendingBlobs = [];
+      gesprekUpload(blob, mr.mimeType || 'audio/webm');
     };
 
     mr.start(1000);
@@ -9111,82 +9102,43 @@ async function gesprekStart() {
 
 function gesprekPauze() {
   if (!GESPREK.recording) return;
-  GESPREK._stopMode = 'pauze';
   if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
   GESPREK.totalRecordingTime = (GESPREK.totalRecordingTime || 0) + GESPREK.recordingTime;
   GESPREK.recordingTime = 0;
-  if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state !== 'inactive') {
-    GESPREK.mediaRecorder.stop();
+  // pause() i.p.v. stop() — zelfde MediaRecorder-sessie blijft actief → één geldige WebM-blob
+  if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state === 'recording') {
+    GESPREK.mediaRecorder.pause();
   }
   GESPREK.recording = false;
+  GESPREK.paused = true;
   GESPREK.statusMsg = '';
   renderGesprek();
 }
 
 async function gesprekDoorgaan() {
   if (GESPREK.recording || GESPREK.analyzing) return;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-    const mr = mimeType ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 16000 }) : new MediaRecorder(stream, { audioBitsPerSecond: 16000 });
-    GESPREK.mediaRecorder = mr;
-    GESPREK.audioChunks = [];
+  // resume() op dezelfde MediaRecorder — geen nieuwe instantie nodig
+  if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state === 'paused') {
+    GESPREK.mediaRecorder.resume();
     GESPREK.recording = true;
     GESPREK.paused = false;
-    GESPREK._stopMode = 'stop';
     GESPREK.statusMsg = '';
-
-    mr.ondataavailable = (e) => { if (e.data.size > 0) GESPREK.audioChunks.push(e.data); };
-    mr.onstop = () => {
-      stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(GESPREK.audioChunks, { type: mr.mimeType || 'audio/webm' });
-      if (GESPREK._stopMode === 'pauze') {
-        GESPREK.pendingBlobs.push(blob);
-        GESPREK.recording = false;
-        GESPREK.paused = true;
-        GESPREK.statusMsg = '';
-        renderGesprek();
-      } else {
-        const allBlobs = [...GESPREK.pendingBlobs, blob];
-        const combined = new Blob(allBlobs, { type: mr.mimeType || 'audio/webm' });
-        GESPREK.pendingBlobs = [];
-        gesprekUpload(combined, mr.mimeType || 'audio/webm');
-      }
-    };
-
-    mr.start(1000);
     GESPREK.timerInterval = setInterval(() => { GESPREK.recordingTime++; renderGesprek(); }, 1000);
-    renderGesprek();
-  } catch(err) {
-    GESPREK.statusMsg = '⚠️ Microfoontoegang geweigerd: ' + err.message;
     renderGesprek();
   }
 }
 
 function gesprekStop() {
-  if (GESPREK.paused && !GESPREK.recording) {
-    // Gepauzeerd, geen actieve opname — upload direct de opgebouwde segmenten
-    GESPREK.paused = false;
-    GESPREK.analyzing = true;
-    GESPREK.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
-    const mimeType = (GESPREK.pendingBlobs[0] && GESPREK.pendingBlobs[0].type) || 'audio/webm';
-    const combined = new Blob(GESPREK.pendingBlobs, { type: mimeType });
-    GESPREK.pendingBlobs = [];
-    renderGesprek();
-    gesprekUpload(combined, mimeType);
-    return;
-  }
   if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
-  GESPREK._stopMode = 'stop';
+  GESPREK.recording = false;
+  GESPREK.paused = false;
+  GESPREK.analyzing = true;
+  GESPREK.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
+  renderGesprek();
+  // Stop de MediaRecorder — ook als hij gepauzeerd was; onstop handelt de upload af
   if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state !== 'inactive') {
     GESPREK.mediaRecorder.stop();
   }
-  GESPREK.recording = false;
-  GESPREK.paused = false;
-  GESPREK.statusMsg = '⏳ Audio uploaden en transcriptie starten…';
-  renderGesprek();
 }
 
 async function gesprekUpload(blob, mimeType) {
