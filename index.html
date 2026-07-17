@@ -9559,10 +9559,11 @@ function renderGesprek() {
 // ── Recente Records – opslag + beheer (localStorage, max 30) ─────────────────
 let gesprekSubView = 'recorder'; // 'recorder' | 'records'
 let bezoekSubView  = 'recorder'; // 'recorder' | 'records'
-let GESPREK_OPEN    = new Set();
-let BEZOEK_OPEN     = new Set();
-let GESPREK_SHOW_TR = new Set();
-let BEZOEK_SHOW_TR  = new Set();
+let GESPREK_OPEN        = new Set();
+let BEZOEK_OPEN         = new Set();
+let GESPREK_SHOW_TR     = new Set();
+let BEZOEK_SHOW_TR      = new Set();
+let GESPREK_HERANALYSE_BUSY = new Set(); // ids die momenteel worden hergeanalyseerd
 let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_records')||'[]').slice(0,50); } catch(_) { return []; } })();
 let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,50); } catch(_) { return []; } })();
 let _gesprekRecsLoaded = false;
@@ -9872,8 +9873,9 @@ async function gesprekRecordHeranalyse(id) {
     alert('Geen transcript beschikbaar voor heranalyse.');
     return;
   }
-  const btn = document.getElementById('heranalyse-btn-' + id);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyseren…'; }
+  if (GESPREK_HERANALYSE_BUSY.has(id)) return;
+  GESPREK_HERANALYSE_BUSY.add(id);
+  renderGesprekRecords(); // knop toont direct ⏳ ook als user wegnavigeert en terugkomt
   try {
     const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
     const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
@@ -9892,10 +9894,11 @@ async function gesprekRecordHeranalyse(id) {
     if (supa) {
       await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id);
     }
-    renderGesprekRecords();
   } catch(e) {
     alert('Heranalyse mislukt: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Heranalyse'; }
+  } finally {
+    GESPREK_HERANALYSE_BUSY.delete(id);
+    renderGesprekRecords();
   }
 }
 
@@ -10010,7 +10013,7 @@ function renderGesprekRecords() {
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordPrint('${rec.id}')">🖨️ Printen/PDF</button>
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordDownload('${rec.id}','word')">📄 Word</button>
             <button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;${showTr?'background:var(--primary-light);border-color:var(--primary);color:var(--primary);':''}" onclick="toggleGesprekTranscript('${rec.id}')">📜 ${showTr?'Verberg':'Toon'} transcript</button>
-            ${rec.transcript?`<button id="heranalyse-btn-${rec.id}" class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordHeranalyse('${rec.id}')">🔄 Heranalyse</button>`:''}
+            ${rec.transcript?(GESPREK_HERANALYSE_BUSY.has(rec.id)?`<button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;opacity:.6;" disabled>⏳ Analyseren…</button>`:`<button class="btn-secondary" style="font-size:.78rem;padding:5px 11px;" onclick="gesprekRecordHeranalyse('${rec.id}')">🔄 Heranalyse</button>`):''}
           </div>
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
