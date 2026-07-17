@@ -9564,6 +9564,7 @@ let BEZOEK_OPEN         = new Set();
 let GESPREK_SHOW_TR     = new Set();
 let BEZOEK_SHOW_TR      = new Set();
 let GESPREK_HERANALYSE_BUSY = new Set(); // ids die momenteel worden hergeanalyseerd
+let _PROFILES_CACHE = null; // {id → naam} map, geladen bij eerste verslagen-fetch
 let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_records')||'[]').slice(0,50); } catch(_) { return []; } })();
 let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,50); } catch(_) { return []; } })();
 let _gesprekRecsLoaded = false;
@@ -9595,6 +9596,15 @@ function _saveGesprekRec() { try { localStorage.setItem('bt_gesprek_records', JS
 function _saveBezoekRec()  { try { localStorage.setItem('bt_bezoek_records',  JSON.stringify(BEZOEK_RECORDS));  } catch(_) {} }
 
 // Sla een verslag op in Supabase zodat alle collega's het kunnen zien
+async function _ensureProfilesCache() {
+  if (_PROFILES_CACHE) return;
+  _PROFILES_CACHE = {};
+  if (!supa) return;
+  try {
+    const { data } = await supa.from('profiles').select('id, naam, bm_naam').limit(100);
+    (data || []).forEach(p => { _PROFILES_CACHE[p.id] = p.naam || p.bm_naam || ''; });
+  } catch(_) {}
+}
 async function _saveVerslagToSupa(type, meta, result, transcript) {
   if (!supa) return;
   try { await supa.from('verslagen').insert({ type, meta, result, transcript, created_by: CURRENT_USER?.id || null }); } catch(_) {}
@@ -9611,6 +9621,7 @@ async function _loadVerlagenFromSupa(type) {
 }
 
 async function loadGesprekRecordsFromDb() {
+  await _ensureProfilesCache();
   const rows = await _loadVerlagenFromSupa('gesprek');
   if (!rows || !rows.length) return;
   const fmt = { day:'2-digit', month:'long', year:'numeric' };
@@ -9618,7 +9629,7 @@ async function loadGesprekRecordsFromDb() {
     id: r.id,
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     naam: r.meta?.naam || '', functie: r.meta?.functie || '',
-    recorder_naam: r.meta?.recorder_naam || '',
+    recorder_naam: r.meta?.recorder_naam || (_PROFILES_CACHE && r.created_by ? (_PROFILES_CACHE[r.created_by] || '') : ''),
     result: r.result, transcript: r.transcript,
   }));
   _saveGesprekRec();
@@ -9645,6 +9656,7 @@ async function autoMergeGesprekDuplicaten() {
 }
 
 async function loadBezoekRecordsFromDb() {
+  await _ensureProfilesCache();
   const rows = await _loadVerlagenFromSupa('bezoek');
   if (!rows || !rows.length) return;
   const fmt = { day:'2-digit', month:'long', year:'numeric' };
@@ -9653,7 +9665,7 @@ async function loadBezoekRecordsFromDb() {
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
     soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
-    recorder_naam: r.meta?.recorder_naam || '',
+    recorder_naam: r.meta?.recorder_naam || (_PROFILES_CACHE && r.created_by ? (_PROFILES_CACHE[r.created_by] || '') : ''),
     result: r.result, transcript: r.transcript,
   }));
   _saveBezoekRec();
