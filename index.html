@@ -4213,7 +4213,7 @@ function projContractFrozenSave(src, id, val) {
 function projContractFreeze(src, id, safeId) {
   // Valideer verplichte velden
   const d = projContractLoad(src, id);
-  const missing = CONTRACT_FIELDS.filter(f => f.required).filter(f => {
+  const missing = CONTRACT_FIELDS.filter(f => f.required && !(src === 'pipeline' && f.key === 'projectnr')).filter(f => {
     const v = d[f.key];
     return v === undefined || v === null || String(v).trim() === '';
   });
@@ -12418,7 +12418,7 @@ function _projAutoCalc(d) {
 // Geeft true als alle required CONTRACT_FIELDS een waarde hebben
 function projContractIsComplete(src, id) {
   const d = projContractLoad(src, id);
-  return CONTRACT_FIELDS.filter(f => f.required).every(f => {
+  return CONTRACT_FIELDS.filter(f => f.required && !(src === 'pipeline' && f.key === 'projectnr')).every(f => {
     const v = d[f.key];
     return v !== undefined && v !== null && String(v).trim() !== '';
   });
