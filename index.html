@@ -2127,6 +2127,24 @@ function getPipeCountsForWeek(bmNaam, week, jaar) {
   return counts;
 }
 
+// Telt actieve (niet-verwijderde) pipeline-kaartjes per KPI-fase ZONDER weekfilter.
+// Bedoeld voor de doorkijk in de comrap: toekomstige weken hebben geen week-gestempelde
+// kaartjes, maar de huidige pipeline-snapshot is de beste benadering.
+function getPipeCountsActive(bmNaam) {
+  const cards  = pipeLoad(bmNaam);
+  const counts = {};
+  KPIS.forEach(k => {
+    const stage = KPI_STAGE_MAP[k];
+    const inStage = cards.filter(c => c.stage === stage && !c.verwijderd_op);
+    counts[k] = (k === 'starters' || k === 'contractvoorstellen')
+      ? inStage.reduce((sum, c) => sum + (c.gedeeld ? 0.5 : 1), 0)
+      : k === 'aanbiedingen'
+      ? inStage.reduce((sum, c) => sum + (c.aanb || 0), 0)
+      : inStage.length;
+  });
+  return counts;
+}
+
 // Generieke weekinvoer-rij — wordt gebruikt voor zowel de actuele week
 // ("Invoer") als de week erop ("Planning") met exact dezelfde opslaan/
 // wijzigen-logica en dezelfde optelsom vanuit de kandidaten pipeline.
@@ -5388,11 +5406,14 @@ function renderComrap() {
   const kpiLabels = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen',
     matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
 
-  // Per BM: gevonden weekrij + pipeline-telling samenvoegen (MAX), zodat niet-opgeslagen
-  // weken (bv. doorkijk week 30) toch pipeline-aantallen tonen.
+  // Toekomstige weken: gebruik actieve pipeline-snapshot (geen weekfilter), want
+  // kaartjes dragen de week van invoer — niet van toekomstige weken.
+  const isFutureWeek = (y > CUR.year) || (y === CUR.year && w > CUR.week);
+
+  // Per BM: gevonden weekrij + pipeline-telling samenvoegen (MAX).
   const bmRows = BMS.filter(bm => !bm.special).map(bm => {
     const raw  = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
-    const pipe = getPipeCountsForWeek(bm.naam, w, y);
+    const pipe = isFutureWeek ? getPipeCountsActive(bm.naam) : getPipeCountsForWeek(bm.naam, w, y);
     const row  = {};
     for (const k of kpiKeys) row[k] = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
@@ -5651,11 +5672,12 @@ async function comrapAnalyse() {
   const w = st.week; const y = st.jaar;
   const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 
-  // Bouw structured data — gebruik MAX(opgeslagen, pipeline) zodat pipeline-aantallen
-  // altijd meegaan, ook als de weekrij nog niet handmatig is opgeslagen.
+  // Bouw structured data — toekomstige weken: pipeline-snapshot (geen weekfilter),
+  // huidige/verleden weken: week-specifieke pipeline-telling.
+  const isFutureWeekA = (y > CUR.year) || (y === CUR.year && w > CUR.week);
   const bmData = BMS.filter(bm => !bm.special).map(bm => {
     const raw    = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
-    const pipe   = getPipeCountsForWeek(bm.naam, w, y);
+    const pipe   = isFutureWeekA ? getPipeCountsActive(bm.naam) : getPipeCountsForWeek(bm.naam, w, y);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     const kpis   = {};
