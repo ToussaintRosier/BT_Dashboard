@@ -1688,21 +1688,25 @@ function renderMedewerkersOverzicht() {
   // de pipeline-telling (zelfde logica als de invoer-pre-fill per BM).
   // Zo kloppen de aantallen ook als een BM nog niet op "Opslaan" heeft geklikt.
   const wkTotals = (jaar, week) => {
+    // Toekomstige weken: contractvoorstellen + starters ook uit active pipeline snapshot
+    const isFut = (jaar > CUR.year) || (jaar === CUR.year && week > CUR.week);
+    const OUT_P = new Set(['contractvoorstellen','starters']);
     const t = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
     for (const bm of BMS) {
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
       const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
+      const actp  = isFut ? getPipeCountsActive(bm.naam) : {};
       if (saved) {
         for (const k of KPIS) {
-          // Starters: neem het maximum van opgeslagen en pipeline, zodat een
-          // later toegevoegde starter alsnog meetelt ook als de BM al eerder
-          // had opgeslagen (met 0 starters).
-          t[k] += k === 'starters'
-            ? Math.max(saved[k] || 0, pipe[k] || 0)
-            : saved[k] || 0;
+          const pipeK = (isFut && OUT_P.has(k)) ? Math.max(pipe[k]||0, actp[k]||0) : pipe[k]||0;
+          t[k] += (k === 'starters' || (isFut && OUT_P.has(k)))
+            ? Math.max(saved[k]||0, pipeK)
+            : saved[k]||0;
         }
       } else {
-        for (const k of KPIS) t[k] += pipe[k] || 0;
+        for (const k of KPIS) {
+          t[k] += (isFut && OUT_P.has(k)) ? Math.max(pipe[k]||0, actp[k]||0) : pipe[k]||0;
+        }
       }
     }
     return t;
@@ -1727,6 +1731,8 @@ function renderMedewerkersOverzicht() {
   // Render een uitgevouwen weekblok — per-medewerker tabel
   const renderOpenWeek = (jaar, week) => {
     const isCurOrNext = (jaar === CUR.year && week === CUR.week) || (jaar === NEXT.year && week === NEXT.week);
+    const isFut = (jaar > CUR.year) || (jaar === CUR.year && week > CUR.week);
+    const OUT_P = new Set(['contractvoorstellen','starters']);
     const totals = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
     const teamNorm = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'week');
     let anyLive = false;
@@ -1735,11 +1741,14 @@ function renderMedewerkersOverzicht() {
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
       const isSaved = !!saved;
       const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
+      const actp  = isFut ? getPipeCountsActive(bm.naam) : {};
       // Gebruik opgeslagen waarden als basis; voor starters: neem het maximum
       // zodat een later toegevoegde starter (na opslaan) alsnog meetelt.
       const vals = isSaved ? { ...saved } : { ...pipe };
       const staleStarters = isSaved && (pipe.starters || 0) > (saved.starters || 0);
       if (staleStarters) vals.starters = pipe.starters || 0;
+      // Toekomstige weken: contractvoorstellen + starters ook uit active pipeline
+      if (isFut) { for (const k of OUT_P) vals[k] = Math.max(vals[k]||0, actp[k]||0); }
       if (!isSaved) anyLive = true;
       for (const k of KPIS) totals[k] += vals[k] || 0;
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
