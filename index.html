@@ -3873,7 +3873,7 @@ function getCombinedProjectRanges() {
     const cards = pipeLoad(bm.naam);
     for (const c of cards) {
       if (c.stage !== 'Starter' || c.goedkeuring !== 'akkoord' || !c.start_datum) continue;
-      pipeEntries.push({ _card: c, id: c.id, source: 'pipeline', bmNaam: bm.naam, naam: c.naam, bm: bm.naam, opdrachtgever: c.opdrachtgever || '',
+      pipeEntries.push({ _card: c, id: c.id, source: 'pipeline', bmNaam: bm.naam, naam: c.naam, bm: bm.naam, opdrachtgever: c.opdrachtgever || '', projectnr: c.projectnr || null,
         begin: new Date(c.start_datum), eind: c.eind_datum_verwacht ? new Date(c.eind_datum_verwacht) : null,
         verwijderdOp: c.verwijderd_op ? new Date(c.verwijderd_op) : null });
     }
@@ -5323,7 +5323,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     : `<td style="padding:3px 8px;font-size:.76rem;color:var(--primary);font-weight:700;text-align:left;">${collega.join(', ') || '<span style="color:var(--muted);">—</span>'}</td>`;
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
-    return `<tr style="border-bottom:1px solid var(--border);${bg}">
+    return `<tr style="border-bottom:1px solid var(--border);${bg}cursor:pointer;" onclick="(function(e){if(!e.target.closest('button,input,select,a'))projEvalToggle_vis('${safeId}');})(event)">
       <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${contractvorm}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
@@ -5338,7 +5338,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
       </td>
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   } else {
-    return `<tr style="border-bottom:1px solid var(--border);${bg}">
+    return `<tr style="border-bottom:1px solid var(--border);${bg}cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">
       <td style="padding:5px 8px;white-space:nowrap;">${projnrBadge}<strong style="font-size:.83rem;">${r.naam}</strong>${alertSpan}${contractvorm}${incompleteBadge} <span style="font-size:.72rem;">${src}</span>${badge}</td>
       <td style="padding:5px 8px;text-align:left;"><strong style="font-size:.78rem;">${r.opdrachtgever||'—'}</strong></td>
       ${chipHtml}
