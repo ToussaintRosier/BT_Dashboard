@@ -5406,16 +5406,25 @@ function renderComrap() {
   const kpiLabels = { intakes:'Intakes', bezoeken:'Bezoeken', aanbiedingen:'Aanbiedingen',
     matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
 
-  // Toekomstige weken: gebruik actieve pipeline-snapshot (geen weekfilter), want
-  // kaartjes dragen de week van invoer — niet van toekomstige weken.
+  // Toekomstige weken (doorkijk): voor contractvoorstellen + starters de actieve
+  // pipeline-snapshot gebruiken (kaartjes zonder weekfilter). Intakes/bezoeken/
+  // aanbiedingen/matchgesprekken zijn week-activiteiten — niet vullen vanuit
+  // historische pipeline-kaartjes.
   const isFutureWeek = (y > CUR.year) || (y === CUR.year && w > CUR.week);
+  const OUTPUT_ONLY = new Set(['contractvoorstellen','starters']);
 
   // Per BM: gevonden weekrij + pipeline-telling samenvoegen (MAX).
   const bmRows = BMS.filter(bm => !bm.special).map(bm => {
-    const raw  = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
-    const pipe = isFutureWeek ? getPipeCountsActive(bm.naam) : getPipeCountsForWeek(bm.naam, w, y);
+    const raw        = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const weekPipe   = getPipeCountsForWeek(bm.naam, w, y);
+    const activePipe = isFutureWeek ? getPipeCountsActive(bm.naam) : {};
     const row  = {};
-    for (const k of kpiKeys) row[k] = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
+    for (const k of kpiKeys) {
+      const rawVal    = parseFloat(raw[k]) || 0;
+      const weekVal   = weekPipe[k] || 0;
+      const activeVal = (isFutureWeek && OUTPUT_ONLY.has(k)) ? (activePipe[k] || 0) : 0;
+      row[k] = Math.max(rawVal, weekVal, activeVal);
+    }
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     return { naam: bm.naam, row, norm };
@@ -5672,18 +5681,22 @@ async function comrapAnalyse() {
   const w = st.week; const y = st.jaar;
   const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 
-  // Bouw structured data — toekomstige weken: pipeline-snapshot (geen weekfilter),
-  // huidige/verleden weken: week-specifieke pipeline-telling.
+  // Bouw structured data — zelfde logica als de weergave:
+  // toekomstige weken: contractvoorstellen + starters uit actieve pipeline-snapshot.
   const isFutureWeekA = (y > CUR.year) || (y === CUR.year && w > CUR.week);
+  const OUTPUT_ONLY_A = new Set(['contractvoorstellen','starters']);
   const bmData = BMS.filter(bm => !bm.special).map(bm => {
-    const raw    = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
-    const pipe   = isFutureWeekA ? getPipeCountsActive(bm.naam) : getPipeCountsForWeek(bm.naam, w, y);
+    const raw        = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
+    const weekPipeA  = getPipeCountsForWeek(bm.naam, w, y);
+    const activePipeA = isFutureWeekA ? getPipeCountsActive(bm.naam) : {};
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     const kpis   = {};
     for (const k of kpiKeys) {
-      const realisatie = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
-      kpis[k] = { realisatie, norm: norm[k] || 0 };
+      const rawVal    = parseFloat(raw[k]) || 0;
+      const weekVal   = weekPipeA[k] || 0;
+      const activeVal = (isFutureWeekA && OUTPUT_ONLY_A.has(k)) ? (activePipeA[k] || 0) : 0;
+      kpis[k] = { realisatie: Math.max(rawVal, weekVal, activeVal), norm: norm[k] || 0 };
     }
     return { naam: bm.naam, rol: bm.rol || 'Business Manager', kpis };
   });
