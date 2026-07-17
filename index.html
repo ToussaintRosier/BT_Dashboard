@@ -9569,6 +9569,7 @@ let GESPREK_RECORDS = (() => { try { return JSON.parse(localStorage.getItem('bt_
 let BEZOEK_RECORDS  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_records') ||'[]').slice(0,50); } catch(_) { return []; } })();
 let _gesprekRecsLoaded = false;
 let _bezoekRecsLoaded  = false;
+let _gesprekResultOverrides = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_result_overrides')||'{}'); } catch(_) { return {}; } })();
 let _herlaadStatus = { gesprek: '', bezoek: '' };
 
 function gesprekHerlaadRecords() {
@@ -9630,7 +9631,8 @@ async function loadGesprekRecordsFromDb() {
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     naam: r.meta?.naam || '', functie: r.meta?.functie || '',
     recorder_naam: r.meta?.recorder_naam || '',
-    result: r.result, transcript: r.transcript,
+    result: _gesprekResultOverrides[String(r.id)] ?? r.result,
+    transcript: r.transcript,
   }));
   _saveGesprekRec();
   if (currentTab === 'gesprek') renderGesprek();
@@ -9672,6 +9674,14 @@ async function loadBezoekRecordsFromDb() {
   if (currentTab === 'bezoek') renderBezoekRecorder();
 }
 
+function _setResultOverride(id, result) {
+  _gesprekResultOverrides[String(id)] = result;
+  try { localStorage.setItem('bt_gesprek_result_overrides', JSON.stringify(_gesprekResultOverrides)); } catch(_) {}
+}
+function _clearResultOverride(id) {
+  delete _gesprekResultOverrides[String(id)];
+  try { localStorage.setItem('bt_gesprek_result_overrides', JSON.stringify(_gesprekResultOverrides)); } catch(_) {}
+}
 function _recInitials(naam) {
   const tv = new Set(['van','de','den','der','ter','het',"'t",'op','in','aan','bij','tot','uit','over','voor','ten']);
   const parts = (naam||'').trim().split(/\s+/).filter(w => w && !tv.has(w.toLowerCase()));
@@ -9908,9 +9918,11 @@ async function gesprekRecordHeranalyse(id) {
       throw new Error(data.error || 'Heranalyse mislukt.');
     }
     rec.result = data.analyse;
-    _saveGesprekRec(); // direct naar localStorage zodat tab-wissel niets verliest
+    _setResultOverride(rec.id, data.analyse); // overleeft page-refresh én DB-reload
+    _saveGesprekRec();
     if (supa) {
-      await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id);
+      const { error: updErr } = await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id);
+      if (!updErr) _clearResultOverride(rec.id); // DB bijgewerkt → override niet meer nodig
     }
   } catch(e) {
     alert('Heranalyse mislukt: ' + e.message);
