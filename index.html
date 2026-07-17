@@ -9854,7 +9854,7 @@ function _gesprekRecordHtml(rec) {
 <div class="meta">${rec.naam?`<strong>${e(rec.naam)}</strong>`:''}${rec.functie?` &mdash; ${e(rec.functie)}`:''} &nbsp;|&nbsp; ${rec.datum||''}</div>
 <h2>Samenvatting</h2><div class="sam">${e(r.samenvatting||'')}</div>
 <div class="drie" style="margin-top:20px;">
-  <div class="dc"><h2>Harde wensen</h2><table>${rij('Functie',hw.functie)}${rij('Regio',hw.regio)}${rij('Salaris',hw.salaris)}${rij('Werktijden',hw.werktijden)}${rij('Overige',hw.overige)}</table></div>
+  <div class="dc"><h2>Harde uitgangspunten</h2><table>${rij('Soort functie',hw.soortFunctie||hw.functie)}${rij('Vakgebied',hw.vakgebied||hw.regio)}${rij('Wel belangrijk',hw.welWensen||hw.werktijden)}${rij('Niet (uitsluitingen)',hw.nietWensen)}${rij('Uitgangspunten',hw.uitgangspunten||hw.overige)}${rij('Brightech belang',hw.brightechBelang)}</table>${hw.opvallend?`<p style="margin-top:10px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:4px;font-size:10pt;line-height:1.55;"><strong style="color:#92400e;">💡 Opvallend:</strong> ${e(hw.opvallend)}</p>`:''}</div>
   <div class="dc"><h2>Zachte factoren</h2><table>${rij('Drijfveren',zf.drijfveren)}${rij('Reden CV',zf.redenAchterCV)}${rij('Eigenschappen',zf.eigenschappen)}${rij('Pers. situatie',zf.persoonlijkeSituatie)}</table></div>
   <div class="dc"><h2>Afspraken</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div>
 </div></body></html>`;
@@ -9869,9 +9869,14 @@ function gesprekRecordDownload(id,fmt) {
 function gesprekRecordKopieer(id) {
   const rec=GESPREK_RECORDS.find(r=>String(r.id)===String(id)); if(!rec)return;
   const res=rec.result||{}, hw=res.hardeWensen||{}, zf=res.zachteFactoren||{};
-  const lines=['=== SOLLICITATIEGESPREK ===',res.samenvatting||'','','--- HARDE WENSEN ---',
-    hw.functie?'Functie: '+hw.functie:'', hw.regio?'Regio: '+hw.regio:'', hw.salaris?'Salaris: '+hw.salaris:'',
-    hw.werktijden?'Werktijden: '+hw.werktijden:'', hw.overige?'Overige: '+hw.overige:'',
+  const lines=['=== SOLLICITATIEGESPREK ===',res.samenvatting||'','','--- HARDE UITGANGSPUNTEN ---',
+    (hw.soortFunctie||hw.functie)?'Soort functie: '+(hw.soortFunctie||hw.functie):'',
+    (hw.vakgebied||hw.regio)?'Vakgebied: '+(hw.vakgebied||hw.regio):'',
+    (hw.welWensen||hw.werktijden)?'Wel belangrijk: '+(hw.welWensen||hw.werktijden):'',
+    hw.nietWensen?'Niet (uitsluitingen): '+hw.nietWensen:'',
+    (hw.uitgangspunten||hw.overige)?'Uitgangspunten: '+(hw.uitgangspunten||hw.overige):'',
+    hw.brightechBelang?'Brightech belang: '+hw.brightechBelang:'',
+    hw.opvallend?'💡 Opvallend: '+hw.opvallend:'',
     '','--- ZACHTE FACTOREN ---',
     zf.drijfveren?'Drijfveren: '+zf.drijfveren:'', zf.redenAchterCV?'Reden CV: '+zf.redenAchterCV:'',
     zf.eigenschappen?'Eigenschappen: '+zf.eigenschappen:'', zf.persoonlijkeSituatie?'Pers. situatie: '+zf.persoonlijkeSituatie:'',
@@ -9903,6 +9908,7 @@ async function gesprekRecordHeranalyse(id) {
       throw new Error(data.error || 'Heranalyse mislukt.');
     }
     rec.result = data.analyse;
+    _saveGesprekRec(); // direct naar localStorage zodat tab-wissel niets verliest
     if (supa) {
       await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id);
     }
@@ -10008,8 +10014,9 @@ function renderGesprekRecords() {
           </div>
           <div class="three-col" style="gap:10px;margin-bottom:12px;">
             <div class="chart-card" style="padding:12px 14px;">
-              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">📋 Harde wensen</div>
-              ${PT([['Functie',hw.functie],['Regio',hw.regio],['Salaris',hw.salaris],['Werktijden',hw.werktijden],['Overige',hw.overige]])}
+              <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">📋 Harde uitgangspunten</div>
+              ${PT([['Soort functie',hw.soortFunctie||hw.functie],['Vakgebied',hw.vakgebied||hw.regio],['Wel belangrijk',hw.welWensen||hw.werktijden],['Niet (uitsluitingen)',hw.nietWensen],['Uitgangspunten',hw.uitgangspunten||hw.overige],['Brightech',hw.brightechBelang]])}
+              ${hw.opvallend?`<div style="margin-top:8px;padding:7px 10px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:4px;font-size:.82rem;line-height:1.55;"><span style="font-weight:700;color:#92400e;">💡 Opvallend: </span>${escHtml(hw.opvallend)}</div>`:''}
             </div>
             <div class="chart-card" style="padding:12px 14px;">
               <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">💭 Zachte factoren</div>
