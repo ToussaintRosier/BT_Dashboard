@@ -490,6 +490,7 @@ let GESPREK_COACHING_RESULTS = {}; // keyed by record.id → { loading, result, 
 let BEZOEK_COACHING_RESULTS  = {}; // keyed by record.id → { loading, result, error }
 const AGENDA_STATE = {};           // keyed by naam → { imagePreview, imageB64, imageMime, imageName, loading, result, error, selectedWeekKey }
 let PIPE_CACHE      = {};  // pipeline-kaarten per BM, gevuld vanuit de database
+let COMRAP_ANALYSES = []; // opgeslagen comrap-analyses (benchmark), gevuld vanuit de database
 let PROJ_EVAL_CACHE = {};  // evaluatie-checkboxen per project: { 'excel_123': ['ev_0','ev_2',...] }
 let PROJECTEN    = [];     // projectenlijst (geïmporteerd uit Excel), gevuld vanuit de database
 let PLAN_VA      = [];     // "Plan van aanpak" weekrijen per BM, gevuld vanuit de database
@@ -2756,6 +2757,51 @@ async function loadUrenrapportage() {
   UREN_KPI_WEEK_CACHE = (week.data || []).sort((a, b) => (a.jaar - b.jaar) || (a.week - b.week));
 }
 
+// ── COMRAP-analyses: laden + opslaan als benchmark ───────────────────────────
+async function loadComrapAnalyses() {
+  if (!supa) return;
+  const { data, error } = await supa
+    .from('comrap_analyses')
+    .select('id, week, jaar, kpi_snapshot, analyse_tekst, created_at')
+    .order('jaar', { ascending: false })
+    .order('week', { ascending: false })
+    .limit(20);
+  if (error) { console.error('loadComrapAnalyses fout:', error); return; }
+  COMRAP_ANALYSES = data || [];
+}
+
+async function comrapSlaOp(week, jaar, kpiSnapshot, analyseTekst) {
+  if (!supa) return { ok: false, msg: 'Geen verbinding' };
+  const { error } = await supa.from('comrap_analyses').insert({
+    week, jaar,
+    kpi_snapshot: kpiSnapshot,
+    analyse_tekst: analyseTekst,
+  });
+  if (error) return { ok: false, msg: error.message };
+  // Herlaad de cache zodat volgende analyse de nieuwe entry meepakt
+  await loadComrapAnalyses();
+  return { ok: true };
+}
+
+async function comrapSlaOpClick() {
+  const st = window._comrapState;
+  if (!st || !st.resultaat) return;
+  const btn = document.getElementById('comrap-sla-op-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Opslaan…'; }
+  const res = await comrapSlaOp(st.week, st.jaar, st.kpiSnapshot || null, st.resultaat);
+  if (btn) {
+    if (res.ok) {
+      btn.textContent = '✅ Opgeslagen!';
+      btn.style.background = '#15803d';
+      setTimeout(() => { if (btn) { btn.textContent = '💾 Opslaan als benchmark'; btn.disabled = false; } }, 2500);
+    } else {
+      btn.textContent = '❌ Fout: ' + res.msg;
+      btn.style.background = '#dc2626';
+      setTimeout(() => { if (btn) { btn.textContent = '💾 Opslaan als benchmark'; btn.style.background = '#16a34a'; btn.disabled = false; } }, 3000);
+    }
+  }
+}
+
 // ── Beheer: caches voor profielen en doelen ───────────────────────────────────
 let BEHEER_PROFIELEN = [];
 let BEHEER_DOELEN    = [];
@@ -2896,6 +2942,7 @@ async function loadAllData() {
   await loadFinancieelOmzet();
   await loadBegroting();
   await loadUrenrapportage();
+  try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
   recomputeRatios();
 }
 
@@ -5573,6 +5620,7 @@ function renderComrap() {
     <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">
       <button onclick="comrapKopieer()" style="background:#f4f6f9;border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">📋 Kopieer tekst</button>
       <button onclick="comrapPdf()" style="background:#253151;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">📄 Exporteer PDF</button>
+      <button id="comrap-sla-op-btn" onclick="comrapSlaOpClick()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">💾 Opslaan als benchmark</button>
       <button onclick="window._comrapState.resultaat='';renderComrap();" style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">🗑️ Wis resultaat</button>
     </div>
     ` : ''}
@@ -5695,6 +5743,14 @@ async function comrapAnalyse() {
     try { return `\n[Bijlage: ${f.naam}]\n${atob(f.b64.split(',')[1])}`; } catch(_) { return ''; }
   }).join('\n');
 
+  // Sla kpi_snapshot op in state voor gebruik bij "Opslaan als benchmark"
+  st.kpiSnapshot = bmData;
+
+  // Historische analyses als context (max 4, meest recent eerst)
+  const historische_analyses = COMRAP_ANALYSES.slice(0, 4).map(a => ({
+    week: a.week, jaar: a.jaar, tekst: a.analyse_tekst,
+  }));
+
   st.bezig = true;
   const btn = document.getElementById('comrap-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyse genereren…'; }
@@ -5704,7 +5760,11 @@ async function comrapAnalyse() {
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/comrap-analyse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
-      body: JSON.stringify({ week: w, jaar: y, bm_data: bmData, kanban, notities: st.notities + tekstImports, images: imageBlokken }),
+      body: JSON.stringify({
+        week: w, jaar: y, bm_data: bmData,
+        kanban, notities: st.notities + tekstImports, images: imageBlokken,
+        historische_analyses,
+      }),
     });
     const json = await resp.json();
     if (json.error) throw new Error(json.error);
