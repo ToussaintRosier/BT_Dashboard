@@ -5420,6 +5420,7 @@ if (!window._comrapState) window._comrapState = {
   notities: '',
   resultaat: '',
   bezig: false,
+  subtab: 'analyse',    // 'analyse' | 'opgeslagen'
 };
 
 function comrapPrevWeek(w, y) {
@@ -5521,15 +5522,27 @@ function renderComrap() {
   const importBadge = st.imports.length
     ? `<span style="background:#253151;color:#fff;border-radius:10px;padding:2px 8px;font-size:.75rem;margin-left:8px;">${st.imports.length} bestand${st.imports.length > 1 ? 'en' : ''}</span>` : '';
 
+  // Sub-tab: opgeslagen analyses — apart weergeven
+  if (st.subtab === 'opgeslagen') {
+    el.innerHTML = renderComrapOpgeslagenHtml(w, y);
+    return;
+  }
+
   el.innerHTML = `
   <div style="max-width:1100px;">
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
       <h2 style="margin:0;font-size:1.35rem;font-weight:800;color:var(--primary);">📋 Commerciële Rapportage</h2>
       <div style="display:flex;align-items:center;gap:8px;background:#f4f6f9;border:1px solid var(--border);border-radius:8px;padding:6px 12px;">
         <button onclick="comrapNavWeek(-1)" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;">◀</button>
         <span style="font-weight:700;font-size:.92rem;">Week ${w}, ${y}</span>
         <button onclick="comrapNavWeek(1)" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;">▶</button>
       </div>
+    </div>
+
+    <!-- SUB-TAB BALK -->
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
+      <button class="bm-subtab-btn active" onclick="window._comrapState.subtab='analyse';renderComrap();" style="border-radius:6px 6px 0 0;">✏️ Analyse</button>
+      <button class="bm-subtab-btn" onclick="window._comrapState.subtab='opgeslagen';renderComrap();" style="border-radius:6px 6px 0 0;">🗂️ Opgeslagen${COMRAP_ANALYSES.length ? ' <span style=\'background:#253151;color:#fff;border-radius:10px;padding:1px 7px;font-size:.72rem;\'>' + COMRAP_ANALYSES.length + '</span>' : ''}</button>
     </div>
 
     <!-- KPI TABEL -->
@@ -5625,6 +5638,51 @@ function renderComrap() {
     </div>
     ` : ''}
   </div>`;
+}
+
+function renderComrapOpgeslagenHtml(w, y) {
+  const badge = n => n ? ` <span style="background:#253151;color:#fff;border-radius:10px;padding:1px 7px;font-size:.72rem;">${n}</span>` : '';
+  const kaarten = COMRAP_ANALYSES.length === 0
+    ? `<div style="text-align:center;color:var(--muted);padding:48px 0;font-size:.9rem;">Nog geen opgeslagen analyses.<br>Genereer een analyse en klik op <strong>💾 Opslaan als benchmark</strong>.</div>`
+    : COMRAP_ANALYSES.map((a, i) => {
+        const datum = a.created_at ? new Date(a.created_at).toLocaleDateString('nl-NL',{day:'2-digit',month:'short',year:'numeric'}) : '';
+        const id = `comrap-saved-${i}`;
+        return `
+        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
+          <div onclick="document.getElementById('${id}').style.display=document.getElementById('${id}').style.display==='none'?'block':'none';this.querySelector('.comrap-chevron').textContent=document.getElementById('${id}').style.display==='none'?'▶':'▼';"
+            style="display:flex;align-items:center;gap:12px;padding:13px 18px;cursor:pointer;user-select:none;">
+            <span class="comrap-chevron" style="color:var(--muted);font-size:.75rem;min-width:14px;">▶</span>
+            <strong style="font-size:.92rem;color:var(--primary);">Week ${a.week} / ${a.jaar}</strong>
+            ${datum ? `<span style="font-size:.78rem;color:var(--muted);">${datum}</span>` : ''}
+            <button onclick="event.stopPropagation();if(confirm('Analyse week ${a.week}/${a.jaar} verwijderen?'))comrapVerwijder(${a.id});"
+              style="margin-left:auto;background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">🗑️</button>
+          </div>
+          <div id="${id}" style="display:none;padding:0 18px 16px;border-top:1px solid var(--border);line-height:1.7;font-size:.88rem;">
+            ${simpleMarkdown(a.analyse_tekst)}
+          </div>
+        </div>`;
+      }).join('');
+
+  return `
+  <div style="max-width:1100px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+      <h2 style="margin:0;font-size:1.35rem;font-weight:800;color:var(--primary);">📋 Commerciële Rapportage</h2>
+    </div>
+    <!-- SUB-TAB BALK -->
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
+      <button class="bm-subtab-btn" onclick="window._comrapState.subtab='analyse';renderComrap();" style="border-radius:6px 6px 0 0;">✏️ Analyse</button>
+      <button class="bm-subtab-btn active" onclick="window._comrapState.subtab='opgeslagen';renderComrap();" style="border-radius:6px 6px 0 0;">🗂️ Opgeslagen${badge(COMRAP_ANALYSES.length)}</button>
+    </div>
+    ${kaarten}
+  </div>`;
+}
+
+async function comrapVerwijder(id) {
+  if (!supa) return;
+  const { error } = await supa.from('comrap_analyses').delete().eq('id', id);
+  if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
+  await loadComrapAnalyses();
+  renderComrap();
 }
 
 function comrapNavWeek(dir) {
