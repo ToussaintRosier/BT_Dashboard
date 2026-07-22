@@ -1483,6 +1483,22 @@ function closeSidebar() {
   if (s) s.classList.remove('mob-open');
   if (b) b.classList.remove('show');
 }
+
+// ── Desktop viewport zoom: schaalt de pagina proportioneel mee als het venster
+// smaller is dan de ontworpen breedte, zodat horizontaal scrollen vermeden wordt.
+// Geldt alleen voor desktop-breedtes (>768px); mobiel heeft eigen CSS.
+const ZOOM_THRESHOLD = 1100; // px — bij deze breedte is zoom = 1
+function applyDesktopZoom() {
+  const w = window.innerWidth;
+  if (w > 768 && w < ZOOM_THRESHOLD) {
+    document.body.style.zoom = (w / ZOOM_THRESHOLD).toFixed(4);
+  } else {
+    document.body.style.zoom = '';
+  }
+}
+window.addEventListener('resize', applyDesktopZoom);
+applyDesktopZoom();
+
 function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
@@ -4100,7 +4116,8 @@ function getCombinedProjectRanges() {
     if (!p.begin_ovk) continue;
     ranges.push({ id: p.id, source: 'excel', naam: p.kandidaat, bm: p.bm || '', opdrachtgever: p.opdrachtgever || '', projectnr: p.projectnr || null,
       begin: new Date(p.begin_ovk), eind: p.einde_ovk ? new Date(p.einde_ovk) : null,
-      verwijderdOp: p.verwijderd_op ? new Date(p.verwijderd_op) : null });
+      verwijderdOp: p.verwijderd_op ? new Date(p.verwijderd_op) : null,
+      prognoseStopperDate: p.prognose_stopper ? new Date(p.prognose_stopper) : null });
   }
   // Verzamel pipeline-entries inclusief kaart-object voor gedeeld-detectie
   const pipeEntries = [];
@@ -4267,6 +4284,25 @@ function projDefEindSave(src, id, val) {
       if (error) console.error('Def. einddatum opslaan (pipeline) mislukt:', error);
     });
   }
+}
+
+// ── Prognose stopper (Supabase + localStorage) — verwachte stopdatum voor prognose ──
+function projPrognoseLoad(src, id) {
+  if (src === 'excel') {
+    const p = PROJECTEN.find(x => String(x.id) === String(id));
+    if (p && p.prognose_stopper) return p.prognose_stopper;
+  }
+  try { return localStorage.getItem(`bt_proj_prog_${src}_${id}`) || ''; } catch(_) { return ''; }
+}
+function projPrognoseSave(src, id, val) {
+  try { val ? localStorage.setItem(`bt_proj_prog_${src}_${id}`, val) : localStorage.removeItem(`bt_proj_prog_${src}_${id}`); } catch(_) {}
+  if (!supa || src !== 'excel') return;
+  const isoVal = val || null;
+  const p = PROJECTEN.find(x => String(x.id) === String(id));
+  if (p) p.prognose_stopper = isoVal;
+  supa.from('projecten').update({ prognose_stopper: isoVal }).eq('id', id).then(({ error }) => {
+    if (error) console.error('Prognose stopper opslaan mislukt:', error);
+  });
 }
 
 // ── Evaluatie-checkboxen (localStorage) — index van afgevinkte momenten ─────
@@ -4661,6 +4697,36 @@ function getBegroteLijnPerWeek(year) {
     out.push(r ? +r.begrote_lijn : null);
   }
   return out;
+}
+
+// Prognose-lijn op basis van "Prognose stoppers" per ISO-week.
+// Toont alleen huidige + toekomstige weken (verleden = null → geen punt).
+// Telt actieve projecten die hun prognose_stopper nog niet bereikt hebben.
+function getPrognoseStopperLijnPerWeek(year) {
+  const ranges = getCombinedProjectRanges();
+  const nowIso = isoWeek(new Date());
+  const counts = [];
+  for (let w = 1; w <= 52; w++) {
+    // Verleden: null (lijn begint pas bij huidige week)
+    if (year < nowIso.year || (year === nowIso.year && w < nowIso.week)) {
+      counts.push(null);
+      continue;
+    }
+    const weekStart = isoWeekStartDate(year, w);
+    const weekEnd   = new Date(weekStart); weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+    let n = 0;
+    for (const r of ranges) {
+      if (r.begin > weekEnd) continue;
+      if (r.verwijderdOp && r.verwijderdOp < weekStart) continue;
+      const defnStr = projDefEindLoad(r.source, r.id);
+      if (defnStr && new Date(defnStr) < weekStart) continue;
+      const progStr = projPrognoseLoad(r.source, r.id);
+      if (progStr && new Date(progStr) < weekStart) continue;
+      n++;
+    }
+    counts.push(n);
+  }
+  return counts;
 }
 
 // ── Excel-import van de Projectenlijst ──────────────────────────────────────
@@ -5086,6 +5152,7 @@ async function saveProjectRangeDates(source, id, bmNaam) {
   const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
   const start  = document.getElementById(`pr-start-${safeId}`)?.value || null;
   const eind   = document.getElementById(`pr-eind-${safeId}`)?.value || null;
+  const prog   = document.getElementById(`pr-prog-${safeId}`)?.value || null;
   const statusEl = document.getElementById(`pr-status-${safeId}`);
   // Collega-selectie wordt al live in localStorage bijgehouden via projCollegaToggle;
   // hier hoeven we alleen te bevestigen dat de opgeslagen waarde klopt.
@@ -5093,7 +5160,7 @@ async function saveProjectRangeDates(source, id, bmNaam) {
   if (collegaEl) { /* chips zijn reeds opgeslagen via toggle — nothing extra to do */ }
   if (!supa) return;
   if (source === 'excel') {
-    const { error } = await supa.from('projecten').update({ begin_ovk: start, einde_ovk: eind, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await supa.from('projecten').update({ begin_ovk: start, einde_ovk: eind, prognose_stopper: prog || null, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { if (statusEl) statusEl.textContent = '❌ ' + error.message; return; }
     await loadProjecten();
   } else {
@@ -5142,7 +5209,7 @@ function projFiltApply() {
   }
   const tbody = document.getElementById('proj-tbody');
   if (!tbody) return;
-  const nCols = canEditProj ? 8 : 7;
+  const nCols = canEditProj ? 9 : 8;
   tbody.innerHTML = list.length === 0
     ? `<tr><td colspan="${nCols}" style="padding:10px;text-align:center;color:var(--muted);">Geen projecten gevonden.</td></tr>`
     : list.map(r => buildProjRow(r, canEditProj, nuVoorOverdue, nCols)).join('');
@@ -5541,6 +5608,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   const bg          = overdue ? 'background:#fef2f2;' : (incomplete ? 'background:#fffbeb;' : '');
   const collega     = projCollegaLoadOrDefault(r.source, r.id, r.bm);
   const defnVal     = projDefEindLoad(r.source, r.id);
+  const progVal     = projPrognoseLoad(r.source, r.id);
   const startStr    = toISODate(r.begin) || '';
   const today       = new Date(); today.setHours(0,0,0,0);
   const checked     = startStr ? projEvalLoad(r.source, r.id) : [];
@@ -5566,6 +5634,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-start-${safeId}" value="${startStr}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Startdatum"></td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-eind-${safeId}" value="${toISODate(r.eind)||''}" style="width:104px;padding:3px 4px;font-size:.78rem;" title="Verwachte einddatum (informatief)"></td>
       <td style="padding:5px 5px;"><input type="date" class="proj-date-input" id="pr-defn-${safeId}" value="${defnVal}" oninput="projDefEindSave('${r.source}','${r.id}',this.value)" style="width:104px;padding:3px 4px;font-size:.78rem;${defnVal?'border-color:#0e9f6e;':''}" title="Definitieve einddatum — stopt de telling in de projectenlijn"></td>
+      <td style="padding:5px 5px;">${r.source==='excel'?`<input type="date" class="proj-date-input" id="pr-prog-${safeId}" value="${progVal}" oninput="projPrognoseSave('${r.source}','${r.id}',this.value)" style="width:96px;padding:3px 4px;font-size:.78rem;${progVal?'border-color:#ca8a04;':''}" title="Prognose stopper — stopt dit project in de gele prognoselijn">`:'<span style="color:var(--muted);font-size:.76rem;">—</span>'}</td>
       <td style="padding:5px 5px;white-space:nowrap;">
         <button class="proj-save-btn" style="padding:3px 8px;font-size:.72rem;" onclick="saveProjectRangeDates(${args})" title="Opslaan">💾</button>
         <button class="proj-del-btn" style="padding:3px 4px;font-size:.72rem;" onclick="deleteProjectRange(${args})" title="Verwijderen">🗑️</button>
@@ -5581,6 +5650,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
       <td style="padding:5px 8px;font-size:.78rem;">${startStr||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;">${toISODate(r.eind)||'–'}</td>
       <td style="padding:5px 8px;font-size:.78rem;${defnVal?'color:#0e9f6e;font-weight:700;':''}">${defnVal||'—'}</td>
+      <td style="padding:5px 8px;font-size:.78rem;${progVal?'color:#ca8a04;font-weight:700;':''}">${progVal||'—'}</td>
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   }
 }
@@ -7002,15 +7072,15 @@ function renderPrognose() {
       ${(() => {
         window._projOvCache = { overzichtRanges, canEditProj, nuVoorOverdue };
         if (overzichtRanges.length === 0) return '<div class="sub">Nog geen projecten.</div>';
-        const nCols    = canEditProj ? 8 : 7;
+        const nCols    = canEditProj ? 9 : 8;
         const TH       = (txt, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;">${txt}</th>`;
         const THSORT   = (txt, col, align='left') => `<th style="text-align:${align};padding:5px 8px;font-size:.72rem;color:var(--muted);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" onclick="projFiltSort('${col}')">${txt}<span id="proj-sort-${col}" style="font-size:.6rem;opacity:.45;margin-left:3px;">↕</span></th>`;
         const colgroup = canEditProj
-          ? `<colgroup><col style="width:22%"><col style="width:14%"><col style="width:auto"><col style="width:44px"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:64px"></colgroup>`
-          : `<colgroup><col style="width:26%"><col style="width:16%"><col style="width:auto"><col style="width:44px"><col style="width:100px"><col style="width:100px"><col style="width:100px"></colgroup>`;
+          ? `<colgroup><col style="width:20%"><col style="width:13%"><col style="width:auto"><col style="width:44px"><col style="width:108px"><col style="width:108px"><col style="width:108px"><col style="width:96px"><col style="width:64px"></colgroup>`
+          : `<colgroup><col style="width:22%"><col style="width:14%"><col style="width:auto"><col style="width:44px"><col style="width:100px"><col style="width:100px"><col style="width:100px"><col style="width:96px"></colgroup>`;
         const hdrCols = canEditProj
-          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), TH('','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), '<th></th>'].join('')
-          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), TH('','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn')].join('');
+          ? [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), TH('','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), TH('Prognose stopper'), '<th></th>'].join('')
+          : [THSORT('Kandidaat','naam'), THSORT('Opdrachtgever','opg','left'), TH('Collega\'s','left'), TH('','left'), THSORT('Start','start'), THSORT('Verwacht eind','eind'), THSORT('Def. eind','defn'), TH('Prognose stopper')].join('');
         // Pas huidig filter toe op de initiële render
         const fq = (window._projFilt||{}).q||'';
         let initList = overzichtRanges.slice();
@@ -7074,10 +7144,14 @@ function renderPrognose() {
   </div>`;
 
   setTimeout(() => {
-    makeChart('chartProjLine', wkLabels, [
+    const prognoseLijn   = getPrognoseStopperLijnPerWeek(year);
+    const heeftPrognose  = prognoseLijn.some(v => v !== null);
+    const datasets = [
       { label: 'Actieve projecten', data: projLineCounts, borderColor: '#1a56db', backgroundColor: '#1a56db22', fill: true, tension: .3, pointRadius: 2, borderWidth: 2 },
       { label: 'Begrote lijn', data: begroteLijn, borderColor: '#E87400', borderDash: [5,4], pointRadius: 0, borderWidth: 2, fill: false },
-    ], 'line', { legend: begroteLijn.some(v => v !== null) });
+    ];
+    if (heeftPrognose) datasets.push({ label: 'Prognose stoppers', data: prognoseLijn, borderColor: '#EAB308', borderDash: [4,3], pointRadius: 0, borderWidth: 1.5, fill: false });
+    makeChart('chartProjLine', wkLabels, datasets, 'line', { legend: begroteLijn.some(v => v !== null) || heeftPrognose });
     if (isBeheerder()) bonusFiltApply();
   }, 50);
 }
