@@ -491,6 +491,7 @@ let BEZOEK_COACHING_RESULTS  = {}; // keyed by record.id → { loading, result, 
 const AGENDA_STATE = {};           // keyed by naam → { imagePreview, imageB64, imageMime, imageName, loading, result, error, selectedWeekKey }
 let PIPE_CACHE      = {};  // pipeline-kaarten per BM, gevuld vanuit de database
 let COMRAP_ANALYSES = []; // opgeslagen comrap-analyses (benchmark), gevuld vanuit de database
+let EC_DOCS        = []; // documentenbibliotheek EC, gevuld vanuit de database
 let PROJ_EVAL_CACHE = {};  // evaluatie-checkboxen per project: { 'excel_123': ['ev_0','ev_2',...] }
 let PROJECTEN    = [];     // projectenlijst (geïmporteerd uit Excel), gevuld vanuit de database
 let PLAN_VA      = [];     // "Plan van aanpak" weekrijen per BM, gevuld vanuit de database
@@ -2770,6 +2771,160 @@ async function loadComrapAnalyses() {
   COMRAP_ANALYSES = data || [];
 }
 
+// ── EC Documenten: laden + uploaden + verwijderen ────────────────────────────
+async function loadEcDocumenten() {
+  if (!supa) return;
+  const { data, error } = await supa
+    .from('ec_documenten')
+    .select('id, naam, type, grootte, created_at, created_by')
+    .order('created_at', { ascending: false });
+  if (error) { console.error('loadEcDocumenten fout:', error); return; }
+  EC_DOCS = data || [];
+}
+
+async function ecDocumentenUpload(file) {
+  if (!supa) return { ok: false, msg: 'Geen verbinding' };
+  if (file.size > 15 * 1024 * 1024) return { ok: false, msg: 'Bestand is groter dan 15 MB' };
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const { error } = await supa.from('ec_documenten').insert({
+        naam: file.name,
+        type: file.type || 'application/octet-stream',
+        grootte: file.size,
+        inhoud: e.target.result,
+      });
+      if (error) { resolve({ ok: false, msg: error.message }); return; }
+      await loadEcDocumenten();
+      resolve({ ok: true });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function ecDocumentenOpen(id) {
+  if (!supa) return;
+  const { data, error } = await supa.from('ec_documenten').select('naam, type, inhoud').eq('id', id).single();
+  if (error || !data) { alert('Kan document niet laden: ' + (error?.message || 'onbekende fout')); return; }
+  // Maak blob-URL en open in nieuw tabblad
+  const arr = data.inhoud.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || data.type || 'application/octet-stream';
+  const bstr = atob(arr[1]);
+  const u8 = new Uint8Array(bstr.length);
+  for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+  const blob = new Blob([u8], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.download = data.naam;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+}
+
+async function ecDocumentenVerwijder(id, naam) {
+  if (!confirm(`Wil je "${naam}" definitief verwijderen?`)) return;
+  if (!supa) return;
+  const { error } = await supa.from('ec_documenten').delete().eq('id', id);
+  if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
+  await loadEcDocumenten();
+  renderHrmBackoffice();
+}
+
+async function ecDocumentenOnFiles(files) {
+  if (!files || !files.length) return;
+  const btn = document.getElementById('ec-upload-btn');
+  const status = document.getElementById('ec-upload-status');
+  if (btn) btn.disabled = true;
+  let ok = 0, fail = 0;
+  for (const f of Array.from(files)) {
+    if (status) status.textContent = `⏳ Uploaden: ${f.name}…`;
+    const res = await ecDocumentenUpload(f);
+    if (res.ok) ok++; else { fail++; if (status) status.textContent = `❌ ${f.name}: ${res.msg}`; }
+  }
+  if (status) status.textContent = ok ? `✅ ${ok} bestand${ok > 1 ? 'en' : ''} geüpload${fail ? `, ${fail} mislukt` : ''}` : '';
+  if (btn) btn.disabled = false;
+  renderHrmBackoffice();
+}
+
+function renderDocumentatieEC() {
+  const isManager = CURRENT_USER?.rol === 'manager';
+  const ext = naam => {
+    const m = naam.match(/\.([a-zA-Z0-9]+)$/);
+    return m ? m[1].toUpperCase() : '?';
+  };
+  const extIco = naam => {
+    const e = (naam.match(/\.([a-zA-Z0-9]+)$/) || [])[1]?.toLowerCase();
+    return e === 'pdf' ? '📄' : ['doc','docx'].includes(e) ? '📝' : ['xls','xlsx'].includes(e) ? '📊' : ['ppt','pptx'].includes(e) ? '📑' : ['jpg','jpeg','png','gif','webp'].includes(e) ? '🖼️' : '📁';
+  };
+  const fmtBytes = b => b > 1024*1024 ? (b/1024/1024).toFixed(1)+' MB' : b > 1024 ? (b/1024).toFixed(0)+' KB' : b+' B';
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('nl-NL',{day:'2-digit',month:'short',year:'numeric'}) : '';
+
+  const uploadSectie = isManager ? `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:.95rem;font-weight:700;color:var(--primary);">📤 Document toevoegen</h3>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <input type="file" id="ec-file-in" multiple accept="*/*" style="display:none" onchange="ecDocumentenOnFiles(this.files)">
+        <button id="ec-upload-btn" onclick="document.getElementById('ec-file-in').click()"
+          style="background:#253151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.85rem;cursor:pointer;font-weight:600;">
+          📂 Bestanden kiezen
+        </button>
+        <div id="ec-drop-zone" onclick="document.getElementById('ec-file-in').click()"
+          ondragover="event.preventDefault();this.style.background='#eff6ff';"
+          ondragleave="this.style.background='#f9fafb';"
+          ondrop="event.preventDefault();this.style.background='#f9fafb';ecDocumentenOnFiles(event.dataTransfer.files);"
+          style="flex:1;min-width:200px;border:2px dashed var(--border);border-radius:8px;padding:12px 16px;background:#f9fafb;cursor:pointer;font-size:.82rem;color:var(--muted);text-align:center;">
+          Of sleep bestanden hierheen
+        </div>
+        <span id="ec-upload-status" style="font-size:.82rem;color:var(--muted);"></span>
+      </div>
+      <p style="margin:10px 0 0;font-size:.76rem;color:#9ca3af;">Alle bestandstypen worden ondersteund (PDF, Word, Excel, afbeeldingen, …). Max. 15 MB per bestand.</p>
+    </div>` : '';
+
+  const lijst = EC_DOCS.length === 0
+    ? `<div style="text-align:center;color:var(--muted);padding:52px 0;font-size:.9rem;">Nog geen documenten geüpload.</div>`
+    : `<table style="width:100%;border-collapse:collapse;font-size:.84rem;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:8px 10px;color:var(--muted);font-weight:600;">Bestandsnaam</th>
+            <th style="text-align:center;padding:8px 10px;color:var(--muted);font-weight:600;width:70px;">Type</th>
+            <th style="text-align:right;padding:8px 10px;color:var(--muted);font-weight:600;width:80px;">Grootte</th>
+            <th style="text-align:center;padding:8px 10px;color:var(--muted);font-weight:600;width:120px;">Geüpload</th>
+            <th style="padding:8px 10px;width:120px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${EC_DOCS.map(d => `
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:10px 10px;">
+              <span style="font-size:1.1rem;margin-right:8px;">${extIco(d.naam)}</span>
+              <strong style="font-size:.86rem;">${escHtml(d.naam)}</strong>
+            </td>
+            <td style="padding:10px 10px;text-align:center;">
+              <span style="background:#f1f5f9;border-radius:4px;padding:2px 7px;font-size:.72rem;font-weight:700;color:#475569;">${ext(d.naam)}</span>
+            </td>
+            <td style="padding:10px 10px;text-align:right;color:var(--muted);">${d.grootte ? fmtBytes(d.grootte) : '—'}</td>
+            <td style="padding:10px 10px;text-align:center;color:var(--muted);">${fmtDate(d.created_at)}</td>
+            <td style="padding:10px 10px;text-align:right;">
+              <button onclick="ecDocumentenOpen(${d.id})"
+                style="background:#253151;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;margin-right:6px;">
+                🔗 Openen
+              </button>
+              ${isManager ? `<button onclick="ecDocumentenVerwijder(${d.id}, ${JSON.stringify(d.naam)})"
+                style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:5px 10px;font-size:.78rem;cursor:pointer;">
+                🗑️
+              </button>` : ''}
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+
+  return `
+    ${uploadSectie}
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px 20px;">
+      <h3 style="margin:0 0 14px;font-size:.95rem;font-weight:700;color:var(--primary);">📚 Documenten (${EC_DOCS.length})</h3>
+      ${lijst}
+    </div>`;
+}
+
 async function comrapSlaOp(week, jaar, kpiSnapshot, analyseTekst) {
   if (!supa) return { ok: false, msg: 'Geen verbinding' };
   const { error } = await supa.from('comrap_analyses').insert({
@@ -2943,6 +3098,7 @@ async function loadAllData() {
   await loadBegroting();
   await loadUrenrapportage();
   try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
+  try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
   recomputeRatios();
 }
 
@@ -5842,11 +5998,12 @@ function renderHrmBackoffice() {
   const today = new Date(); today.setHours(0,0,0,0);
 
   const subTabBtn = (t, label) => `<button class="bm-subtab-btn ${HRM_SUBTAB===t?'active':''}" onclick="selectHrmSubTab('${t}')">${label}</button>`;
-  const subTabBar = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
+  const subTabBar = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;flex-wrap:wrap;">
     ${subTabBtn('evaluatie','📋 Evaluatiebeheer')}
     ${subTabBtn('aanmeldformulier','📝 Aanmeldformulier')}
     ${subTabBtn('opgeslagen','📁 Opgeslagen formulieren')}
     ${subTabBtn('standaard','🏢 Standaard')}
+    ${subTabBtn('documentatie_ec','📂 Documentatie EC')}
   </div>`;
 
   let body = '';
@@ -5932,6 +6089,8 @@ function renderHrmBackoffice() {
     body = renderStandaardTab();
   } else if (HRM_SUBTAB === 'opgeslagen') {
     body = renderOpgeslagenFormulieren();
+  } else if (HRM_SUBTAB === 'documentatie_ec') {
+    body = renderDocumentatieEC();
   } else {
     body = renderAanmeldForm();
   }
