@@ -1484,6 +1484,56 @@ function closeSidebar() {
   if (b) b.classList.remove('show');
 }
 
+// ── Projectenlijn Y-as zoom (+ / −) ─────────────────────────────────────────
+window._projYZoom = window._projYZoom || 0;  // 0 = auto, 1-6 = ingezoomd
+
+function projChartApplyZoom() {
+  const chart = charts['chartProjLine'];
+  if (!chart) return;
+  const z = window._projYZoom;
+
+  if (z === 0) {
+    // Volledig terug naar auto
+    chart.options.scales.y.min = 0;
+    chart.options.scales.y.max = undefined;
+    chart.options.scales.y.beginAtZero = true;
+  } else {
+    // Bereken data-maximum over alle datasets
+    let dataMax = 0;
+    for (const ds of chart.data.datasets) {
+      for (const v of ds.data) { if (v != null && v > dataMax) dataMax = v; }
+    }
+    // Huidige waarde = laatste niet-null punt in de blauwe lijn (dataset 0)
+    const blueData = chart.data.datasets[0]?.data || [];
+    let curVal = dataMax;
+    for (let i = blueData.length - 1; i >= 0; i--) {
+      if (blueData[i] != null) { curVal = blueData[i]; break; }
+    }
+    // Zichtbaar bereik: elke stap verkleint met factor 1.6, gecentreerd op curVal
+    const baseRange = Math.max(dataMax * 1.35, curVal * 2, 20);
+    const range     = Math.max(baseRange / Math.pow(1.6, z), curVal * 1.15 + 2);
+    const yMin      = Math.max(0, Math.round(curVal - range / 2));
+    const yMax      = Math.round(yMin + range);
+    chart.options.scales.y.min = yMin;
+    chart.options.scales.y.max = yMax;
+    chart.options.scales.y.beginAtZero = (yMin === 0);
+  }
+  chart.update('none');
+
+  // Knoppen + label bijwerken
+  const btnIn  = document.getElementById('proj-zoom-in');
+  const btnOut = document.getElementById('proj-zoom-out');
+  const lbl    = document.getElementById('proj-zoom-lbl');
+  if (btnIn)  btnIn.disabled  = (z >= 6);
+  if (btnOut) btnOut.disabled = (z <= 0);
+  if (lbl)    lbl.textContent = z === 0 ? 'auto' : `×${z}`;
+}
+
+function projChartZoom(dir) {
+  window._projYZoom = Math.max(0, Math.min(6, (window._projYZoom || 0) + dir));
+  projChartApplyZoom();
+}
+
 // ── Desktop viewport zoom: schaalt de pagina proportioneel mee als het venster
 // smaller is dan de ontworpen breedte, zodat horizontaal scrollen vermeden wordt.
 // Geldt alleen voor desktop-breedtes (>768px); mobiel heeft eigen CSS.
@@ -6974,7 +7024,16 @@ function renderPrognose() {
     <!-- Projectenlijn -->
     <div class="section-title">Projectenlijn — actieve projecten per week (${year})</div>
     <div class="chart-card">
-      <h3>Projecten</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <h3 style="margin:0;">Projecten</h3>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <span style="font-size:.68rem;color:var(--muted);margin-right:2px;">Y-as</span>
+          <button id="proj-zoom-out" onclick="projChartZoom(-1)" title="Uitzoomen" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.95rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);">−</button>
+          <span id="proj-zoom-lbl" style="font-size:.68rem;color:var(--muted);min-width:28px;text-align:center;">auto</span>
+          <button id="proj-zoom-in" onclick="projChartZoom(1)" title="Inzoomen" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.95rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);">+</button>
+          <button onclick="window._projYZoom=0;projChartApplyZoom()" title="Reset" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.75rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--muted);">↺</button>
+        </div>
+      </div>
       <div class="chart-wrap"><canvas id="chartProjLine"></canvas></div>
     </div>
 
