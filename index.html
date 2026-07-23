@@ -1509,11 +1509,15 @@ function projChartApplyZoom() {
     for (let i = blueData.length - 1; i >= 0; i--) {
       if (blueData[i] != null) { curVal = blueData[i]; break; }
     }
-    // Zichtbaar bereik: elke stap verkleint met factor 1.6, gecentreerd op curVal
+    // Zichtbaar bereik: elke stap verkleint met factor 1.6, gecentreerd op curVal.
+    // Geen vloer op bereik — yMin stijgt mee zodat verder inzoomen altijd werkt.
     const baseRange = Math.max(dataMax * 1.35, curVal * 2, 20);
-    const range     = Math.max(baseRange / Math.pow(1.6, z), curVal * 1.15 + 2);
-    const yMin      = Math.max(0, Math.round(curVal - range / 2));
-    const yMax      = Math.round(yMin + range);
+    const range     = Math.max(baseRange / Math.pow(1.6, z), 4); // absoluut minimum 4
+    // Symmetrisch centreren op curVal
+    let yMin = Math.round(curVal - range / 2);
+    let yMax = Math.round(curVal + range / 2);
+    // Niet onder 0 gaan — eventueel compenseren naar boven
+    if (yMin < 0) { yMax -= yMin; yMin = 0; }
     chart.options.scales.y.min = yMin;
     chart.options.scales.y.max = yMax;
     chart.options.scales.y.beginAtZero = (yMin === 0);
