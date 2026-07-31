@@ -3703,9 +3703,11 @@ function renderBmCoachingTab(bm) {
       </div>
 
       ${(() => {
-        const gesprekMet = GESPREK_RECORDS.filter(r => r.transcript);
-        const bezoekMet  = BEZOEK_RECORDS.filter(r => r.transcript);
-        if (!gesprekMet.length && !bezoekMet.length) return '';
+        const gesprekMet = GESPREK_RECORDS.filter(r => r.transcript && r.recorder_naam === bm.naam);
+        const bezoekMet  = BEZOEK_RECORDS.filter(r => r.transcript && r.recorder_naam === bm.naam);
+        const totalAll   = GESPREK_RECORDS.filter(r=>r.transcript).length + BEZOEK_RECORDS.filter(r=>r.transcript).length;
+        const totalBm    = gesprekMet.length + bezoekMet.length;
+        // Altijd de sectie tonen — ook als leeg (zodat gebruiker weet wat te doen)
 
         const recCard = (rec, type) => {
           const cr = type === 'itk' ? GESPREK_COACHING_RESULTS[rec.id] : BEZOEK_COACHING_RESULTS[rec.id];
@@ -3744,9 +3746,10 @@ function renderBmCoachingTab(bm) {
           </div>`;
         };
 
-        return `<div style="margin-top:24px;">
-          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Gesprekcoaching — analyse van opnames <button class="info-tip-btn" onclick="toggleInfoTip('itip-gesprekcoaching')" title="Uitleg">ℹ</button></div>
-          <div id="itip-gesprekcoaching" class="info-tip-panel" hidden>Klik op <strong>Analyseer</strong> om AI-feedback te ontvangen op een opgenomen gesprek: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht.</div>
+        const secHtml = `<div style="margin-top:24px;">
+          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Gesprekcoaching — opnames van ${escHtml(bm.naam.split(' ')[0])} <button class="info-tip-btn" onclick="toggleInfoTip('itip-gesprekcoaching')" title="Uitleg">ℹ</button></div>
+          <div id="itip-gesprekcoaching" class="info-tip-panel" hidden>Alleen opnames waarbij <strong>${escHtml(bm.naam)}</strong> als opnemer is geselecteerd. Klik op <strong>Analyseer</strong> voor AI-feedback: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht. Opnames die nog niet zijn toegewezen kun je toewijzen via de recorder-tabs (knop 📋 Recente records → 👤 Toewijzen).</div>
+          ${totalBm === 0 ? `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">Geen opnames toegewezen aan ${escHtml(bm.naam.split(' ')[0])}.${totalAll>0?' Er zijn wel '+totalAll+' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (📋 Recente records → 👤 Toewijzen).':' Maak een opname via de ITK- of BZK-Recorder.'}</div>` : ''}
           ${gesprekMet.length ? `
             <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">📋 Sollicitatiegesprekken</div>
             ${gesprekMet.slice(0,5).map(r => recCard(r,'itk')).join('')}` : ''}
@@ -3754,6 +3757,7 @@ function renderBmCoachingTab(bm) {
             <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;margin-top:${gesprekMet.length?'12px':'0'};">🏢 Bedrijfsbezoeken</div>
             ${bezoekMet.slice(0,5).map(r => recCard(r,'bzk')).join('')}` : ''}
         </div>`;
+        return secHtml;
       })()}
     </div>
   `;
@@ -9702,10 +9706,11 @@ function gesprekReset() {
   if (GESPREK._audioStoragePath && supa) {
     supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
   }
-  const bewaarNaam    = GESPREK.naam;
-  const bewaarFunctie = GESPREK.functie;
+  const bewaarNaam         = GESPREK.naam;
+  const bewaarFunctie      = GESPREK.functie;
+  const bewaarRecorderNaam = GESPREK.recorderNaam;
   GESPREK = {
-    naam: bewaarNaam, functie: bewaarFunctie,
+    naam: bewaarNaam, functie: bewaarFunctie, recorderNaam: bewaarRecorderNaam,
     transcript: '', recording: false, paused: false, analyzing: false,
     statusMsg: '', result: null,
     transcriptId: null, pollingTimer: null,
@@ -9826,6 +9831,8 @@ function gesprekDownload(formaat) {
 
 function renderGesprek() {
   if (currentTab !== 'gesprek') return; // opname loopt door, maar UI niet overschrijven
+  // Pre-fill recorderNaam met ingelogde gebruiker als nog leeg
+  if (!GESPREK.recorderNaam && CURRENT_USER?.naam) GESPREK.recorderNaam = CURRENT_USER.naam;
   // Laad gedeelde verslagen eenmalig bij het openen van de tab
   if (!_gesprekRecsLoaded && !GESPREK.recording && !GESPREK.analyzing) {
     _gesprekRecsLoaded = true;
@@ -9904,7 +9911,7 @@ function renderGesprek() {
     </div>
 
     <div class="chart-card" style="margin-bottom:14px;">
-      <div class="two-col" style="gap:12px;margin-bottom:14px;">
+      <div class="two-col" style="gap:12px;margin-bottom:10px;">
         <div>
           <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Naam kandidaat</label>
           <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Jan de Vries"
@@ -9916,11 +9923,19 @@ function renderGesprek() {
             value="${escHtml(g.functie)}" oninput="GESPREK.functie=this.value" ${g.recording||g.analyzing?'disabled':''}>
         </div>
       </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Opgenomen door <span style="color:#dc2626;">*</span></label>
+        <select class="acc-text-input" style="width:100%;${!g.recorderNaam.trim()?'border-color:#dc2626;':''}"
+          onchange="GESPREK.recorderNaam=this.value;renderGesprek()" ${g.recording||g.analyzing?'disabled':''}>
+          <option value="">-- Selecteer jouw naam --</option>
+          ${(BMS_ALL||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${g.recorderNaam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}
+        </select>
+      </div>
 
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         ${!g.recording && !g.paused && !g.analyzing
-          ? `<button class="proj-save-btn" style="background:#dc2626;border-color:#dc2626;font-size:1rem;padding:10px 22px;"
-               onclick="gesprekStart()">🎙️ Start opname</button>`
+          ? `<button class="proj-save-btn" style="background:#dc2626;border-color:#dc2626;font-size:1rem;padding:10px 22px;${!g.recorderNaam.trim()?'opacity:.45;cursor:not-allowed;':''}"
+               onclick="${g.recorderNaam.trim()?'gesprekStart()':'alert(\'Vul eerst jouw naam in bij Opgenomen door.\')'}">🎙️ Start opname</button>`
           : g.recording
           ? `<button class="btn-secondary" style="font-size:.92rem;padding:9px 18px;"
                onclick="gesprekPauze()">⏸ Pauze</button>
@@ -10034,7 +10049,7 @@ async function loadGesprekRecordsFromDb() {
     id: r.id,
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     naam: r.meta?.naam || '', functie: r.meta?.functie || '',
-    recorder_naam: r.meta?.recorder_naam || _PROFILES_CACHE[r.created_by] || '',
+    recorder_naam: r.meta?.recorder_naam || '',
     result: _gesprekResultOverrides[String(r.id)] ?? r.result,
     transcript: r.transcript,
   }));
@@ -10071,7 +10086,7 @@ async function loadBezoekRecordsFromDb() {
     datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
     bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
     soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
-    recorder_naam: r.meta?.recorder_naam || _PROFILES_CACHE[r.created_by] || '',
+    recorder_naam: r.meta?.recorder_naam || '',
     result: _bezoekResultOverrides[String(r.id)] ?? r.result, transcript: r.transcript,
   }));
   _saveBezoekRec();
@@ -10107,7 +10122,7 @@ function _gspKey(r)  { return [_gspNorm(r.naam), _gspNorm(r.functie)].join('|');
 function addGesprekRecord() {
   const g = GESPREK; if (!g.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
-  const recNaam = CURRENT_USER?.naam || '';
+  const recNaam = GESPREK.recorderNaam || '';
   GESPREK_RECORDS.unshift({ id: Date.now(), datum, naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript, recorder_naam:recNaam });
   if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
   _saveGesprekRec();
@@ -10116,7 +10131,7 @@ function addGesprekRecord() {
 function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
-  const recNaam = CURRENT_USER?.naam || '';
+  const recNaam = BEZOEK.recorderNaam || '';
   const soort = b.soortBezoek || 'bedrijfsbezoek';
   // Dedup: vervang bestaand record met zelfde bedrijf+soort+datum+recorder i.p.v. nieuw aanmaken.
   const dupIdx = BEZOEK_RECORDS.findIndex(r =>
@@ -10151,6 +10166,20 @@ async function _updateBezoekVerslagInSupa(localId, result, transcript) {
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
 function toggleGesprekTranscript(id){ if(GESPREK_SHOW_TR.has(id))GESPREK_SHOW_TR.delete(id); else GESPREK_SHOW_TR.add(id); renderGesprek(); }
+async function gesprekRecordToewijzen(id, naam) {
+  if (!naam) return; // lege optie genegeerd
+  const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  rec.recorder_naam = naam;
+  _saveGesprekRec();
+  // Persisteer naar Supabase als het een UUID-record is
+  if (supa && typeof id === 'string' && id.includes('-')) {
+    const { data: row } = await supa.from('verslagen').select('meta').eq('id', id).maybeSingle();
+    const newMeta = Object.assign({}, row?.meta || {}, { recorder_naam: naam });
+    await supa.from('verslagen').update({ meta: newMeta }).eq('id', id).then(()=>{}).catch(()=>{});
+  }
+  renderGesprek();
+}
 function gesprekRecordVerwijder(id) {
   GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>String(r.id)!==String(id));
   GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
@@ -10248,6 +10277,19 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
 
 function toggleBezoekRecord(id)    { if(BEZOEK_OPEN.has(id))BEZOEK_OPEN.delete(id); else BEZOEK_OPEN.add(id); renderBezoekRecorder(); }
 function toggleBezoekTranscript(id){ if(BEZOEK_SHOW_TR.has(id))BEZOEK_SHOW_TR.delete(id); else BEZOEK_SHOW_TR.add(id); renderBezoekRecorder(); }
+async function bezoekRecordToewijzen(id, naam) {
+  if (!naam) return;
+  const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
+  if (!rec) return;
+  rec.recorder_naam = naam;
+  _saveBezoekRec();
+  if (supa && typeof id === 'string' && id.includes('-')) {
+    const { data: row } = await supa.from('verslagen').select('meta').eq('id', id).maybeSingle();
+    const newMeta = Object.assign({}, row?.meta || {}, { recorder_naam: naam });
+    await supa.from('verslagen').update({ meta: newMeta }).eq('id', id).then(()=>{}).catch(()=>{});
+  }
+  renderBezoekRecorder();
+}
 function bezoekRecordVerwijder(id) {
   BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>String(r.id)!==String(id));
   BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id);
@@ -10468,6 +10510,12 @@ function renderGesprekRecords() {
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
           ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">🔀 Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
           <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
+          <select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)"
+            style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;"
+            title="Toewijzen aan medewerker">
+            <option value="">👤 Toewijzen…</option>
+            ${(BMS_ALL||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}
+          </select>
           <span onclick="event.stopPropagation();gesprekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
@@ -10553,6 +10601,12 @@ function renderBezoekRecords() {
           ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
           <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;">${soortEmoji} ${escHtml(soortLabel)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          <select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)"
+            style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;"
+            title="Toewijzen aan medewerker">
+            <option value="">👤 Toewijzen…</option>
+            ${(BMS_ALL||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}
+          </select>
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fff;">
@@ -10815,7 +10869,7 @@ function pvaRecFill(bmNaam, fields) {
 // ── BZK-Recorder (bedrijfsbezoek opnemen + verslag genereren via AI) ──────────
 
 let BEZOEK = {
-  bedrijf: '', contactpersoon: '', soortBezoek: 'bedrijfsbezoek', transcript: '',
+  bedrijf: '', contactpersoon: '', soortBezoek: 'bedrijfsbezoek', recorderNaam: '', transcript: '',
   recording: false, analyzing: false,
   statusMsg: '', result: null,
   transcriptId: null, pollingTimer: null,
@@ -10972,11 +11026,13 @@ function bezoekReset() {
   if (BEZOEK._audioStoragePath && supa) {
     supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
   }
-  const bewaarBedrijf = BEZOEK.bedrijf;
-  const bewaarContact = BEZOEK.contactpersoon;
-  const bewaarSoort   = BEZOEK.soortBezoek;
+  const bewaarBedrijf      = BEZOEK.bedrijf;
+  const bewaarContact      = BEZOEK.contactpersoon;
+  const bewaarSoort        = BEZOEK.soortBezoek;
+  const bewaarRecorderNaam = BEZOEK.recorderNaam;
   BEZOEK = {
     bedrijf: bewaarBedrijf, contactpersoon: bewaarContact, soortBezoek: bewaarSoort,
+    recorderNaam: bewaarRecorderNaam,
     transcript: '', recording: false, analyzing: false,
     statusMsg: '', result: null,
     transcriptId: null, pollingTimer: null,
@@ -11165,6 +11221,8 @@ function bezoekDownload(formaat) {
 
 function renderBezoekRecorder() {
   if (currentTab !== 'bezoek') return; // opname loopt door, maar UI niet overschrijven
+  // Pre-fill recorderNaam met ingelogde gebruiker als nog leeg
+  if (!BEZOEK.recorderNaam && CURRENT_USER?.naam) BEZOEK.recorderNaam = CURRENT_USER.naam;
   // Laad gedeelde verslagen eenmalig bij het openen van de tab
   if (!_bezoekRecsLoaded && !BEZOEK.recording && !BEZOEK.analyzing) {
     _bezoekRecsLoaded = true;
@@ -11330,7 +11388,7 @@ function renderBezoekRecorder() {
           ].map(([val,lbl])=>`<button onclick="BEZOEK.soortBezoek='${val}';renderBezoekRecorder()" ${b.recording||b.analyzing?'disabled':''} style="flex:1;padding:8px 6px;font-size:.78rem;font-weight:${b.soortBezoek===val?'700':'500'};border:none;border-right:1px solid var(--border);cursor:pointer;background:${b.soortBezoek===val?'var(--primary)':'#fff'};color:${b.soortBezoek===val?'#fff':'var(--text)'};transition:background .15s;last-child:border-right:none;">${escHtml(lbl)}</button>`).join('')}
         </div>
       </div>
-      <div class="two-col" style="gap:12px;margin-bottom:14px;">
+      <div class="two-col" style="gap:12px;margin-bottom:10px;">
         <div>
           <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Naam medewerker':'Bedrijfsnaam'}</label>
           <input type="text" class="acc-text-input" style="width:100%;" placeholder="${b.soortBezoek==='evaluatie_medewerker'?'bijv. Jan de Vries':'bijv. Acme BV'}"
@@ -11342,11 +11400,19 @@ function renderBezoekRecorder() {
             value="${escHtml(b.contactpersoon)}" oninput="BEZOEK.contactpersoon=this.value" ${b.recording||b.analyzing?'disabled':''}>
         </div>
       </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Opgenomen door <span style="color:#0369a1;">*</span></label>
+        <select class="acc-text-input" style="width:100%;${!b.recorderNaam.trim()?'border-color:#0369a1;':''}"
+          onchange="BEZOEK.recorderNaam=this.value;renderBezoekRecorder()" ${b.recording||b.analyzing?'disabled':''}>
+          <option value="">-- Selecteer jouw naam --</option>
+          ${(BMS_ALL||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${b.recorderNaam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}
+        </select>
+      </div>
 
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         ${!b.recording && !b.analyzing
-          ? `<button class="proj-save-btn" style="background:#0369a1;border-color:#0369a1;font-size:1rem;padding:10px 22px;"
-               onclick="bezoekStart()">🎙️ Start opname</button>`
+          ? `<button class="proj-save-btn" style="background:#0369a1;border-color:#0369a1;font-size:1rem;padding:10px 22px;${!b.recorderNaam.trim()?'opacity:.45;cursor:not-allowed;':''}"
+               onclick="${b.recorderNaam.trim()?'bezoekStart()':'alert(\'Vul eerst jouw naam in bij Opgenomen door.\')'}">🎙️ Start opname</button>`
           : b.recording
           ? `<button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:1rem;padding:10px 22px;"
                onclick="bezoekStop()">⏹ Stop opname</button>
@@ -11378,7 +11444,7 @@ function renderBezoekRecorder() {
 
 // ── Plaatsingsadvies (salesnavigator: zoek vacatures voor kandidaat) ──────────
 let GESPREK = {
-  naam: '', functie: '', transcript: '',
+  naam: '', functie: '', recorderNaam: '', transcript: '',
   recording: false, paused: false, analyzing: false,
   statusMsg: '', result: null,
   transcriptId: null, pollingTimer: null,
