@@ -10134,6 +10134,11 @@ let _gesprekRecsLoaded = false;
 let _bezoekRecsLoaded  = false;
 let _gesprekResultOverrides = (() => { try { return JSON.parse(localStorage.getItem('bt_gesprek_result_overrides')||'{}'); } catch(_) { return {}; } })();
 let _bezoekResultOverrides  = (() => { try { return JSON.parse(localStorage.getItem('bt_bezoek_result_overrides') ||'{}'); } catch(_) { return {}; } })();
+// Permanente recorder-toewijzingen: gebaseerd op inhoud (naam+functie+datum), niet op record-ID.
+// Hierdoor overleven toewijzingen een Herlaad, een merge of een RLS-fout bij de Supabase UPDATE.
+let _recorderAssignments = (() => { try { return JSON.parse(localStorage.getItem('bt_recorder_assignments')||'{}'); } catch(_) { return {}; } })();
+function _recAssignKey(naam, functie, datum) { return `${naam||''}||${functie||''}||${datum||''}`; }
+function _saveRecorderAssignments() { try { localStorage.setItem('bt_recorder_assignments', JSON.stringify(_recorderAssignments)); } catch(_) {} }
 let _herlaadStatus = { gesprek: '', bezoek: '' };
 
 function gesprekHerlaadRecords() {
@@ -10199,7 +10204,7 @@ async function loadGesprekRecordsFromDb() {
       id: r.id,
       datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
       naam: r.meta?.naam || '', functie: r.meta?.functie || '',
-      recorder_naam: lok?.recorder_naam || r.meta?.recorder_naam || '',
+      recorder_naam: _recorderAssignments[_recAssignKey(r.meta?.naam||'', r.meta?.functie||'', r.meta?.datum||'')] || lok?.recorder_naam || r.meta?.recorder_naam || '',
       result: _gesprekResultOverrides[String(r.id)] ?? r.result,
       transcript: r.transcript,
     };
@@ -10241,7 +10246,7 @@ async function loadBezoekRecordsFromDb() {
       datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
       bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
       soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
-      recorder_naam: lok?.recorder_naam || r.meta?.recorder_naam || '',
+      recorder_naam: _recorderAssignments[_recAssignKey(r.meta?.bedrijf||'', r.meta?.contactpersoon||'', r.meta?.datum||'')] || lok?.recorder_naam || r.meta?.recorder_naam || '',
       result: _bezoekResultOverrides[String(r.id)] ?? r.result, transcript: r.transcript,
     };
   });
@@ -10327,6 +10332,10 @@ async function gesprekRecordToewijzen(id, naam) {
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
   rec.recorder_naam = naam;
+  // Sla op in permanente content-sleutel map (overleeft Herlaad + RLS-fouten)
+  const key = _recAssignKey(rec.naam, rec.functie, rec.datum);
+  _recorderAssignments[key] = naam;
+  _saveRecorderAssignments();
   _saveGesprekRec();
   // Persisteer naar Supabase als het een UUID-record is
   if (supa && typeof id === 'string' && id.includes('-')) {
@@ -10440,6 +10449,10 @@ async function bezoekRecordToewijzen(id, naam) {
   const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
   rec.recorder_naam = naam;
+  // Sla op in permanente content-sleutel map (overleeft Herlaad + RLS-fouten)
+  const key = _recAssignKey(rec.bedrijf, rec.contactpersoon, rec.datum);
+  _recorderAssignments[key] = naam;
+  _saveRecorderAssignments();
   _saveBezoekRec();
   if (supa && typeof id === 'string' && id.includes('-')) {
     const { data: row } = await supa.from('verslagen').select('meta').eq('id', id).maybeSingle();
