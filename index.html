@@ -3649,6 +3649,77 @@ function coachStatusEmoji(gap) {
   return '🔴';
 }
 
+// Mail-modal voor een coaching-analyse
+function mailCoachAnalyse(id, type) {
+  const rec = (type === 'itk' ? GESPREK_RECORDS : BEZOEK_RECORDS).find(r => r.id === id);
+  const cr  = (type === 'itk' ? GESPREK_COACHING_RESULTS : BEZOEK_COACHING_RESULTS)[id];
+  if (!rec || !cr?.result) return;
+
+  const title = type === 'itk'
+    ? ([rec.naam, rec.functie].filter(Boolean).join(' — ') || 'Sollicitatiegesprek')
+    : ([rec.bedrijf, rec.contactpersoon].filter(Boolean).join(' — ') || 'Bedrijfsbezoek');
+  const soort = type === 'itk' ? 'Sollicitatiegesprek' : 'Bedrijfsbezoek';
+
+  const bodyLines = [
+    `Coaching feedback — ${soort}`,
+    `${'═'.repeat(45)}`,
+    ``,
+    `${title}`,
+    `Datum: ${rec.datum}`,
+    rec.recorder_naam ? `Opgenomen door: ${rec.recorder_naam}` : '',
+    ``,
+    `WAT GING GOED`,
+    `${'─'.repeat(45)}`,
+    cr.result.goedGedaan || '—',
+    ``,
+    `WAT KAN BETER`,
+    `${'─'.repeat(45)}`,
+    cr.result.kanBeter || '—',
+    ``,
+    `ONTWIKKELPUNT`,
+    `${'─'.repeat(45)}`,
+    cr.result.ontwikkelpunt || '—',
+    ...(cr.result.gespreksagenda ? [
+      ``,
+      `COACHINGSVRAAG`,
+      `${'─'.repeat(45)}`,
+      cr.result.gespreksagenda,
+    ] : []),
+    ``,
+    `─── Brightech Dashboard ───`,
+  ].filter(x => x !== null && x !== undefined).join('\n');
+
+  const subject = `Coaching feedback: ${title} (${rec.datum})`;
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines)}`;
+
+  let modal = document.getElementById('mail-coach-modal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'mail-coach-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:12px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <div style="padding:18px 20px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.1rem;">📧</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:.97rem;">Mail coaching feedback</div>
+          <div style="font-size:.78rem;color:#6b7280;">${escHtml(title)} · ${escHtml(rec.datum)}</div>
+        </div>
+        <button onclick="document.getElementById('mail-coach-modal').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#9ca3af;line-height:1;padding:0 4px;">×</button>
+      </div>
+      <div style="padding:18px 20px;">
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;font-size:.82rem;line-height:1.75;white-space:pre-wrap;font-family:inherit;color:#374151;max-height:360px;overflow-y:auto;" id="mail-coach-body">${escHtml(bodyLines)}</div>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+          <button onclick="navigator.clipboard.writeText(document.getElementById('mail-coach-body').textContent).then(()=>{this.textContent='✅ Gekopieerd!';setTimeout(()=>{this.textContent='📋 Kopieer tekst'},2000)})" class="btn-secondary" style="flex:1;padding:9px;font-size:.84rem;">📋 Kopieer tekst</button>
+          <a href="${mailtoUrl}" onclick="setTimeout(()=>{const m=document.getElementById('mail-coach-modal');if(m)m.remove()},600)" class="btn-primary" style="flex:1;padding:9px;font-size:.84rem;text-align:center;text-decoration:none;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;color:#fff;">📧 Open in e-mail</a>
+        </div>
+        <div style="margin-top:10px;font-size:.75rem;color:#9ca3af;text-align:center;">Tip: kopieer de tekst voor een opgemaakte e-mail, of klik "Open in e-mail" om direct je e-mailprogramma te openen.</div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
 // Coaching-subtab van één medewerker: inhoudelijke coaching + het advies dat
 // op basis van data aan de manager wordt gegeven. Ook zichtbaar voor de medewerker zelf.
 function renderBmCoachingTab(bm) {
@@ -3726,6 +3797,7 @@ function renderBmCoachingTab(bm) {
               <span style="font-weight:600;font-size:.86rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
               ${!cr ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="${fnAnalyse}">🔍 Analyseer</button>` : ''}
               ${cr && cr.loading ? `<span style="font-size:.8rem;color:var(--muted);flex-shrink:0;">⏳ Analyseren…</span>` : ''}
+              ${cr && !cr.loading && cr.result ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="mailCoachAnalyse('${rec.id}','${type}')">📧 Mailen</button>` : ''}
               ${isManagerLevel() ? `<button onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">🗑</button>` : ''}
             </div>
             ${cr && !cr.loading && cr.result ? `
@@ -3787,6 +3859,7 @@ function renderOpnamesAlleen(naam) {
         <span style="font-weight:600;font-size:.86rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
         ${!cr ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="${fnAnalyse}">🔍 Analyseer</button>` : ''}
         ${cr && cr.loading ? `<span style="font-size:.8rem;color:var(--muted);flex-shrink:0;">⏳ Analyseren…</span>` : ''}
+        ${cr && !cr.loading && cr.result ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="mailCoachAnalyse('${rec.id}','${type}')">📧 Mailen</button>` : ''}
         ${isManagerLevel() ? `<button onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">🗑</button>` : ''}
       </div>
       ${cr && !cr.loading && cr.result ? `
