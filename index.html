@@ -10190,18 +10190,25 @@ async function loadGesprekRecordsFromDb() {
   const rows = await _loadVerlagenFromSupa('gesprek');
   if (!rows || !rows.length) return;
   const fmt = { day:'2-digit', month:'long', year:'numeric' };
-  GESPREK_RECORDS = rows.map(r => ({
-    id: r.id,
-    datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
-    naam: r.meta?.naam || '', functie: r.meta?.functie || '',
-    recorder_naam: r.meta?.recorder_naam || '',
-    result: _gesprekResultOverrides[String(r.id)] ?? r.result,
-    transcript: r.transcript,
-  }));
+  // Snapshot huidige array zodat lokaal toegewezen recorder_naam bewaard blijft
+  // ook als de DB-response nog de oude (niet-toegewezen) versie retourneert
+  const bestaand = GESPREK_RECORDS;
+  GESPREK_RECORDS = rows.map(r => {
+    const lok = bestaand.find(e => String(e.id) === String(r.id));
+    return {
+      id: r.id,
+      datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
+      naam: r.meta?.naam || '', functie: r.meta?.functie || '',
+      recorder_naam: lok?.recorder_naam || r.meta?.recorder_naam || '',
+      result: _gesprekResultOverrides[String(r.id)] ?? r.result,
+      transcript: r.transcript,
+    };
+  });
   _saveGesprekRec();
   if (currentTab === 'gesprek') renderGesprek();
-  // Automatisch duplicaten samenvoegen na laden
-  autoMergeGesprekDuplicaten();
+  // Auto-merge uitgeschakeld: vervangen van record-IDs verstoort recorder_naam-toewijzingen.
+  // Gebruik de handmatige 🔀 Samenvoegen knop als je duplicaten wilt samenvoegen.
+  // autoMergeGesprekDuplicaten();
 }
 
 async function autoMergeGesprekDuplicaten() {
@@ -10226,14 +10233,18 @@ async function loadBezoekRecordsFromDb() {
   const rows = await _loadVerlagenFromSupa('bezoek');
   if (!rows || !rows.length) return;
   const fmt = { day:'2-digit', month:'long', year:'numeric' };
-  BEZOEK_RECORDS = rows.map(r => ({
-    id: r.id,
-    datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
-    bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
-    soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
-    recorder_naam: r.meta?.recorder_naam || '',
-    result: _bezoekResultOverrides[String(r.id)] ?? r.result, transcript: r.transcript,
-  }));
+  const bestaandB = BEZOEK_RECORDS;
+  BEZOEK_RECORDS = rows.map(r => {
+    const lok = bestaandB.find(e => String(e.id) === String(r.id));
+    return {
+      id: r.id,
+      datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
+      bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
+      soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
+      recorder_naam: lok?.recorder_naam || r.meta?.recorder_naam || '',
+      result: _bezoekResultOverrides[String(r.id)] ?? r.result, transcript: r.transcript,
+    };
+  });
   _saveBezoekRec();
   if (currentTab === 'bezoek') renderBezoekRecorder();
 }
