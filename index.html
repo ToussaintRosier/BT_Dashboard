@@ -3091,8 +3091,11 @@ async function loadBeheerData() {
     const kleur = p.kleur || bestaandBMSKleur || fallbackKleuren[kleurIdx++ % fallbackKleuren.length];
     const bm    = { naam, doel, kleur };
 
-    // KAM: expliciet in DB of al aangemerkt in huidige BMS
+    // Special-vlag: overnemen uit hardcoded BMS (bijv. backoffice-medewerkers die alleen in dropdowns mogen)
     const bestaandBMS = BMS.find(b => b.naam === naam);
+    if (bestaandBMS?.special) bm.special = true;
+
+    // KAM: expliciet in DB of al aangemerkt in huidige BMS
     if (p.rol === 'kam' || bestaandBMS?.rol === 'Key Accountmanager') {
       bm.rol     = 'Key Accountmanager';
       bm.normFix = KAM_NORM_FIX;
