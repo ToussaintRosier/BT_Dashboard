@@ -11637,6 +11637,7 @@ function renderPlaatsing() {
       <div class="person-name">🎯 Matchmaker</div>
       <div class="person-meta">
         <span class="meta-pill">Zoek bedrijven die actief werven voor dit kandidaatprofiel</span>
+        ${(() => { try { const s = JSON.parse(localStorage.getItem('matchmaker_stats')||'{}'); return (s.zoeken||0) > 0 ? `<span class="meta-pill" style="background:rgba(255,255,255,.15);color:inherit;font-weight:600;">🔍 ${s.zoeken}× gebruikt</span><span class="meta-pill" style="background:rgba(255,255,255,.15);color:inherit;font-weight:600;">💼 ${s.vacatures||0} vacatures</span>` : ''; } catch(_){ return ''; } })()}
         <button class="info-tip-btn" onclick="toggleInfoTip('itip-plaatsing')" title="Uitleg">ℹ</button>
       </div>
     </div>
@@ -11795,6 +11796,13 @@ async function plaatsingZoeken() {
       PLAATSING.statusMsg = '⚠️ Geen resultaten gevonden. Probeer een andere functietitel of regio.';
     } else {
       PLAATSING.statusMsg = `✅ ${PLAATSING.resultaten.length} bedrijven gevonden om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
+      // Stats bijhouden
+      try {
+        const s = JSON.parse(localStorage.getItem('matchmaker_stats') || '{"zoeken":0,"vacatures":0}');
+        s.zoeken = (s.zoeken || 0) + 1;
+        s.vacatures = (s.vacatures || 0) + PLAATSING.resultaten.length;
+        localStorage.setItem('matchmaker_stats', JSON.stringify(s));
+      } catch(_) {}
     }
   } catch (e) {
     PLAATSING.statusMsg = `<span style="color:var(--danger);">❌ Zoeken mislukt: ${escHtml(String(e?.message || e))}</span>`;
