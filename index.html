@@ -6149,6 +6149,7 @@ function renderHrmBackoffice() {
     ${subTabBtn('opgeslagen','📁 Opgeslagen formulieren')}
     ${subTabBtn('standaard','🏢 Standaard')}
     ${subTabBtn('documentatie_ec','📂 Documentatie EC')}
+    ${subTabBtn('opnames_jr','🎙️ Opnames JR')}
   </div>`;
 
   let body = '';
@@ -6236,6 +6237,20 @@ function renderHrmBackoffice() {
     body = renderOpgeslagenFormulieren();
   } else if (HRM_SUBTAB === 'documentatie_ec') {
     body = renderDocumentatieEC();
+  } else if (HRM_SUBTAB === 'opnames_jr') {
+    if (!_gesprekRecsLoaded) {
+      _gesprekRecsLoaded = true;
+      loadGesprekRecordsFromDb().then(() => {
+        if (currentTab === 'hrm' && HRM_SUBTAB === 'opnames_jr') renderHrmBackoffice();
+      });
+    }
+    if (!_bezoekRecsLoaded) {
+      _bezoekRecsLoaded = true;
+      loadBezoekRecordsFromDb().then(() => {
+        if (currentTab === 'hrm' && HRM_SUBTAB === 'opnames_jr') renderHrmBackoffice();
+      });
+    }
+    body = renderBmCoachingTab({ naam: 'Jannik van Rijt' });
   } else {
     body = renderAanmeldForm();
   }
