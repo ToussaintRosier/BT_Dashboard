@@ -10384,7 +10384,9 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
       analyse = metResult ? metResult.result : { samenvatting: '(Samengevoegde opnames — heranalyse niet beschikbaar)', segmenten: [] };
     }
     const datum = groep[0].datum;
-    const newMeta = { naam: groep[0].naam, functie: groep[0].functie, datum };
+    // Behoud recorder_naam van de eerste groepsrecord die er één heeft
+    const recorderNaam = groep.map(r => r.recorder_naam).find(Boolean) || '';
+    const newMeta = { naam: groep[0].naam, functie: groep[0].functie, datum, ...(recorderNaam ? { recorder_naam: recorderNaam } : {}) };
 
     // STAP 1: Nieuw record EERST opslaan in Supabase — bevestig succes vóór verwijderen
     let newSupaId = null;
@@ -10407,7 +10409,7 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
     }
 
     // STAP 3: Nieuw record in lokale cache (gebruik echte Supabase-UUID zodat Herlaad geen duplicaat maakt)
-    const newRec = { id: newSupaId || Date.now(), datum, naam: groep[0].naam, functie: groep[0].functie, result: analyse, transcript: combined };
+    const newRec = { id: newSupaId || Date.now(), datum, naam: groep[0].naam, functie: groep[0].functie, recorder_naam: recorderNaam, result: analyse, transcript: combined };
     GESPREK_RECORDS.unshift(newRec);
     if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
     _saveGesprekRec();
