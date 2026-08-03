@@ -112,8 +112,8 @@
   .kpi-card .value { font-size:1.6rem; font-weight:800; line-height:1.1; margin:3px 0 2px; }
   .kpi-card .sub   { font-size:.78rem; color:var(--muted); }
   .kpi-card .actual { font-size:.82rem; font-weight:600; margin-top:3px; }
-  .section-title { font-size:1.05rem; font-weight:700; letter-spacing:.2px; margin:24px 0 12px; display:flex; align-items:center; gap:8px; color:var(--primary); }
-  .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+  /* Geen decoratieve streep meer achter sectietitels — scheelt ruimte en rust. */
+  .section-title { font-size:1.05rem; font-weight:700; letter-spacing:.2px; margin:18px 0 10px; display:flex; align-items:center; gap:8px; color:var(--primary); }
   .progress-block { background:var(--card); border-radius:var(--radius); padding:12px 16px; border:1px solid var(--border); margin-bottom:10px; box-shadow:0 2px 8px rgba(37,49,81,.07); }
   .progress-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
   .progress-name   { font-weight:700; font-size:.95rem; }
@@ -634,6 +634,70 @@ function isoWeek(date) {
   return { year: d.getUTCFullYear(), week: Math.ceil((((d - y0) / 86400000) + 1) / 7) };
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// GEBRUIKSTELLERS — hoe vaak zijn de tools deze week gebruikt?
+// ITK/BZK komen uit de opnames zelf; Matchmaker uit de tabel gebruik_log.
+// ════════════════════════════════════════════════════════════════════════════
+let GEBRUIK_LOG = [];   // rijen uit gebruik_log
+
+const _NL_MAANDEN = ['januari','februari','maart','april','mei','juni',
+                     'juli','augustus','september','oktober','november','december'];
+
+// Zet een recorddatum ("03 augustus 2026") om naar { year, week }.
+// Valt terug op de standaard datumparser als het formaat afwijkt.
+function weekVanRecordDatum(tekst) {
+  if (!tekst) return null;
+  const m = String(tekst).trim().match(/^(\d{1,2})\s+([a-zA-Zé]+)\s+(\d{4})$/);
+  if (m) {
+    const maand = _NL_MAANDEN.indexOf(m[2].toLowerCase());
+    if (maand >= 0) return isoWeek(new Date(+m[3], maand, +m[1]));
+  }
+  const d = new Date(tekst);
+  return isNaN(d) ? null : isoWeek(d);
+}
+
+// Registreer één keer gebruik van een tool (nu alleen de Matchmaker).
+async function logGebruik(module, aantal) {
+  if (!supa) return;
+  try {
+    const { year, week } = isoWeek(new Date());
+    const { data: { user } = { user: null } } = await supa.auth.getUser();
+    const rij = {
+      module, jaar: year, week,
+      aantal: aantal || 1,
+      gebruiker: CURRENT_USER?.naam || '',
+      created_by: user ? user.id : null,
+    };
+    const { error } = await supa.from('gebruik_log').insert(rij);
+    if (!error) GEBRUIK_LOG.push(rij);
+  } catch(_) { /* tabel bestaat nog niet — teller blijft simpelweg op 0 */ }
+}
+
+async function loadGebruikLog() {
+  if (!supa) return;
+  try {
+    const { data, error } = await supa.from('gebruik_log')
+      .select('module, jaar, week, aantal').limit(5000);
+    if (!error) GEBRUIK_LOG = data || [];
+  } catch(_) {}
+}
+
+// Tellers voor één week: aantal ITK-opnames, BZK-opnames en Matchmaker-zoekacties.
+function gebruikVanWeek(jaar, week) {
+  const telRecords = (lijst) => lijst.filter(r => {
+    const w = weekVanRecordDatum(r.datum);
+    return w && w.year === jaar && w.week === week;
+  }).length;
+
+  const mm = GEBRUIK_LOG.filter(g => g.module === 'matchmaker' && g.jaar === jaar && g.week === week);
+  return {
+    itk:        telRecords(GESPREK_RECORDS),
+    bzk:        telRecords(BEZOEK_RECORDS),
+    matchmaker: mm.length,
+    vacatures:  mm.reduce((s, g) => s + (g.aantal || 0), 0),
+  };
+}
+
 // TODAY/CUR/CUTOFF/NEXT/PREV zijn "let" (niet "const") en worden via
 // refreshWeekConstants() opnieuw berekend bij elke render() — niet alleen bij
 // page-load. Zonder dit bleef de weektelling vastzitten op het moment dat het
@@ -718,6 +782,35 @@ let BMS = [
 // Gebruikt als altijd-bewaarde fallback in loadBeheerData().
 const BMS_HARDCODED_NAMEN = new Set(BMS.map(b => b.naam));
 let TEAM_DOEL = BMS.reduce((s, b) => s + b.doel, 0);
+
+// ════════════════════════════════════════════════════════════════════════════
+// INACTIEVE MEDEWERKERS
+// Iemand met een verstreken einddatum blijft in BMS staan — anders zouden zijn
+// cijfers van vóór die datum uit alle historische overzichten verdwijnen. Hij
+// wordt overal verborgen via bmsZichtbaar(), en telt per week alleen mee tot en
+// met de week waarin zijn einddatum viel (teltMeeInWeek).
+// Einddatum leegmaken in Beheer draait alles terug.
+// ════════════════════════════════════════════════════════════════════════════
+
+// De medewerkers die in het dashboard getoond worden (dus zonder de inactieve).
+function bmsZichtbaar() { return BMS.filter(b => !b.inactief); }
+
+// Is deze medewerker in deze week nog in dienst?
+function teltMeeInWeek(bm, jaar, week) {
+  if (!bm || !bm.inactief || !bm.inactiefVanaf) return true;
+  const eind = new Date(bm.inactiefVanaf);
+  if (isNaN(eind)) return true;
+  // Maandag van de opgegeven ISO-week; ligt die ná de einddatum, dan telt hij niet mee.
+  const maandag = new Date(Date.UTC(jaar, 0, 4));
+  maandag.setUTCDate(maandag.getUTCDate() - ((maandag.getUTCDay() + 6) % 7) + (week - 1) * 7);
+  return maandag <= eind;
+}
+
+// Is deze naam van een inactieve collega? (voor opnames, dropdowns e.d.)
+function isInactieveCollega(naam) {
+  const bm = BMS.find(b => b.naam === naam);
+  return !!(bm && bm.inactief);
+}
 
 // Management: voorheen apart bijgehouden buiten de BM-funnel; Luc Kools en
 // Yoël Bronckers hebben nu een volwaardige medewerkerskaart (rol: Key
@@ -1006,7 +1099,7 @@ function renderTabs() {
   const prognoseIdx = BMS.length + 1;
   const inMedewerkers = currentTab === 'medewerkers' || currentTab < BMS.length;
 
-  const medewerkersItems = BMS.map((b,i) => b.special ? '' :
+  const medewerkersItems = BMS.map((b,i) => (b.special || b.inactief) ? '' :
     `<button class="sidebar-item ${i===currentTab?'active':''}" onclick="selectTab(${i})">${escHtml(b.naam)}</button>`
   ).join('');
 
@@ -1797,11 +1890,32 @@ function renderBM(bm) {
 }
 
 // ── Team Panel ────────────────────────────────────────────────────────────────
+// Balkje met het toolgebruik van deze week: hoeveel ITK- en BZK-opnames zijn er
+// gemaakt en hoe vaak is de Matchmaker geraadpleegd.
+function renderGebruikBalk(jaar, week) {
+  const g = gebruikVanWeek(jaar, week);
+  const tegel = (icoon, getal, label, extra) => `
+    <div style="flex:1;min-width:130px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 14px;">
+      <div style="font-size:.72rem;color:rgba(255,255,255,.65);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">${icoon} ${label}</div>
+      <div style="font-size:1.5rem;font-weight:800;color:#fff;line-height:1.15;margin-top:2px;">${getal}</div>
+      ${extra ? `<div style="font-size:.72rem;color:rgba(255,255,255,.55);">${extra}</div>` : ''}
+    </div>`;
+
+  return `<div style="margin-top:26px;">
+    <div class="section-title"><span style="color:#fff;">🧰 Toolgebruik — week ${week}</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      ${tegel('🎙️', g.itk, 'ITK-opnames')}
+      ${tegel('🏢', g.bzk, 'BZK-opnames')}
+      ${tegel('🔍', g.matchmaker, 'Matchmaker', g.matchmaker ? `${g.vacatures} vacatures getoond` : '')}
+    </div>
+  </div>`;
+}
+
 function renderMedewerkersOverzicht() {
   const year   = getYear();
   const passed = periodsPassedInYear(year, 'week');
 
-  const ranking = BMS.map(bm => {
+  const ranking = bmsZichtbaar().map(bm => {
     const rows      = filterData(bm.naam, year);
     const ytd       = ytdTotals(rows);
     const ytdTarget = cumDoel(bm, passed, 52);
@@ -1830,6 +1944,9 @@ function renderMedewerkersOverzicht() {
   const wkTotals = (jaar, week) => {
     const t = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
     for (const bm of BMS) {
+      // Uit dienst: telt niet meer mee vanaf de week ná zijn einddatum, maar
+      // de weken daarvóór blijven gewoon in het teamtotaal staan.
+      if (!teltMeeInWeek(bm, jaar, week)) continue;
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
       const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
       if (saved) {
@@ -1868,7 +1985,8 @@ function renderMedewerkersOverzicht() {
     const teamNorm = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'week');
     let anyLive = false;
 
-    const bmArr = BMS.map(bm => {
+    // Uit dienst: alleen tonen in de weken waarin hij nog in dienst was.
+    const bmArr = BMS.filter(bm => teltMeeInWeek(bm, jaar, week)).map(bm => {
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
       const isSaved = !!saved;
       const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
@@ -1991,6 +2109,7 @@ function renderMedewerkersOverzicht() {
       '<thead><tr><th>#</th><th>Medewerker</th><th>Starters YTD</th><th>Verwacht YTD</th><th>Voortgang</th><th>% behaald</th><th>Jaardoel</th></tr></thead>' +
       '<tbody>' + rankRows + '</tbody>' +
     '</table></div>' +
+    renderGebruikBalk(CUR.year, CUR.week) +
     '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">📊 KPI\'s per week — teamtotaal</span></div>' +
     allWeeks.map(w => renderClosedWeek(w.year, w.week)).join('') +
   '</div>';
@@ -2049,7 +2168,7 @@ function renderTeam() {
 
   // Key Accountmanagers uitgesloten: hun funnel is fundamenteel anders (geen
   // intakes/aanbiedingen/matchgesprekken) en zou deze ratio-vergelijking vertekenen.
-  const bmRatioRows = BMS.filter(bm => !EXCL_RATIO.has(bm.naam)).map(bm => {
+  const bmRatioRows = bmsZichtbaar().filter(bm => !EXCL_RATIO.has(bm.naam)).map(bm => {
     const rt = INDIVIDUAL_RATIOS[bm.naam];
     return `<tr>
       <td>${bm.naam}</td>
@@ -3133,13 +3252,20 @@ async function loadBeheerData() {
     const heeftDoel        = Object.prototype.hasOwnProperty.call(doelenMap, naam);
     const isInHardcodedBMS = BMS_HARDCODED_NAMEN.has(naam);
     if (!heeftDoel && !isInHardcodedBMS) continue;
-    // Sla medewerkers met verstreken einddatum over
-    if (p.einddatum && new Date(p.einddatum) < new Date()) continue;
 
     const doel  = doelenMap[naam] ?? p.doel ?? 12;
     const bestaandBMSKleur = BMS.find(b => b.naam === naam)?.kleur;
     const kleur = p.kleur || bestaandBMSKleur || fallbackKleuren[kleurIdx++ % fallbackKleuren.length];
     const bm    = { naam, doel, kleur };
+
+    // Uit dienst / inactief: de medewerker blijft in BMS staan zodat zijn
+    // cijfers van vóór de einddatum gewoon blijven meetellen in de historie.
+    // Overal in het dashboard wordt hij verder verborgen — zie bmsZichtbaar()
+    // en teltMeeInWeek(). Einddatum leegmaken in Beheer maakt dit ongedaan.
+    if (p.einddatum && new Date(p.einddatum) < new Date()) {
+      bm.inactief      = true;
+      bm.inactiefVanaf = p.einddatum;
+    }
 
     // Special-vlag: overnemen uit hardcoded BMS (bijv. backoffice-medewerkers die alleen in dropdowns mogen)
     const bestaandBMS = BMS.find(b => b.naam === naam);
@@ -3213,7 +3339,7 @@ async function loadBeheerData() {
   // Vervang BMS in-place zodat bestaande referenties werken
   if (nieuweBMS.length > 0) {
     BMS.splice(0, BMS.length, ...nieuweBMS);
-    TEAM_DOEL    = BMS.reduce((s, b) => s + b.doel, 0);
+    TEAM_DOEL    = bmsZichtbaar().reduce((s, b) => s + b.doel, 0);
     TOTAAL_DOEL  = TEAM_DOEL + MGMT_DOEL;
     // Bouw EXCL-sets opnieuw op: altijd 'Luc Schiffers' + alle actieve KAMs
     EXCL = new Set(['Luc Schiffers']);
@@ -3309,6 +3435,7 @@ async function loadAllData() {
   laadStap('Rapportages…');
   try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
   try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
+  try { await loadGebruikLog(); } catch(e) { console.error('loadGebruikLog fout (niet fataal):', e); }
   laadStap('Berekeningen…');
   recomputeRatios();
 }
@@ -5076,7 +5203,7 @@ function _collegaChips(src, id, selected, containerId) {
   // toont alleen geselecteerden tenzij expliciet in edit-modus.
   const isGC     = containerId.startsWith('gc-');
   const editMode = isGC || (window._projCollegaEditSet || new Set()).has(safeId);
-  const chips    = BMS.map(b => {
+  const chips    = bmsZichtbaar().map(b => {
     const init = bmInitialen(b.naam);
     const on   = selected.includes(init);
     if (!editMode && !on) return '';
@@ -6534,7 +6661,7 @@ function renderComrap() {
     matchgesprekken:'Matchgesprekken', contractvoorstellen:'Contractvoorstellen', starters:'Starters' };
 
   // Per BM: MAX(opgeslagen, pipeline) — zelfde logica als teamtotaal-view.
-  const bmRows = BMS.filter(bm => !bm.special).map(bm => {
+  const bmRows = bmsZichtbaar().filter(bm => !bm.special).map(bm => {
     const raw  = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
     const pipe = getPipeCountsForWeek(bm.naam, w, y);
     const row  = {};
@@ -6555,7 +6682,7 @@ function renderComrap() {
   // Kanban: actieve procedures (pipeline cards niet verwijderd, fase matchgesprek/intake/aanbieding/contractvoorstel)
   const ACTIVE_STAGES = ['match_1e','match_2e','match_3e','intake','aanbieden','contractvoorstel'];
   let kanbanAantal = 0;
-  for (const bm of BMS.filter(b => !b.special)) {
+  for (const bm of bmsZichtbaar().filter(b => !b.special)) {
     const cards = pipeLoad(bm.naam);
     for (const c of cards) {
       if (!c.verwijderd_op && ACTIVE_STAGES.includes(c.stage)) kanbanAantal++;
@@ -6852,7 +6979,7 @@ async function comrapAnalyse() {
   const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 
   // Bouw structured data — MAX(opgeslagen, pipeline), zelfde als teamtotaal-view.
-  const bmData = BMS.filter(bm => !bm.special).map(bm => {
+  const bmData = bmsZichtbaar().filter(bm => !bm.special).map(bm => {
     const raw    = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
     const pipe   = getPipeCountsForWeek(bm.naam, w, y);
     const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
@@ -6867,7 +6994,7 @@ async function comrapAnalyse() {
   // Kanban
   const ACTIVE_STAGES = ['match_1e','match_2e','match_3e','intake','aanbieden','contractvoorstel'];
   let kanban = 0;
-  for (const bm of BMS.filter(b => !b.special)) {
+  for (const bm of bmsZichtbaar().filter(b => !b.special)) {
     const cards = pipeLoad(bm.naam);
     for (const c of cards) if (!c.verwijderd_op && ACTIVE_STAGES.includes(c.stage)) kanban++;
   }
@@ -11434,9 +11561,13 @@ function renderGesprekRecords() {
     groepTelling[k] = (groepTelling[k] || 0) + 1;
   });
 
-  const items=GESPREK_RECORDS.length===0
+  // Opnames van collega's die uit dienst zijn verdwijnen uit de lijst. Ze blijven
+  // wél bestaan; zodra de einddatum in Beheer wordt leeggemaakt staan ze er weer.
+  const _gArchief = GESPREK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
+  const GESPREK_RECORDS_ZICHTBAAR = GESPREK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
+  const items=GESPREK_RECORDS_ZICHTBAAR.length===0
     ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen gesprekken.</div>`
-    :GESPREK_RECORDS.map(rec=>{
+    :GESPREK_RECORDS_ZICHTBAAR.map(rec=>{
       const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
       const open=GESPREK_OPEN.has(rec.id), showTr=GESPREK_SHOW_TR.has(rec.id);
       const title=[rec.naam,rec.functie].filter(Boolean).join(' — ')||'Gesprek';
@@ -11455,8 +11586,8 @@ function renderGesprekRecords() {
           <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
           ${GESPREK_HERANALYSE_BUSY.has(rec.id)?`<span style="font-size:.7rem;font-weight:700;background:#eef2ff;color:var(--primary);border:1px solid #c7d2fe;border-radius:20px;padding:2px 8px;flex-shrink:0;" title="Het samenvoegen is klaar — de AI werkt de analyse nog bij">⏳ Analyse loopt</span>`:''}
           ${rec.recorder_naam
-            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">👤 ${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${(BMS||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
-            : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${(BMS||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
+            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">👤 ${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
+            : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
           }
           <span onclick="event.stopPropagation();gesprekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
@@ -11502,14 +11633,13 @@ function renderGesprekRecords() {
       <button class="bm-subtab-btn active" onclick="">📋 Recente records${badge}</button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS.length} records — gedeeld tussen collega's</span>
+      <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS_ZICHTBAAR.length} records — gedeeld tussen collega's${_gArchief.length?` · ${_gArchief.length} van oud-collega's verborgen`:''}</span>
       <div style="display:flex;gap:8px;">
         ${_herlaadStatus.gesprek==='loading'
           ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;opacity:.6;" disabled>⏳ Laden…</button>`
           : _herlaadStatus.gesprek==='done'
           ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;background:#d1fae5;border-color:#10b981;color:#065f46;" disabled>✅ Klaar</button>`
           : `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="gesprekHerlaadRecords()">🔄 Herlaad</button>`}
-        ${GESPREK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="gesprekRecordWisAlles()">🗑 Alles wissen</button>`:''}
       </div>
     </div>
     ${items}
@@ -11521,9 +11651,11 @@ function renderBezoekRecords() {
   if (currentTab !== 'bezoek') return;
   const PT=(rows)=>`<table style="width:100%;border-collapse:collapse;font-size:.84rem;">${rows.filter(([,v])=>v).map(([k,v])=>`<tr><td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:4px 10px 4px 0;vertical-align:top;width:38%;">${escHtml(k)}</td><td style="padding:4px 0;line-height:1.5;">${escHtml(v)}</td></tr>`).join('')}</table>`;
   const badge=BEZOEK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>`:'';
-  const items=BEZOEK_RECORDS.length===0
+  const _bArchief = BEZOEK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
+  const BEZOEK_RECORDS_ZICHTBAAR = BEZOEK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
+  const items=BEZOEK_RECORDS_ZICHTBAAR.length===0
     ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen bezoekverslagen.</div>`
-    :BEZOEK_RECORDS.map(rec=>{
+    :BEZOEK_RECORDS_ZICHTBAAR.map(rec=>{
       const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{}, cf=r.coachingFeedback||{};
       const soort=rec.soortBezoek||'bedrijfsbezoek';
       const soortEmoji=soort==='evaluatie_medewerker'?'👤':soort==='voorbereiding_matchgesprek'?'🎯':'🏢';
@@ -11545,8 +11677,8 @@ function renderBezoekRecords() {
           <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;">${soortEmoji} ${escHtml(soortLabel)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
           ${rec.recorder_naam
-            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">👤 ${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${(BMS||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
-            : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${(BMS||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
+            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">👤 ${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
+            : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
           }
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">🗑</span>
         </div>
@@ -11578,14 +11710,13 @@ function renderBezoekRecords() {
       <button class="bm-subtab-btn active" onclick="">📋 Recente records${badge}</button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS.length} records — gedeeld tussen collega's</span>
+      <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS_ZICHTBAAR.length} records — gedeeld tussen collega's${_bArchief.length?` · ${_bArchief.length} van oud-collega's verborgen`:''}</span>
       <div style="display:flex;gap:8px;">
         ${_herlaadStatus.bezoek==='loading'
           ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;opacity:.6;" disabled>⏳ Laden…</button>`
           : _herlaadStatus.bezoek==='done'
           ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;background:#d1fae5;border-color:#10b981;color:#065f46;" disabled>✅ Klaar</button>`
           : `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="bezoekHerlaadRecords()">🔄 Herlaad</button>`}
-        ${BEZOEK_RECORDS.length>0?`<button class="proj-del-btn" style="font-size:.78rem;" onclick="bezoekRecordWisAlles()">🗑 Alles wissen</button>`:''}
       </div>
     </div>
     ${items}
@@ -12596,13 +12727,16 @@ async function plaatsingZoeken() {
       PLAATSING.statusMsg = '⚠️ Geen resultaten gevonden. Probeer een andere functietitel of regio.';
     } else {
       PLAATSING.statusMsg = `✅ ${PLAATSING.resultaten.length} bedrijven gevonden om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
-      // Stats bijhouden
+      // Gebruik registreren. Naast de lokale teller (voor de badge in de kop
+      // van deze pagina) ook naar de database, zodat het teamoverzicht laat
+      // zien hoe vaak de Matchmaker déze week door iedereen samen is gebruikt.
       try {
         const s = JSON.parse(localStorage.getItem('matchmaker_stats') || '{"zoeken":0,"vacatures":0}');
         s.zoeken = (s.zoeken || 0) + 1;
         s.vacatures = (s.vacatures || 0) + PLAATSING.resultaten.length;
         localStorage.setItem('matchmaker_stats', JSON.stringify(s));
       } catch(_) {}
+      logGebruik('matchmaker', PLAATSING.resultaten.length);
     }
   } catch (e) {
     PLAATSING.statusMsg = `<span style="color:var(--danger);">❌ Zoeken mislukt: ${escHtml(String(e?.message || e))}</span>`;
