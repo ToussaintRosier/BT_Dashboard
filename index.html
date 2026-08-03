@@ -12692,12 +12692,21 @@ async function syncMoneybird() {
     }
     await loadFinancieelOmzet();
     const ongekoppeld = (data && data.ongekoppeldeKlanten) || [];
+    // Geslaagd = kort melden en klaar. De lange waarschuwingslijst met
+    // ongekoppelde klanten stond permanent in beeld en leidde alleen maar af;
+    // die zit nu achter een uitklapper voor als je er iets mee wilt doen.
     let msg = `✅ Gesynchroniseerd: ${data?.aantalKlanten ?? '?'} klanten, ${data?.aantalFacturenVerwerkt ?? '?'} facturen verwerkt om ${new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}.`;
     if (data && data.afgekapt) {
-      msg += `<br>⚠️ De synchronisatie duurde te lang en is voortijdig afgekapt — niet alle facturen uit Moneybird zijn meegenomen. De cijfers hierboven zijn daardoor een onderschatting. Druk nogmaals op "Vernieuwen vanuit Moneybird" om het opnieuw te proberen.`;
+      // Dit blijft wél staan: de cijfers kloppen dan niet en dat moet je weten.
+      msg += `<br>⚠️ De synchronisatie is voortijdig afgekapt — niet alle facturen zijn meegenomen. Druk nogmaals op "Vernieuwen vanuit Moneybird".`;
     }
     if (ongekoppeld.length) {
-      msg += `<br>⚠️ Niet gekoppeld aan een bestaande klant in Accountmanagement: ${ongekoppeld.map(escHtml).join(', ')}. Koppel deze handmatig via het veld <code>moneybird_contact_id</code> op de bijbehorende klant, of pas de naam aan zodat hij overeenkomt.`;
+      msg += `<details style="margin-top:6px;">
+        <summary style="cursor:pointer;font-size:.82rem;color:var(--muted);">${ongekoppeld.length} klant(en) nog niet gekoppeld aan Accountmanagement — klik voor details</summary>
+        <div style="margin-top:6px;font-size:.8rem;line-height:1.65;color:var(--muted);">
+          ${ongekoppeld.map(escHtml).join(', ')}.<br>
+          Koppel ze via het veld <code>moneybird_contact_id</code> op de bijbehorende klant, of pas de naam aan zodat hij overeenkomt.
+        </div></details>`;
     }
     FINANCIEEL_SYNC_MSG = msg;
   } catch (e) {
