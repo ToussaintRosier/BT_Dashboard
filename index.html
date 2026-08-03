@@ -10757,30 +10757,16 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
     const combined = groep.map((r, i) => {
       return r.transcript ? `--- [Deel ${i+1}] ---\n${r.transcript}` : '';
     }).filter(Boolean).join('\n\n');
-    // Bepaal analyse: heranalyseer als transcripties beschikbaar, anders beste bestaande overnemen
-    let analyse = null;
-    if (combined.trim()) {
-      try {
-        const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-        const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-analyse', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
-          },
-          body: JSON.stringify({ naam: groep[0].naam, functie: groep[0].functie, transcript: combined }),
-        });
-        const data = await res.json();
-        if (res.ok && !data.error && data.analyse && data.analyse.samenvatting) {
-          analyse = data.analyse;
-        }
-      } catch(_) { /* val terug op bestaande analyse */ }
-    }
-    if (!analyse) {
-      // Geen heranalyse gelukt — gebruik de beste bestaande analyse
-      const metResult = groep.find(r => r.result && r.result.samenvatting);
-      analyse = metResult ? metResult.result : { samenvatting: '(Samengevoegde opnames — heranalyse niet beschikbaar)', segmenten: [] };
-    }
+
+    // SNELHEID: we wachten NIET op de AI-heranalyse. Die duurt bij veel delen
+    // tientallen seconden. Het samenvoegen zelf (transcripties bundelen, één
+    // record opslaan, de oude verwijderen) is bijna instant. We nemen daarom
+    // eerst de beste bestaande analyse over en starten de heranalyse daarna op
+    // de achtergrond — het record staat dan al klaar in beeld.
+    const metResult = groep.find(r => r.result && r.result.samenvatting);
+    const analyse = metResult
+      ? metResult.result
+      : { samenvatting: '(Samengevoegde opnames — analyse volgt)', segmenten: [] };
     const datum = groep[0].datum;
     // Behoud recorder_naam van de eerste groepsrecord die er één heeft
     const recorderNaam = groep.map(r => r.recorder_naam).find(Boolean) || '';
@@ -10802,8 +10788,12 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
     GESPREK_RECORDS = GESPREK_RECORDS.filter(r => !oldIds.includes(r.id));
     oldIds.forEach(id => { GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id); });
     if (supa) {
+      // Alle oude records in ÉÉN query verwijderen in plaats van één per record.
+      // Bij 9 duplicaten scheelt dat 9 heen-en-weertjes naar de server.
       const uuidIds = oldIds.filter(id => typeof id === 'string' && id.includes('-'));
-      await Promise.all(uuidIds.map(id => supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{})));
+      if (uuidIds.length) {
+        try { await supa.from('verslagen').delete().in('id', uuidIds); } catch(_) {}
+      }
     }
 
     // STAP 3: Nieuw record in lokale cache (gebruik echte Supabase-UUID zodat Herlaad geen duplicaat maakt)
@@ -10811,6 +10801,15 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
     GESPREK_RECORDS.unshift(newRec);
     if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
     _saveGesprekRec();
+
+    // STAP 4: Heranalyse op de achtergrond starten. Het samengevoegde record is
+    // vanaf nu al zichtbaar; de knop toont "⏳ Analyseren…" tot de AI klaar is.
+    if (combined.trim().length > 20 && newRec.id) {
+      _samenvoegBusy = false;
+      renderGesprekRecords();
+      gesprekRecordHeranalyse(newRec.id, true);   // silent: geen pop-up bij falen
+      return;
+    }
   } catch(err) {
     if (statusEl) { statusEl.textContent = '⚠️ ' + err.message; }
     _samenvoegBusy = false;
@@ -10896,11 +10895,13 @@ function gesprekRecordKopieer(id) {
     '','--- AFSPRAKEN ---',res.afspraken||''].filter(Boolean).join('\n');
   navigator.clipboard.writeText(lines).catch(()=>{});
 }
-async function gesprekRecordHeranalyse(id) {
+// silent=true: geen pop-ups bij fouten. Gebruikt door het samenvoegen, dat de
+// heranalyse op de achtergrond draait terwijl de gebruiker doorwerkt.
+async function gesprekRecordHeranalyse(id, silent) {
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
   if (!rec.transcript || rec.transcript.trim().length < 20) {
-    alert('Geen transcript beschikbaar voor heranalyse.');
+    if (!silent) alert('Geen transcript beschikbaar voor heranalyse.');
     return;
   }
   if (GESPREK_HERANALYSE_BUSY.has(id)) return;
@@ -10928,7 +10929,7 @@ async function gesprekRecordHeranalyse(id) {
       if (!updErr && updData) _clearResultOverride(rec.id); // DB echt bijgewerkt (rij teruggekregen) → override niet meer nodig
     }
   } catch(e) {
-    alert('Heranalyse mislukt: ' + e.message);
+    if (!silent) alert('Heranalyse mislukt: ' + e.message);
   } finally {
     GESPREK_HERANALYSE_BUSY.delete(id);
     renderGesprekRecords();
@@ -11059,6 +11060,7 @@ function renderGesprekRecords() {
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
           ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">🔀 Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
           <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
+          ${GESPREK_HERANALYSE_BUSY.has(rec.id)?`<span style="font-size:.7rem;font-weight:700;background:#eef2ff;color:var(--primary);border:1px solid #c7d2fe;border-radius:20px;padding:2px 8px;flex-shrink:0;" title="Het samenvoegen is klaar — de AI werkt de analyse nog bij">⏳ Analyse loopt</span>`:''}
           ${rec.recorder_naam
             ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">👤 ${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${(BMS||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">👤 Toewijzen…</option>${(BMS||[]).map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
