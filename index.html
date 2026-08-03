@@ -3193,6 +3193,47 @@ async function loadAllData() {
   try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
   try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
   recomputeRatios();
+
+  // Opnames (ITK + BZK) direct meeladen bij het opstarten, zodat ze overal
+  // meteen zichtbaar zijn — ook op de coaching-tab van een medewerker — zonder
+  // dat je eerst de recorder-tabs hoeft te openen. Bewust NIET met await: de
+  // rest van het dashboard hoeft hier niet op te wachten.
+  _startOpnamesPreload();
+}
+
+// Laadt de opnames + de status van gedeelde afspraken op de achtergrond en
+// hertekent daarna het scherm als de gebruiker naar een relevante pagina kijkt.
+let _opnamesPreloadBezig = false;
+let _opnamesPreloadKlaar = false;
+function _startOpnamesPreload() {
+  if (!supa) { _opnamesPreloadKlaar = true; return; }   // demo-modus: niets te laden
+  if (_opnamesPreloadBezig || _opnamesPreloadKlaar) return;
+  _opnamesPreloadBezig = true;
+  _gesprekRecsLoaded = true;
+  _bezoekRecsLoaded  = true;
+  // Pas de opgeslagen toewijzingen direct toe op de records uit de lokale
+  // cache, zodat ze meteen bij de juiste collega staan — nog vóór de server
+  // heeft geantwoord.
+  _pasRecorderToewijzingenToe();
+  Promise.allSettled([
+    loadGesprekRecordsFromDb(),
+    loadBezoekRecordsFromDb(),
+    loadAfsprakenGedeeld(),
+  ]).then(() => {
+    _opnamesPreloadBezig = false;
+    _opnamesPreloadKlaar = true;
+    _hertekenNaOpnames();
+  });
+}
+
+// Ververst alleen het deel van het scherm dat opnames toont
+function _hertekenNaOpnames() {
+  try {
+    if (currentTab === 'gesprek')      { renderGesprek(); return; }
+    if (currentTab === 'bezoek')       { renderBezoekRecorder(); return; }
+    if (currentTab === 'hrm')          { renderHrmBackoffice(); return; }
+    if (bmSubTab === 'coaching')       { refreshCoachingTab(); return; }
+  } catch(_) {}
 }
 
 // ── Login / authenticatie (Supabase Auth) ──────────────────────────────────────
@@ -4033,8 +4074,9 @@ function _afsprakenBadge(recId) {
 function renderBmCoachingTab(bm) {
   const d = computeCoachingData(bm);
 
-  // Status van gedeelde afspraken ophalen (badges op de opnamekaarten)
-  if (!_afsprakenGeladen) loadAfsprakenGedeeld().then(() => { if (typeof refreshCoachingTab === 'function') refreshCoachingTab(); });
+  // Opnames + gedeelde-afsprakenstatus ophalen als dat nog niet gebeurd is.
+  // Normaal is dit al bij het inloggen gestart; dit is de vangnet-variant.
+  if (!_opnamesPreloadKlaar && !_opnamesPreloadBezig) _startOpnamesPreload();
 
   return `
     <div class="norm-intro">
@@ -4138,7 +4180,9 @@ function renderBmCoachingTab(bm) {
         const secHtml = `<div style="margin-top:24px;">
           <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Gesprekcoaching — opnames van ${escHtml(bm.naam.split(' ')[0])} <button class="info-tip-btn" onclick="toggleInfoTip('itip-gesprekcoaching')" title="Uitleg">ℹ</button></div>
           <div id="itip-gesprekcoaching" class="info-tip-panel" hidden>Alleen opnames waarbij <strong>${escHtml(bm.naam)}</strong> als opnemer is geselecteerd. Klik op <strong>Analyseer</strong> voor AI-feedback: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht. Opnames die nog niet zijn toegewezen kun je toewijzen via de recorder-tabs (knop 📋 Recente records → 👤 Toewijzen).</div>
-          ${totalBm === 0 ? `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">Geen opnames toegewezen aan ${escHtml(bm.naam.split(' ')[0])}.${totalAll>0?' Er zijn wel '+totalAll+' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (📋 Recente records → 👤 Toewijzen).':' Maak een opname via de ITK- of BZK-Recorder.'}</div>` : ''}
+          ${totalBm === 0 ? (_opnamesPreloadBezig
+            ? `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">⏳ Opnames worden geladen…</div>`
+            : `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">Geen opnames toegewezen aan ${escHtml(bm.naam.split(' ')[0])}.${totalAll>0?' Er zijn wel '+totalAll+' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (📋 Recente records → 👤 Toewijzen).':' Maak een opname via de ITK- of BZK-Recorder.'}</div>`) : ''}
           ${gesprekMet.length ? `
             <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">📋 Sollicitatiegesprekken</div>
             ${gesprekMet.slice(0,5).map(r => recCard(r,'itk')).join('')}` : ''}
@@ -4202,7 +4246,9 @@ function renderOpnamesAlleen(naam) {
   const voornaam = naam.split(' ')[0];
   return `<div class="detail-section">
     <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎙️ Opnames van ${escHtml(voornaam)}</div>
-    ${totalBm === 0 ? `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">Geen opnames toegewezen aan ${escHtml(voornaam)}.${totalAll>0?' Er zijn wel '+totalAll+' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (📋 Recente records → 👤 Toewijzen).':' Maak een opname via de ITK- of BZK-Recorder.'}</div>` : ''}
+    ${totalBm === 0 ? (_opnamesPreloadBezig
+      ? `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">⏳ Opnames worden geladen…</div>`
+      : `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">Geen opnames toegewezen aan ${escHtml(voornaam)}.${totalAll>0?' Er zijn wel '+totalAll+' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (📋 Recente records → 👤 Toewijzen).':' Maak een opname via de ITK- of BZK-Recorder.'}</div>`) : ''}
     ${gesprekMet.length ? `<div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">📋 Sollicitatiegesprekken</div>${gesprekMet.slice(0,10).map(r => recCard(r,'itk')).join('')}` : ''}
     ${bezoekMet.length ? `<div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;margin-top:${gesprekMet.length?'12px':'0'};">🏢 Bedrijfsbezoeken</div>${bezoekMet.slice(0,10).map(r => recCard(r,'bzk')).join('')}` : ''}
   </div>`;
@@ -10298,12 +10344,8 @@ function renderGesprek() {
     _gesprekRecsLoaded = true;
     loadGesprekRecordsFromDb();
   }
-  // Status van gedeelde afspraken ophalen (voor de badges op de recordkaarten)
-  if (!_afsprakenGeladen) {
-    loadAfsprakenGedeeld().then(() => {
-      if (currentTab === 'gesprek' && gesprekSubView === 'records') renderGesprekRecords();
-    });
-  }
+  // Vangnet: als het opstart-laden om wat voor reden niet liep, alsnog starten
+  if (!_opnamesPreloadKlaar && !_opnamesPreloadBezig) _startOpnamesPreload();
   if (gesprekSubView === 'records') { renderGesprekRecords(); return; }
   const g = GESPREK;
   const r = g.result;
@@ -10460,6 +10502,21 @@ let _bezoekResultOverrides  = (() => { try { return JSON.parse(localStorage.getI
 let _recorderAssignments = (() => { try { return JSON.parse(localStorage.getItem('bt_recorder_assignments')||'{}'); } catch(_) { return {}; } })();
 function _recAssignKey(naam, functie, datum) { return `${naam||''}||${functie||''}||${datum||''}`; }
 function _saveRecorderAssignments() { try { localStorage.setItem('bt_recorder_assignments', JSON.stringify(_recorderAssignments)); } catch(_) {} }
+// Zet de opgeslagen toewijzingen op de records die nu in het geheugen staan.
+// Nodig voor de records die uit de lokale cache komen (die zijn er meteen,
+// terwijl de serverdata pas later binnenkomt).
+function _pasRecorderToewijzingenToe() {
+  try {
+    GESPREK_RECORDS.forEach(r => {
+      const n = _recorderAssignments[_recAssignKey(r.naam, r.functie, r.datum)];
+      if (n) r.recorder_naam = n;
+    });
+    BEZOEK_RECORDS.forEach(r => {
+      const n = _recorderAssignments[_recAssignKey(r.bedrijf, r.contactpersoon, r.datum)];
+      if (n) r.recorder_naam = n;
+    });
+  } catch(_) {}
+}
 let _herlaadStatus = { gesprek: '', bezoek: '' };
 
 function gesprekHerlaadRecords() {
