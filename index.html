@@ -639,6 +639,40 @@ function isoWeek(date) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// STILLE FOUTEN OPVANGEN
+//
+// Op veel plekken stond `catch(_) {}` — een fout gebeurde, en er werd niets
+// gemeld. Twee echte problemen hebben zich daar verstopt: de lokale opslag die
+// vol liep zonder iets te zeggen, en een verwijderactie die door de database
+// werd geweigerd zonder melding. Ze zijn allebei pas ontdekt toen iemand toevallig
+// zag dat er records ontbraken.
+//
+// Deze helpers houden fouten voortaan bij. Onschuldige gevallen (netwerk-hikjes
+// tijdens pollen, een recorder die al gestopt was) blijven bewust stil.
+// ════════════════════════════════════════════════════════════════════════════
+let STILLE_FOUTEN = [];   // laatste 30, zichtbaar in Beheer
+
+function _meldStil(waar, e) {
+  const melding = e?.message || String(e || 'onbekende fout');
+  STILLE_FOUTEN.unshift({ waar, melding, tijd: new Date().toISOString() });
+  if (STILLE_FOUTEN.length > 30) STILLE_FOUTEN.length = 30;
+  console.warn('[BT-dashboard] ' + waar + ': ' + melding);
+}
+
+// Veilig naar de lokale opslag schrijven. Die zit vol bij ±5 MB; daarna mislukt
+// elke schrijfactie. Zonder deze controle denk je dat er is opgeslagen terwijl
+// er niets gebeurt.
+function _veiligLokaalOpslaan(sleutel, waarde, waar) {
+  try {
+    localStorage.setItem(sleutel, typeof waarde === 'string' ? waarde : JSON.stringify(waarde));
+    return true;
+  } catch (e) {
+    _meldStil((waar || 'lokaal opslaan') + ' (' + sleutel + ')', e);
+    return false;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // DATABACK-UP
 // Haalt alle tabellen op en biedt ze aan als één JSON-bestand.
 //
@@ -768,7 +802,7 @@ async function loadGebruikLog() {
     const { data, error } = await supa.from('gebruik_log')
       .select('module, jaar, week, aantal').limit(5000);
     if (!error) GEBRUIK_LOG = data || [];
-  } catch(_) {}
+  } catch(e) { _meldStil('gebruikslogboek ophalen', e); }
 }
 
 // Tellers voor één week: aantal ITK-opnames, BZK-opnames en Matchmaker-zoekacties.
@@ -1489,6 +1523,23 @@ function renderBeheer() {
           Een webpagina mag zelf niet in mappen op je computer schrijven, vandaar de scheiding.
         </div>
       </div>
+
+      ${STILLE_FOUTEN.length ? `
+      <details style="background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;">
+        <summary style="cursor:pointer;font-weight:700;font-size:.88rem;color:#92400e;">
+          ⚠️ ${STILLE_FOUTEN.length} melding(en) sinds het openen van het dashboard
+        </summary>
+        <div style="margin-top:10px;font-size:.78rem;color:#78350f;line-height:1.7;">
+          Dit zijn acties die niet zijn gelukt. Vaak onschuldig (een tabel die nog niet bestaat),
+          maar als er iets niet lijkt op te slaan, staat de reden hier.
+          <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:.76rem;">
+            ${STILLE_FOUTEN.map(f => `<tr style="border-top:1px solid #fcd34d;">
+              <td style="padding:4px 8px 4px 0;white-space:nowrap;color:#92400e;">${new Date(f.tijd).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</td>
+              <td style="padding:4px 8px 4px 0;font-weight:600;">${escHtml(f.waar)}</td>
+              <td style="padding:4px 0;">${escHtml(f.melding)}</td></tr>`).join('')}
+          </table>
+        </div>
+      </details>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-size:.9rem;color:var(--text-muted);">${BEHEER_PROFIELEN.length} collega's geladen</div>
         <button onclick="beheerOpenInvite()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:.88rem;">➕ Nieuw uitnodigen</button>
@@ -1807,7 +1858,7 @@ applyDesktopZoom();
 function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
-  try { localStorage.setItem('bt_last_tab', JSON.stringify(i)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_last_tab', i, 'laatste tabblad onthouden');
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || i === 'team' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
@@ -3582,7 +3633,7 @@ function _hertekenNaOpnames() {
     if (currentTab === 'bezoek')       { renderBezoekRecorder(); return; }
     if (currentTab === 'hrm')          { renderHrmBackoffice(); return; }
     if (bmSubTab === 'coaching')       { refreshCoachingTab(); return; }
-  } catch(_) {}
+  } catch(e) { _meldStil('scherm bijwerken na laden opnames', e); }
 }
 
 // ── Login / authenticatie (Supabase Auth) ──────────────────────────────────────
@@ -3640,7 +3691,7 @@ async function loadProfileAndStart() {
           managementOpen = true;
         }
       }
-    } catch(_) {}
+    } catch(_) { /* bewust stil: kapotte opgeslagen tabkeuze → gewoon de standaardtab */ }
   }
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-root').style.display = '';
@@ -4145,7 +4196,7 @@ async function loadAfsprakenGedeeld(force) {
     AFSPRAKEN_GEDEELD = {};
     (data || []).forEach(r => { if (r.verslag_id) AFSPRAKEN_GEDEELD[String(r.verslag_id)] = r; });
     _afsprakenGeladen = true;
-  } catch (_) { /* tabel bestaat nog niet — stil negeren */ }
+  } catch(e) { _meldStil('gedeelde afspraken ophalen', e); }
 }
 
 // De basis-URL waar afspraken.html staat (zelfde host als het dashboard).
@@ -5254,7 +5305,7 @@ function projCollegaLoad(src, id) {
 }
 function projCollegaSave(src, id, arr) {
   // localStorage als directe fallback (ook offline beschikbaar)
-  try { localStorage.setItem(projCollegaKey(src,id), JSON.stringify(arr)); } catch(_) {}
+  _veiligLokaalOpslaan(projCollegaKey(src,id), arr, 'collega-initialen project');
   if (!supa) return;
   const jsonVal = arr.length > 0 ? JSON.stringify(arr) : null;
   if (src === 'excel') {
@@ -5391,7 +5442,7 @@ function projEvalSave(src, id, arr) {
   const cacheKey = `${src}_${id}`;
   PROJ_EVAL_CACHE[cacheKey] = arr;
   // localStorage backup
-  try { localStorage.setItem(projEvalKey(src,id), JSON.stringify(arr)); } catch(_) {}
+  _veiligLokaalOpslaan(projEvalKey(src,id), arr, 'evaluaties project');
   if (!supa) return;
   // Lees bestaande keys, upsert elke key
   supa.from('project_evaluaties').select('eval_key').eq('src', src).eq('project_id', String(id)).then(({ data }) => {
@@ -7289,7 +7340,7 @@ function aanmeldLoad() {
 }
 function aanmeldSet(key, val) {
   const d = aanmeldLoad(); d[key] = val;
-  try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(d)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_aanmeld_data', d, 'aanmeldformulier');
 }
 function aanmeldDayToggle(week, day) {
   const d = aanmeldLoad(), key = `arb_${week}`;
@@ -11025,7 +11076,7 @@ let _bezoekResultOverrides  = (() => { try { return JSON.parse(localStorage.getI
 // Hierdoor overleven toewijzingen een Herlaad, een merge of een RLS-fout bij de Supabase UPDATE.
 let _recorderAssignments = (() => { try { return JSON.parse(localStorage.getItem('bt_recorder_assignments')||'{}'); } catch(_) { return {}; } })();
 function _recAssignKey(naam, functie, datum) { return `${naam||''}||${functie||''}||${datum||''}`; }
-function _saveRecorderAssignments() { try { localStorage.setItem('bt_recorder_assignments', JSON.stringify(_recorderAssignments)); } catch(_) {} }
+function _saveRecorderAssignments() { _veiligLokaalOpslaan('bt_recorder_assignments', _recorderAssignments, 'recorder-toewijzingen'); }
 // Zet de opgeslagen toewijzingen op de records die nu in het geheugen staan.
 // Nodig voor de records die uit de lokale cache komen (die zijn er meteen,
 // terwijl de serverdata pas later binnenkomt).
@@ -11039,7 +11090,7 @@ function _pasRecorderToewijzingenToe() {
       const n = _recorderAssignments[_recAssignKey(r.bedrijf, r.contactpersoon, r.datum)];
       if (n) r.recorder_naam = n;
     });
-  } catch(_) {}
+  } catch(e) { _meldStil('recorder-toewijzingen toepassen', e); }
 }
 let _herlaadStatus = { gesprek: '', bezoek: '' };
 
@@ -11108,11 +11159,23 @@ async function _ensureProfilesCache() {
   try {
     const { data } = await supa.from('profiles').select('id, naam, bm_naam').limit(100);
     (data || []).forEach(p => { _PROFILES_CACHE[p.id] = p.naam || p.bm_naam || ''; });
-  } catch(_) {}
+  } catch(e) { _meldStil('profielen ophalen', e); }
 }
 async function _saveVerslagToSupa(type, meta, result, transcript) {
   if (!supa) return;
-  try { await supa.from('verslagen').insert({ type, meta, result, transcript, created_by: CURRENT_USER?.id || null }); } catch(_) {}
+  // Dit is de enige plek waar een opname naar de gedeelde server gaat. Mislukt
+  // dat stilzwijgend, dan denkt de collega dat het gesprek is opgeslagen terwijl
+  // het alleen in zijn eigen browser staat — en bij een andere computer is het weg.
+  // Daarom hier wél een zichtbare waarschuwing.
+  try {
+    const { error } = await supa.from('verslagen')
+      .insert({ type, meta, result, transcript, created_by: CURRENT_USER?.id || null });
+    if (error) throw error;
+  } catch (e) {
+    _meldStil('opname opslaan op de server (' + type + ')', e);
+    alert('Let op: de opname staat wel in dit scherm, maar kon niet naar de gedeelde server worden opgeslagen.\n\n'
+        + (e?.message || e) + '\n\nSluit dit tabblad nog niet en probeer het zo opnieuw, of maak eerst een kopie van het verslag.');
+  }
 }
 
 // Laad alle verslagen van dit type uit Supabase (gedeeld tussen collega's)
@@ -11238,19 +11301,19 @@ async function loadBezoekRecordsFromDb() {
 
 function _setResultOverride(id, result) {
   _gesprekResultOverrides[String(id)] = result;
-  try { localStorage.setItem('bt_gesprek_result_overrides', JSON.stringify(_gesprekResultOverrides)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_gesprek_result_overrides', _gesprekResultOverrides, 'analyse-overschrijving');
 }
 function _clearResultOverride(id) {
   delete _gesprekResultOverrides[String(id)];
-  try { localStorage.setItem('bt_gesprek_result_overrides', JSON.stringify(_gesprekResultOverrides)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_gesprek_result_overrides', _gesprekResultOverrides, 'analyse-overschrijving');
 }
 function _setBezoekResultOverride(id, result) {
   _bezoekResultOverrides[String(id)] = result;
-  try { localStorage.setItem('bt_bezoek_result_overrides', JSON.stringify(_bezoekResultOverrides)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_bezoek_result_overrides', _bezoekResultOverrides, 'analyse-overschrijving');
 }
 function _clearBezoekResultOverride(id) {
   delete _bezoekResultOverrides[String(id)];
-  try { localStorage.setItem('bt_bezoek_result_overrides', JSON.stringify(_bezoekResultOverrides)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_bezoek_result_overrides', _bezoekResultOverrides, 'analyse-overschrijving');
 }
 function _recInitials(naam) {
   const tv = new Set(['van','de','den','der','ter','het',"'t",'op','in','aan','bij','tot','uit','over','voor','ten']);
@@ -11304,7 +11367,7 @@ async function _updateBezoekVerslagInSupa(localId, result, transcript) {
     }
     // Tijdelijke records (id = timestamp) staan nog niet in DB — die worden bij herlaad automatisch gedupliceerd.
     // In dat geval niets doen; het in-memory record is al bijgewerkt.
-  } catch(_) {}
+  } catch(e) { _meldStil('bezoekverslag bijwerken op de server', e); }
 }
 
 function toggleGesprekRecord(id)    { if(GESPREK_OPEN.has(id))GESPREK_OPEN.delete(id); else GESPREK_OPEN.add(id); renderGesprek(); }
@@ -11966,7 +12029,7 @@ function pvaRecPoll(bmNaam) {
       } else if (data.status === 'pending' || data.status === 'processing') {
         p.statusMsg = '⏳ Transcriptie loopt…';
       }
-    } catch(_) {}
+    } catch(_) { /* bewust stil: netwerkhikje tijdens pollen, volgende ronde volgt vanzelf */ }
   }, 5000);
 }
 
@@ -12841,8 +12904,8 @@ async function plaatsingZoeken() {
         const s = JSON.parse(localStorage.getItem('matchmaker_stats') || '{"zoeken":0,"vacatures":0}');
         s.zoeken = (s.zoeken || 0) + 1;
         s.vacatures = (s.vacatures || 0) + PLAATSING.resultaten.length;
-        localStorage.setItem('matchmaker_stats', JSON.stringify(s));
-      } catch(_) {}
+        _veiligLokaalOpslaan('matchmaker_stats', s, 'matchmaker-teller');
+      } catch(e) { _meldStil('matchmaker-teller bijwerken', e); }
       logGebruik('matchmaker', PLAATSING.resultaten.length);
     }
   } catch (e) {
@@ -13545,7 +13608,7 @@ function standaardLoadAll() {
   try { return JSON.parse(localStorage.getItem('bt_aanmeld_standaard') || '[]'); } catch(_) { return []; }
 }
 function standaardSaveAll(arr) {
-  try { localStorage.setItem('bt_aanmeld_standaard', JSON.stringify(arr)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_aanmeld_standaard', arr, 'standaarden');
 }
 // ── Supabase sync ────────────────────────────────────────────
 async function standaardSupabaseSync() {
@@ -13557,20 +13620,20 @@ async function standaardSupabaseSync() {
     standaardSaveAll(arr);
     STANDAARD_SYNCED = true;
     if (currentTab === 'hrm' && (HRM_SUBTAB === 'standaard' || HRM_SUBTAB === 'aanmeldformulier')) renderHrmBackoffice();
-  } catch(_) {}
+  } catch(e) { _meldStil('standaarden synchroniseren', e); }
 }
 async function standaardSupabaseSave(naam, data) {
   if (!supa) return;
   try {
     await supa.from('aanmeld_standaarden')
       .upsert({ naam, data, bijgewerkt_op: new Date().toISOString() }, { onConflict: 'naam' });
-  } catch(_) {}
+  } catch(e) { _meldStil('standaard opslaan op de server', e); }
 }
 async function standaardSupabaseDelete(naam) {
   if (!supa) return;
   try {
     await supa.from('aanmeld_standaarden').delete().eq('naam', naam);
-  } catch(_) {}
+  } catch(e) { _meldStil('standaard verwijderen op de server', e); }
 }
 function standaardToggle(id) {
   STANDAARD_EXPANDED[id] = !STANDAARD_EXPANDED[id];
@@ -13846,7 +13909,7 @@ function standaardApply(id) {
   if (sd.winstdeling_notitie) {
     d.overig_afspraken = (d.overig_afspraken ? d.overig_afspraken + '\n\n' : '') + sd.winstdeling_notitie;
   }
-  try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(d)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_aanmeld_data', d, 'aanmeldformulier');
   HRM_SUBTAB = 'aanmeldformulier';
   render();
 }
@@ -13943,7 +14006,7 @@ async function aanmeldSaveForm() {
     } catch(e) { alert('Opslaan mislukt: ' + e.message); return; }
   } else {
     AANMELD_SAVED = [{ id: Date.now(), label, ts: new Date().toISOString(), data: JSON.parse(JSON.stringify(d)) }, ...AANMELD_SAVED];
-    try { localStorage.setItem('bt_aanmeld_saved', JSON.stringify(AANMELD_SAVED)); } catch(_) {}
+    _veiligLokaalOpslaan('bt_aanmeld_saved', AANMELD_SAVED, 'opgeslagen formulieren');
     alert('Formulier opgeslagen als: ' + label);
   }
   HRM_SUBTAB = 'opgeslagen';
@@ -13967,7 +14030,7 @@ async function aanmeldDeleteSaved(id) {
 function aanmeldEditSaved(id) {
   const entry = AANMELD_SAVED.find(e => String(e.id) === String(id));
   if (!entry) return;
-  try { localStorage.setItem('bt_aanmeld_data', JSON.stringify(entry.data)); } catch(_) {}
+  _veiligLokaalOpslaan('bt_aanmeld_data', entry.data, 'formulier openen');
   HRM_SUBTAB = 'aanmeldformulier';
   render();
 }
