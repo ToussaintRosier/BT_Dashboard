@@ -78,6 +78,31 @@
     --accent: #E87400; --accent-gold: #F4CB3C;
     --success: #0e9f6e; --warn: #f59e0b; --danger: #e02424; --over: #9333ea;
     --text: #16142e; --muted: #5b6478; --border: #dde1e8; --radius: 10px;
+
+    /* ── ONTWERPFUNDAMENT ────────────────────────────────────────────────
+       Eén vaste set maten. Het dashboard had 52 tekstgroottes, 21 hoek-
+       rondingen, 17 schaduwen en 141 verschillende paddings — allemaal per
+       element apart bepaald. Daardoor lijkt niets op elkaar. Hieronder staat
+       waar we voortaan uit kiezen. Nieuwe schermen gebruiken alleen deze. */
+
+    /* Tekst: zes maten, meer heb je niet nodig */
+    --t-xs: .72rem;    /* labels boven een getal          */
+    --t-sm: .8rem;     /* bijschrift, hulptekst           */
+    --t-md: .88rem;    /* gewone tekst in tabellen        */
+    --t-lg: 1rem;      /* kop van een sectie              */
+    --t-xl: 1.25rem;   /* paginatitel                     */
+    --t-cijfer: 1.5rem;/* groot getal op een tegel        */
+
+    /* Gewicht: twee, niet vijf. 800 leest als schreeuwen. */
+    --w-normaal: 400;
+    --w-nadruk: 600;
+
+    /* Ruimte: vier stappen */
+    --s1: 6px; --s2: 12px; --s3: 20px; --s4: 32px;
+
+    /* Vorm: één ronding, één schaduw */
+    --radius-groot: 12px;
+    --schaduw: 0 1px 3px rgba(37,49,81,.08);
   }
   body { font-family: 'Cera Pro', 'Segoe UI', system-ui, sans-serif; background: #253151; color: var(--text); min-height: 100vh; }
   header { background: linear-gradient(135deg,#0F092F,#253151); color:#fff; padding:20px 32px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.2); flex-wrap:wrap; gap:12px; position:sticky; top:0; z-index:200; overflow:hidden; }
@@ -138,6 +163,17 @@
   .chart-card h3 { font-size:.9rem; font-weight:700; color:var(--muted); margin-bottom:14px; }
   .chart-wrap    { position:relative; height:260px; }
   .table-card { background:var(--card); border-radius:var(--radius); border:1px solid var(--border); overflow:hidden; box-shadow:0 2px 8px rgba(37,49,81,.07); }
+
+  /* ── Basisonderdelen op dezelfde leest ──────────────────────────────────
+     Staat bewust ná de definities hierboven, zodat deze regels winnen. */
+  .chart-card, .table-card, .progress-block, .kpi-card {
+    border-radius: var(--radius-groot);
+    box-shadow: var(--schaduw);
+  }
+  .kpi-card .value { font-weight: var(--w-nadruk); font-size: var(--t-cijfer); }
+  .kpi-card .label { font-weight: var(--w-normaal); letter-spacing: .03em; text-transform: none; font-size: var(--t-xs); color: var(--muted); }
+  .section-title   { font-weight: var(--w-nadruk); font-size: var(--t-lg); }
+  .person-name     { font-weight: var(--w-nadruk); font-size: var(--t-xl); letter-spacing: -.01em; }
   table { width:100%; border-collapse:collapse; font-size:.84rem; }
   thead th { background:var(--card); color:var(--muted); font-weight:700; padding:10px 14px; text-align:right; font-size:.77rem; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--border); }
   thead th:first-child { text-align:left; }
@@ -231,8 +267,12 @@
   .goedkeur-btn.niet-akkoord { border-color:#e02424; background:#e02424; color:#fff; }
   .btn-secondary { display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:7px 14px; font-size:.82rem; font-weight:700; cursor:pointer; }
   .btn-secondary:hover { background:#f3f4f6; }
-  .person-header { background:#F4CB3C; border-radius:var(--radius); padding:14px 24px; border:1px solid #F4CB3C; margin:8px 0 12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; position:sticky; top:106px; z-index:90; box-shadow:0 4px 10px rgba(0,0,0,.15); }
+  /* Slanker: was 18px hoog met een zware schaduw. De gele kleur blijft — dat is
+     de huisstijl — maar hij hoeft niet zoveel hoogte en aandacht op te eisen. */
+  .person-header { background:#F4CB3C; border-radius:var(--radius-groot); padding:10px 20px; border:1px solid #F4CB3C; margin:6px 0 14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; position:sticky; top:106px; z-index:90; box-shadow:var(--schaduw); }
   .person-header .person-name, .person-header .person-meta { color:#16142e; }
+  .person-header .person-name { font-size:1.1rem; }
+  .person-header .meta-pill { font-size:.75rem; padding:3px 10px; font-weight:var(--w-normaal); }
   .person-header .meta-pill { background:rgba(22,20,46,.1); color:#16142e; }
   .bm-subtabs { display:flex; gap:6px; margin:0 0 18px; }
   .bm-subtab-btn { background:none; border:none; padding:10px 18px; font-size:.9rem; font-weight:700; color:#94a3b8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
@@ -2052,19 +2092,20 @@ function renderBM(bm) {
 // gemaakt en hoe vaak is de Matchmaker geraadpleegd.
 function renderGebruikBalk(jaar, week) {
   const g = gebruikVanWeek(jaar, week);
-  const tegel = (icoon, getal, label, extra) => `
-    <div style="flex:1;min-width:130px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 14px;">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.65);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">${icoon} ${label}</div>
-      <div style="font-size:1.5rem;font-weight:800;color:#fff;line-height:1.15;margin-top:2px;">${getal}</div>
-      ${extra ? `<div style="font-size:.72rem;color:rgba(255,255,255,.55);">${extra}</div>` : ''}
+  // Geen kader, geen emoji: het label boven en het getal eronder zijn genoeg.
+  const tegel = (getal, label, extra) => `
+    <div style="flex:1;min-width:120px;">
+      <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);letter-spacing:.03em;">${label}</div>
+      <div style="font-size:var(--t-cijfer);font-weight:var(--w-nadruk);color:#fff;line-height:1.2;">${getal}</div>
+      ${extra ? `<div style="font-size:var(--t-xs);color:rgba(255,255,255,.4);margin-top:1px;">${extra}</div>` : ''}
     </div>`;
 
   return `<div style="margin-top:26px;">
-    <div class="section-title"><span style="color:#fff;">🧰 Toolgebruik — week ${week}</span></div>
+    <div class="section-title"><span style="color:#fff;">Toolgebruik — week ${week}</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${tegel('🎙️', g.itk, 'ITK-opnames')}
-      ${tegel('🏢', g.bzk, 'BZK-opnames')}
-      ${tegel('🔍', g.matchmaker, 'Matchmaker', g.matchmaker ? `${g.vacatures} vacatures getoond` : '')}
+      ${tegel(g.itk, 'ITK-opnames')}
+      ${tegel(g.bzk, 'BZK-opnames')}
+      ${tegel(g.matchmaker, 'Matchmaker', g.matchmaker ? `${g.vacatures} vacatures getoond` : '')}
     </div>
   </div>`;
 }
@@ -2083,14 +2124,15 @@ function renderMedewerkersOverzicht() {
 
   const rankRows = ranking.map((r, i) => {
     const rank  = i + 1;
-    const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : rank === 3 ? '\u{1F949}' : rank;
-    return '<tr style="' + (rank === 1 ? 'background:#fdf6e3' : '') + '">' +
-      '<td style="font-weight:700;">' + medal + '</td>' +
+    // Geen medailles: de volgorde en het percentage zeggen het al. De koploper
+    // krijgt alleen een subtiele achtergrond mee.
+    return '<tr style="' + (rank === 1 ? 'background:#fdf9ee' : '') + '">' +
+      '<td style="font-weight:var(--w-nadruk);color:var(--muted);">' + rank + '</td>' +
       '<td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + r.bm.kleur + ';margin-right:6px;"></span>' + escHtml(r.bm.naam) + (r.bm.rol ? ' <span style="color:var(--muted);font-size:.78rem">(' + escHtml(r.bm.rol) + ')</span>' : '') + '</td>' +
       '<td>' + fmt(r.starters, 1) + '</td>' +
       '<td>' + fmt(r.ytdTarget, 1) + '</td>' +
       '<td style="min-width:160px;"><div class="medew-bar-wrap"><div class="medew-bar-mark-label">100%</div><div class="medew-bar-bg"><div class="medew-bar-fill" style="width:' + pctWide(r.p) + '%;background:' + barColorWide(r.p) + '"></div></div><div class="medew-bar-mark"></div></div></td>' +
-      '<td style="font-weight:700;color:' + barColorWide(r.p) + '">' + r.p + '%' + (r.p >= 100 ? ' \u{1F3C6}' : '') + '</td>' +
+      '<td style="font-weight:var(--w-nadruk);color:' + barColorWide(r.p) + '">' + r.p + '%</td>' +
       '<td>' + r.bm.doel + '</td></tr>';
   }).join('');
 
@@ -2257,10 +2299,10 @@ function renderMedewerkersOverzicht() {
 
   document.getElementById('main').innerHTML = '<div>' +
     '<div class="person-header">' +
-      '<div class="person-name">\u{1F3C5} Medewerkers</div>' +
+      '<div class="person-name">Medewerkers</div>' +
       '<div class="person-meta">' +
-        '<span class="meta-pill">\u{1F3AF} Teamdoel: ' + TOTAAL_DOEL + ' starters/jaar</span>' +
-        '<span class="meta-pill">\u{1F4C5} Stand t/m week ' + CUR.week + ', ' + year + '</span>' +
+        '<span class="meta-pill">Teamdoel ' + TOTAAL_DOEL + ' starters</span>' +
+        '<span class="meta-pill">Stand t/m week ' + CUR.week + '</span>' +
       '</div>' +
     '</div>' +
     '<div class="table-card"><table>' +
@@ -2268,7 +2310,7 @@ function renderMedewerkersOverzicht() {
       '<tbody>' + rankRows + '</tbody>' +
     '</table></div>' +
     renderGebruikBalk(CUR.year, CUR.week) +
-    '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">📊 KPI\'s per week — teamtotaal</span></div>' +
+    '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">KPI\'s per week — teamtotaal</span></div>' +
     allWeeks.map(w => renderClosedWeek(w.year, w.week)).join('') +
   '</div>';
 }
@@ -2357,10 +2399,10 @@ function renderTeam() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">🏆 Team Resultaten</div>
+      <div class="person-name">Team Resultaten</div>
       <div class="person-meta">
-        <span class="meta-pill">🎯 Teamdoel: ${TOTAAL_DOEL} starters/jaar</span>
-        <span class="meta-pill">📐 Ratio's o.b.v. laatste 26 weken</span>
+        <span class="meta-pill">Teamdoel ${TOTAAL_DOEL} starters</span>
+        <span class="meta-pill">Ratio's over 26 weken</span>
       </div>
     </div>
 
