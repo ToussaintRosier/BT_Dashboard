@@ -3648,7 +3648,12 @@ function refreshCoachingTab() {
 
 async function gesprekCoachAnalyse(id) {
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
-  if (!rec || !rec.transcript) return;
+  if (!rec) return;
+  // Record komt uit de lokale cache: het transcript zit er nog niet bij.
+  if (!rec.transcript) {
+    if (rec.heeftTranscript) alert('De opname wordt nog opgehaald van de server. Probeer het over een paar seconden opnieuw.');
+    return;
+  }
   GESPREK_COACHING_RESULTS[id] = { loading: true, result: null };
   refreshCoachingTab();
   try {
@@ -3668,7 +3673,11 @@ async function gesprekCoachAnalyse(id) {
 
 async function bezoekCoachAnalyse(id) {
   const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
-  if (!rec || !rec.transcript) return;
+  if (!rec) return;
+  if (!rec.transcript) {
+    if (rec.heeftTranscript) alert('De opname wordt nog opgehaald van de server. Probeer het over een paar seconden opnieuw.');
+    return;
+  }
   BEZOEK_COACHING_RESULTS[id] = { loading: true, result: null };
   refreshCoachingTab();
   try {
@@ -3930,6 +3939,7 @@ function _afsprakenToonLink(rij) {
           <input type="text" readonly value="${escHtml(link)}" onclick="this.select()" style="width:100%;padding:8px 10px;font-size:.76rem;font-family:monospace;border:1px solid #d1d5db;border-radius:7px;background:#f9fafb;color:#374151;">
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-secondary" style="font-size:.78rem;padding:6px 11px;" onclick="navigator.clipboard.writeText('${link.replace(/'/g, "\\'")}').then(()=>{this.textContent='✅ Gekopieerd';setTimeout(()=>{this.textContent='📋 Kopieer link'},1800)})">📋 Kopieer link</button>
+            <button class="btn-primary" style="font-size:.78rem;padding:6px 13px;border:none;border-radius:var(--radius);color:#fff;cursor:pointer;font-weight:700;" onclick="afsprakenVerzenden()">✉️ Verzenden</button>
             <button class="btn-secondary" style="font-size:.78rem;padding:6px 11px;" onclick="afsprakenQrPrint()">🖨️ Print QR</button>
             <a class="btn-secondary" href="${escHtml(link)}" target="_blank" rel="noopener" style="font-size:.78rem;padding:6px 11px;text-decoration:none;display:inline-flex;align-items:center;">👁️ Bekijk als kandidaat</a>
           </div>
@@ -3970,6 +3980,169 @@ function afsprakenQrPrint() {
     </body></html>`);
   w.document.close(); w.focus();
   setTimeout(() => w.print(), 400);
+}
+
+// ── Verzenden per e-mail ────────────────────────────────────────────────────
+// LET OP: een mailto:-link kan géén afbeelding meesturen — dat staat de browser
+// niet toe. Daarom drie routes:
+//   • "Kopieer mét QR"  → rijke tekst incl. QR-plaatje op het klembord; plak in
+//                          Outlook/Gmail en de code staat gewoon in de mail.
+//   • "Download QR"     → PNG om zelf als bijlage toe te voegen.
+//   • "Open in e-mail"  → mailto met de tekst en de link (zonder plaatje).
+// In een e-mail is de link overigens bruikbaarder dan de QR: die kun je
+// aanklikken. De QR is vooral handig op papier of om vanaf een ander scherm te
+// scannen.
+function afsprakenVerzenden() {
+  const modal = document.getElementById('afspraken-modal');
+  if (!modal) return;
+  const rec = GESPREK_RECORDS.find(r => String(r.id) === String(modal.dataset.recId));
+  const rij = AFSPRAKEN_GEDEELD[String(modal.dataset.recId)];
+  if (!rec || !rij || !rij.token) return;
+
+  const link      = _afsprakenLink(rij.token);
+  const voornaam  = (rec.naam || '').trim().split(' ')[0] || 'daar';
+  const afzender  = rec.recorder_naam || CURRENT_USER?.naam || 'Brightech';
+  const geldigTot = rij.verloopt_op
+    ? new Date(rij.verloopt_op).toLocaleDateString('nl-NL', { day:'numeric', month:'long', year:'numeric' })
+    : '';
+
+  const qrEl = document.getElementById('afspr-qr');
+  const cv   = qrEl ? qrEl.querySelector('canvas') : null;
+  const img  = qrEl ? qrEl.querySelector('img') : null;
+  const qrSrc = cv ? cv.toDataURL('image/png') : (img ? img.src : '');
+
+  const onderwerp = `Onze afspraken — ${rec.naam || 'Brightech'}`;
+  const tekst = [
+    `Beste ${voornaam},`,
+    ``,
+    `Bedankt voor het gesprek. Hieronder vind je een overzicht van de afspraken die we hebben gemaakt.`,
+    ``,
+    `Bekijk ze hier:`,
+    link,
+    ``,
+    `Onderaan die pagina kun je met één klik bevestigen dat je ze hebt gelezen.`,
+    geldigTot ? `De link blijft geldig tot ${geldigTot}.` : '',
+    ``,
+    `Heb je vragen? Laat het me weten.`,
+    ``,
+    `Met vriendelijke groet,`,
+    afzender,
+    `Brightech`,
+  ].filter(r => r !== null && r !== undefined).join('\n');
+
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(onderwerp)}&body=${encodeURIComponent(tekst)}`;
+
+  let m = document.getElementById('afspr-mail-modal');
+  if (m) m.remove();
+  m = document.createElement('div');
+  m.id = 'afspr-mail-modal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;';
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  m.innerHTML = `
+    <div style="background:#fff;border-radius:12px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.15rem;">✉️</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:.97rem;">Afspraken versturen</div>
+          <div style="font-size:.78rem;color:#6b7280;">${escHtml(rec.naam || '')}${rec.functie ? ' · ' + escHtml(rec.functie) : ''}</div>
+        </div>
+        <button onclick="document.getElementById('afspr-mail-modal').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#9ca3af;line-height:1;padding:0 4px;">×</button>
+      </div>
+
+      <div style="padding:18px 22px;">
+        <label style="display:block;font-size:.78rem;font-weight:700;color:#374151;margin-bottom:5px;">Onderwerp</label>
+        <input type="text" id="afspr-mail-onderwerp" value="${escHtml(onderwerp)}" style="width:100%;padding:9px 12px;font-size:.85rem;font-family:inherit;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;">
+
+        <label style="display:block;font-size:.78rem;font-weight:700;color:#374151;margin-bottom:5px;">Bericht <span style="font-weight:400;color:#6b7280;">— pas gerust aan</span></label>
+        <textarea id="afspr-mail-tekst" rows="13" style="width:100%;padding:11px 13px;font-size:.84rem;line-height:1.65;font-family:inherit;border:1px solid #d1d5db;border-radius:8px;resize:vertical;">${escHtml(tekst)}</textarea>
+
+        ${qrSrc ? `
+        <div style="display:flex;gap:14px;align-items:center;margin-top:14px;padding:12px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+          <img src="${qrSrc}" alt="QR-code" style="width:76px;height:76px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">
+          <div style="font-size:.78rem;color:#6b7280;line-height:1.6;">
+            <strong style="color:#374151;">Wil je de QR-code meesturen?</strong><br>
+            Een e-mailvenster kan geen plaatje meekrijgen via de knop hieronder. Gebruik <strong>Kopieer mét QR</strong> en plak in Outlook of Gmail — de code komt dan gewoon mee. Of download hem als bijlage.
+          </div>
+        </div>` : ''}
+
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn-secondary" style="flex:1;min-width:130px;padding:9px;font-size:.82rem;" onclick="_afsprMailKopieer(false)">📋 Kopieer tekst</button>
+          ${qrSrc ? `<button class="btn-secondary" style="flex:1;min-width:130px;padding:9px;font-size:.82rem;" onclick="_afsprMailKopieer(true)">🖼️ Kopieer mét QR</button>` : ''}
+          ${qrSrc ? `<button class="btn-secondary" style="padding:9px 13px;font-size:.82rem;" onclick="_afsprQrDownload()">⬇️ Download QR</button>` : ''}
+        </div>
+        <div style="margin-top:8px;">
+          <a id="afspr-mail-link" href="${mailtoUrl}" class="btn-primary" style="display:block;padding:11px;font-size:.86rem;text-align:center;text-decoration:none;border-radius:var(--radius);color:#fff;font-weight:700;">✉️ Openen in e-mailprogramma</a>
+        </div>
+        <div id="afspr-mail-status" style="margin-top:10px;font-size:.79rem;text-align:center;color:#6b7280;min-height:18px;"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  // Mailto-link bijwerken zodra de gebruiker de tekst aanpast
+  const sync = () => {
+    const a = document.getElementById('afspr-mail-link');
+    const o = document.getElementById('afspr-mail-onderwerp').value;
+    const t = document.getElementById('afspr-mail-tekst').value;
+    if (a) a.href = `mailto:?subject=${encodeURIComponent(o)}&body=${encodeURIComponent(t)}`;
+  };
+  document.getElementById('afspr-mail-onderwerp').addEventListener('input', sync);
+  document.getElementById('afspr-mail-tekst').addEventListener('input', sync);
+
+  // QR-bron onthouden voor de kopieer-/downloadknoppen
+  m.dataset.qr   = qrSrc || '';
+  m.dataset.link = link;
+}
+
+function _afsprMailStatus(txt, goed) {
+  const el = document.getElementById('afspr-mail-status');
+  if (el) { el.textContent = txt; el.style.color = goed ? '#15803d' : '#b91c1c'; }
+}
+
+async function _afsprMailKopieer(metQr) {
+  const m = document.getElementById('afspr-mail-modal');
+  if (!m) return;
+  const tekst = document.getElementById('afspr-mail-tekst').value || '';
+  try {
+    if (metQr && m.dataset.qr && window.ClipboardItem) {
+      // Rijke tekst: platte tekst + het QR-plaatje eronder.
+      const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;">'
+        + escHtml(tekst).replace(/\n/g, '<br>')
+        + '<br><br><img src="' + m.dataset.qr + '" alt="QR-code" width="200" height="200"><br>'
+        + '<span style="font-size:12px;color:#666;">Scan deze code met de camera van je telefoon.</span>'
+        + '</div>';
+      await navigator.clipboard.write([ new ClipboardItem({
+        'text/html':  new Blob([html],  { type: 'text/html' }),
+        'text/plain': new Blob([tekst], { type: 'text/plain' }),
+      }) ]);
+      _afsprMailStatus('✅ Gekopieerd mét QR — plak nu in je e-mail (Ctrl+V / Cmd+V).', true);
+    } else {
+      await navigator.clipboard.writeText(tekst);
+      _afsprMailStatus('✅ Tekst gekopieerd — plak in je e-mail.', true);
+    }
+  } catch (e) {
+    // Val terug op platte tekst als rijke kopie geblokkeerd wordt
+    try {
+      await navigator.clipboard.writeText(tekst);
+      _afsprMailStatus('Alleen de tekst is gekopieerd — je browser staat plaatjes kopiëren niet toe. Gebruik "Download QR" als bijlage.', false);
+    } catch (_) {
+      _afsprMailStatus('Kopiëren is niet gelukt. Selecteer de tekst handmatig.', false);
+    }
+  }
+}
+
+function _afsprQrDownload() {
+  const m = document.getElementById('afspr-mail-modal');
+  const modal = document.getElementById('afspraken-modal');
+  if (!m || !m.dataset.qr) return;
+  const rec = modal ? GESPREK_RECORDS.find(r => String(r.id) === String(modal.dataset.recId)) : null;
+  const naam = rec && rec.naam ? rec.naam.replace(/[^\w\-]+/g, '_') : 'afspraken';
+  const a = document.createElement('a');
+  a.href = m.dataset.qr;
+  a.download = 'QR_afspraken_' + naam + '.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  _afsprMailStatus('⬇️ QR-code gedownload — voeg hem toe als bijlage.', true);
 }
 
 async function afsprakenPubliceer() {
@@ -4131,9 +4304,9 @@ function renderBmCoachingTab(bm) {
       </div>
 
       ${(() => {
-        const gesprekMet = GESPREK_RECORDS.filter(r => r.transcript && r.recorder_naam === bm.naam);
-        const bezoekMet  = BEZOEK_RECORDS.filter(r => r.transcript && r.recorder_naam === bm.naam);
-        const totalAll   = GESPREK_RECORDS.filter(r=>r.transcript).length + BEZOEK_RECORDS.filter(r=>r.transcript).length;
+        const gesprekMet = GESPREK_RECORDS.filter(r => _heeftTranscript(r) && r.recorder_naam === bm.naam);
+        const bezoekMet  = BEZOEK_RECORDS.filter(r => _heeftTranscript(r) && r.recorder_naam === bm.naam);
+        const totalAll   = GESPREK_RECORDS.filter(_heeftTranscript).length + BEZOEK_RECORDS.filter(_heeftTranscript).length;
         const totalBm    = gesprekMet.length + bezoekMet.length;
         // Altijd de sectie tonen — ook als leeg (zodat gebruiker weet wat te doen)
 
@@ -4198,9 +4371,9 @@ function renderBmCoachingTab(bm) {
 
 // Alleen de opname-kaarten tonen (zonder coaching/funnel) — voor bijv. backoffice-medewerkers
 function renderOpnamesAlleen(naam) {
-  const gesprekMet = GESPREK_RECORDS.filter(r => r.transcript && r.recorder_naam === naam);
-  const bezoekMet  = BEZOEK_RECORDS.filter(r => r.transcript && r.recorder_naam === naam);
-  const totalAll   = GESPREK_RECORDS.filter(r=>r.transcript).length + BEZOEK_RECORDS.filter(r=>r.transcript).length;
+  const gesprekMet = GESPREK_RECORDS.filter(r => _heeftTranscript(r) && r.recorder_naam === naam);
+  const bezoekMet  = BEZOEK_RECORDS.filter(r => _heeftTranscript(r) && r.recorder_naam === naam);
+  const totalAll   = GESPREK_RECORDS.filter(_heeftTranscript).length + BEZOEK_RECORDS.filter(_heeftTranscript).length;
   const totalBm    = gesprekMet.length + bezoekMet.length;
 
   const recCard = (rec, type) => {
@@ -10540,8 +10713,41 @@ function bezoekHerlaadRecords() {
   });
 }
 
-function _saveGesprekRec() { try { localStorage.setItem('bt_gesprek_records', JSON.stringify(GESPREK_RECORDS)); } catch(_) {} }
-function _saveBezoekRec()  { try { localStorage.setItem('bt_bezoek_records',  JSON.stringify(BEZOEK_RECORDS));  } catch(_) {} }
+// ── Lokale cache van opnames ────────────────────────────────────────────────
+// BELANGRIJK: transcripties worden NIET meegecachet. Ze zijn vaak tientallen
+// kilobytes per opname; bij 20+ records loopt localStorage (±5 MB) vol en
+// mislukt het opslaan volledig — waardoor er na een refresh maar een handjevol
+// oude records overbleef. We bewaren alleen wat nodig is om de lijst meteen te
+// tonen, plus een vlag dat er een transcript bestaat. De transcripties zelf
+// komen bij het laden vanzelf mee vanaf de server.
+function _slankRecord(r) {
+  const kopie = Object.assign({}, r);
+  delete kopie.transcript;
+  kopie.heeftTranscript = !!(r.transcript && String(r.transcript).trim());
+  return kopie;
+}
+
+// Slaat op, en trimt automatisch als de opslag alsnog vol zit.
+function _cacheOpslaan(sleutel, lijst) {
+  let items = lijst.map(_slankRecord);
+  for (let poging = 0; poging < 5; poging++) {
+    try {
+      localStorage.setItem(sleutel, JSON.stringify(items));
+      return true;
+    } catch (_) {
+      // Vol: gooi de helft van de oudste records weg en probeer opnieuw
+      if (items.length <= 1) { try { localStorage.removeItem(sleutel); } catch(__) {} return false; }
+      items = items.slice(0, Math.floor(items.length / 2));
+    }
+  }
+  return false;
+}
+
+function _saveGesprekRec() { _cacheOpslaan('bt_gesprek_records', GESPREK_RECORDS); }
+function _saveBezoekRec()  { _cacheOpslaan('bt_bezoek_records',  BEZOEK_RECORDS);  }
+
+// Heeft dit record een transcript (nu geladen, of volgens de cache)?
+function _heeftTranscript(r) { return !!(r && (r.transcript || r.heeftTranscript)); }
 
 // Sla een verslag op in Supabase zodat alle collega's het kunnen zien
 async function _ensureProfilesCache() {
@@ -10559,13 +10765,44 @@ async function _saveVerslagToSupa(type, meta, result, transcript) {
 }
 
 // Laad alle verslagen van dit type uit Supabase (gedeeld tussen collega's)
-async function _loadVerlagenFromSupa(type) {
+// Haalt de verslagen op. LET OP: standaard ZONDER transcript.
+// Een transcript is al gauw 40.000+ tekens; 50 records met transcript is enkele
+// megabytes en dat is precies waarom de lijst seconden op zich liet wachten.
+// De lijst zelf (datum, naam, functie, analyse) is maar een fractie daarvan en
+// is dus vrijwel meteen binnen. De transcripties komen daarna op de achtergrond.
+async function _loadVerlagenFromSupa(type, metTranscript) {
   if (!supa) return null;
+  const kolommen = metTranscript ? '*' : 'id, type, meta, result, created_at';
   try {
-    const { data } = await supa.from('verslagen').select('*').eq('type', type)
+    const { data } = await supa.from('verslagen').select(kolommen).eq('type', type)
       .order('created_at', { ascending: false }).limit(50);
     return data || null;
   } catch(_) { return null; }
+}
+
+// Fase 2: transcripties ophalen en in de al getoonde records schuiven.
+// Draait op de achtergrond; de gebruiker ziet de lijst dan allang.
+async function _laadTranscriptsAchtergrond(type) {
+  if (!supa) return;
+  const lijst = type === 'gesprek' ? GESPREK_RECORDS : BEZOEK_RECORDS;
+  const ids = lijst.filter(r => typeof r.id === 'string' && r.id.includes('-') && !r.transcript)
+                   .map(r => r.id);
+  if (!ids.length) return;
+  try {
+    const { data, error } = await supa.from('verslagen').select('id, transcript').in('id', ids);
+    if (error || !data) return;
+    const perId = {};
+    data.forEach(r => { perId[String(r.id)] = r.transcript || ''; });
+    lijst.forEach(r => {
+      if (Object.prototype.hasOwnProperty.call(perId, String(r.id))) {
+        r.transcript = perId[String(r.id)];
+        r.heeftTranscript = !!(r.transcript && r.transcript.trim());
+      }
+    });
+    if (type === 'gesprek') { _saveGesprekRec(); if (currentTab === 'gesprek') renderGesprek(); }
+    else                    { _saveBezoekRec();  if (currentTab === 'bezoek')  renderBezoekRecorder(); }
+    if (bmSubTab === 'coaching') refreshCoachingTab();
+  } catch(_) {}
 }
 
 async function loadGesprekRecordsFromDb() {
@@ -10584,11 +10821,16 @@ async function loadGesprekRecordsFromDb() {
       naam: r.meta?.naam || '', functie: r.meta?.functie || '',
       recorder_naam: _recorderAssignments[_recAssignKey(r.meta?.naam||'', r.meta?.functie||'', r.meta?.datum||'')] || lok?.recorder_naam || r.meta?.recorder_naam || '',
       result: _gesprekResultOverrides[String(r.id)] ?? r.result,
-      transcript: r.transcript,
+      // Fase 1 haalt geen transcripties op. Behoud wat we al hadden; de rest
+      // wordt hierna op de achtergrond aangevuld.
+      transcript: r.transcript ?? lok?.transcript ?? '',
+      heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
     };
   });
   _saveGesprekRec();
   if (currentTab === 'gesprek') renderGesprek();
+  if (bmSubTab === 'coaching') refreshCoachingTab();
+  _laadTranscriptsAchtergrond('gesprek');   // fase 2, blokkeert niets
   // Auto-merge uitgeschakeld: vervangen van record-IDs verstoort recorder_naam-toewijzingen.
   // Gebruik de handmatige 🔀 Samenvoegen knop als je duplicaten wilt samenvoegen.
   // autoMergeGesprekDuplicaten();
@@ -10625,11 +10867,15 @@ async function loadBezoekRecordsFromDb() {
       bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
       soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
       recorder_naam: _recorderAssignments[_recAssignKey(r.meta?.bedrijf||'', r.meta?.contactpersoon||'', r.meta?.datum||'')] || lok?.recorder_naam || r.meta?.recorder_naam || '',
-      result: _bezoekResultOverrides[String(r.id)] ?? r.result, transcript: r.transcript,
+      result: _bezoekResultOverrides[String(r.id)] ?? r.result,
+      transcript: r.transcript ?? lok?.transcript ?? '',
+      heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
     };
   });
   _saveBezoekRec();
   if (currentTab === 'bezoek') renderBezoekRecorder();
+  if (bmSubTab === 'coaching') refreshCoachingTab();
+  _laadTranscriptsAchtergrond('bezoek');    // fase 2, blokkeert niets
 }
 
 function _setResultOverride(id, result) {
