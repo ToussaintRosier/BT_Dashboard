@@ -639,6 +639,91 @@ function isoWeek(date) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// DATABACK-UP
+// Haalt alle tabellen op en biedt ze aan als één JSON-bestand.
+//
+// LET OP — dit is iets ANDERS dan maak-backup.command:
+//   • maak-backup.command  → bewaart de CODE (index.html en de SQL-scripts).
+//     Nodig als een wijziging iets sloopt. Moet op de computer draaien, want
+//     een webpagina mag niet in mappen op je schijf schrijven.
+//   • deze knop            → bewaart de DATA (alles wat in de database staat).
+//     Nodig als er per ongeluk gegevens worden weggegooid.
+// Je hebt ze allebei nodig; ze dekken verschillende ongelukken af.
+// ════════════════════════════════════════════════════════════════════════════
+const BACKUP_TABELLEN = [
+  'profiles', 'doelen', 'kpi_weekly', 'pipeline_cards', 'projecten',
+  'project_evaluaties', 'plan_van_aanpak', 'accounts', 'sales_leads',
+  'accountplannen', 'verslagen', 'gedeelde_afspraken', 'comrap_analyses',
+  'financieel_omzet', 'financieel_omzet_maand', 'financieel_omzet_week',
+  'begroting_omzet', 'begroting_projectenlijn',
+  'uren_kpi_maand', 'uren_kpi_week', 'uren_kpi_opdrachtgever_maand',
+  'aanmeld_formulieren', 'aanmeld_standaarden', 'ec_documenten', 'gebruik_log',
+];
+
+async function maakDataBackup() {
+  if (!supa) { alert('Geen verbinding met de database.'); return; }
+  const knop = document.getElementById('backup-knop');
+  const stat = document.getElementById('backup-status');
+  const zetStatus = (t, kleur) => { if (stat) { stat.textContent = t; stat.style.color = kleur || 'var(--text-muted)'; } };
+
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig…'; }
+
+  const backup = {
+    gemaakt_op: new Date().toISOString(),
+    gemaakt_door: CURRENT_USER?.naam || '',
+    tabellen: {},
+  };
+  const overzicht = [];
+  let mislukt = 0;
+
+  for (let i = 0; i < BACKUP_TABELLEN.length; i++) {
+    const tabel = BACKUP_TABELLEN[i];
+    zetStatus(`Ophalen ${i + 1} van ${BACKUP_TABELLEN.length}: ${tabel}…`);
+    try {
+      // In stukken ophalen: Supabase geeft standaard maximaal 1000 rijen terug.
+      let alles = [], van = 0;
+      for (;;) {
+        const { data, error } = await supa.from(tabel).select('*').range(van, van + 999);
+        if (error) throw error;
+        alles = alles.concat(data || []);
+        if (!data || data.length < 1000) break;
+        van += 1000;
+      }
+      backup.tabellen[tabel] = alles;
+      overzicht.push({ tabel, rijen: alles.length });
+    } catch (e) {
+      // Tabel bestaat niet of geen leesrecht — noteren en doorgaan.
+      backup.tabellen[tabel] = null;
+      overzicht.push({ tabel, rijen: null, fout: e?.message || 'niet gelezen' });
+      mislukt++;
+    }
+  }
+
+  backup.overzicht = overzicht;
+  const totaal = overzicht.reduce((s, o) => s + (o.rijen || 0), 0);
+
+  // Downloaden
+  const tekst = JSON.stringify(backup, null, 1);
+  const d = new Date();
+  const stempel = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                  String(d.getDate()).padStart(2, '0') + '_' +
+                  String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+  const blob = new Blob([tekst], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'BT-databackup_' + stempel + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+
+  const mb = (tekst.length / 1024 / 1024).toFixed(1);
+  zetStatus(
+    `✅ ${totaal.toLocaleString('nl-NL')} rijen uit ${overzicht.length - mislukt} tabellen (${mb} MB) gedownload.` +
+    (mislukt ? ` ${mislukt} tabel(len) overgeslagen.` : ''),
+    mislukt ? '#92400e' : '#15803d');
+  if (knop) { knop.disabled = false; knop.textContent = '💾 Back-up maken'; }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // GEBRUIKSTELLERS — hoe vaak zijn de tools deze week gebruikt?
 // ITK/BZK komen uit de opnames zelf; Matchmaker uit de tabel gebruik_log.
 // ════════════════════════════════════════════════════════════════════════════
@@ -1386,6 +1471,24 @@ function renderBeheer() {
       <div class="person-meta"><span class="meta-pill">Medewerkersbeheer — alleen zichtbaar voor Toussaint</span></div>
     </div>
     <div style="padding:18px 20px;max-width:1100px;">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:250px;">
+            <div style="font-weight:700;font-size:.92rem;margin-bottom:3px;">💾 Back-up van de gegevens</div>
+            <div style="font-size:.8rem;color:var(--text-muted);line-height:1.6;">
+              Downloadt alles uit de database als één bestand — medewerkers, KPI's, pipeline, projecten,
+              accounts, opnames en de rest. Bewaar het ergens buiten het dashboard.
+            </div>
+          </div>
+          <button id="backup-knop" onclick="maakDataBackup()" style="padding:9px 20px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:.88rem;flex-shrink:0;">💾 Back-up maken</button>
+        </div>
+        <div id="backup-status" style="font-size:.8rem;color:var(--text-muted);margin-top:9px;min-height:18px;"></div>
+        <div style="font-size:.76rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);line-height:1.6;">
+          Dit bewaart de <strong>gegevens</strong>. Voor de <strong>code</strong> van het dashboard is er een apart bestand
+          <code>maak-backup.command</code> in de dashboardmap — dubbelklik dat vóór je een nieuwe versie live zet.
+          Een webpagina mag zelf niet in mappen op je computer schrijven, vandaar de scheiding.
+        </div>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-size:.9rem;color:var(--text-muted);">${BEHEER_PROFIELEN.length} collega's geladen</div>
         <button onclick="beheerOpenInvite()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:.88rem;">➕ Nieuw uitnodigen</button>
