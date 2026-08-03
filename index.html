@@ -3176,6 +3176,12 @@ async function loadBeheerData() {
 }
 
 async function loadAllData() {
+  // Opnames (ITK + BZK) als ALLEREERSTE starten, zonder await. Ze stonden
+  // eerder achteraan, achter dertien andere laadstappen — daardoor kwamen ze
+  // pas in beeld als de rest van het dashboard al klaar was. Nu lopen ze
+  // parallel mee en zijn ze meestal binnen vóór de rest af is.
+  _startOpnamesPreload();
+
   // loadBeheerData in try/catch: als het misgaat (bijv. doelen-tabel mist of
   // onverwachte DB-fout), blijft de rest van de data gewoon laden.
   try { await loadBeheerData(); } catch(e) { console.error('loadBeheerData fout (niet fataal):', e); }
@@ -3193,12 +3199,6 @@ async function loadAllData() {
   try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
   try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
   recomputeRatios();
-
-  // Opnames (ITK + BZK) direct meeladen bij het opstarten, zodat ze overal
-  // meteen zichtbaar zijn — ook op de coaching-tab van een medewerker — zonder
-  // dat je eerst de recorder-tabs hoeft te openen. Bewust NIET met await: de
-  // rest van het dashboard hoeft hier niet op te wachten.
-  _startOpnamesPreload();
 }
 
 // Laadt de opnames + de status van gedeelde afspraken op de achtergrond en
@@ -10999,10 +10999,29 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
   const statusEl = document.getElementById('samenvoeg-status-' + safeKey);
   if (statusEl) { statusEl.textContent = '⏳ Samenvoegen…'; statusEl.style.display='inline'; }
   try {
+    // De lijst wordt zonder transcripties geladen (dat gaat een stuk sneller).
+    // Vóór het samenvoegen halen we daarom eerst de transcripties op van precies
+    // deze groep — 9 records, niet alle 50. Zonder deze stap zouden we een leeg
+    // transcript opslaan en de opnames dus kwijtraken.
+    const ontbreekt = groep.filter(r => !r.transcript && typeof r.id === 'string' && r.id.includes('-'));
+    if (ontbreekt.length && supa) {
+      if (statusEl) statusEl.textContent = '⏳ Opnames ophalen…';
+      const { data: trData, error: trErr } = await supa.from('verslagen')
+        .select('id, transcript').in('id', ontbreekt.map(r => r.id));
+      if (trErr) throw new Error('Opnames ophalen mislukt: ' + trErr.message);
+      const perId = {};
+      (trData || []).forEach(r => { perId[String(r.id)] = r.transcript || ''; });
+      groep.forEach(r => { if (!r.transcript && perId[String(r.id)] !== undefined) r.transcript = perId[String(r.id)]; });
+    }
+
     // Transcripties samenvoegen (met scheidingstekens)
     const combined = groep.map((r, i) => {
       return r.transcript ? `--- [Deel ${i+1}] ---\n${r.transcript}` : '';
     }).filter(Boolean).join('\n\n');
+
+    // Veiligheidsrem: nooit samenvoegen als er geen tekst overblijft — dat zou
+    // de oorspronkelijke opnames vervangen door een leeg record.
+    if (!combined.trim()) throw new Error('Geen transcripties gevonden — samenvoegen afgebroken om dataverlies te voorkomen.');
 
     // SNELHEID: we wachten NIET op de AI-heranalyse. Die duurt bij veel delen
     // tientallen seconden. Het samenvoegen zelf (transcripties bundelen, één
@@ -11038,7 +11057,11 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
       // Bij 9 duplicaten scheelt dat 9 heen-en-weertjes naar de server.
       const uuidIds = oldIds.filter(id => typeof id === 'string' && id.includes('-'));
       if (uuidIds.length) {
-        try { await supa.from('verslagen').delete().in('id', uuidIds); } catch(_) {}
+        // Fout NIET negeren: als de database het verwijderen weigert (bijv. omdat
+        // een collega de opnames heeft gemaakt), komen ze bij de eerstvolgende
+        // Herlaad gewoon weer terug. Dan is het beter dat je dat meteen ziet.
+        const { error: delErr } = await supa.from('verslagen').delete().in('id', uuidIds).select('id');
+        if (delErr) throw new Error('Oude opnames verwijderen mislukt: ' + delErr.message + ' (het samengevoegde record is wél opgeslagen)');
       }
     }
 
