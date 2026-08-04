@@ -713,6 +713,16 @@
 
   .pipe-add-btn { border:1px dashed rgba(255,255,255,.22); color:rgba(255,255,255,.45); }
   .pipe-add-btn:hover { border-color:rgba(255,255,255,.5); color:#fff; background:rgba(255,255,255,.06); }
+  .pipe-slot-pil { display:inline-flex; align-items:center; gap:5px;
+                   padding:2px 9px 2px 7px; border-radius:99px;
+                   background:rgba(52,211,153,.16); color:#34d399;
+                   font-size:.68rem; font-weight:var(--w-nadruk);
+                   white-space:nowrap; flex-shrink:0; }
+  .pipe-slot-pil::before { content:''; width:6px; height:6px; border-radius:50%;
+                           background:currentColor; flex-shrink:0; }
+  /* De weektabel staat op border-collapse:separate zodat het gekleurde streepje
+     bij de naam afgerond kan worden. Randen zitten daarom op de cellen. */
+  .wk-totaal > td { border-top:2px solid rgba(255,255,255,.14); }
   .kand-excl-btn { position:absolute; top:4px; right:4px; background:none; border:none; color:#d1d5db; cursor:pointer; font-size:.7rem; line-height:1; padding:2px 4px; border-radius:3px; }
   .kand-excl-btn:hover { color:var(--danger); background:#fef2f2; }
   .card-naam-btns { display:flex; align-items:center; gap:2px; flex-shrink:0; }
@@ -2519,14 +2529,15 @@ function renderMedewerkersOverzicht() {
   const rankRows = ranking.map((r, i) => {
     const laatste = i === ranking.length - 1;
     const kleur   = barColorWide(r.p);
-    return `<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:11px 2px;${laatste ? '' : 'border-bottom:1px solid rgba(255,255,255,.09);'}">
+    // Streep links in plaats van een bolletje voor de naam: dezelfde kleur,
+    // maar hij markeert de hele regel in plaats van één teken.
+    return `<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:11px 2px 11px 13px;border-radius:8px 0 0 8px;box-shadow:inset 3px 0 0 ${r.bm.kleur};${laatste ? '' : 'border-bottom:1px solid rgba(255,255,255,.09);'}">
       <div style="min-width:0;">
         <div style="font-size:var(--t-md);color:#fff;display:flex;align-items:center;gap:7px;">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${r.bm.kleur};flex-shrink:0;"></span>
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.bm.naam)}</span>
           ${r.bm.rol ? `<span style="font-size:var(--t-xs);color:rgba(255,255,255,.4);">${escHtml(r.bm.rol)}</span>` : ''}
         </div>
-        <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:2px;padding-left:15px;">
+        <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:2px;">
           verwacht ${fmt(r.ytdTarget, 1)} · jaardoel ${r.bm.doel}
         </div>
       </div>
@@ -2606,19 +2617,20 @@ function renderMedewerkersOverzicht() {
             ? '<span style="color:#fbbf24;font-size:.75rem;" title="Invoer verouderd — pipeline toont meer starters; zet dit recht via Wijzigen + Opslaan">⚠️ opg.</span>'
             : '<span style="color:#4ade80;font-size:.76rem;" title="Opgeslagen">✔</span>')
         : '<span style="color:rgba(255,255,255,.45);font-size:.72rem;font-style:italic;" title="Nog niet opgeslagen — pipeline-stand">live</span>';
-      return '<tr style="border-bottom:1px solid rgba(255,255,255,.14);">' +
-        '<td style="padding:5px 0;font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-          '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + bm.kleur + ';margin-right:5px;vertical-align:middle;"></span>' +
+      return '<tr>' +
+        '<td style="padding:5px 0 5px 12px;font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+          'border-bottom:1px solid rgba(255,255,255,.14);border-radius:8px 0 0 8px;' +
+          'box-shadow:inset 3px 0 0 ' + bm.kleur + ';">' +
           escHtml(bm.naam) +
         '</td>' +
         KPIS.map(k =>
-          '<td style="text-align:right;padding:5px 8px;font-size:.82rem;' +
+          '<td style="text-align:right;padding:5px 8px;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.14);' +
           (k === 'starters' ? 'color:#4ade80;font-weight:700;' : '') + '">' +
           fmt(vals[k] || 0, (k === 'starters' || k === 'contractvoorstellen') ? 1 : 0) +
           '<div style="color:rgba(255,255,255,.45);font-size:.69rem;font-weight:400;line-height:1.3;">/' + fmt(bmNorm[k], (k === 'starters' || k === 'contractvoorstellen') ? 1 : 1) + '</div>' +
           '</td>'
         ).join('') +
-        '<td style="text-align:center;padding:5px 6px;">' + status + '</td>' +
+        '<td style="text-align:center;padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.14);border-radius:0 8px 8px 0;">' + status + '</td>' +
       '</tr>';
     }).filter(Boolean);
 
@@ -2647,7 +2659,7 @@ function renderMedewerkersOverzicht() {
       '</tr>';
 
     const totRow =
-      '<tr style="border-top:2px solid rgba(255,255,255,.14);">' +
+      '<tr class="wk-totaal">' +
         '<td style="padding:6px 0 4px;font-weight:700;font-size:.83rem;">Totaal</td>' +
         KPIS.map(k =>
           '<td style="text-align:right;padding:6px 8px 4px;font-weight:700;font-size:.83rem;' +
@@ -2668,7 +2680,7 @@ function renderMedewerkersOverzicht() {
         '<span>Week ' + week + ' · ' + jaar + '</span>' + weekBadge(jaar, week) +
         '<span class="bt-weekkop-actie" style="margin-left:auto;color:rgba(255,255,255,.45);font-size:.8rem;font-weight:var(--w-normaal);white-space:nowrap;">&#x25B2; Inklappen</span>' +
       '</div>' +
-      '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+      '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;">' +
         colGroup +
         '<thead>' + headerRow + '</thead>' +
         '<tbody>' + (bmArr.length
@@ -15786,7 +15798,14 @@ function renderPipeline(bm) {
       : '';
 
     // Pijl-indicator (frozen-status kleurt de balk iets groen)
-    const barExtraStyle = weekFrozen ? 'background:rgba(240,253,244,0.7);border-color:#bbf7d0;' : '';
+    // Vergrendeld = opgeslagen en op slot. Het oude lichtgroene vlak kwam uit
+    // de witte opzet en leest op donker als vuilgroen. Nu een streepje links
+    // (zelfde taal als de rij-accenten in Projecten) plus een pil die zegt wat
+    // het betekent — anders moet je de kleur maar weten.
+    const barExtraStyle = weekFrozen ? 'box-shadow:inset 3px 0 0 #34d399;' : '';
+    const slotPil = weekFrozen
+      ? '<span class="pipe-slot-pil">vergrendeld</span>'
+      : '';
 
     // Pipeline cellen (content)
     const cells = PIPE_STAGES.map((stage, si) => {
@@ -15848,6 +15867,7 @@ function renderPipeline(bm) {
       <div class="pipe-week-bar${isCur?' wk-now':isNext?' wk-next':''}" style="${barExtraStyle}" onclick="togglePipeWeek(${wk.week},${wk.year})">
         <span class="pipe-week-bar-toggle">${isCollapsed ? '▶' : '▼'}</span>
         <span class="pipe-week-bar-title">W${wk.week}${barBadge}</span>
+        ${slotPil}
         <span class="pipe-week-bar-summary">${summaryText}</span>
         ${weekBtnHtml}
       </div>
@@ -15859,11 +15879,15 @@ function renderPipeline(bm) {
     </div>`;
   }).join('');
 
-  return `<div class="section-title">Kandidaten pipeline</div>
-  <div style="display:flex;align-items:center;gap:5px;margin:2px 0 8px 0;">
-    <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
-    ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
-    <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
+  // Titel en weeknavigatie op één regel: ze horen bij elkaar en scheelt een
+  // hele regel hoogte.
+  return `<div class="section-title" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+    <span>Kandidaten pipeline</span>
+    <span style="display:flex;align-items:center;gap:5px;">
+      <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
+      ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
+      <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
+    </span>
   </div>
   ${blocks}`;
 }
