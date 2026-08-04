@@ -249,24 +249,39 @@
   .bt-cirkel:last-child { margin-right:0; }
   .bt-teller { text-align:center; font-size:var(--t-xs); color:var(--muted); padding:12px 0 2px; }
 
-  /* Cijfertabellen: eerste kolom is het label, de rest zijn getallen. Getallen
-     horen rechts uit te lijnen — dan staan eenheden, tientallen en honderdtallen
-     recht onder elkaar en zie je een verschil zonder te lezen. */
+  /* Cijfertabellen staan direct op de donkere achtergrond, zonder witte kaart.
+     Die kaart voegde een rand, een schaduw en een kleurvlak toe die niets
+     vertellen. Drie tinten wit doen het werk: context is het lichtst gedempt,
+     de norm halfhelder, en het getal waar het om gaat vol wit. */
   .bt-cijfers { width:100%; border-collapse:collapse; }
-  .bt-cijfers thead th { text-transform:none; letter-spacing:.01em; font-size:var(--t-xs);
-                         font-weight:var(--w-nadruk); color:var(--muted);
-                         border-bottom:1px solid var(--border); padding:9px 14px; }
+  .bt-cijfers thead th { font-size:var(--t-xs); font-weight:var(--w-normaal);
+                         text-transform:none; letter-spacing:.01em;
+                         color:rgba(255,255,255,.45); padding:0 0 10px;
+                         border-bottom:1px solid rgba(255,255,255,.12);
+                         white-space:nowrap; }
   .bt-cijfers thead th:first-child { text-align:left; }
-  .bt-cijfers thead th:not(:first-child) { text-align:right; }
-  .bt-cijfers tbody td { padding:10px 14px; font-size:var(--t-sm); color:var(--text);
-                         border-top:1px solid rgba(37,49,81,.07); }
-  .bt-cijfers tbody tr:first-child td { border-top:none; }
-  .bt-cijfers tbody td:first-child { text-align:left; font-weight:var(--w-nadruk);
-                                     color:var(--primary); white-space:nowrap; }
-  .bt-cijfers tbody td:not(:first-child) { text-align:right; font-variant-numeric:tabular-nums; }
-  .bt-cijfers tbody td:last-child { color:var(--muted); }
-  .bt-cijfers tbody tr:hover { background:rgba(37,49,81,.03); }
-  .bt-cijfers strong { font-weight:var(--w-nadruk); }
+  .bt-cijfers thead th:not(:first-child) { text-align:right; padding-left:14px; }
+  .bt-cijfers tbody td { padding:12px 0; font-size:var(--t-md);
+                         color:rgba(255,255,255,.7);
+                         border-top:1px solid rgba(255,255,255,.08); }
+  .bt-cijfers tbody td:first-child { text-align:left; color:#fff;
+                                     font-weight:var(--w-normaal); white-space:nowrap; }
+  .bt-cijfers tbody td:not(:first-child) { text-align:right; padding-left:14px;
+                                           font-variant-numeric:tabular-nums; }
+  /* Laatste kolom is bijschrift bij het cijfer (weken, mensen), geen meetwaarde. */
+  .bt-cijfers tbody td:last-child { color:rgba(255,255,255,.35); font-size:var(--t-sm); }
+  .bt-cijfers tbody tr:hover { background:rgba(255,255,255,.04); }
+  .bt-cijfers strong { color:#fff; font-weight:var(--w-nadruk); }
+  /* Ratio-kolom in de normtabel is achtergrondinformatie. */
+  .bt-cijfers-norm tbody td:nth-child(2) { color:rgba(255,255,255,.4); font-size:var(--t-sm); }
+  /* Statuspil op donker: alleen bolletje en tekst dragen de kleur. */
+  .bt-cijfers .badge { background:rgba(255,255,255,.08); }
+  .bt-cijfers .badge-green  { color:#4ade80; }
+  .bt-cijfers .badge-orange,
+  .bt-cijfers .badge-yellow { color:#fbbf24; }
+  .bt-cijfers .badge-red    { color:#f87171; }
+  .bt-cijfers .badge-blue   { color:#93b8f0; }
+  .bt-cijfers .badge-grijs  { color:rgba(255,255,255,.6); }
   /* Weekkop in het teamtotaal: de hele regel is de in-/uitklapknop. */
   .bt-weekkop:hover { background:rgba(37,49,81,.04); }
   .bt-weekkop:hover .bt-weekkop-actie { color:var(--primary); }
@@ -1191,6 +1206,9 @@ function barColor(p)    { return p>=100?'var(--over)':p>=90?'var(--success)':p>=
 // 100% ligt precies in het midden van de balk (schaal loopt van 0% tot 200%),
 // zodat overperformance boven 100% ook echt zichtbaar wordt als extra voortgang
 // voorbij het midden, in plaats van een balk die al bij 100% "vol" lijkt.
+// Zelfde grenzen als barColor, maar in tinten die op de donkere achtergrond
+// leesbaar blijven. var(--success) en var(--primary) verdwijnen daar namelijk.
+function barColorDonker(p) { return p>=100?'#7dd3fc':p>=90?'#4ade80':p>=60?'#fbbf24':'#f87171'; }
 function pctWide(p)        { return Math.max(0, Math.min(200, p)) / 2; }
 function barColorWide(p)   { return p<=69?'var(--danger)':p<=94?'var(--warn)':'var(--success)'; }
 
@@ -2043,7 +2061,7 @@ function renderBM(bm) {
       <td>${KPI_LABELS[k]}</td>
       <td>${fmt(ratios[k]||0,2)} per starter</td>
       <td><strong>${fmt(norm[k],1)}</strong></td>
-      <td style="color:${barColor(p)};font-weight:var(--w-nadruk)">${fmt(ytdAvg[k],1)}</td>
+      <td style="color:${barColorDonker(p)};font-weight:var(--w-nadruk)">${fmt(ytdAvg[k],1)}</td>
       <td><span class="badge ${p>=90?'badge-green':p>=60?'badge-orange':'badge-blue'}">${p}%</span></td>
     </tr>`;
   }).join('');
@@ -2054,7 +2072,7 @@ function renderBM(bm) {
     <td>${fmt(h.aanbiedingen,0)}</td><td>${fmt(h.matchgesprekken,0)}</td>
     <td>${fmt(h.contractvoorstellen,0)}</td>
     <td><strong>${fmt(h.starters,1)}</strong></td>
-    <td style="color:var(--muted);font-size:.78rem">${h.weken} wkn</td>
+    <td>${h.weken} wkn</td>
   </tr>`).join('');
 
   document.getElementById('main').innerHTML = `<div>
@@ -2170,13 +2188,13 @@ function renderBM(bm) {
 
     <div class="section-title">Norm vs. gem. YTD per ${pLabel} (${year}) <button class="info-tip-btn" onclick="toggleInfoTip('itip-ytd-tbl')" title="Uitleg">ℹ</button></div>
     <div id="itip-ytd-tbl" class="info-tip-panel" hidden>📌 <strong>Actueel gemiddelde</strong> = YTD totaal ÷ ${passed} ${pLabel==='week'?'weken':'maanden'} verstreken in ${year}.</div>
-    <div class="table-card"><table class="bt-cijfers">
+    <div style="margin-bottom:4px;"><table class="bt-cijfers bt-cijfers-norm">
       <thead><tr><th>KPI</th><th>Ratio (26 wkn)</th><th>Norm/${pLabel}</th><th>Gem. YTD</th><th>Score</th></tr></thead>
       <tbody>${ratioTable}</tbody>
     </table></div>
 
     <div class="section-title">Historisch overzicht per jaar</div>
-    <div class="table-card"><table class="bt-cijfers">
+    <div style="margin-bottom:4px;"><table class="bt-cijfers">
       <thead><tr><th>Jaar</th><th>Intakes</th><th>Bezoeken</th><th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Weken</th></tr></thead>
       <tbody>${histRows}</tbody>
     </table></div>
@@ -2517,7 +2535,7 @@ function renderTeam() {
       <td>${+(r.aanbiedingen*s).toFixed(1)}</td>
       <td>${+(r.matchgesprekken*s).toFixed(1)}</td>
       <td>${+(r.contractvoorstellen*s).toFixed(1)}</td>
-      <td style="font-weight:var(--w-nadruk);color:var(--primary)">${+s.toFixed(2)}</td>
+      <td style="font-weight:var(--w-nadruk);color:#fff">${+s.toFixed(2)}</td>
     </tr>`;
   }).join('');
 
@@ -2531,7 +2549,7 @@ function renderTeam() {
       <td>${fmt(rt.aanbiedingen,2)}</td><td>${fmt(rt.matchgesprekken,2)}</td>
       <td>${fmt(rt.contractvoorstellen,2)}</td>
       <td><strong>${fmt(rt.totalStarters,1)}</strong></td>
-      <td style="color:var(--muted);font-size:.78rem">${rt.weeksUsed} wkn</td>
+      <td>${rt.weeksUsed} wkn</td>
     </tr>`;
   }).join('');
 
@@ -2548,7 +2566,7 @@ function renderTeam() {
       <td>${fmt(t.aanbiedingen,0)}</td><td>${fmt(t.matchgesprekken,0)}</td>
       <td>${fmt(t.contractvoorstellen,0)}</td>
       <td><strong>${fmt(tStarters,1)}</strong></td>
-      <td style="color:var(--muted)">${new Set(yr_rows.map(d=>d.naam)).size}</td>
+      <td>${new Set(yr_rows.map(d=>d.naam)).size}</td>
     </tr>`;
   }).join('');
 
@@ -2574,7 +2592,7 @@ function renderTeam() {
 
     <!-- Individuele ratio's -->
     <div class="section-title">Individuele ratio's huidige BM's (laatste 26 weken)</div>
-    <div class="table-card"><table class="bt-cijfers">
+    <div style="margin-bottom:4px;"><table class="bt-cijfers">
       <thead><tr>
         <th>BM</th><th>Intakes/starter</th><th>Bezoeken/starter</th>
         <th>Aanbied./starter</th><th>Match/starter</th><th>Contractvoorstel/starter</th><th>Starters</th><th>Weekrecords</th>
@@ -2591,7 +2609,7 @@ function renderTeam() {
 
     <!-- Normentabel -->
     <div class="section-title">Normentabel nieuwe BM's – per week</div>
-    <div class="table-card"><table class="bt-cijfers">
+    <div style="margin-bottom:4px;"><table class="bt-cijfers">
       <thead><tr>
         <th>Jaardoel</th><th>Intakes/wk</th><th>Bezoeken/wk</th>
         <th>Aanbied./wk</th><th>Match/wk</th><th>Contractvoorstel/wk</th><th>Starters/wk</th>
@@ -2601,7 +2619,7 @@ function renderTeam() {
 
     <!-- Historisch -->
     <div class="section-title">Team historisch overzicht per jaar</div>
-    <div class="table-card"><table class="bt-cijfers">
+    <div style="margin-bottom:4px;"><table class="bt-cijfers">
       <thead><tr>
         <th>Jaar</th><th>Intakes</th><th>Bezoeken</th>
         <th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Mensen</th>
