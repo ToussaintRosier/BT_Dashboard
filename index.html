@@ -3901,6 +3901,7 @@ async function loadProfileAndStart() {
   verbergLaadscherm();
   toonDagstart();
   subscribeRealtime();
+  _publiceerAchtergrond();
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -11737,6 +11738,9 @@ async function loadGesprekRecordsFromDb() {
       // De server is leidend: wat daar staat ziet iedereen hetzelfde. De lokale
       // map is alleen een vangnet voor records die nog niet gepubliceerd zijn.
       recorder_naam: r.meta?.recorder_naam || _recorderAssignments[_recAssignKey(r.meta?.naam||'', r.meta?.functie||'', r.meta?.datum||'')] || lok?.recorder_naam || '',
+      // Wat de server zelf teruggaf. Nodig om te bepalen of een toewijzing nog
+      // gepubliceerd moet worden, of dat hij al voor iedereen zichtbaar is.
+      recorder_naam_server: r.meta?.recorder_naam || '',
       result: _gesprekResultOverrides[String(r.id)] ?? r.result,
       // Fase 1 haalt geen transcripties op. Behoud wat we al hadden; de rest
       // wordt hierna op de achtergrond aangevuld.
@@ -11784,6 +11788,7 @@ async function loadBezoekRecordsFromDb() {
       bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
       soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
       recorder_naam: r.meta?.recorder_naam || _recorderAssignments[_recAssignKey(r.meta?.bedrijf||'', r.meta?.contactpersoon||'', r.meta?.datum||'')] || lok?.recorder_naam || '',
+      recorder_naam_server: r.meta?.recorder_naam || '',
       result: _bezoekResultOverrides[String(r.id)] ?? r.result,
       transcript: r.transcript ?? lok?.transcript ?? '',
       heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
@@ -11887,18 +11892,36 @@ async function _recorderNaarServer(id, naam) {
 
 // Alles wat alleen in deze browser stond alsnog publiceren, zodat collega's
 // dezelfde toewijzingen zien. Draait één keer per sessie, stil als er niets is.
+// Loopt automatisch zodra de records geladen zijn: alles wat alleen in deze
+// browser stond gaat één keer naar de server, zodat collega's hetzelfde zien.
+// Daarna is het niet meer nodig — nieuwe toewijzingen schrijven meteen mee.
+async function _publiceerAchtergrond() {
+  if (!supa || !CURRENT_USER) return;
+  if (_publicerenBezig) return;
+  _publicerenBezig = true;
+  try { await publiceerLokaleToewijzingen(true); }
+  catch (e) { _meldStil('toewijzingen publiceren', e); }
+  finally { _publicerenBezig = false; }
+}
+let _publicerenBezig = false;
+
 async function publiceerLokaleToewijzingen(stil) {
   if (!supa) return;
+  // Alleen records waar de server nog niets heeft staan. Een toewijzing die een
+  // collega al gedaan heeft wordt dus nooit overschreven door een oudere kopie
+  // uit jouw browser.
   const teDoen = [];
   GESPREK_RECORDS.forEach(r => {
-    const n = _recorderAssignments[_recAssignKey(r.naam, r.functie, r.datum)];
+    if (r.recorder_naam_server) return;
+    const n = _recorderAssignments[_recAssignKey(r.naam, r.functie, r.datum)] || r.recorder_naam;
     if (n && typeof r.id === 'string' && r.id.includes('-')) teDoen.push({ id: r.id, naam: n });
   });
   BEZOEK_RECORDS.forEach(r => {
-    const n = _recorderAssignments[_recAssignKey(r.bedrijf, r.contactpersoon, r.datum)];
+    if (r.recorder_naam_server) return;
+    const n = _recorderAssignments[_recAssignKey(r.bedrijf, r.contactpersoon, r.datum)] || r.recorder_naam;
     if (n && typeof r.id === 'string' && r.id.includes('-')) teDoen.push({ id: r.id, naam: n });
   });
-  if (!teDoen.length) { if (!stil) alert('Er staan geen lokale toewijzingen klaar om te publiceren.'); return; }
+  if (!teDoen.length) { if (!stil) alert('Alle toewijzingen staan al gedeeld op de server. Collega\'s zien hetzelfde als jij.'); return; }
 
   let gelukt = 0; const fouten = [];
   for (const t of teDoen) {
@@ -11906,7 +11929,7 @@ async function publiceerLokaleToewijzingen(stil) {
     if (fout) { if (fouten.length < 3) fouten.push(fout); } else gelukt++;
   }
   if (!stil || fouten.length) {
-    alert(gelukt + ' van de ' + teDoen.length + ' toewijzingen staan nu gedeeld op de server.' +
+    alert(gelukt + ' van de ' + teDoen.length + ' toewijzingen staan nu gedeeld op de server. Collega\'s zien ze na verversen.' +
       (fouten.length ? '\n\nNiet gelukt: ' + fouten.join(' · ') +
         '\n\nDit is bijna altijd een rechtenkwestie in Supabase. Voer supabase/verslagen_toewijzing_migration.sql uit en probeer opnieuw.' : ''));
   }
@@ -12417,6 +12440,7 @@ function renderBezoekRecords() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS_ZICHTBAAR.length} records — gedeeld tussen collega's${_bArchief.length?` · ${_bArchief.length} van oud-collega's verborgen`:''}</span>
       <div style="display:flex;gap:8px;">
+        <button onclick="publiceerLokaleToewijzingen(false)" title="Zet de toewijzingen die alleen in jouw browser staan op de server, zodat collega's ze ook zien" style="font-size:.78rem;padding:5px 12px;background:#fff;color:var(--primary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:var(--w-nadruk);white-space:nowrap;">Toewijzingen delen</button>
         ${_herlaadStatus.bezoek==='loading'
           ? `<button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;opacity:.6;" disabled>⏳ Laden…</button>`
           : _herlaadStatus.bezoek==='done'
