@@ -191,25 +191,41 @@ function render() {
             '</div>';
   }
 
-  // Akkoordblok — al bevestigd, of nog te bevestigen
+  // Reactieblok — al gereageerd, of nog te beantwoorden. Wie het er niet mee
+  // eens is moet dat ook kunnen zeggen; anders blijft het stil en weet de
+  // gespreksvoerder niet of er gelezen is.
   if (d.akkoord_op) {
-    html += '<div class="card pad-sm"><div class="bevestigd">' +
-              '<span class="ic">&#9989;</span><div>' +
-              '<strong>Gelezen en akkoord</strong>' +
-              '<span>Bevestigd op ' + esc(datumNL(d.akkoord_op)) +
+    var nietAkkoord = d.akkoord_keuze === 'niet_akkoord';
+    html += '<div class="card pad-sm"><div class="bevestigd"' +
+              (nietAkkoord ? ' style="background:#fef2f2;border-color:#fecaca;"' : '') + '>' +
+              '<span class="ic">' + (nietAkkoord ? '&#10060;' : '&#9989;') + '</span><div>' +
+              '<strong>' + (nietAkkoord ? 'Niet akkoord' : 'Gelezen en akkoord') + '</strong>' +
+              '<span>Doorgegeven op ' + esc(datumNL(d.akkoord_op)) +
               (d.akkoord_naam ? ' door ' + esc(d.akkoord_naam) : '') + '</span>' +
+              (d.akkoord_toelichting ? '<span>' + esc(d.akkoord_toelichting) + '</span>' : '') +
               '</div></div></div>';
   } else {
     html += '<div class="card" id="akk-card">' +
-              '<h2 class="sec">Bevestiging</h2>' +
+              '<h2 class="sec">Jouw reactie</h2>' +
               '<label class="akk-label" for="akk-naam">Je naam</label>' +
               '<input class="akk-input" id="akk-naam" type="text" autocomplete="name" ' +
                      'placeholder="Vul je naam in" value="' + esc(d.naam || '') + '">' +
               '<label class="akk-check">' +
                 '<input type="checkbox" id="akk-vink">' +
-                '<span>Ik heb bovenstaande afspraken gelezen en ben hiermee akkoord.</span>' +
+                '<span>Ik heb bovenstaande afspraken gelezen.</span>' +
               '</label>' +
-              '<button class="btn" id="akk-btn" disabled>Bevestigen</button>' +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">' +
+                '<button class="btn" id="akk-btn" disabled>Akkoord</button>' +
+                '<button class="btn" id="akk-btn-nee" disabled ' +
+                        'style="background:#fff;color:#b91c1c;border:1.5px solid #fecaca;">Niet akkoord</button>' +
+              '</div>' +
+              '<div id="akk-toel-wrap" style="display:none;margin-top:12px;">' +
+                '<label class="akk-label" for="akk-toel">Wat klopt er niet?</label>' +
+                '<textarea class="akk-input" id="akk-toel" rows="3" ' +
+                          'placeholder="Beschrijf kort waar je het niet mee eens bent"></textarea>' +
+                '<button class="btn" id="akk-btn-nee-def" ' +
+                        'style="background:#b91c1c;margin-top:10px;">Niet akkoord doorgeven</button>' +
+              '</div>' +
               '<div id="akk-fout" style="margin-top:10px;font-size:.84rem;color:#b91c1c;"></div>' +
             '</div>';
   }
@@ -221,22 +237,44 @@ function render() {
     'Vragen over deze afspraken? Neem contact op met ' +
     esc(d.gespreksvoerder || 'je contactpersoon') + ' bij Brightech.';
 
-  var vink = document.getElementById('akk-vink');
-  var btn  = document.getElementById('akk-btn');
+  var vink   = document.getElementById('akk-vink');
+  var btn    = document.getElementById('akk-btn');
+  var btnNee = document.getElementById('akk-btn-nee');
+  var btnDef = document.getElementById('akk-btn-nee-def');
   if (vink && btn) {
-    vink.addEventListener('change', function () { btn.disabled = !vink.checked; });
-    btn.addEventListener('click', bevestig);
+    vink.addEventListener('change', function () {
+      btn.disabled = !vink.checked;
+      if (btnNee) btnNee.disabled = !vink.checked;
+    });
+    btn.addEventListener('click', function () { bevestig('akkoord'); });
   }
+  // "Niet akkoord" vraagt eerst om een toelichting; zonder reden heeft de
+  // gespreksvoerder er niets aan.
+  if (btnNee) {
+    btnNee.addEventListener('click', function () {
+      document.getElementById('akk-toel-wrap').style.display = 'block';
+      document.getElementById('akk-toel').focus();
+    });
+  }
+  if (btnDef) btnDef.addEventListener('click', function () { bevestig('niet_akkoord'); });
 }
 
-async function bevestig() {
-  var btn  = document.getElementById('akk-btn');
-  var naam = (document.getElementById('akk-naam').value || '').trim();
-  var fout = document.getElementById('akk-fout');
+async function bevestig(keuze) {
+  var nee   = keuze === 'niet_akkoord';
+  var btn   = document.getElementById(nee ? 'akk-btn-nee-def' : 'akk-btn');
+  var naam  = (document.getElementById('akk-naam').value || '').trim();
+  var toelEl = document.getElementById('akk-toel');
+  var toel  = toelEl ? (toelEl.value || '').trim() : '';
+  var fout  = document.getElementById('akk-fout');
+  var label = btn.textContent;
   fout.textContent = '';
 
   if (!naam) {
-    fout.textContent = 'Vul je naam in om te bevestigen.';
+    fout.textContent = 'Vul je naam in om je reactie door te geven.';
+    return;
+  }
+  if (nee && !toel) {
+    fout.textContent = 'Geef kort aan waar je het niet mee eens bent.';
     return;
   }
 
@@ -244,21 +282,26 @@ async function bevestig() {
   btn.textContent = 'Bezig\u2026';
 
   try {
-    var res = await supa.rpc('bevestig_gedeelde_afspraken', { p_token: TOKEN, p_naam: naam });
+    var res = await supa.rpc('bevestig_gedeelde_afspraken', {
+      p_token: TOKEN, p_naam: naam, p_keuze: nee ? 'niet_akkoord' : 'akkoord',
+      p_toelichting: nee ? toel : null
+    });
     if (res.error) throw res.error;
     if (res.data === true) {
-      DATA.akkoord_op   = new Date().toISOString();
-      DATA.akkoord_naam = naam;
+      DATA.akkoord_op          = new Date().toISOString();
+      DATA.akkoord_naam        = naam;
+      DATA.akkoord_keuze       = nee ? 'niet_akkoord' : 'akkoord';
+      DATA.akkoord_toelichting = nee ? toel : null;
       render();
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     } else {
-      // false = link verlopen, ingetrokken, of al eerder bevestigd
+      // false = link verlopen, ingetrokken, of al eerder beantwoord
       laden();
     }
   } catch (e) {
-    fout.textContent = 'Bevestigen is niet gelukt. Probeer het later opnieuw.';
+    fout.textContent = 'Doorgeven is niet gelukt. Probeer het later opnieuw.';
     btn.disabled = false;
-    btn.textContent = 'Bevestigen';
+    btn.textContent = label;
   }
 }
 

@@ -4982,6 +4982,34 @@ function mailCoachAnalyse(id, type) {
 // De externe pagina zelf is afspraken.html — losstaand van dit dashboard.
 // ════════════════════════════════════════════════════════════════════════════
 
+// Status van de gedeelde afspraken bij een ITK-record. Vier standen:
+//   niet verzonden — nog nooit gedeeld, of de deling is ingetrokken
+//   verzonden      — de link staat open, er is nog geen antwoord
+//   akkoord        — de kandidaat heeft bevestigd
+//   niet akkoord   — de kandidaat is het er niet mee eens
+// De laatste twee komen uit akkoord_keuze; bestaat die kolom nog niet, dan
+// betekent een ingevuld akkoord_op simpelweg 'akkoord' (zo werkte het eerst).
+function afsprakenStatus(recId) {
+  const r = AFSPRAKEN_GEDEELD[String(recId)];
+  if (!r || !r.gepubliceerd)  return { code:'niet-verzonden', tekst:'niet verzonden', klasse:'badge-grijs' };
+  if (!r.akkoord_op)          return { code:'verzonden',      tekst:'verzonden',      klasse:'badge-blue'  };
+  if (r.akkoord_keuze === 'niet_akkoord')
+                              return { code:'niet-akkoord',   tekst:'niet akkoord',   klasse:'badge-red'   };
+  return { code:'akkoord', tekst:'akkoord', klasse:'badge-green' };
+}
+
+function afsprakenStatusPil(recId) {
+  const st = afsprakenStatus(recId);
+  const r  = AFSPRAKEN_GEDEELD[String(recId)];
+  const titel = st.code === 'akkoord' || st.code === 'niet-akkoord'
+    ? `${st.tekst} op ${new Date(r.akkoord_op).toLocaleDateString('nl-NL')}` +
+      (r.akkoord_naam ? ` door ${r.akkoord_naam}` : '') +
+      (r.akkoord_toelichting ? ` — ${r.akkoord_toelichting}` : '')
+    : (st.code === 'verzonden' ? 'De link is gedeeld; nog geen reactie ontvangen'
+                               : 'De afspraken zijn nog niet met de kandidaat gedeeld');
+  return `<span class="badge ${st.klasse}" title="${escHtml(titel)}" style="flex-shrink:0;">${st.tekst}</span>`;
+}
+
 // Cache: verslag_id → rij uit gedeelde_afspraken (voor de badge op de kaarten)
 let AFSPRAKEN_GEDEELD = {};
 let _afsprakenGeladen = false;
@@ -4991,7 +5019,7 @@ async function loadAfsprakenGedeeld(force) {
   try {
     const { data, error } = await supa
       .from('gedeelde_afspraken')
-      .select('id,token,verslag_id,afspraken,notitie,gepubliceerd,verloopt_op,akkoord_op,akkoord_naam');
+      .select('id,token,verslag_id,afspraken,notitie,gepubliceerd,verloopt_op,akkoord_op,akkoord_naam,akkoord_keuze,akkoord_toelichting');
     if (error) throw error;
     AFSPRAKEN_GEDEELD = {};
     (data || []).forEach(r => { if (r.verslag_id) AFSPRAKEN_GEDEELD[String(r.verslag_id)] = r; });
@@ -12643,6 +12671,7 @@ function renderGesprekRecords() {
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          ${afsprakenStatusPil(rec.id)}
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
           ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">🔀 Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
           <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
