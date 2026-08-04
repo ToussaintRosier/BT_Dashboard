@@ -248,6 +248,28 @@
                margin-right:-7px; letter-spacing:.02em; vertical-align:middle; }
   .bt-cirkel:last-child { margin-right:0; }
   .bt-teller { text-align:center; font-size:var(--t-xs); color:var(--muted); padding:12px 0 2px; }
+
+  /* Cijfertabellen: eerste kolom is het label, de rest zijn getallen. Getallen
+     horen rechts uit te lijnen — dan staan eenheden, tientallen en honderdtallen
+     recht onder elkaar en zie je een verschil zonder te lezen. */
+  .bt-cijfers { width:100%; border-collapse:collapse; }
+  .bt-cijfers thead th { text-transform:none; letter-spacing:.01em; font-size:var(--t-xs);
+                         font-weight:var(--w-nadruk); color:var(--muted);
+                         border-bottom:1px solid var(--border); padding:9px 14px; }
+  .bt-cijfers thead th:first-child { text-align:left; }
+  .bt-cijfers thead th:not(:first-child) { text-align:right; }
+  .bt-cijfers tbody td { padding:10px 14px; font-size:var(--t-sm); color:var(--text);
+                         border-top:1px solid rgba(37,49,81,.07); }
+  .bt-cijfers tbody tr:first-child td { border-top:none; }
+  .bt-cijfers tbody td:first-child { text-align:left; font-weight:var(--w-nadruk);
+                                     color:var(--primary); white-space:nowrap; }
+  .bt-cijfers tbody td:not(:first-child) { text-align:right; font-variant-numeric:tabular-nums; }
+  .bt-cijfers tbody td:last-child { color:var(--muted); }
+  .bt-cijfers tbody tr:hover { background:rgba(37,49,81,.03); }
+  .bt-cijfers strong { font-weight:var(--w-nadruk); }
+  /* Weekkop in het teamtotaal: de hele regel is de in-/uitklapknop. */
+  .bt-weekkop:hover { background:rgba(37,49,81,.04); }
+  .bt-weekkop:hover .bt-weekkop-actie { color:var(--primary); }
   .proj-overview-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border); }
   .proj-overview-row:last-child { border-bottom:none; }
   .proj-date-input { border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:.8rem; }
@@ -312,13 +334,16 @@
   .bt-schuif:checked::after { transform:translateX(14px); }
   .bt-schuif:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
   .bt-schuif:disabled { opacity:.45; cursor:default; }
+  /* Leesmodus: volle kleur, geen doffe knop. Je leest de stand, je zet hem niet
+     om — daarvoor gaat de rij eerst van slot. */
+  .bt-schuif-vast:disabled { opacity:1; cursor:default; }
+  .bt-schuif-vast { background:#e2e5ea; }
+  .bt-schuif-vast:checked { background:#17a05e; }
   /* Kleiner formaat voor in een tabelcel. */
   .bt-schuif-klein { width:28px; height:16px; }
   .bt-schuif-klein::after { width:12px; height:12px; }
   .bt-schuif-klein:checked::after { transform:translateX(12px); }
   /* Uit-stand in leesmodus: een streepje leest rustiger dan een grijs schuifje. */
-  .acc-bool-yes { color:#0e9f6e; font-weight:600; }
-  .acc-bool-no  { color:var(--border); }
   .acc-link-btn { display:inline-block; background:var(--primary-light); color:var(--primary); border:none; border-radius:6px; padding:4px 10px; font-size:.74rem; font-weight:700; cursor:pointer; text-decoration:none; }
   .acc-link-btn:hover { background:var(--primary); color:#fff; }
   .ms-dropdown { position:relative; display:inline-block; }
@@ -2018,7 +2043,7 @@ function renderBM(bm) {
       <td>${KPI_LABELS[k]}</td>
       <td>${fmt(ratios[k]||0,2)} per starter</td>
       <td><strong>${fmt(norm[k],1)}</strong></td>
-      <td style="color:${barColor(p)};font-weight:700">${fmt(ytdAvg[k],1)}</td>
+      <td style="color:${barColor(p)};font-weight:var(--w-nadruk)">${fmt(ytdAvg[k],1)}</td>
       <td><span class="badge ${p>=90?'badge-green':p>=60?'badge-orange':'badge-blue'}">${p}%</span></td>
     </tr>`;
   }).join('');
@@ -2082,49 +2107,54 @@ function renderBM(bm) {
       <strong>Individuele ratio's (laatste 26 weken, ${ratios.weeksUsed} weekrecords):</strong>
       ${fmt(ratios.intakes,2)} intakes · ${fmt(ratios.bezoeken,2)} bezoeken ·
       ${fmt(ratios.aanbiedingen,2)} aanbiedingen · ${fmt(ratios.matchgesprekken,2)} matchgesprekken per starter.<br>
-      Op basis van jaardoel <strong>${bm.doel} starters</strong> zijn onderstaande acties per ${pLabel} nodig.
+      Op basis van jaardoel <strong>${bm.doel} starters</strong> is de norm per ${pLabel} bepaald waartegen hieronder wordt afgezet.
     </div>
 
     <div class="section-title">
-      <span>Benodigde acties per ${pLabel}</span>
+      <span>Voortgang ${year}</span>
       <div class="toggle-group" style="order:1;flex:none;">
         <button id="btnWeek" class="${view==='week'?'active':''}" onclick="setView('week')">Per Week</button>
         <button id="btnMaand" class="${view==='maand'?'active':''}" onclick="setView('maand')">Per Maand</button>
       </div>
     </div>
-    <div class="kpi-grid">
-      ${KPIS.map(k => {
-        const p = pct(ytdAvg[k], norm[k]||1);
-        return `<div class="kpi-card${k==='starters'?' kpi-starters':''}">
-          <div class="label">${KPI_LABELS[k]}</div>
-          <div class="value" style="color:${k==='starters'?barColor(p):'var(--primary)'};">${fmt(norm[k],1)}</div>
-          <div class="sub">norm per ${pLabel}</div>
-          <div class="actual" style="color:${barColor(p)}">Gem. YTD: ${fmt(ytdAvg[k],1)}</div>
+    ${(() => {
+      // Eén lijst in plaats van zes normkaarten plus zes voortgangsblokken. Het
+      // waren twee weergaven van dezelfde zes KPI's: de bovenste toonde de norm
+      // per week, de onderste het jaartotaal. Ze staan nu op één regel, met de
+      // weeknorm als onderregel. Volgorde blijft de funnel — niet gesorteerd op
+      // percentage, anders springen de rijen elke week rond en zie je het
+      // verband tussen de stappen niet meer.
+      const regel = (naam, behaald, verwacht, p, onder, groot) => {
+        const kleur = barColorWide(p);
+        return `<div style="padding:${groot ? '0 0 14px' : '13px 0'};${groot ? 'border-bottom:1px solid rgba(255,255,255,.12);' : 'border-bottom:1px solid rgba(255,255,255,.08);'}">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;">
+            <div style="font-size:${groot ? '1.05rem' : 'var(--t-md)'};color:#fff;font-weight:${groot ? 'var(--w-nadruk)' : 'var(--w-normaal)'};">${naam}</div>
+            <div style="font-size:var(--t-sm);color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;white-space:nowrap;">
+              ${behaald} <span style="color:rgba(255,255,255,.3);">van ${verwacht}</span>
+              <span style="display:inline-block;width:52px;text-align:right;color:${kleur};">${p}%</span>
+            </div>
+          </div>
+          <div style="position:relative;height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:8px;">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${pctWide(p)}%;background:${kleur};border-radius:2px;"></div>
+            <div style="position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:rgba(255,255,255,.3);"></div>
+          </div>
+          <div style="font-size:var(--t-xs);color:rgba(255,255,255,.35);margin-top:5px;">${onder}</div>
         </div>`;
-      }).join('')}
-    </div>
+      };
 
-    <div class="section-title">Voortgang ${year}</div>
-    <div class="progress-block">
-      <div class="progress-header">
-        <span class="progress-name">Starters YTD</span>
-        <span class="progress-nums">${fmt(ytd.starters,1)} van ~${fmt(ytdTarget,1)} verwacht · einddoel ${bm.doel}</span>
-      </div>
-      <div class="medew-bar-wrap"><div class="medew-bar-mark-label">100%</div><div class="medew-bar-bg"><div class="medew-bar-fill" style="width:${pctWide(sPct)}%;background:${barColorWide(sPct)}"></div></div><div class="medew-bar-mark"></div></div>
-      <div class="progress-sub"><span style="color:${barColorWide(sPct)};font-weight:700;">${sPct}%${sPct>=100?' 🏆':''}</span><span>Doel: ${bm.doel} starters</span></div>
-    </div>
-    ${KPIS.filter(k=>k!=='starters').map(k => {
-      const target = norm[k] * gewerktePeriodes;
-      const p = pct(ytd[k], target||1);
-      return `<div class="progress-block">
-        <div class="progress-header">
-          <span class="progress-name">${KPI_LABELS[k]} YTD</span>
-          <span class="progress-nums">${fmt(ytd[k],0)} van ~${fmt(target,0)} verwacht</span>
-        </div>
-        <div class="medew-bar-wrap"><div class="medew-bar-mark-label">100%</div><div class="medew-bar-bg"><div class="medew-bar-fill" style="width:${pctWide(p)}%;background:${barColorWide(p)}"></div></div><div class="medew-bar-mark"></div></div>
-        <div class="progress-sub"><span style="color:${barColorWide(p)};font-weight:700;">${p}%${p>=100?' 🏆':''}</span><span></span></div>
-      </div>`;
-    }).join('')}
+      const rijen = [
+        regel('Starters', fmt(ytd.starters,1), fmt(ytdTarget,1), sPct,
+              `jaardoel ${bm.doel} starters · ${fmt(ytdAvg.starters,1)} van ${fmt(norm.starters,1)} per ${pLabel}`, true)
+      ];
+      for (const k of KPIS) {
+        if (k === 'starters') continue;
+        const target = norm[k] * gewerktePeriodes;
+        rijen.push(regel(KPI_LABELS[k], fmt(ytd[k],0), fmt(target,0), pct(ytd[k], target||1),
+          `${fmt(ytdAvg[k],1)} van ${fmt(norm[k],1)} per ${pLabel} gevraagd`));
+      }
+      return rijen.join('') +
+        '<div style="font-size:var(--t-xs);color:rgba(255,255,255,.3);margin-top:12px;">Balk loopt tot 200%; het streepje is 100%</div>';
+    })()}
 
     <div>
       <div class="section-title">KPI's per ${pLabel} (${year})</div>
@@ -2140,13 +2170,13 @@ function renderBM(bm) {
 
     <div class="section-title">Norm vs. gem. YTD per ${pLabel} (${year}) <button class="info-tip-btn" onclick="toggleInfoTip('itip-ytd-tbl')" title="Uitleg">ℹ</button></div>
     <div id="itip-ytd-tbl" class="info-tip-panel" hidden>📌 <strong>Actueel gemiddelde</strong> = YTD totaal ÷ ${passed} ${pLabel==='week'?'weken':'maanden'} verstreken in ${year}.</div>
-    <div class="table-card"><table>
+    <div class="table-card"><table class="bt-cijfers">
       <thead><tr><th>KPI</th><th>Ratio (26 wkn)</th><th>Norm/${pLabel}</th><th>Gem. YTD</th><th>Score</th></tr></thead>
       <tbody>${ratioTable}</tbody>
     </table></div>
 
     <div class="section-title">Historisch overzicht per jaar</div>
-    <div class="table-card"><table>
+    <div class="table-card"><table class="bt-cijfers">
       <thead><tr><th>Jaar</th><th>Intakes</th><th>Bezoeken</th><th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Weken</th></tr></thead>
       <tbody>${histRows}</tbody>
     </table></div>
@@ -2347,7 +2377,14 @@ function renderMedewerkersOverzicht() {
       '</tr>';
 
     return '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;">' +
-      '<div style="font-weight:700;font-size:.92rem;margin-bottom:10px;">Week ' + week + ' · ' + jaar + weekBadge(jaar, week) + '</div>' +
+      // De hele kopregel is de knop. Bij acht medewerkers en zes kolommen wil je
+      // een week kunnen sluiten zonder eerst een klein kruisje te zoeken.
+      '<div onclick="toggleMedewerkersWeek(' + jaar + ',' + week + ')" title="Klik om deze week in te klappen" ' +
+        'class="bt-weekkop" style="display:flex;align-items:center;cursor:pointer;user-select:none;font-weight:var(--w-nadruk);font-size:.92rem;' +
+        'margin:-14px -16px 10px;padding:12px 16px;border-radius:var(--radius-groot) var(--radius-groot) 0 0;">' +
+        '<span>Week ' + week + ' · ' + jaar + '</span>' + weekBadge(jaar, week) +
+        '<span class="bt-weekkop-actie" style="margin-left:auto;color:var(--muted);font-size:.8rem;font-weight:var(--w-normaal);white-space:nowrap;">&#x25B2; Inklappen</span>' +
+      '</div>' +
       '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
         colGroup +
         '<thead>' + headerRow + '</thead>' +
@@ -2408,9 +2445,7 @@ function renderMedewerkersOverzicht() {
       if (MEDEW_WEEK_OPEN.has(w.year + '-' + w.week)) {
         flush();
         delen.push(renderOpenWeek(w.year, w.week) +
-          '<div style="text-align:right;margin-top:-4px;margin-bottom:10px;">' +
-            '<button class="btn-secondary" style="font-size:.76rem;padding:2px 10px;" onclick="toggleMedewerkersWeek(' + w.year + ',' + w.week + ')">&#x25B2; Sluiten</button>' +
-          '</div>');
+          '');   // sluiten gaat via de kopregel van het blok zelf
       } else buffer.push(w);
     }
     flush();
@@ -2482,7 +2517,7 @@ function renderTeam() {
       <td>${+(r.aanbiedingen*s).toFixed(1)}</td>
       <td>${+(r.matchgesprekken*s).toFixed(1)}</td>
       <td>${+(r.contractvoorstellen*s).toFixed(1)}</td>
-      <td style="font-weight:700;color:var(--primary)">${+s.toFixed(2)}</td>
+      <td style="font-weight:var(--w-nadruk);color:var(--primary)">${+s.toFixed(2)}</td>
     </tr>`;
   }).join('');
 
@@ -2539,7 +2574,7 @@ function renderTeam() {
 
     <!-- Individuele ratio's -->
     <div class="section-title">Individuele ratio's huidige BM's (laatste 26 weken)</div>
-    <div class="table-card"><table>
+    <div class="table-card"><table class="bt-cijfers">
       <thead><tr>
         <th>BM</th><th>Intakes/starter</th><th>Bezoeken/starter</th>
         <th>Aanbied./starter</th><th>Match/starter</th><th>Contractvoorstel/starter</th><th>Starters</th><th>Weekrecords</th>
@@ -2556,7 +2591,7 @@ function renderTeam() {
 
     <!-- Normentabel -->
     <div class="section-title">Normentabel nieuwe BM's – per week</div>
-    <div class="table-card"><table>
+    <div class="table-card"><table class="bt-cijfers">
       <thead><tr>
         <th>Jaardoel</th><th>Intakes/wk</th><th>Bezoeken/wk</th>
         <th>Aanbied./wk</th><th>Match/wk</th><th>Contractvoorstel/wk</th><th>Starters/wk</th>
@@ -2566,7 +2601,7 @@ function renderTeam() {
 
     <!-- Historisch -->
     <div class="section-title">Team historisch overzicht per jaar</div>
-    <div class="table-card"><table>
+    <div class="table-card"><table class="bt-cijfers">
       <thead><tr>
         <th>Jaar</th><th>Intakes</th><th>Bezoeken</th>
         <th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Mensen</th>
@@ -10089,6 +10124,8 @@ function slPrint() {
   setTimeout(() => { win.print(); }, 300);
 }
 
+const SL_BOOL_LABEL = Object.fromEntries(SL_BOOL_FIELDS.map(([f, label]) => [f, label]));
+
 function renderSalesLeadsHtml(subTabBtns) {
   const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
   const list = SALES_LEADS_CACHE;
@@ -10151,7 +10188,7 @@ function renderSalesLeadsHtml(subTabBtns) {
 
     const boolCells = SL_BOOL_FIELDS.map(([f]) => {
       if (editing) return `<td><input type="checkbox" class="bt-schuif bt-schuif-klein" id="sl-${f}-${safeId}" ${s[f]?'checked':''}></td>`;
-      return `<td>${s[f] ? `<span class="acc-bool-yes">✓</span>` : `<span class="acc-bool-no">—</span>`}</td>`;
+      return `<td><input type="checkbox" class="bt-schuif bt-schuif-klein bt-schuif-vast" ${s[f]?'checked':''} disabled aria-label="${escHtml(SL_BOOL_LABEL[f]||f)}: ${s[f]?'ja':'nee'}"></td>`;
     }).join('');
 
     const cpCell = editing
