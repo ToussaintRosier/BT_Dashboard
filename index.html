@@ -285,6 +285,36 @@
   .bt-cijfers .badge-red    { color:#f87171; }
   .bt-cijfers .badge-blue   { color:#93b8f0; }
   .bt-cijfers .badge-grijs  { color:rgba(255,255,255,.6); }
+
+  /* ── Grafieken en cijfertegels op de donkere achtergrond ─────────────────
+     Een grafiek heeft een vlak nodig, maar dat hoeft niet wit te zijn. Van de
+     56 chart-cards bevatten er maar 10 een grafiek; de rest is leestekst en
+     blijft daarom wél wit. :has(canvas) pakt precies de tien die een grafiek
+     tonen, zonder dat er ergens HTML voor hoeft te veranderen. */
+  .chart-card:has(canvas) { background:transparent; border:none; box-shadow:none; padding:0 0 4px; }
+  .chart-card:has(canvas) h3 { color:#fff; font-weight:var(--w-nadruk); font-size:var(--t-md); }
+  .chart-card:has(canvas) h3 span { color:rgba(255,255,255,.4) !important; }
+  .chart-card:has(canvas) .sub { color:rgba(255,255,255,.4); }
+
+  /* Cijfertegels: geen doosje meer, alleen label en getal. Zelfde vorm als de
+     Toolgebruik-rij op het medewerkersscherm. */
+  .kpi-card { background:transparent; border:none; box-shadow:none; padding:2px 0 8px; }
+  .kpi-card .label  { color:rgba(255,255,255,.45); }
+  .kpi-card .value  { color:#fff; }
+  .kpi-card .sub    { color:rgba(255,255,255,.35); }
+  .kpi-card .actual { color:rgba(255,255,255,.55); font-weight:var(--w-normaal); }
+  /* Kleuren die op wit werkten zijn op navy te donker (of, bij --primary,
+     precies de achtergrond). Binnen een cijfertegel worden ze omgezet naar
+     hun lichte tegenhanger, met dezelfde betekenis. */
+  .kpi-card .value[style*="--primary"] { color:#fff !important; }
+  .kpi-card .value[style*="--success"] { color:#4ade80 !important; }
+  .kpi-card .value[style*="--danger"]  { color:#f87171 !important; }
+  .kpi-card .value[style*="--warn"]    { color:#fbbf24 !important; }
+  .kpi-card .value[style*="--over"]    { color:#c4a5f5 !important; }
+  .kpi-grid { gap:18px 26px; }
+
+  /* Toggles boven een grafiek staan nu ook op donker. */
+  .chart-card:has(canvas) .kpi-toggle { color:#fff; }
   /* Weekkop in het teamtotaal: de hele regel is de in-/uitklapknop. */
   .bt-weekkop:hover { background:rgba(37,49,81,.04); }
   .bt-weekkop:hover .bt-weekkop-actie { color:var(--primary); }
@@ -1296,19 +1326,48 @@ function yearlyTotals(naam) {
 // ── Charts ────────────────────────────────────────────────────────────────────
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
+// Grafieken staan op de donkere achtergrond. Wat hier is veranderd:
+//  • Rasterlijnen één stap van de achtergrond af in plaats van lichtgrijs, en
+//    geen verticale rasterlijnen op een tijdas — die verdelen alleen maar.
+//  • Vier tickwaarden in plaats van acht. De data wordt het donkerste op het
+//    vlak, de assen zakken naar de achtergrond.
+//  • Geen y-aslijn; de rasterlijn op nul doet dat werk al.
+//  • Staven begrensd op 24px met een lichte ronding bovenaan.
+const CHART_RASTER = 'rgba(255,255,255,.09)';
+const CHART_AS     = 'rgba(255,255,255,.18)';
+const CHART_TEKST  = 'rgba(255,255,255,.45)';
+
 function makeChart(id, labels, datasets, type='line', opts={}) {
   destroyChart(id);
   const ctx = document.getElementById(id)?.getContext('2d');
   if (!ctx) return;
+  const sets = datasets.map(d => {
+    if (d.type === 'bar' || (type === 'bar' && !d.type)) {
+      return Object.assign({ maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 } }, d);
+    }
+    return d;
+  });
   charts[id] = new Chart(ctx, {
     type,
-    data: { labels, datasets },
+    data: { labels, datasets: sets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend:{display:opts.legend!==false,position:'top',labels:{boxWidth:12,font:{size:11}}}, tooltip:{mode:'index',intersect:false, callbacks: opts.tooltipLabel ? { label: opts.tooltipLabel } : undefined} },
+      plugins: {
+        legend: { display: opts.legend !== false, position: 'top',
+                  labels: { boxWidth: 10, boxHeight: 10, usePointStyle: false,
+                            color: CHART_TEKST, font: { size: 11 }, padding: 14 } },
+        tooltip: { mode: 'index', intersect: false,
+                   callbacks: opts.tooltipLabel ? { label: opts.tooltipLabel } : undefined,
+                   backgroundColor: 'rgba(20,28,48,.96)', borderColor: 'rgba(255,255,255,.12)',
+                   borderWidth: 1, padding: 10, titleColor: '#fff',
+                   bodyColor: 'rgba(255,255,255,.8)' }
+      },
       scales: {
-        x: { grid:{display:false}, ticks:{font:{size:10}} },
-        y: { beginAtZero:true, grid:{color:'#f0f0f0'}, ticks:{font:{size:10}} }
+        x: { grid: { display: false }, border: { color: CHART_AS },
+             ticks: { font: { size: 10 }, color: CHART_TEKST } },
+        y: { beginAtZero: true, border: { display: false },
+             grid: { color: CHART_RASTER, drawTicks: false },
+             ticks: { font: { size: 10 }, color: CHART_TEKST, maxTicksLimit: 5, padding: 8 } }
       }
     }
   });
@@ -2605,9 +2664,16 @@ function renderTeam() {
 
     <!-- Staafdiagram activiteiten -->
     <div class="section-title">Activiteiten per maand – team (${year})</div>
-    <div class="chart-card">
-      <h3>Intakes · Bezoeken · Aanbiedingen · Matchgesprekken per maand <span style="color:var(--muted);font-weight:400;font-size:.78rem">(hover voor % t.o.v. teamnorm)</span></h3>
-      <div class="chart-wrap" style="height:300px"><canvas id="chartBar"></canvas></div>
+    <!-- Vier eigen schalen. Aanbiedingen loopt tot ver boven de driehonderd en
+         matchgesprekken blijft onder de zestig; op één as verdwijnen de kleine
+         reeksen tegen de onderrand en zie je hun beweging niet meer. -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px 26px;margin-bottom:10px;">
+      ${['intakes','bezoeken','aanbiedingen','matchgesprekken'].map(k => `
+        <div>
+          <div style="font-size:var(--t-md);color:#fff;">${KPI_LABELS[k]}</div>
+          <div style="font-size:var(--t-xs);color:rgba(255,255,255,.35);margin:2px 0 8px;" id="mnorm-${k}"></div>
+          <div style="position:relative;height:140px;"><canvas id="chartM-${k}"></canvas></div>
+        </div>`).join('')}
     </div>
 
     <!-- Normentabel -->
@@ -2636,19 +2702,25 @@ function renderTeam() {
     const maandLabels = aggM.map(a => 'M'+a.period);
     const weekLabels  = aggW.map(a => 'W'+a.period);
     const teamNormMonth = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'maand');
-    makeChart('chartBar', maandLabels, [
-      { label:'Intakes',      kpiKey:'intakes',         data:aggM.map(a=>a.intakes),         backgroundColor:'#1a56db99', borderColor:'#1a56db', borderWidth:1 },
-      { label:'Bezoeken',     kpiKey:'bezoeken',        data:aggM.map(a=>a.bezoeken),        backgroundColor:'#0e9f6e99', borderColor:'#0e9f6e', borderWidth:1 },
-      { label:'Aanbiedingen', kpiKey:'aanbiedingen',    data:aggM.map(a=>a.aanbiedingen),    backgroundColor:'#7e3af299', borderColor:'#7e3af2', borderWidth:1 },
-      { label:'Match',        kpiKey:'matchgesprekken', data:aggM.map(a=>a.matchgesprekken), backgroundColor:'#e0242499', borderColor:'#e02424', borderWidth:1 },
-    ], 'bar', {
-      tooltipLabel: (ctx) => {
-        const norm = teamNormMonth[ctx.dataset.kpiKey] || 0;
-        const val  = ctx.parsed.y;
-        const p    = norm > 0 ? Math.round(val / norm * 100) : 0;
-        return `${ctx.dataset.label}: ${val} (${p}% van teamnorm)`;
-      },
-    });
+    // Per KPI een eigen grafiek met eigen schaal, plus een gestippelde normlijn
+    // zodat je in één blik ziet waar de lat ligt.
+    for (const k of ['intakes','bezoeken','aanbiedingen','matchgesprekken']) {
+      const norm = teamNormMonth[k] || 0;
+      const lbl  = document.getElementById('mnorm-' + k);
+      if (lbl) lbl.textContent = norm > 0 ? 'norm ' + fmt(norm, 0) + ' per maand' : '';
+      makeChart('chartM-' + k, maandLabels, [
+        { label: KPI_LABELS[k], kpiKey: k, data: aggM.map(a => a[k]), backgroundColor: kpiColor(k) },
+        { type: 'line', label: 'norm', data: aggM.map(() => norm),
+          borderColor: 'rgba(255,255,255,.3)', borderWidth: 1, borderDash: [5,4], pointRadius: 0 },
+      ], 'bar', {
+        legend: false,
+        tooltipLabel: (ctx) => {
+          if (ctx.dataset.type === 'line') return 'norm ' + fmt(norm, 0);
+          const p = norm > 0 ? Math.round(ctx.parsed.y / norm * 100) : 0;
+          return ctx.parsed.y + (norm > 0 ? ' (' + p + '% van teamnorm)' : '');
+        },
+      });
+    }
 
     // 4. Overige KPI's per week, alle medewerkers — gesommeerde lijnen + teamnorm per KPI
     const teamNorm = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'week');
