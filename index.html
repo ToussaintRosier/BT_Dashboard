@@ -634,6 +634,31 @@
                         border-radius:8px; padding:9px 20px; font-size:var(--t-sm);
                         font-weight:var(--w-nadruk); cursor:pointer; }
 
+  /* ── Memo's ─────────────────────────────────────────────────────────────
+     Korte mededelingen van een manager. Verschijnen bij het eerstvolgende
+     bezoek en verdwijnen pas na een leesbevestiging — een wijziging landt
+     namelijk niet omdat je hem één keer verteld hebt. */
+  .memo-laag { position:fixed; inset:0; z-index:9998; background:rgba(37,49,81,.72);
+               backdrop-filter:blur(3px); display:flex; align-items:center;
+               justify-content:center; padding:24px; }
+  .memo-venster { background:var(--card); border-radius:var(--radius-groot);
+                  max-width:540px; width:100%; max-height:84vh; overflow-y:auto;
+                  box-shadow:0 18px 50px rgba(0,0,0,.35); }
+  .memo-kop { background:#F4CB3C; border-radius:var(--radius-groot) var(--radius-groot) 0 0;
+              padding:14px 24px; box-shadow:inset 5px 0 0 rgba(22,20,46,.16); }
+  .memo-kop .memo-label { font-size:var(--t-xs); color:rgba(22,20,46,.6);
+                          letter-spacing:.06em; text-transform:uppercase; }
+  .memo-kop h3 { margin:3px 0 0; font-size:var(--t-lg); font-weight:var(--w-nadruk); color:#16142e; }
+  .memo-body { padding:20px 24px 4px; font-size:var(--t-md); line-height:1.7;
+               color:var(--text); white-space:pre-wrap; }
+  .memo-afzender { padding:12px 24px 0; font-size:var(--t-xs); color:var(--muted); }
+  .memo-voet { padding:16px 24px 20px; }
+  .memo-voet button { width:100%; padding:12px; border:0; border-radius:9px;
+                      background:var(--primary); color:#fff; font-size:var(--t-sm);
+                      font-weight:var(--w-nadruk); cursor:pointer; }
+  .memo-voet button:disabled { background:#e6e8ee; color:var(--muted); cursor:default; }
+  .memo-teller { font-size:var(--t-xs); color:var(--muted); text-align:center; margin-top:8px; }
+
   /* ── Statusmeldingen ────────────────────────────────────────────────────
      Waren emoji (⏳ ✅ ❌ ⚠️) vooraan de tekst. Nu een gekleurd strookje met
      een lijnicoon: je ziet aan de kleur meteen waar je aan toe bent, en het
@@ -2331,6 +2356,143 @@ const BEHEER_ROL_OPTIES = [
   { value: 'backoffice',label: 'Backoffice' },
 ];
 
+// ── Memo's ──────────────────────────────────────────────────────────────────
+// Een manager zet in Beheer een kort bericht klaar. Iedereen voor wie het
+// bedoeld is krijgt het bij zijn eerstvolgende bezoek in beeld, en het
+// verdwijnt pas na een leesbevestiging. Achteraf is zichtbaar wie het wel en
+// niet gezien heeft — precies wat je nodig hebt om een wijziging te laten landen.
+let MEMOS = [];              // alle actieve memo's
+let MEMO_BEVESTIGINGEN = []; // alle bevestigingen (voor het overzicht in Beheer)
+
+function _memoVoorMij(m) {
+  const ik = CURRENT_USER?.naam || '';
+  const bm = CURRENT_USER?.bm_naam || '';
+  if (!Array.isArray(m.ontvangers) || !m.ontvangers.length) return true;  // leeg = iedereen
+  return m.ontvangers.includes(ik) || (bm && m.ontvangers.includes(bm));
+}
+
+async function loadMemos() {
+  if (!supa) return;
+  try {
+    const [{ data: memos }, { data: bev }] = await Promise.all([
+      supa.from('memos').select('*').eq('actief', true).order('created_at', { ascending: false }),
+      supa.from('memo_bevestigingen').select('memo_id, gebruiker, bevestigd_op, user_id'),
+    ]);
+    MEMOS = memos || [];
+    MEMO_BEVESTIGINGEN = bev || [];
+  } catch (e) { _meldStil('memo’s ophalen', e); }
+}
+
+// Memo's die ik nog moet lezen: voor mij bedoeld en nog niet door mij bevestigd.
+function _openstaandeMemos(mijnUserId) {
+  const bevestigd = new Set(
+    MEMO_BEVESTIGINGEN.filter(b => b.user_id === mijnUserId).map(b => String(b.memo_id)));
+  return MEMOS.filter(m => _memoVoorMij(m) && !bevestigd.has(String(m.id)));
+}
+
+async function toonMemos() {
+  if (!supa || !CURRENT_USER) return;
+  let mijnId = null;
+  try { const { data } = await supa.auth.getUser(); mijnId = data?.user?.id || null; } catch (_) {}
+  if (!mijnId) return;
+
+  const wachtrij = _openstaandeMemos(mijnId);
+  if (!wachtrij.length) return;
+
+  // Eén voor één: pas na bevestigen komt de volgende in beeld.
+  const toonVolgende = (i) => {
+    if (i >= wachtrij.length) return;
+    const m = wachtrij[i];
+    const laag = document.createElement('div');
+    laag.className = 'memo-laag';
+    laag.id = 'memo-laag';
+    laag.innerHTML = `
+      <div class="memo-venster" role="dialog" aria-modal="true" aria-label="Mededeling">
+        <div class="memo-kop">
+          <div class="memo-label">Mededeling</div>
+          <h3>${escHtml(m.titel)}</h3>
+        </div>
+        <div class="memo-body">${escHtml(m.bericht)}</div>
+        <div class="memo-afzender">
+          Van ${escHtml(m.aangemaakt_door || 'het management')} ·
+          ${new Date(m.created_at).toLocaleDateString('nl-NL', { day:'numeric', month:'long' })}
+        </div>
+        <div class="memo-voet">
+          <button id="memo-knop">Gelezen en begrepen</button>
+          ${wachtrij.length > 1 ? `<div class="memo-teller">${i + 1} van ${wachtrij.length}</div>` : ''}
+        </div>
+      </div>`;
+    document.body.appendChild(laag);
+
+    laag.querySelector('#memo-knop').onclick = async (e) => {
+      const knop = e.currentTarget;
+      knop.disabled = true;
+      knop.textContent = 'Bevestigen…';
+      const gelukt = await _memoBevestig(m.id, mijnId);
+      laag.remove();
+      if (!gelukt) return;   // niet gelukt: volgende keer opnieuw tonen
+      toonVolgende(i + 1);
+    };
+  };
+  toonVolgende(0);
+}
+
+async function _memoBevestig(memoId, userId) {
+  try {
+    const rij = { memo_id: memoId, user_id: userId,
+                  gebruiker: CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '' };
+    const { error } = await supa.from('memo_bevestigingen').insert(rij);
+    // Dubbele bevestiging (23505) is geen fout: dan stond hij er al.
+    if (error && error.code !== '23505') { _meldStil('memo bevestigen', error); return false; }
+    MEMO_BEVESTIGINGEN.push({ ...rij, bevestigd_op: new Date().toISOString() });
+    return true;
+  } catch (e) { _meldStil('memo bevestigen', e); return false; }
+}
+
+// ── Beheer: memo versturen en de stand bekijken ─────────────────────────────
+let MEMO_FORM_OPEN = false;
+
+function memoToggleForm() { MEMO_FORM_OPEN = !MEMO_FORM_OPEN; renderBeheer(); }
+
+async function memoVerstuur() {
+  const titelEl = document.getElementById('memo-titel');
+  const tekstEl = document.getElementById('memo-tekst');
+  const msg     = document.getElementById('memo-msg');
+  const titel = (titelEl?.value || '').trim();
+  const tekst = (tekstEl?.value || '').trim();
+  if (!titel || !tekst) { btZetStatus(msg, '⚠️ Vul een titel en een bericht in.'); return; }
+
+  const gekozen = Array.from(document.querySelectorAll('.memo-ontvanger:checked')).map(c => c.value);
+  const allen   = document.getElementById('memo-allen')?.checked;
+
+  btZetStatus(msg, '⏳ Versturen…');
+  try {
+    const { data: { user } = { user: null } } = await supa.auth.getUser();
+    const { error } = await supa.from('memos').insert({
+      titel, bericht: tekst,
+      ontvangers: allen ? null : gekozen,
+      aangemaakt_door: CURRENT_USER?.naam || '',
+      created_by: user ? user.id : null,
+    });
+    if (error) { btZetStatus(msg, '❌ Versturen mislukt: ' + error.message); return; }
+    await loadMemos();
+    MEMO_FORM_OPEN = false;
+    renderBeheer();
+  } catch (e) {
+    btZetStatus(msg, '❌ Versturen mislukt: ' + (e?.message || e));
+  }
+}
+
+async function memoIntrekken(id) {
+  if (!confirm('Deze mededeling intrekken? Collega’s die hem nog niet gezien hebben, krijgen hem niet meer.')) return;
+  try {
+    const { error } = await supa.from('memos').update({ actief: false }).eq('id', id);
+    if (error) { alert('Intrekken mislukt: ' + error.message); return; }
+    await loadMemos();
+    renderBeheer();
+  } catch (e) { alert('Intrekken mislukt: ' + (e?.message || e)); }
+}
+
 function renderBeheer() {
   const huidigJaar = new Date().getFullYear();
 
@@ -2507,12 +2669,83 @@ function renderBeheer() {
       </div>
     </div>` : '';
 
+  // ── Mededelingen ──────────────────────────────────────────────────────────
+  // Per memo tellen we wie hem al bevestigd heeft. Zo zie je in één oogopslag
+  // of een boodschap is aangekomen, en bij wie nog niet.
+  const memoOntvangersOpties = BEHEER_PROFIELEN
+    .filter(pr => !pr.einddatum || new Date(pr.einddatum) >= new Date())
+    .map(pr => pr.naam);
+
+  const memoLijst = MEMOS.length === 0
+    ? `<div style="font-size:.82rem;color:var(--text-muted);padding:6px 0;">Nog geen mededelingen verstuurd.</div>`
+    : MEMOS.map(m => {
+        const doelgroep = (Array.isArray(m.ontvangers) && m.ontvangers.length) ? m.ontvangers : memoOntvangersOpties;
+        const bev = MEMO_BEVESTIGINGEN.filter(b => String(b.memo_id) === String(m.id));
+        const gelezen = bev.map(b => b.gebruiker).filter(Boolean);
+        const open    = doelgroep.filter(n => !gelezen.includes(n));
+        return `<div style="border-top:1px solid var(--border);padding:11px 0;">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            <strong style="font-size:.88rem;">${escHtml(m.titel)}</strong>
+            <span style="font-size:.75rem;color:var(--text-muted);">
+              ${new Date(m.created_at).toLocaleDateString('nl-NL', { day:'numeric', month:'short' })}
+              · ${gelezen.length} van ${doelgroep.length} gelezen
+            </span>
+            <button class="btn-secondary" style="margin-left:auto;font-size:.74rem;padding:3px 10px;"
+                    onclick="memoIntrekken('${m.id}')">Intrekken</button>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;line-height:1.5;white-space:pre-wrap;">${escHtml(m.bericht)}</div>
+          ${open.length
+            ? `<div style="font-size:.75rem;color:#8a5a08;margin-top:6px;">Nog niet gelezen: ${escHtml(open.join(', '))}</div>`
+            : `<div style="font-size:.75rem;color:#0a6b4a;margin-top:6px;">Iedereen heeft dit gelezen.</div>`}
+        </div>`;
+      }).join('');
+
+  const memoFormHtml = !MEMO_FORM_OPEN ? '' : `
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:12px;">
+      <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Titel</label>
+      <input id="memo-titel" placeholder="Waar gaat het over?" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);margin-bottom:10px;">
+      <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Bericht</label>
+      <textarea id="memo-tekst" rows="5" placeholder="Kort en concreet. Wat is er veranderd, en wat betekent dat voor jou?" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);line-height:1.6;resize:vertical;"></textarea>
+      <div style="margin-top:12px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.84rem;cursor:pointer;margin-bottom:8px;">
+          <input type="checkbox" id="memo-allen" checked onchange="document.getElementById('memo-selectie').style.display=this.checked?'none':'flex'">
+          Naar iedereen
+        </label>
+        <div id="memo-selectie" style="display:none;flex-wrap:wrap;gap:8px 16px;padding:8px 2px;">
+          ${memoOntvangersOpties.map(n => `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer;">
+            <input type="checkbox" class="memo-ontvanger" value="${escHtml(n)}"> ${escHtml(n)}</label>`).join('')}
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:14px;">
+        <button class="proj-save-btn" onclick="memoVerstuur()">Versturen</button>
+        <button class="btn-secondary" onclick="memoToggleForm()">Annuleren</button>
+        <span id="memo-msg" style="margin-left:6px;"></span>
+      </div>
+    </div>`;
+
+  const memoHtml = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:250px;">
+          <div style="font-weight:700;font-size:.92rem;margin-bottom:3px;">Mededelingen</div>
+          <div style="font-size:.8rem;color:var(--text-muted);line-height:1.6;">
+            Een kort bericht dat collega's bij hun eerstvolgende bezoek in beeld krijgen.
+            Het verdwijnt pas als ze het hebben bevestigd, zodat je zeker weet dat het gelezen is.
+          </div>
+        </div>
+        ${MEMO_FORM_OPEN ? '' : `<button class="proj-save-btn" onclick="memoToggleForm()">Nieuwe mededeling</button>`}
+      </div>
+      ${memoFormHtml}
+      <div style="margin-top:14px;">${memoLijst}</div>
+    </div>`;
+
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
       <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
       <div class="person-meta"><span class="meta-pill">Medewerkersbeheer — alleen zichtbaar voor Toussaint</span></div>
     </div>
     <div style="padding:18px 20px;max-width:1100px;">
+      ${memoHtml}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
           <div style="flex:1;min-width:250px;">
@@ -4672,6 +4905,7 @@ async function loadAllData() {
   try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
   try { await loadGebruikLog(); } catch(e) { console.error('loadGebruikLog fout (niet fataal):', e); }
   try { await loadToolgebruik(); } catch(e) { console.error('loadToolgebruik fout (niet fataal):', e); }
+  try { await loadMemos(); } catch(e) { console.error('loadMemos fout (niet fataal):', e); }
   laadStap('Berekeningen…');
   recomputeRatios();
 }
@@ -4780,7 +5014,7 @@ async function loadProfileAndStart() {
   await loadAllData();
   render();
   verbergLaadscherm();
-  toonDagstart();
+  toonDagstart().then(toonMemos).catch(() => toonMemos());
   subscribeRealtime();
   _publiceerAchtergrond();
 }
