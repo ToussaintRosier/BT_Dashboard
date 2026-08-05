@@ -658,6 +658,16 @@
                      transform-origin:12px 12px; }
   .bt-actie-icoon { width:13px; height:13px; stroke:currentColor; fill:none;
                     stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  /* Tekstknop in plaats van een vergrootglas: "website" leest sneller dan een
+     teken dat je moet herkennen. Even hoog als de knopjes ernaast, zodat de
+     hele actiekolom op één lijn blijft staan. */
+  .acc-link-tekst { display:inline-flex; align-items:center; justify-content:center;
+                    height:22px; padding:0 10px; border:none; border-radius:5px;
+                    font-size:.7rem; font-weight:var(--w-nadruk); line-height:1;
+                    letter-spacing:.02em; text-decoration:none; white-space:nowrap;
+                    flex-shrink:0; }
+  .bt-venster .acc-link-tekst       { background:rgba(255,255,255,.10); color:rgba(255,255,255,.85); }
+  .bt-venster .acc-link-tekst:hover { background:rgba(255,255,255,.22); color:#fff; }
   .acc-link-icoon,
   .acc-table .acc-edit-btn,
   .acc-table .proj-del-btn { display:inline-flex; align-items:center; justify-content:center;
@@ -1398,7 +1408,7 @@ async function loadGebruikLog() {
   if (!supa) return;
   try {
     const { data, error } = await supa.from('gebruik_log')
-      .select('module, jaar, week, aantal').limit(20000);
+      .select('module, jaar, week, aantal, created_at').limit(20000);
     if (!error) GEBRUIK_LOG = data || [];
   } catch(e) { _meldStil('gebruikslogboek ophalen', e); }
 }
@@ -1408,7 +1418,24 @@ async function loadGebruikLog() {
 // genoeg om te tonen, veel te weinig om mee te tellen. Voor de tellers vragen we
 // daarom de database zélf hoeveel er zijn. Dat gaat langs die vijftig heen en
 // telt bovendien de opnames van álle collega's mee, niet alleen wat jij ziet.
-let TOOLGEBRUIK = { itkTotaal: 0, bzkTotaal: 0, itkWeek: 0, bzkWeek: 0 };
+let TOOLGEBRUIK = { itkTotaal: 0, bzkTotaal: 0, itkWeek: 0, bzkWeek: 0,
+                    itkLaatst: null, bzkLaatst: null };
+
+// "vandaag" · "gisteren" · "3 dagen geleden" · "12 aug" — korter dan een datum
+// en je ziet in één oogopslag of een tool nog leeft.
+function _laatstGebruikt(datum) {
+  if (!datum) return 'nooit gebruikt';
+  const d = new Date(datum);
+  if (isNaN(d)) return 'nooit gebruikt';
+  const vandaag = new Date(); vandaag.setHours(0,0,0,0);
+  const dag = new Date(d);    dag.setHours(0,0,0,0);
+  const dagen = Math.round((vandaag - dag) / 86400000);
+  if (dagen <= 0) return 'vandaag';
+  if (dagen === 1) return 'gisteren';
+  if (dagen < 7)  return dagen + ' dagen geleden';
+  const maand = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][d.getMonth()];
+  return d.getDate() + ' ' + maand + (d.getFullYear() !== vandaag.getFullYear() ? ' ' + d.getFullYear() : '');
+}
 
 // Maandag 00:00 van de ISO-week waarin een datum valt.
 function _maandagVanIsoWeek(jaar, week) {
@@ -1429,14 +1456,21 @@ async function loadToolgebruik() {
     const { count, error } = await q;
     return error ? 0 : (count || 0);
   };
+  const laatste = async (type) => {
+    const { data, error } = await supa.from('verslagen').select('created_at')
+      .eq('type', type).order('created_at', { ascending: false }).limit(1);
+    return (error || !data || !data.length) ? null : data[0].created_at;
+  };
   try {
     const { year, week } = isoWeek(new Date());
     const maandag = _maandagVanIsoWeek(year, week);
-    const [itkT, bzkT, itkW, bzkW] = await Promise.all([
+    const [itkT, bzkT, itkW, bzkW, itkL, bzkL] = await Promise.all([
       tel('gesprek', null), tel('bezoek', null),
       tel('gesprek', maandag), tel('bezoek', maandag),
+      laatste('gesprek'), laatste('bezoek'),
     ]);
-    TOOLGEBRUIK = { itkTotaal: itkT, bzkTotaal: bzkT, itkWeek: itkW, bzkWeek: bzkW };
+    TOOLGEBRUIK = { itkTotaal: itkT, bzkTotaal: bzkT, itkWeek: itkW, bzkWeek: bzkW,
+                    itkLaatst: itkL, bzkLaatst: bzkL };
   } catch (e) { _meldStil('toolgebruik tellen', e); }
 }
 
@@ -1449,18 +1483,25 @@ async function loadToolgebruik() {
 function toolgebruikTotalen(jaar, week) {
   const uitLog = (module, alleenWeek) => GEBRUIK_LOG.filter(g =>
     g.module === module && (!alleenWeek || (g.jaar === jaar && g.week === week)));
+  const nieuwste = (rijen) => rijen.reduce((laatst, g) =>
+    (!laatst || (g.created_at && g.created_at > laatst)) ? g.created_at : laatst, null);
   const mmT = uitLog('matchmaker', false);
   const mmW = uitLog('matchmaker', true);
+  const cvT = uitLog('cvgen', false);
   return {
     itk:        TOOLGEBRUIK.itkTotaal,
     itkWeek:    TOOLGEBRUIK.itkWeek,
+    itkLaatst:  TOOLGEBRUIK.itkLaatst,
     bzk:        TOOLGEBRUIK.bzkTotaal,
     bzkWeek:    TOOLGEBRUIK.bzkWeek,
+    bzkLaatst:  TOOLGEBRUIK.bzkLaatst,
     matchmaker: mmT.length,
     mmWeek:     mmW.length,
+    mmLaatst:   nieuwste(mmT),
     vacatures:  mmT.reduce((t, g) => t + (g.aantal || 0), 0),
-    cvgen:      uitLog('cvgen', false).length,
+    cvgen:      cvT.length,
     cvgenWeek:  uitLog('cvgen', true).length,
+    cvgenLaatst: nieuwste(cvT),
   };
 }
 
@@ -3020,22 +3061,25 @@ function renderGebruikBalk(jaar, week) {
   const g = toolgebruikTotalen(jaar, week);
   // Groot getal is het totaal van iedereen bij elkaar; eronder klein wat er
   // deze week bij kwam, zodat je ziet of het nog leeft.
-  const tegel = (totaal, dezeWeek, label, extra) => `
-    <div style="flex:1;min-width:130px;">
+  const tegel = (totaal, dezeWeek, laatst, label, extra) => `
+    <div style="flex:1;min-width:140px;">
       <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);letter-spacing:.03em;">${label}</div>
       <div style="font-size:var(--t-cijfer);font-weight:var(--w-nadruk);color:#fff;line-height:1.2;">${totaal}</div>
       <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:1px;">
         ${dezeWeek ? `+${dezeWeek} deze week` : 'niets deze week'}${extra ? ` · ${extra}` : ''}
+      </div>
+      <div style="font-size:var(--t-xs);color:rgba(255,255,255,.38);margin-top:1px;">
+        laatst: ${_laatstGebruikt(laatst)}
       </div>
     </div>`;
 
   return `<div style="margin-top:26px;">
     <div class="section-title"><span style="color:#fff;">Toolgebruik — totaal, alle collega's</span></div>
     <div class="bt-venster" style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${tegel(g.itk,        g.itkWeek,   'ITK-opnames')}
-      ${tegel(g.bzk,        g.bzkWeek,   'BZK-opnames')}
-      ${tegel(g.matchmaker, g.mmWeek,    'Matchmaker', g.vacatures ? `${g.vacatures} vacatures` : '')}
-      ${tegel(g.cvgen,      g.cvgenWeek, "CV's gemaakt")}
+      ${tegel(g.itk,        g.itkWeek,   g.itkLaatst,   'ITK-opnames')}
+      ${tegel(g.bzk,        g.bzkWeek,   g.bzkLaatst,   'BZK-opnames')}
+      ${tegel(g.matchmaker, g.mmWeek,    g.mmLaatst,    'Matchmaker', g.vacatures ? `${g.vacatures} vacatures` : '')}
+      ${tegel(g.cvgen,      g.cvgenWeek, g.cvgenLaatst, "CV's gemaakt")}
     </div>
   </div>`;
 }
@@ -8199,7 +8243,6 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   const incomplete  = !projContractIsComplete(r.source, r.id);
   // Het puzzelstukje (akkoord via pipeline) is weggehaald; alleen de
   // Excel-herkomst zegt nog iets dat je niet elders al ziet.
-  const src         = r.source === 'excel' ? '📄' : '';
   // Eén statuspil per rij, altijd op dezelfde plek. Dat maakt een lijst van 83
   // projecten scanbaar: je oog leest de kolom, niet de rijen.
   const statusPil   = overdue
@@ -8232,7 +8275,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
   if (canEditProj) {
     const args = r.bmNaam ? `'${r.source}','${r.id}','${r.bmNaam}'` : `'${r.source}','${r.id}',null`;
     return `<tr class="bt-rij${rijKlasse}" style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="(function(e){if(!e.target.closest('button,input,select,a'))projEvalToggle_vis('${safeId}');})(event)">
-      <td style="padding:7px 8px;overflow:hidden;"><div class="bt-hoofd">${r.naam}${alertSpan}</div><div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${statusPil}${r.projectnr?`<span class="bt-onder">${r.projectnr}</span>`:''}<span class="bt-onder" title="${r.source==='excel'?'uit Excel-import':'via pipeline'}">${src}</span>${contractvorm}</div></td>
+      <td style="padding:7px 8px;overflow:hidden;"><div class="bt-hoofd">${r.naam}${alertSpan}</div><div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${statusPil}${r.projectnr?`<span class="bt-onder">${r.projectnr}</span>`:''}${contractvorm}</div></td>
       <td style="padding:7px 8px;text-align:left;font-size:var(--t-sm);color:var(--text);">${r.opdrachtgever||'<span style="color:var(--muted)">—</span>'}</td>
       ${chipHtml}
       <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
@@ -8248,7 +8291,7 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     </tr>${renderEvalRow(r.source, r.id, startStr, nCols, safeId)}${renderContractRow(r.source, r.id, nCols, safeId, (window._projGedeeldInfo||{})[String(r.id)]||null)}`;
   } else {
     return `<tr class="bt-rij${rijKlasse}" style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="projEvalToggle_vis('${safeId}')">
-      <td style="padding:7px 8px;overflow:hidden;"><div class="bt-hoofd">${r.naam}${alertSpan}</div><div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${statusPil}${r.projectnr?`<span class="bt-onder">${r.projectnr}</span>`:''}<span class="bt-onder" title="${r.source==='excel'?'uit Excel-import':'via pipeline'}">${src}</span>${contractvorm}</div></td>
+      <td style="padding:7px 8px;overflow:hidden;"><div class="bt-hoofd">${r.naam}${alertSpan}</div><div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${statusPil}${r.projectnr?`<span class="bt-onder">${r.projectnr}</span>`:''}${contractvorm}</div></td>
       <td style="padding:7px 8px;text-align:left;font-size:var(--t-sm);color:var(--text);">${r.opdrachtgever||'<span style="color:var(--muted)">—</span>'}</td>
       ${chipHtml}
       <td style="padding:3px 6px;text-align:center;">${detBtn}</td>
@@ -11147,7 +11190,10 @@ function renderSalesLeadsHtml(subTabBtns) {
   // Checkbox-dropdownpaneel voor multi-select filters (vakgebied/regio/
   // contactpersoon/status/voorwaarden) — meerdere opties per kolom mogelijk.
   const msFilterHtml = (kind, label, options, current) => {
-    const summaryLabel = !current.length ? `Alle ${label}` : (current.length === 1 ? current[0] : `${label}: ${current.length} geselecteerd`);
+    const kop = label.charAt(0).toUpperCase() + label.slice(1);
+    const summaryLabel = !current.length ? kop
+                       : current.length === 1 ? current[0]
+                       : `${kop} \u00b7 ${current.length}`;
     const itemsHtml = options.length
       ? options.map(o => `<label><input type="checkbox" onchange="slToggleMultiFilter('${kind}','${escApos(o)}')" ${current.includes(o)?'checked':''}>${escHtml(o)}</label>`).join('')
       : `<div style="padding:6px 8px;color:var(--muted);font-size:.8rem;">Geen opties</div>`;
@@ -11211,7 +11257,7 @@ function renderSalesLeadsHtml(subTabBtns) {
          </select>`
       : (s.voorwaarden_bekend==='ja' ? `<span class="badge badge-green">Ja</span>` : s.voorwaarden_bekend==='nee' ? `<span class="badge badge-red">Nee</span>` : s.voorwaarden_bekend==='ja/nee' ? `<span class="badge badge-yellow">Deels</span>` : `<span style="color:var(--muted);">—</span>`);
 
-    const websiteCell = `<a class="acc-link-btn acc-link-icoon" href="${slWebsiteSearchUrl(s.naam||'')}" target="_blank" rel="noopener" title="Zoek de website van ${escHtml(s.naam||'')}" aria-label="Zoek de website van ${escHtml(s.naam||'')}">${btActie('zoek')}</a>`;
+    const websiteCell = `<a class="acc-link-btn acc-link-tekst" href="${slWebsiteSearchUrl(s.naam||'')}" target="_blank" rel="noopener" title="Zoek de website van ${escHtml(s.naam||'')}">website</a>`;
 
     const actionsCell = !canEditAccounts
       ? ''
@@ -11253,10 +11299,10 @@ function renderSalesLeadsHtml(subTabBtns) {
     ${subTabBtns}
     <div class="filter-toolbar">
         <input type="text" class="filter-search-pill" placeholder="naam, vakgebied, regio, status…" value="${escHtml(SL_SEARCH)}" oninput="SL_SEARCH=this.value;clearTimeout(window._slST);window._slST=setTimeout(renderAccounts,250)" style="min-width:260px;">
-        ${msFilterHtml('vakgebied', 'vakgebieden', vakgebiedOptions, SL_FILTER_VAKGEBIED)}
-        ${msFilterHtml('regio', "regio's", regioOptions, SL_FILTER_REGIO)}
-        ${msFilterHtml('cp', 'contactpersonen', cpOptions, SL_FILTER_CP)}
-        ${msFilterHtml('status', 'statussen', statusOptions, SL_FILTER_STATUS)}
+        ${msFilterHtml('vakgebied', 'vakgebied', vakgebiedOptions, SL_FILTER_VAKGEBIED)}
+        ${msFilterHtml('regio', 'regio', regioOptions, SL_FILTER_REGIO)}
+        ${msFilterHtml('cp', 'contactpersoon', cpOptions, SL_FILTER_CP)}
+        ${msFilterHtml('status', 'status', statusOptions, SL_FILTER_STATUS)}
         ${msFilterHtml('voorw', 'voorwaarden', voorwOptions, SL_FILTER_VOORW)}
         <span class="filter-sep"></span>
         ${boolChipHtml('sc', 'SC', SL_FILTER_SC)}
@@ -11281,7 +11327,7 @@ function renderSalesLeadsHtml(subTabBtns) {
           <col style="width:58px;">
           <col style="width:74px;">
           <col style="width:64px;">
-          <col style="width:50px;">
+          <col style="width:74px;">
           <col style="width:66px;">
         </colgroup>
         <thead><tr>
