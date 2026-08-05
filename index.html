@@ -4894,9 +4894,14 @@ async function _dagstartAiTekst(d) {
 async function toonDagstart() {
   if (!CURRENT_USER) return;
   const sleutel = 'bt_dagstart_' + (CURRENT_USER.bm_naam || CURRENT_USER.naam || 'onbekend');
+  // Zet ?dagstart=nu achter de link om hem nog een keer te zien, ook als je
+  // vandaag al ingelogd hebt. Handig om te testen zonder in de browserinstellingen
+  // te hoeven duiken; verandert verder niets aan de dagelijkse regel.
+  let forceer = false;
+  try { forceer = new URLSearchParams(location.search).get('dagstart') === 'nu'; } catch (_) {}
   let laatste = null;
   try { laatste = localStorage.getItem(sleutel); } catch (_) {}
-  if (laatste === _dagstartVandaag()) return;
+  if (!forceer && laatste === _dagstartVandaag()) return;
 
   const bm = BMS.find(b => b.naam === CURRENT_USER.bm_naam && !b.special);
   let boodschap = null;
