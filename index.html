@@ -638,6 +638,24 @@
      Korte mededelingen van een manager. Verschijnen bij het eerstvolgende
      bezoek en verdwijnen pas na een leesbevestiging — een wijziging landt
      namelijk niet omdat je hem één keer verteld hebt. */
+  /* Mededelingen in Beheer: één regel per bericht, uitklapbaar. Met tien
+     publicaties wil je niet tien volledige teksten onder elkaar zien staan. */
+  .memo-rij { border-top:1px solid var(--border); }
+  .memo-rij summary { display:flex; align-items:center; gap:10px; padding:10px 2px;
+                      cursor:pointer; list-style:none; }
+  .memo-rij summary::-webkit-details-marker { display:none; }
+  .memo-pijl { font-size:.6rem; color:var(--muted); flex-shrink:0;
+               transition:transform .15s; }
+  .memo-rij[open] .memo-pijl { transform:rotate(90deg); }
+  .memo-titel { font-size:var(--t-md); color:var(--text); }
+  .memo-datum { font-size:var(--t-xs); color:var(--muted); white-space:nowrap; }
+  .memo-status { margin-left:auto; flex-shrink:0; }
+  .memo-inhoud { padding:2px 2px 14px 22px; }
+  .memo-tekst { font-size:var(--t-sm); color:var(--text); line-height:1.65;
+                white-space:pre-wrap; }
+  .memo-onderregel { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+                     margin-top:10px; font-size:var(--t-xs); }
+
   .memo-laag { position:fixed; inset:0; z-index:9998; background:rgba(37,49,81,.72);
                backdrop-filter:blur(3px); display:flex; align-items:center;
                justify-content:center; padding:24px; }
@@ -2694,31 +2712,41 @@ function renderBeheer() {
         const bev = MEMO_BEVESTIGINGEN.filter(b => String(b.memo_id) === String(m.id));
         const gelezen = bev.map(b => b.gebruiker).filter(Boolean);
         const open    = doelgroep.filter(n => !gelezen.includes(n));
-        // Staat hij nog te wachten op zijn publicatiedatum? Dan geen leesteller
-        // tonen — anders lijkt het alsof niemand hem gelezen heeft.
         const gepland = !_memoGepubliceerd(m);
-        const datumTekst = gepland
-          ? 'gepland voor ' + new Date(m.publiceren_vanaf + 'T00:00:00')
-              .toLocaleDateString('nl-NL', { day:'numeric', month:'long' })
-          : new Date(m.publiceren_vanaf ? m.publiceren_vanaf + 'T00:00:00' : m.created_at)
-              .toLocaleDateString('nl-NL', { day:'numeric', month:'short' })
-            + ' · ' + gelezen.length + ' van ' + doelgroep.length + ' gelezen';
-        return `<div style="border-top:1px solid var(--border);padding:11px 0;">
-          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-            <strong style="font-size:.88rem;">${escHtml(m.titel)}</strong>
-            <span style="font-size:.75rem;color:${gepland ? '#8a5a08' : 'var(--text-muted)'};">
-              ${escHtml(datumTekst)}
-            </span>
-            <button class="btn-secondary" style="margin-left:auto;font-size:.74rem;padding:3px 10px;"
-                    onclick="memoIntrekken('${m.id}')">Intrekken</button>
+
+        // In de titelregel staat alleen wat je nodig hebt om te kiezen welke je
+        // openklapt: het onderwerp, wanneer hij uitgaat, en of hij is aangekomen.
+        const publDatum = new Date(m.publiceren_vanaf ? m.publiceren_vanaf + 'T00:00:00' : m.created_at)
+          .toLocaleDateString('nl-NL', { day:'numeric', month:'long' });
+        const datumTekst = gepland ? 'gepland voor ' + publDatum : publDatum;
+
+        // Zelfde statuspillen als elders in het dashboard, zodat je ze herkent.
+        const status = gepland
+          ? `<span class="badge badge-grijs">Gepland</span>`
+          : open.length === 0
+            ? `<span class="badge badge-green">Iedereen gelezen</span>`
+            : `<span class="badge badge-yellow">${gelezen.length} van ${doelgroep.length}</span>`;
+
+        return `<details class="memo-rij">
+          <summary>
+            <span class="memo-pijl">▶</span>
+            <strong class="memo-titel">${escHtml(m.titel)}</strong>
+            <span class="memo-datum">${escHtml(datumTekst)}</span>
+            <span class="memo-status">${status}</span>
+          </summary>
+          <div class="memo-inhoud">
+            <div class="memo-tekst">${escHtml(m.bericht)}</div>
+            <div class="memo-onderregel">
+              ${gepland
+                ? `<span style="color:var(--text-muted);">Staat klaar, nog niet verstuurd.</span>`
+                : open.length
+                  ? `<span style="color:#8a5a08;">Nog niet gelezen: ${escHtml(open.join(', '))}</span>`
+                  : `<span style="color:#0a6b4a;">Iedereen heeft dit gelezen.</span>`}
+              <button class="btn-secondary" style="margin-left:auto;font-size:.74rem;padding:3px 10px;"
+                      onclick="memoIntrekken('${m.id}')">Intrekken</button>
+            </div>
           </div>
-          <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;line-height:1.5;white-space:pre-wrap;">${escHtml(m.bericht)}</div>
-          ${gepland
-            ? `<div style="font-size:.75rem;color:var(--text-muted);margin-top:6px;">Staat klaar, nog niet verstuurd.</div>`
-            : open.length
-              ? `<div style="font-size:.75rem;color:#8a5a08;margin-top:6px;">Nog niet gelezen: ${escHtml(open.join(', '))}</div>`
-              : `<div style="font-size:.75rem;color:#0a6b4a;margin-top:6px;">Iedereen heeft dit gelezen.</div>`}
-        </div>`;
+        </details>`;
       }).join('');
 
   const memoFormHtml = !MEMO_FORM_OPEN ? '' : `
