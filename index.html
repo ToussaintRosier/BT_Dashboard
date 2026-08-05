@@ -4833,7 +4833,65 @@ function _dagstartKies(d) {
   catch (e) { _meldStil('dagstart boodschap opbouwen (' + keus.id + ')', e); return null; }
 }
 
-function toonDagstart() {
+// ── De AI-tekst ─────────────────────────────────────────────────────────────
+// Het onderwerp komt uit de coaching, niet uit het taalmodel: we kiezen zelf
+// het sterkste signaal en laten daar alleen de drie regels bij schrijven. Zo
+// gaat het bericht gegarandeerd over zíjn situatie, terwijl de verwoording
+// elke dag anders is. Lukt het ophalen niet, dan valt alles terug op de vaste
+// teksten hieronder — de dagstart mag nooit uitvallen omdat het net hapert.
+function _dagstartHoofdpunt(d) {
+  const punten = (d.points || []);
+  if (!punten.length) return null;
+  // Groen eerst: opbouwend beginnen werkt beter dan met een tekort openen.
+  // Is er niets positiefs, dan pakken we het zwaarste punt en laat de opdracht
+  // aan het model het als iets doenlijks brengen.
+  const groen = punten.find(p => p.prio === 'green');
+  return groen || punten[0];
+}
+
+function _dagstartCijfers(d) {
+  return {
+    naam:              d.bm.naam,
+    jaardoel:          d.bm.doel,
+    startersDitJaar:   +Number(d.ytd.starters || 0).toFixed(1),
+    verwachtOpDitPunt: +Number(d.expectedStarters || 0).toFixed(1),
+    verschilMetSchema: +Number(d.starterGap || 0).toFixed(1),
+    percentageVanDoel: d.starterPctOfDoel,
+    week:              CUR.week,
+    intakesDitJaar:    d.ytd.intakes,
+    bezoekenDitJaar:   d.ytd.bezoeken,
+    aanbiedingenDitJaar: d.ytd.aanbiedingen,
+    matchgesprekkenDitJaar: d.ytd.matchgesprekken,
+    normPerWeek:       d.norm,
+    gemiddeldPerWeek:  d.ytdPerWk,
+  };
+}
+
+async function _dagstartAiTekst(d) {
+  if (!supa) return null;
+  const hoofd = _dagstartHoofdpunt(d);
+  if (!hoofd) return null;
+  const overige = (d.points || [])
+    .filter(p => p !== hoofd)
+    .map(p => ({ titel: p.title, reden: p.reason }));
+  try {
+    const { data, error } = await supa.functions.invoke('dagstart-tekst', {
+      body: {
+        cijfers:   _dagstartCijfers(d),
+        hoofdpunt: { titel: hoofd.title, reden: hoofd.reason },
+        punten:    overige,
+      },
+    });
+    if (error || !data || data.error) return null;
+    if (!data.kern || !data.waarom || !data.focus) return null;
+    return { kern: data.kern, waarom: data.waarom, focus: data.focus };
+  } catch (e) {
+    _meldStil('dagstart-tekst ophalen', e);
+    return null;
+  }
+}
+
+async function toonDagstart() {
   if (!CURRENT_USER) return;
   const sleutel = 'bt_dagstart_' + (CURRENT_USER.bm_naam || CURRENT_USER.naam || 'onbekend');
   let laatste = null;
@@ -4843,8 +4901,17 @@ function toonDagstart() {
   const bm = BMS.find(b => b.naam === CURRENT_USER.bm_naam && !b.special);
   let boodschap = null;
   if (bm) {
-    try { boodschap = _dagstartKies(computeCoachingData(bm)); }
+    let d = null;
+    try { d = computeCoachingData(bm); }
     catch (e) { _meldStil('dagstart cijfers berekenen', e); }
+    if (d) {
+      // Eerst de geschreven tekst; lukt dat niet, dan de vaste set.
+      boodschap = await _dagstartAiTekst(d);
+      if (!boodschap) {
+        try { boodschap = _dagstartKies(d); }
+        catch (e) { _meldStil('dagstart boodschap kiezen', e); }
+      }
+    }
   }
   if (!boodschap && isManagerLevel()) {
     try { boodschap = _dagstartTeamBoodschap(); } catch (e) { _meldStil('dagstart teamcijfers', e); }
