@@ -2384,10 +2384,19 @@ async function loadMemos() {
 }
 
 // Memo's die ik nog moet lezen: voor mij bedoeld en nog niet door mij bevestigd.
+function _memoGepubliceerd(m) {
+  if (!m.publiceren_vanaf) return true;          // geen datum = meteen
+  const vandaag = new Date(); vandaag.setHours(0,0,0,0);
+  const vanaf = new Date(m.publiceren_vanaf + 'T00:00:00');
+  return !isNaN(vanaf) && vanaf <= vandaag;
+}
+
 function _openstaandeMemos(mijnUserId) {
   const bevestigd = new Set(
     MEMO_BEVESTIGINGEN.filter(b => b.user_id === mijnUserId).map(b => String(b.memo_id)));
-  return MEMOS.filter(m => _memoVoorMij(m) && !bevestigd.has(String(m.id)));
+  // Nog niet gepubliceerd? Dan blijft hij staan tot de datum bereikt is; wie op
+  // die dag niet inlogt krijgt hem daarna alsnog, want bevestigen is wat telt.
+  return MEMOS.filter(m => _memoVoorMij(m) && _memoGepubliceerd(m) && !bevestigd.has(String(m.id)));
 }
 
 async function toonMemos() {
@@ -2468,8 +2477,10 @@ async function memoVerstuur() {
   btZetStatus(msg, '⏳ Versturen…');
   try {
     const { data: { user } = { user: null } } = await supa.auth.getUser();
+    const datum = (document.getElementById('memo-datum')?.value || '').trim();
     const { error } = await supa.from('memos').insert({
       titel, bericht: tekst,
+      publiceren_vanaf: datum || null,
       ontvangers: allen ? null : gekozen,
       aangemaakt_door: CURRENT_USER?.naam || '',
       created_by: user ? user.id : null,
@@ -2683,20 +2694,30 @@ function renderBeheer() {
         const bev = MEMO_BEVESTIGINGEN.filter(b => String(b.memo_id) === String(m.id));
         const gelezen = bev.map(b => b.gebruiker).filter(Boolean);
         const open    = doelgroep.filter(n => !gelezen.includes(n));
+        // Staat hij nog te wachten op zijn publicatiedatum? Dan geen leesteller
+        // tonen — anders lijkt het alsof niemand hem gelezen heeft.
+        const gepland = !_memoGepubliceerd(m);
+        const datumTekst = gepland
+          ? 'gepland voor ' + new Date(m.publiceren_vanaf + 'T00:00:00')
+              .toLocaleDateString('nl-NL', { day:'numeric', month:'long' })
+          : new Date(m.publiceren_vanaf ? m.publiceren_vanaf + 'T00:00:00' : m.created_at)
+              .toLocaleDateString('nl-NL', { day:'numeric', month:'short' })
+            + ' · ' + gelezen.length + ' van ' + doelgroep.length + ' gelezen';
         return `<div style="border-top:1px solid var(--border);padding:11px 0;">
           <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
             <strong style="font-size:.88rem;">${escHtml(m.titel)}</strong>
-            <span style="font-size:.75rem;color:var(--text-muted);">
-              ${new Date(m.created_at).toLocaleDateString('nl-NL', { day:'numeric', month:'short' })}
-              · ${gelezen.length} van ${doelgroep.length} gelezen
+            <span style="font-size:.75rem;color:${gepland ? '#8a5a08' : 'var(--text-muted)'};">
+              ${escHtml(datumTekst)}
             </span>
             <button class="btn-secondary" style="margin-left:auto;font-size:.74rem;padding:3px 10px;"
                     onclick="memoIntrekken('${m.id}')">Intrekken</button>
           </div>
           <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;line-height:1.5;white-space:pre-wrap;">${escHtml(m.bericht)}</div>
-          ${open.length
-            ? `<div style="font-size:.75rem;color:#8a5a08;margin-top:6px;">Nog niet gelezen: ${escHtml(open.join(', '))}</div>`
-            : `<div style="font-size:.75rem;color:#0a6b4a;margin-top:6px;">Iedereen heeft dit gelezen.</div>`}
+          ${gepland
+            ? `<div style="font-size:.75rem;color:var(--text-muted);margin-top:6px;">Staat klaar, nog niet verstuurd.</div>`
+            : open.length
+              ? `<div style="font-size:.75rem;color:#8a5a08;margin-top:6px;">Nog niet gelezen: ${escHtml(open.join(', '))}</div>`
+              : `<div style="font-size:.75rem;color:#0a6b4a;margin-top:6px;">Iedereen heeft dit gelezen.</div>`}
         </div>`;
       }).join('');
 
@@ -2704,6 +2725,9 @@ function renderBeheer() {
     <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:12px;">
       <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Titel</label>
       <input id="memo-titel" placeholder="Waar gaat het over?" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);margin-bottom:10px;">
+      <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Publiceren vanaf</label>
+      <input id="memo-datum" type="date" value="${new Date().toISOString().slice(0,10)}" style="padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);margin-bottom:10px;">
+      <div style="font-size:.76rem;color:var(--text-muted);margin:-6px 0 12px;">Vanaf deze dag verschijnt de mededeling. Wie die dag niet inlogt, krijgt hem de eerstvolgende keer daarna.</div>
       <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Bericht</label>
       <textarea id="memo-tekst" rows="5" placeholder="Kort en concreet. Wat is er veranderd, en wat betekent dat voor jou?" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);line-height:1.6;resize:vertical;"></textarea>
       <div style="margin-top:12px;">
@@ -13093,14 +13117,62 @@ function _recInitials(naam) {
 // Normalize naam/functie voor merge-key: trim + collapse whitespace
 function _gspNorm(s) { return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 function _gspKey(r)  { return [_gspNorm(r.naam), _gspNorm(r.functie)].join('|'); }
+// Naam en functie worden met de hand ingetypt. "Jan de Vries" en "jan  de vries"
+// horen bij dezelfde kandidaat, dus vergelijken we op een opgeschoonde versie:
+// kleine letters, dubbele spaties weg, niets aan de randen.
+function _itkSleutel(tekst) {
+  return String(tekst || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function addGesprekRecord() {
   const g = GESPREK; if (!g.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
   const recNaam = GESPREK.recorderNaam || '';
-  GESPREK_RECORDS.unshift({ id: Date.now(), datum, naam:g.naam, functie:g.functie, result:g.result, transcript:g.transcript, recorder_naam:recNaam });
-  if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
+
+  // Zelfde aanpak als bij BZK: neem je hetzelfde gesprek nog een keer op, dan
+  // wordt het bestaande record bijgewerkt in plaats van dat er een tweede bij
+  // komt. Zonder dit leverde één gesprek in drie stukken ook drie regels op,
+  // die je daarna met de hand moest samenvoegen of weggooien.
+  const dupIdx = GESPREK_RECORDS.findIndex(r =>
+    _itkSleutel(r.naam)    === _itkSleutel(g.naam) &&
+    _itkSleutel(r.functie) === _itkSleutel(g.functie) &&
+    r.datum === datum &&
+    (r.recorder_naam || '') === recNaam
+  );
+
+  const record = { datum, naam:g.naam, functie:g.functie, result:g.result,
+                   transcript:g.transcript, recorder_naam:recNaam, heeftTranscript: !!g.transcript };
+
+  if (dupIdx >= 0) {
+    const bestaandId = GESPREK_RECORDS[dupIdx].id;
+    // Het ID blijft staan. Dat is belangrijk: aan dat ID hangen de toewijzing
+    // "opgenomen door" en een eventueel gedeelde afsprakenlink.
+    const oudTranscript = GESPREK_RECORDS[dupIdx].transcript || '';
+    // Transcripties aan elkaar plakken zodat er niets verloren gaat als het
+    // gesprek in stukken is opgenomen.
+    const samen = oudTranscript && g.transcript && !oudTranscript.includes(g.transcript)
+      ? oudTranscript.trim() + '\n\n---\n\n' + g.transcript.trim()
+      : (g.transcript || oudTranscript);
+    GESPREK_RECORDS[dupIdx] = { ...GESPREK_RECORDS[dupIdx], ...record, id: bestaandId, transcript: samen };
+    _updateGesprekVerslagInSupa(bestaandId, g.result, samen);
+  } else {
+    GESPREK_RECORDS.unshift({ ...record, id: Date.now() });
+    if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
+    _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam }, g.result, g.transcript);
+  }
   _saveGesprekRec();
-  _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam }, g.result, g.transcript);
+}
+
+async function _updateGesprekVerslagInSupa(localId, result, transcript) {
+  if (!supa) return;
+  try {
+    // Een UUID komt uit de database; een getal is een record dat alleen nog
+    // lokaal bestaat. In dat laatste geval valt er op de server niets bij te werken.
+    if (typeof localId === 'string' && localId.includes('-')) {
+      const { error } = await supa.from('verslagen').update({ result, transcript }).eq('id', localId);
+      if (error) _meldStil('gespreksverslag bijwerken op de server', error);
+    }
+  } catch(e) { _meldStil('gespreksverslag bijwerken op de server', e); }
 }
 function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
