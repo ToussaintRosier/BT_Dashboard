@@ -613,6 +613,14 @@
   .uitleg-sluit:hover { background:rgba(22,20,46,.28); }
   .uitleg-body { padding:18px 22px 20px; color:var(--text); font-size:var(--t-md); line-height:1.65; }
   .uitleg-body p { margin:0 0 14px; }
+  .uitleg-waarom { background:var(--card-alt); border-radius:9px;
+                   padding:12px 15px; margin:0 0 18px;
+                   box-shadow:inset 3px 0 0 #F4CB3C; }
+  .uitleg-waarom h4 { margin:0 0 5px; font-size:var(--t-xs); font-weight:var(--w-nadruk);
+                      color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .uitleg-waarom p { margin:0; font-size:var(--t-sm); line-height:1.6; }
+  .uitleg-koptekst { margin:0 0 10px; font-size:var(--t-xs); font-weight:var(--w-nadruk);
+                     color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
   .uitleg-body ol { margin:0; padding-left:0; list-style:none; counter-reset:stap; }
   .uitleg-body ol li { counter-increment:stap; position:relative;
                        padding:0 0 12px 34px; }
@@ -1390,24 +1398,69 @@ async function loadGebruikLog() {
   if (!supa) return;
   try {
     const { data, error } = await supa.from('gebruik_log')
-      .select('module, jaar, week, aantal').limit(5000);
+      .select('module, jaar, week, aantal').limit(20000);
     if (!error) GEBRUIK_LOG = data || [];
   } catch(e) { _meldStil('gebruikslogboek ophalen', e); }
 }
 
-// Tellers voor één week: aantal ITK-opnames, BZK-opnames en Matchmaker-zoekacties.
-function gebruikVanWeek(jaar, week) {
-  const telRecords = (lijst) => lijst.filter(r => {
-    const w = weekVanRecordDatum(r.datum);
-    return w && w.year === jaar && w.week === week;
-  }).length;
+// ── Opnames tellen op de server ─────────────────────────────────────────────
+// De recorderlijsten in de browser bevatten maar de vijftig nieuwste opnames —
+// genoeg om te tonen, veel te weinig om mee te tellen. Voor de tellers vragen we
+// daarom de database zélf hoeveel er zijn. Dat gaat langs die vijftig heen en
+// telt bovendien de opnames van álle collega's mee, niet alleen wat jij ziet.
+let TOOLGEBRUIK = { itkTotaal: 0, bzkTotaal: 0, itkWeek: 0, bzkWeek: 0 };
 
-  const mm = GEBRUIK_LOG.filter(g => g.module === 'matchmaker' && g.jaar === jaar && g.week === week);
+// Maandag 00:00 van de ISO-week waarin een datum valt.
+function _maandagVanIsoWeek(jaar, week) {
+  const donderdag = new Date(Date.UTC(jaar, 0, 4));
+  const dag = (donderdag.getUTCDay() + 6) % 7;          // maandag = 0
+  const maandagWeek1 = new Date(donderdag);
+  maandagWeek1.setUTCDate(donderdag.getUTCDate() - dag);
+  const m = new Date(maandagWeek1);
+  m.setUTCDate(maandagWeek1.getUTCDate() + (week - 1) * 7);
+  return m;
+}
+
+async function loadToolgebruik() {
+  if (!supa) return;
+  const tel = async (type, vanaf) => {
+    let q = supa.from('verslagen').select('id', { count: 'exact', head: true }).eq('type', type);
+    if (vanaf) q = q.gte('created_at', vanaf.toISOString());
+    const { count, error } = await q;
+    return error ? 0 : (count || 0);
+  };
+  try {
+    const { year, week } = isoWeek(new Date());
+    const maandag = _maandagVanIsoWeek(year, week);
+    const [itkT, bzkT, itkW, bzkW] = await Promise.all([
+      tel('gesprek', null), tel('bezoek', null),
+      tel('gesprek', maandag), tel('bezoek', maandag),
+    ]);
+    TOOLGEBRUIK = { itkTotaal: itkT, bzkTotaal: bzkT, itkWeek: itkW, bzkWeek: bzkW };
+  } catch (e) { _meldStil('toolgebruik tellen', e); }
+}
+
+// Tellers voor één week: aantal ITK-opnames, BZK-opnames en Matchmaker-zoekacties.
+// Totaal gebruik van alle collega's samen, plus wat er deze week bij kwam.
+// ITK en BZK komen van de servertelling (loadToolgebruik): de recorderlijst in
+// de browser bevat maar de vijftig nieuwste opnames en is dus ongeschikt om
+// mee te tellen. Matchmaker en CV-generator komen uit het logboek, waar elke
+// collega een regel wegschrijft zodra hij de tool gebruikt.
+function toolgebruikTotalen(jaar, week) {
+  const uitLog = (module, alleenWeek) => GEBRUIK_LOG.filter(g =>
+    g.module === module && (!alleenWeek || (g.jaar === jaar && g.week === week)));
+  const mmT = uitLog('matchmaker', false);
+  const mmW = uitLog('matchmaker', true);
   return {
-    itk:        telRecords(GESPREK_RECORDS),
-    bzk:        telRecords(BEZOEK_RECORDS),
-    matchmaker: mm.length,
-    vacatures:  mm.reduce((s, g) => s + (g.aantal || 0), 0),
+    itk:        TOOLGEBRUIK.itkTotaal,
+    itkWeek:    TOOLGEBRUIK.itkWeek,
+    bzk:        TOOLGEBRUIK.bzkTotaal,
+    bzkWeek:    TOOLGEBRUIK.bzkWeek,
+    matchmaker: mmT.length,
+    mmWeek:     mmW.length,
+    vacatures:  mmT.reduce((t, g) => t + (g.aantal || 0), 0),
+    cvgen:      uitLog('cvgen', false).length,
+    cvgenWeek:  uitLog('cvgen', true).length,
   };
 }
 
@@ -1887,96 +1940,155 @@ function btZetStatus(el, bericht) {
 // achter de titel in de person-header. Staat er geen sleutel, dan verschijnt er
 // ook geen knopje — dus je kunt dit rustig per pagina uitbreiden.
 const PAGINA_UITLEG = {
-  medewerkers: { titel: 'Medewerkers', intro: 'De ranglijst van alle business managers op basis van hun voortgang richting het jaardoel.', stappen: [
-    'Bovenaan zie je het teamdoel en tot welke week de cijfers lopen.',
-    'De lijst staat op volgorde van voortgang: wie het verst op schema ligt staat boven.',
-    'De balk achter een naam vergelijkt de stand met wat je deze week verwacht mag hebben, niet met het jaartotaal.',
-    'Klik op een naam in de menukaart links om die persoon in detail te bekijken.',
-  ]},
-  medewerker: { titel: 'Pagina van een medewerker', intro: 'Alles van één business manager: cijfers, plan, coaching en de eigen pipeline.', stappen: [
-    'Onder KPI\'s staat de weekinvoer. Vul in wat er die week is gedaan en klik op Opslaan; daarna gaat de rij op slot.',
-    'Wijzigen kan altijd via de knop in de weekbalk — de rij gaat dan weer open.',
-    'Het pipeline-schema eronder telt automatisch mee: wat je daar sleept, komt terug in de weekcijfers.',
-    'Plan van aanpak is voor de week erop. Coaching leest de cijfers en geeft aandachtspunten.',
-  ]},
-  team: { titel: 'Team Resultaten', intro: 'De optelsom van alle business managers, per week en per maand.', stappen: [
-    'Kies boven de grafiek of je per week of per maand kijkt.',
-    'De normlijn laat zien wat het team in die periode had moeten halen.',
-    'In de tabel eronder klap je een week open om te zien wie wat heeft bijgedragen.',
-    'De historie per jaar staat onderaan, nieuwste jaar eerst.',
-  ]},
-  projecten: { titel: 'Projecten & Groeiplanning', intro: 'Alle lopende plaatsingen, hun looptijd en wat dat betekent voor de bezetting.', stappen: [
-    'Filter of zoek bovenin op naam, opdrachtgever of de initialen van een collega.',
-    'Klik een regel open voor de evaluatiemomenten en de contractgegevens.',
-    'Vul de definitieve einddatum in zodra die bekend is — daar rekent de prognose mee.',
-    'De grafiek onderaan telt per week hoeveel projecten er lopen, inclusief wat er nog aankomt.',
-  ]},
-  kandidaten: { titel: 'Kandidaten', intro: 'Alle intakes van de afgelopen tien weken, van het hele team bij elkaar.', stappen: [
-    'De kaartjes staan gegroepeerd per week, nieuwste week bovenaan.',
-    'Op elk kaartje zie je functie, regio, salarisindicatie en reisbereidheid.',
-    'De drie gekleurde bollen zijn een handmatige kleurcode — klik erop om de status te zetten.',
-    'Het kruisje verwijdert een kandidaat uit dit overzicht.',
-  ]},
-  accounts: { titel: 'Accountmanagement', intro: 'Het klantenbestand, verdeeld over drie sub-tabbladen.', stappen: [
-    'RLDV is de lijst met sales leads: bedrijven waar nog geen relatie mee is.',
-    'Key Accountmanagement bevat de bestaande klanten met hun score.',
-    'Accountplan is de plek voor de uitgewerkte plannen per klant.',
-    'Wissel bovenin van tabblad; elk tabblad heeft zijn eigen filters en uitleg.',
-  ]},
-  rldv: { titel: 'RLDV — sales leads', intro: 'Bedrijven waar we nog binnen willen komen, met per bedrijf de kenmerken die bepalen of het past.', stappen: [
-    'Filter op vakgebied, regio, contactpersoon, status of voorwaarden om een gerichte selectie te maken.',
-    'De schuifjes geven per functietype aan of het bedrijf daarvoor interessant is.',
-    'Het vergrootglas achteraan zoekt de website van dat bedrijf op.',
-    'Met het potlood bewerk je een regel; wijzigingen gaan pas naar de server als je opslaat.',
-  ]},
-  kam: { titel: 'Key Accountmanagement', intro: 'De bestaande klanten, met een score die aangeeft hoe sterk de relatie is.', stappen: [
-    'De score telt de losse onderdelen op; het streepje links van de naam geeft het niveau aan.',
-    'Klik op het potlood om een klant te bewerken. De regel blijft bevroren tot je op Opslaan klikt.',
-    'De kolom Laatste wijziging kleurt rood als een klant lang niet is bijgewerkt.',
-    'Met Top 11 en Gewenst 11 markeer je de klanten waar de meeste aandacht naartoe gaat.',
-  ]},
-  financieel: { titel: 'Financieel', intro: 'Omzet, facturen, uren en marge — opgehaald uit Moneybird en de urenregistratie.', stappen: [
-    'Klik op Synchroniseren om de laatste stand uit Moneybird op te halen.',
-    'De urenrapportage laad je zelf als bestand; die wordt in je browser doorgerekend.',
-    'Kies per onderdeel de periode: jaar, kwartaal, maand of week.',
-    'Vervallen facturen staan apart, met het aantal dagen dat de oudste openstaat.',
-  ]},
-  hrm: { titel: 'HRM / Backoffice', intro: 'Evaluatiemomenten bewaken en nieuwe medewerkers aanmelden.', stappen: [
-    'Evaluatiebeheer toont per medewerker welke evaluatiemomenten al zijn gedaan.',
-    'Een oranje moment is verstreken maar nog niet afgevinkt; groen is afgerond.',
-    'Bij het aanvinken vraagt het scherm om bevestiging dat het ook in Salesforce staat.',
-    'Onder Aanmeldformulier vul je een nieuwe medewerker in en exporteer je dat als Word-bestand.',
-  ]},
-  cvgen: { titel: 'CV-generator', intro: 'Van een aangeleverd CV naar een presentabel CV in de Brightech-huisstijl.', stappen: [
-    'Vul eerst de basisgegevens van de kandidaat in.',
-    'Upload het CV als .docx of .pdf; de tekst wordt er automatisch uit gehaald.',
-    'Klik op Genereer tekstsuggestie voor een feitelijke indruk van de kandidaat — controleer die altijd.',
-    'Vul de laatste velden aan en download het Word-CV.',
-  ]},
-  itk: { titel: 'ITK-Recorder', intro: 'Neem een intakegesprek op en laat er automatisch een verslag van maken.', stappen: [
-    'Vul de naam van de kandidaat in en kies wie het gesprek voert.',
-    'Start de opname. Laat het tabblad open staan tot je klaar bent.',
-    'Na het stoppen worden de sprekers herkend en wordt het gesprek geanalyseerd; dat duurt een paar minuten.',
-    'Het verslag verschijnt onder Recente records, en kun je daar delen of downloaden.',
-  ]},
-  bzk: { titel: 'BZK-Recorder', intro: 'Neem een bedrijfsbezoek, evaluatie of matchvoorbereiding op en krijg er een verslag van.', stappen: [
-    'Kies bovenaan welk soort gesprek je opneemt — dat bepaalt waar de analyse op let.',
-    'Vul de bedrijfsnaam en contactpersoon in en kies wie opneemt.',
-    'Start de opname; na het stoppen wordt het gesprek verwerkt.',
-    'Het verslag komt bij Recente records te staan.',
-  ]},
-  matchmaker: { titel: 'Matchmaker', intro: 'Zoek bij een kandidaatprofiel actuele vacatures op Nederlandse jobboards.', stappen: [
-    'Vul minimaal één functietitel in en kies de regio.',
-    'Een CV meesturen is optioneel, maar maakt de match aanzienlijk beter.',
-    'Klik op Zoek vacatures — dit duurt ongeveer vijftien seconden.',
-    'De resultaten zijn een startpunt, geen eindoordeel: controleer altijd zelf de vacature.',
-  ]},
-  beheer: { titel: 'Beheer', intro: 'Medewerkers, rollen, doelen en toegang tot het dashboard.', stappen: [
-    'Voeg een medewerker toe en stel rol, jaardoel en startweek in.',
-    'De startweek bepaalt vanaf wanneer de norm meetelt — belangrijk bij iemand die halverwege het jaar begint.',
-    'Met Uitnodigen krijgt iemand een e-mail om zelf een wachtwoord in te stellen.',
-    'Inactief zetten haalt iemand uit alle overzichten, maar bewaart de historie.',
-  ]},
+  medewerkers: { titel: 'Medewerkers',
+    intro: 'De ranglijst van alle business managers op basis van hun voortgang richting het jaardoel.',
+    waarom: 'Een jaardoel is te ver weg om op te sturen en één week is te kort om iets aan af te lezen. Dit scherm vertaalt het jaardoel naar de vraag waar iemand nú zou moeten staan, en zet iedereen daar naast elkaar. Dat maakt zichtbaar wie ruimte heeft en wie hulp kan gebruiken, vóórdat het einde van het jaar dat voor je beslist. De volgorde is bewust geen wedstrijd: het is een verdeling van aandacht.',
+    stappen: [
+      'Bovenaan staat het teamdoel en tot welke week de cijfers lopen.',
+      'De lijst staat op volgorde van voortgang: wie het verst op schema ligt staat boven.',
+      'De balk achter een naam vergelijkt de stand met wat je déze week verwacht mag hebben — niet met het jaartotaal, want dan lijkt in januari iedereen achter te lopen.',
+      'Klik op een naam in de menukaart links om die persoon in detail te bekijken.',
+    ]},
+
+  medewerker: { titel: 'Pagina van een medewerker',
+    intro: 'Alles van één business manager: cijfers, plan, coaching en de eigen pipeline.',
+    waarom: 'Een starter komt nooit uit het niets: er gaan intakes, bezoeken, aanbiedingen en matchgesprekken aan vooraf. Als je alleen op starters stuurt, stuur je op iets dat drie maanden geleden is gebeurd. Door de hele trechter bij te houden zie je vandaag al of het over een kwartaal goed komt. Daarom is de weekinvoer geen administratie maar het vroegste signaal dat er is.',
+    stappen: [
+      'Onder het tabblad KPI\'s staat de weekinvoer. Vul in wat er die week is gedaan en klik op Opslaan; daarna gaat de rij op slot, zodat cijfers niet ongemerkt veranderen.',
+      'Wijzigen kan altijd via de knop in de weekbalk — de rij gaat dan weer open.',
+      'Het pipeline-schema eronder telt automatisch mee: wat je daar sleept, komt terug in de weekcijfers. Vul dus niet twee keer hetzelfde in.',
+      'Plan van aanpak gaat over de wéék erop. Coaching leest de cijfers en benoemt waar de trechter lekt.',
+    ]},
+
+  team: { titel: 'Team Resultaten',
+    intro: 'De optelsom van alle business managers, per week en per maand.',
+    waarom: 'Losse weken schommelen altijd: één vakantie of één grote klant en het beeld klopt niet meer. Opgeteld over het team en uitgezet tegen de norm zie je pas of een dip toeval is of een patroon. Dit is de plek waar je bijstuurt op capaciteit — meer mensen, andere verdeling, andere focus — en niet op individuele prestaties.',
+    stappen: [
+      'Kies boven de grafiek of je per week of per maand kijkt. Per maand dempt de ruis, per week zie je sneller een omslag.',
+      'De normlijn laat zien wat het team in die periode had moeten halen.',
+      'Klap in de tabel eronder een week open om te zien wie wat heeft bijgedragen.',
+      'De historie per jaar staat onderaan, nieuwste jaar eerst — handig om te zien of dit jaar echt afwijkt.',
+    ]},
+
+  projecten: { titel: 'Projecten & Groeiplanning',
+    intro: 'Alle lopende plaatsingen, hun looptijd en wat dat betekent voor de bezetting.',
+    waarom: 'Omzet komt niet van nieuwe plaatsingen maar van lopende. Elke plaatsing die afloopt is omzet die verdwijnt, en dat gebeurt op een datum die je van tevoren kent. Door einddatums bij te houden zie je maanden vooruit waar het gat valt, en kun je werven vóórdat het gat er is. Vandaar dat de definitieve einddatum belangrijker is dan hij lijkt: daar rekent de hele prognose mee.',
+    stappen: [
+      'Filter of zoek bovenin op naam, opdrachtgever of de initialen van een collega.',
+      'Klik een regel open voor de evaluatiemomenten en de contractgegevens.',
+      'Vul de definitieve einddatum in zodra die bekend is. Zolang die leeg is, rekent de prognose met de verwachte datum — en die is bijna altijd optimistisch.',
+      'De grafiek onderaan telt per week hoeveel projecten er lopen, inclusief wat er nog aankomt en wie er stopt.',
+    ]},
+
+  kandidaten: { titel: 'Kandidaten',
+    intro: 'Alle intakes van de afgelopen tien weken, van het hele team bij elkaar.',
+    waarom: 'De meeste kandidaten passen niet bij de vacature waarvoor ze binnenkwamen, maar wél bij die van een collega. Zonder gedeeld overzicht blijft die kennis bij één persoon hangen en loopt de kandidaat weg. Dit scherm is er om dwars door elkaars intakes te kijken: één blik op functie, regio en salarisindicatie is genoeg om te zien of je iemand kunt gebruiken.',
+    stappen: [
+      'De kaartjes staan gegroepeerd per week, nieuwste week bovenaan.',
+      'Op elk kaartje zie je functie, regio, salarisindicatie en reisbereidheid — samen bepalen die of iemand plaatsbaar is.',
+      'De drie gekleurde bollen zijn een handmatige kleurcode; klik erop om de status te zetten.',
+      'Het kruisje haalt een kandidaat uit dit overzicht, bijvoorbeeld als hij elders is begonnen.',
+    ]},
+
+  accounts: { titel: 'Accountmanagement',
+    intro: 'Het klantenbestand, verdeeld over drie sub-tabbladen.',
+    waarom: 'Nieuwe klanten winnen kost een veelvoud van wat het kost om een bestaande klant te houden. Toch verdwijnt onderhoud altijd als eerste uit de agenda, omdat er geen deadline op staat. Deze drie tabbladen maken die stille achteruitgang zichtbaar: wie ken je nog niet, hoe sterk is de relatie met wie je wél kent, en wat is het plan per klant.',
+    stappen: [
+      'RLDV is de lijst met sales leads: bedrijven waar nog geen relatie mee is.',
+      'Key Accountmanagement bevat de bestaande klanten met hun score.',
+      'Accountplan is de plek voor de uitgewerkte plannen per klant.',
+      'Wissel bovenin van tabblad; elk tabblad heeft zijn eigen filters en eigen uitleg.',
+    ]},
+
+  rldv: { titel: 'RLDV — sales leads',
+    intro: 'Bedrijven waar we nog binnen willen komen, met per bedrijf de kenmerken die bepalen of het past.',
+    waarom: 'Koud bellen zonder selectie levert vooral afwijzingen op, en dat kost meer motivatie dan tijd. Door vooraf vast te leggen welk type functies een bedrijf werft, in welke regio het zit en of de voorwaarden bekend zijn, bel je alleen nog bedrijven waar je iets te bieden hebt. De schuifjes zijn dus geen administratie maar je belijst.',
+    stappen: [
+      'Filter op vakgebied, regio, contactpersoon, status of voorwaarden om een gerichte selectie te maken.',
+      'De schuifjes geven per functietype aan of het bedrijf daarvoor interessant is.',
+      'Het vergrootglas achteraan zoekt de website van dat bedrijf op — handig vlak voor je belt.',
+      'Met het potlood bewerk je een regel; wijzigingen gaan pas naar de server als je opslaat, zodat je niet halverwege iets vastlegt.',
+    ]},
+
+  kam: { titel: 'Key Accountmanagement',
+    intro: 'De bestaande klanten, met een score die aangeeft hoe sterk de relatie is.',
+    waarom: 'Een klant die niet opzegt lijkt tevreden, maar dat zegt niets: de meeste klanten verdwijnen geruisloos. De score dwingt je de relatie op te delen in onderdelen die je wél kunt beïnvloeden — ken je de beslisser, ken je de voorwaarden, mag je actief aanbieden. Zakt een score, dan weet je precies waar het aan ligt. De kolom met de laatste wijziging is de eenvoudigste alarmbel die er is: is er lang niets bijgewerkt, dan is er waarschijnlijk ook lang geen contact geweest.',
+    stappen: [
+      'De score telt de losse onderdelen op; het streepje links van de naam geeft het niveau aan.',
+      'Klik op het potlood om een klant te bewerken. De regel blijft bevroren tot je op Opslaan klikt.',
+      'De kolom Laatste wijziging kleurt rood als een klant lang niet is bijgewerkt.',
+      'Met Top 11 en Gewenst 11 markeer je waar de meeste aandacht naartoe gaat — beperk dat aantal bewust, anders is niets meer prioriteit.',
+    ]},
+
+  financieel: { titel: 'Financieel',
+    intro: 'Omzet, facturen, uren en marge — opgehaald uit Moneybird en de urenregistratie.',
+    waarom: 'Omzet is niet hetzelfde als geld: een verstuurde factuur die niet betaald wordt is een verlies dat je pas maanden later voelt. Daarom staan vervallen facturen hier apart, met het aantal dagen dat de oudste openstaat. Declarabiliteit en marge vertellen het andere deel van het verhaal: hoeveel van de uren die je betaalt, breng je ook in rekening. Twee bedrijven met dezelfde omzet kunnen daar volledig uit elkaar lopen.',
+    stappen: [
+      'Klik op Synchroniseren om de laatste stand uit Moneybird op te halen.',
+      'De urenrapportage laad je zelf als bestand; die wordt in je eigen browser doorgerekend, dus er gaan geen persoonsgegevens naar buiten.',
+      'Kies per onderdeel de periode: jaar, kwartaal, maand of week.',
+      'Vervallen facturen staan apart, met het aantal dagen dat de oudste openstaat.',
+    ]},
+
+  hrm: { titel: 'HRM / Backoffice',
+    intro: 'Evaluatiemomenten bewaken en nieuwe medewerkers aanmelden.',
+    waarom: 'De meeste plaatsingen die misgaan, gaan mis in de eerste maanden — en bijna altijd was er een signaal dat niemand heeft opgepakt. De evaluatiecyclus zet die momenten vast op de kalender vanaf de startdatum, zodat opvolgen niet afhangt van wie eraan denkt. Een oranje moment is dus geen administratieve achterstand maar een gesprek dat nog niet gevoerd is.',
+    stappen: [
+      'Evaluatiebeheer toont per medewerker welke evaluatiemomenten al zijn gedaan.',
+      'Een oranje moment is verstreken maar nog niet afgevinkt; groen is afgerond.',
+      'Bij het aanvinken vraagt het scherm om bevestiging dat het ook in Salesforce staat — dat blijft de bron voor de klant.',
+      'Onder Aanmeldformulier vul je een nieuwe medewerker in en exporteer je dat als Word-bestand.',
+    ]},
+
+  cvgen: { titel: 'CV-generator',
+    intro: 'Van een aangeleverd CV naar een presentabel CV in de Brightech-huisstijl.',
+    waarom: 'Een opdrachtgever besluit in twintig seconden of hij verder leest. Een CV in eigen opmaak, met een korte indruk van de kandidaat erboven, wint die twintig seconden vaker dan het originele document. Bovendien haal je persoonsgegevens weg die er niet in horen. De AI-tekst is nadrukkelijk een suggestie: jij hebt de kandidaat gesproken, het model niet — wat er staat moet kloppen met wat jij gezien hebt.',
+    stappen: [
+      'Vul eerst de basisgegevens van de kandidaat in.',
+      'Upload het CV als .docx of .pdf; de tekst wordt er automatisch uit gehaald.',
+      'Klik op Genereer tekstsuggestie voor een feitelijke indruk — lees die altijd na en pas aan waar het niet klopt.',
+      'Vul de laatste velden aan en download het Word-CV.',
+    ]},
+
+  itk: { titel: 'ITK-Recorder',
+    intro: 'Neem een intakegesprek op en laat er automatisch een verslag van maken.',
+    waarom: 'Wie tijdens een gesprek aantekeningen maakt, luistert half. En wat je achteraf opschrijft is gekleurd door wat je toevallig onthouden hebt. Door op te nemen kun je het gesprek volledig voeren en krijg je er een verslag bij dat de kandidaat letterlijk citeert. Daar komt bij dat het gesprek zelf beoordeeld wordt — op doorvragen, samenvatten, concrete afspraken — en dat is de snelste manier om beter te worden in het voeren ervan.',
+    stappen: [
+      'Vul de naam van de kandidaat in en kies wie het gesprek voert.',
+      'Start de opname. Laat het tabblad open staan tot je klaar bent.',
+      'Na het stoppen worden de sprekers herkend en wordt het gesprek geanalyseerd; dat duurt een paar minuten.',
+      'Het verslag verschijnt onder Recente records, en kun je daar delen met de kandidaat of downloaden.',
+    ]},
+
+  bzk: { titel: 'BZK-Recorder',
+    intro: 'Neem een bedrijfsbezoek, evaluatie of matchvoorbereiding op en krijg er een verslag van.',
+    waarom: 'Bij een bedrijfsbezoek valt de belangrijkste informatie meestal terloops: een reorganisatie, een vertrekkende manager, een budget dat vrijkomt. Dat soort zinnen haal je uit een opname wél terug en uit je geheugen niet. De keuze bovenaan bepaalt waar de analyse op let, want een evaluatie met een medewerker vraagt iets heel anders dan een verkoopgesprek.',
+    stappen: [
+      'Kies bovenaan welk soort gesprek je opneemt — dat bepaalt waar de analyse op let.',
+      'Vul de bedrijfsnaam en contactpersoon in en kies wie opneemt.',
+      'Start de opname; na het stoppen wordt het gesprek verwerkt.',
+      'Het verslag komt bij Recente records te staan.',
+    ]},
+
+  matchmaker: { titel: 'Matchmaker',
+    intro: 'Zoek bij een kandidaatprofiel actuele vacatures op Nederlandse jobboards.',
+    waarom: 'Een goede kandidaat zonder passende opdracht is de duurste vorm van stilstand die er is. In plaats van te wachten tot er een vacature binnenkomt, draai je het om: je zoekt bedrijven die nú werven op precies dit profiel. Dat levert twee dingen op — een plek voor deze kandidaat, en een reden om een bedrijf te bellen dat je nog niet kende.',
+    stappen: [
+      'Vul minimaal één functietitel in en kies de regio.',
+      'Een CV meesturen is optioneel, maar maakt de match aanzienlijk beter.',
+      'Klik op Zoek vacatures — dit duurt ongeveer vijftien seconden.',
+      'De resultaten zijn een startpunt, geen eindoordeel: controleer altijd zelf de vacature voordat je belt.',
+    ]},
+
+  beheer: { titel: 'Beheer',
+    intro: 'Medewerkers, rollen, doelen en toegang tot het dashboard.',
+    waarom: 'Alle normen in dit dashboard worden hiervandaan afgeleid. Staat een jaardoel of een startweek verkeerd, dan klopt niet alleen dat ene getal: de voortgangsbalken, de coaching en de dagstart rekenen er allemaal mee. De startweek is daarbij het makkelijkst over het hoofd te zien — begint iemand in juli, dan mag hij niet worden afgerekend op de weken daarvoor.',
+    stappen: [
+      'Voeg een medewerker toe en stel rol, jaardoel en startweek in.',
+      'De startweek bepaalt vanaf wanneer de norm meetelt — belangrijk bij iemand die halverwege het jaar begint.',
+      'Met Uitnodigen krijgt iemand een e-mail om zelf een wachtwoord in te stellen; jij ziet dat wachtwoord nooit.',
+      'Inactief zetten haalt iemand uit alle overzichten, maar bewaart de historie — verwijderen zou de teamcijfers van vorige jaren veranderen.',
+    ]},
 };
 
 function btUitlegKnop(sleutel) {
@@ -2000,9 +2112,13 @@ function toonUitleg(sleutel) {
         '<button class="uitleg-sluit" onclick="sluitUitleg()" aria-label="Sluiten">' +
           '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
         '</button></div>' +
-      '<div class="uitleg-body"><p>' + escHtml(u.intro) + '</p><ol>' +
-        u.stappen.map(t => '<li>' + escHtml(t) + '</li>').join('') +
-      '</ol></div>' +
+      '<div class="uitleg-body">' +
+        '<p>' + escHtml(u.intro) + '</p>' +
+        (u.waarom ? '<div class="uitleg-waarom"><h4>Waarom dit ertoe doet</h4><p>' +
+                    escHtml(u.waarom) + '</p></div>' : '') +
+        '<h4 class="uitleg-koptekst">Zo werkt het</h4>' +
+        '<ol>' + u.stappen.map(t => '<li>' + escHtml(t) + '</li>').join('') + '</ol>' +
+      '</div>' +
       '<div class="uitleg-voet"><button onclick="sluitUitleg()">Sluiten</button></div>' +
     '</div>';
   document.body.appendChild(laag);
@@ -2901,21 +3017,25 @@ function renderBM(bm) {
 // Balkje met het toolgebruik van deze week: hoeveel ITK- en BZK-opnames zijn er
 // gemaakt en hoe vaak is de Matchmaker geraadpleegd.
 function renderGebruikBalk(jaar, week) {
-  const g = gebruikVanWeek(jaar, week);
-  // Geen kader, geen emoji: het label boven en het getal eronder zijn genoeg.
-  const tegel = (getal, label, extra) => `
-    <div style="flex:1;min-width:120px;">
+  const g = toolgebruikTotalen(jaar, week);
+  // Groot getal is het totaal van iedereen bij elkaar; eronder klein wat er
+  // deze week bij kwam, zodat je ziet of het nog leeft.
+  const tegel = (totaal, dezeWeek, label, extra) => `
+    <div style="flex:1;min-width:130px;">
       <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);letter-spacing:.03em;">${label}</div>
-      <div style="font-size:var(--t-cijfer);font-weight:var(--w-nadruk);color:#fff;line-height:1.2;">${getal}</div>
-      ${extra ? `<div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:1px;">${extra}</div>` : ''}
+      <div style="font-size:var(--t-cijfer);font-weight:var(--w-nadruk);color:#fff;line-height:1.2;">${totaal}</div>
+      <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:1px;">
+        ${dezeWeek ? `+${dezeWeek} deze week` : 'niets deze week'}${extra ? ` · ${extra}` : ''}
+      </div>
     </div>`;
 
   return `<div style="margin-top:26px;">
-    <div class="section-title"><span style="color:#fff;">Toolgebruik — week ${week}</span></div>
+    <div class="section-title"><span style="color:#fff;">Toolgebruik — totaal, alle collega's</span></div>
     <div class="bt-venster" style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${tegel(g.itk, 'ITK-opnames')}
-      ${tegel(g.bzk, 'BZK-opnames')}
-      ${tegel(g.matchmaker, 'Matchmaker', g.matchmaker ? `${g.vacatures} vacatures getoond` : '')}
+      ${tegel(g.itk,        g.itkWeek,   'ITK-opnames')}
+      ${tegel(g.bzk,        g.bzkWeek,   'BZK-opnames')}
+      ${tegel(g.matchmaker, g.mmWeek,    'Matchmaker', g.vacatures ? `${g.vacatures} vacatures` : '')}
+      ${tegel(g.cvgen,      g.cvgenWeek, "CV's gemaakt")}
     </div>
   </div>`;
 }
@@ -4507,6 +4627,7 @@ async function loadAllData() {
   try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
   try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
   try { await loadGebruikLog(); } catch(e) { console.error('loadGebruikLog fout (niet fataal):', e); }
+  try { await loadToolgebruik(); } catch(e) { console.error('loadToolgebruik fout (niet fataal):', e); }
   laadStap('Berekeningen…');
   recomputeRatios();
 }
@@ -11748,6 +11869,7 @@ async function cvGenDownloadWoordCv() {
     URL.revokeObjectURL(url);
 
     CV_GEN.statusMsg = '✅ Word-CV gedownload.';
+    logGebruik('cvgen', 1);
   } catch (e) {
     CV_GEN.statusMsg = `❌ Word-CV samenstellen mislukt: ${escHtml(String(e?.message || e))}`;
   } finally {
