@@ -234,9 +234,6 @@
   .info-box { border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; font-size:.84rem; line-height:1.6; }
   .info-box.amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
   .info-box.blue  { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
-  .info-tip-btn { display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#1a56db;color:#fff;font-size:.72rem;font-weight:700;border:none;cursor:pointer;line-height:1;padding:0;flex-shrink:0;font-style:normal; }
-  .info-tip-btn:hover { background:#1447bd; }
-  .info-tip-panel { background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 14px;font-size:.83rem;color:#1e40af;line-height:1.5;margin-top:-4px;margin-bottom:12px; }
   /* Statuspil: zacht vlak met een gekleurd bolletje ervoor. Het bolletje doet
      het werk dat een gekleurde rij eerst deed — je ziet de status zonder dat de
      kleur over de hele regel gaat liggen. */
@@ -587,6 +584,47 @@
                    line-height:1; flex-shrink:0; vertical-align:middle; }
   .bt-venster .bt-actie-knop.proj-del-btn { background:rgba(255,255,255,.10); color:#f87171; }
   .bt-venster .bt-actie-knop.proj-del-btn:hover { background:#e02424; color:#fff; }
+
+  /* ── Uitleg per pagina ──────────────────────────────────────────────────
+     Verving de losse blauwe i-rondjes die verspreid door het dashboard
+     stonden. Eén knopje in de gele paginakop, dat een venster opent met een
+     korte rondleiding: wat is dit scherm, en wat doe je hier in welke volgorde. */
+  .uitleg-knop { display:inline-flex; align-items:center; justify-content:center;
+                 width:21px; height:21px; margin-left:10px; vertical-align:-4px;
+                 border:none; border-radius:50%; background:rgba(22,20,46,.13);
+                 color:#16142e; cursor:pointer; padding:0; flex-shrink:0;
+                 transition:background .15s; }
+  .uitleg-knop:hover { background:rgba(22,20,46,.28); }
+  .uitleg-knop svg { width:13px; height:13px; fill:none; stroke:currentColor;
+                     stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round; }
+  .uitleg-laag { position:fixed; inset:0; background:rgba(15,9,47,.6); z-index:400;
+                 display:flex; align-items:center; justify-content:center; padding:24px; }
+  .uitleg-venster { background:var(--card); border-radius:var(--radius-groot);
+                    max-width:560px; width:100%; max-height:82vh; overflow-y:auto;
+                    box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  .uitleg-kop { background:#F4CB3C; border-radius:var(--radius-groot) var(--radius-groot) 0 0;
+                padding:14px 22px; display:flex; align-items:center;
+                justify-content:space-between; gap:12px;
+                box-shadow:inset 5px 0 0 rgba(22,20,46,.16); }
+  .uitleg-kop h3 { font-size:var(--t-lg); font-weight:var(--w-nadruk); color:#16142e; margin:0; }
+  .uitleg-sluit { border:none; background:rgba(22,20,46,.13); color:#16142e;
+                  width:26px; height:26px; border-radius:50%; cursor:pointer;
+                  display:inline-flex; align-items:center; justify-content:center; }
+  .uitleg-sluit:hover { background:rgba(22,20,46,.28); }
+  .uitleg-body { padding:18px 22px 20px; color:var(--text); font-size:var(--t-md); line-height:1.65; }
+  .uitleg-body p { margin:0 0 14px; }
+  .uitleg-body ol { margin:0; padding-left:0; list-style:none; counter-reset:stap; }
+  .uitleg-body ol li { counter-increment:stap; position:relative;
+                       padding:0 0 12px 34px; }
+  .uitleg-body ol li::before { content:counter(stap); position:absolute; left:0; top:1px;
+                               width:22px; height:22px; border-radius:50%;
+                               background:var(--primary); color:#fff;
+                               font-size:var(--t-xs); font-weight:var(--w-nadruk);
+                               display:flex; align-items:center; justify-content:center; }
+  .uitleg-voet { padding:0 22px 20px; }
+  .uitleg-voet button { background:var(--primary); color:#fff; border:none;
+                        border-radius:8px; padding:9px 20px; font-size:var(--t-sm);
+                        font-weight:var(--w-nadruk); cursor:pointer; }
 
   /* ── Statusmeldingen ────────────────────────────────────────────────────
      Waren emoji (⏳ ✅ ❌ ⚠️) vooraan de tekst. Nu een gekleurd strookje met
@@ -1818,6 +1856,141 @@ function btZetStatus(el, bericht) {
   el.innerHTML = btStatusHtml(bericht, true);
 }
 
+// ── Uitleg per pagina ───────────────────────────────────────────────────────
+// Verving de losse blauwe i-rondjes die verspreid door het dashboard stonden.
+// Eén knopje in de gele paginakop opent een venster met een korte rondleiding.
+// Nieuwe pagina uitleggen? Voeg hier een sleutel toe en zet ${btUitlegKnop('sleutel')}
+// achter de titel in de person-header. Staat er geen sleutel, dan verschijnt er
+// ook geen knopje — dus je kunt dit rustig per pagina uitbreiden.
+const PAGINA_UITLEG = {
+  medewerkers: { titel: 'Medewerkers', intro: 'De ranglijst van alle business managers op basis van hun voortgang richting het jaardoel.', stappen: [
+    'Bovenaan zie je het teamdoel en tot welke week de cijfers lopen.',
+    'De lijst staat op volgorde van voortgang: wie het verst op schema ligt staat boven.',
+    'De balk achter een naam vergelijkt de stand met wat je deze week verwacht mag hebben, niet met het jaartotaal.',
+    'Klik op een naam in de menukaart links om die persoon in detail te bekijken.',
+  ]},
+  medewerker: { titel: 'Pagina van een medewerker', intro: 'Alles van één business manager: cijfers, plan, coaching en de eigen pipeline.', stappen: [
+    'Onder KPI\'s staat de weekinvoer. Vul in wat er die week is gedaan en klik op Opslaan; daarna gaat de rij op slot.',
+    'Wijzigen kan altijd via de knop in de weekbalk — de rij gaat dan weer open.',
+    'Het pipeline-schema eronder telt automatisch mee: wat je daar sleept, komt terug in de weekcijfers.',
+    'Plan van aanpak is voor de week erop. Coaching leest de cijfers en geeft aandachtspunten.',
+  ]},
+  team: { titel: 'Team Resultaten', intro: 'De optelsom van alle business managers, per week en per maand.', stappen: [
+    'Kies boven de grafiek of je per week of per maand kijkt.',
+    'De normlijn laat zien wat het team in die periode had moeten halen.',
+    'In de tabel eronder klap je een week open om te zien wie wat heeft bijgedragen.',
+    'De historie per jaar staat onderaan, nieuwste jaar eerst.',
+  ]},
+  projecten: { titel: 'Projecten & Groeiplanning', intro: 'Alle lopende plaatsingen, hun looptijd en wat dat betekent voor de bezetting.', stappen: [
+    'Filter of zoek bovenin op naam, opdrachtgever of de initialen van een collega.',
+    'Klik een regel open voor de evaluatiemomenten en de contractgegevens.',
+    'Vul de definitieve einddatum in zodra die bekend is — daar rekent de prognose mee.',
+    'De grafiek onderaan telt per week hoeveel projecten er lopen, inclusief wat er nog aankomt.',
+  ]},
+  kandidaten: { titel: 'Kandidaten', intro: 'Alle intakes van de afgelopen tien weken, van het hele team bij elkaar.', stappen: [
+    'De kaartjes staan gegroepeerd per week, nieuwste week bovenaan.',
+    'Op elk kaartje zie je functie, regio, salarisindicatie en reisbereidheid.',
+    'De drie gekleurde bollen zijn een handmatige kleurcode — klik erop om de status te zetten.',
+    'Het kruisje verwijdert een kandidaat uit dit overzicht.',
+  ]},
+  accounts: { titel: 'Accountmanagement', intro: 'Het klantenbestand, verdeeld over drie sub-tabbladen.', stappen: [
+    'RLDV is de lijst met sales leads: bedrijven waar nog geen relatie mee is.',
+    'Key Accountmanagement bevat de bestaande klanten met hun score.',
+    'Accountplan is de plek voor de uitgewerkte plannen per klant.',
+    'Wissel bovenin van tabblad; elk tabblad heeft zijn eigen filters en uitleg.',
+  ]},
+  rldv: { titel: 'RLDV — sales leads', intro: 'Bedrijven waar we nog binnen willen komen, met per bedrijf de kenmerken die bepalen of het past.', stappen: [
+    'Filter op vakgebied, regio, contactpersoon, status of voorwaarden om een gerichte selectie te maken.',
+    'De schuifjes geven per functietype aan of het bedrijf daarvoor interessant is.',
+    'Het vergrootglas achteraan zoekt de website van dat bedrijf op.',
+    'Met het potlood bewerk je een regel; wijzigingen gaan pas naar de server als je opslaat.',
+  ]},
+  kam: { titel: 'Key Accountmanagement', intro: 'De bestaande klanten, met een score die aangeeft hoe sterk de relatie is.', stappen: [
+    'De score telt de losse onderdelen op; het streepje links van de naam geeft het niveau aan.',
+    'Klik op het potlood om een klant te bewerken. De regel blijft bevroren tot je op Opslaan klikt.',
+    'De kolom Laatste wijziging kleurt rood als een klant lang niet is bijgewerkt.',
+    'Met Top 11 en Gewenst 11 markeer je de klanten waar de meeste aandacht naartoe gaat.',
+  ]},
+  financieel: { titel: 'Financieel', intro: 'Omzet, facturen, uren en marge — opgehaald uit Moneybird en de urenregistratie.', stappen: [
+    'Klik op Synchroniseren om de laatste stand uit Moneybird op te halen.',
+    'De urenrapportage laad je zelf als bestand; die wordt in je browser doorgerekend.',
+    'Kies per onderdeel de periode: jaar, kwartaal, maand of week.',
+    'Vervallen facturen staan apart, met het aantal dagen dat de oudste openstaat.',
+  ]},
+  hrm: { titel: 'HRM / Backoffice', intro: 'Evaluatiemomenten bewaken en nieuwe medewerkers aanmelden.', stappen: [
+    'Evaluatiebeheer toont per medewerker welke evaluatiemomenten al zijn gedaan.',
+    'Een oranje moment is verstreken maar nog niet afgevinkt; groen is afgerond.',
+    'Bij het aanvinken vraagt het scherm om bevestiging dat het ook in Salesforce staat.',
+    'Onder Aanmeldformulier vul je een nieuwe medewerker in en exporteer je dat als Word-bestand.',
+  ]},
+  cvgen: { titel: 'CV-generator', intro: 'Van een aangeleverd CV naar een presentabel CV in de Brightech-huisstijl.', stappen: [
+    'Vul eerst de basisgegevens van de kandidaat in.',
+    'Upload het CV als .docx of .pdf; de tekst wordt er automatisch uit gehaald.',
+    'Klik op Genereer tekstsuggestie voor een feitelijke indruk van de kandidaat — controleer die altijd.',
+    'Vul de laatste velden aan en download het Word-CV.',
+  ]},
+  itk: { titel: 'ITK-Recorder', intro: 'Neem een intakegesprek op en laat er automatisch een verslag van maken.', stappen: [
+    'Vul de naam van de kandidaat in en kies wie het gesprek voert.',
+    'Start de opname. Laat het tabblad open staan tot je klaar bent.',
+    'Na het stoppen worden de sprekers herkend en wordt het gesprek geanalyseerd; dat duurt een paar minuten.',
+    'Het verslag verschijnt onder Recente records, en kun je daar delen of downloaden.',
+  ]},
+  bzk: { titel: 'BZK-Recorder', intro: 'Neem een bedrijfsbezoek, evaluatie of matchvoorbereiding op en krijg er een verslag van.', stappen: [
+    'Kies bovenaan welk soort gesprek je opneemt — dat bepaalt waar de analyse op let.',
+    'Vul de bedrijfsnaam en contactpersoon in en kies wie opneemt.',
+    'Start de opname; na het stoppen wordt het gesprek verwerkt.',
+    'Het verslag komt bij Recente records te staan.',
+  ]},
+  matchmaker: { titel: 'Matchmaker', intro: 'Zoek bij een kandidaatprofiel actuele vacatures op Nederlandse jobboards.', stappen: [
+    'Vul minimaal één functietitel in en kies de regio.',
+    'Een CV meesturen is optioneel, maar maakt de match aanzienlijk beter.',
+    'Klik op Zoek vacatures — dit duurt ongeveer vijftien seconden.',
+    'De resultaten zijn een startpunt, geen eindoordeel: controleer altijd zelf de vacature.',
+  ]},
+  beheer: { titel: 'Beheer', intro: 'Medewerkers, rollen, doelen en toegang tot het dashboard.', stappen: [
+    'Voeg een medewerker toe en stel rol, jaardoel en startweek in.',
+    'De startweek bepaalt vanaf wanneer de norm meetelt — belangrijk bij iemand die halverwege het jaar begint.',
+    'Met Uitnodigen krijgt iemand een e-mail om zelf een wachtwoord in te stellen.',
+    'Inactief zetten haalt iemand uit alle overzichten, maar bewaart de historie.',
+  ]},
+};
+
+function btUitlegKnop(sleutel) {
+  if (!PAGINA_UITLEG[sleutel]) return '';
+  return `<button class="uitleg-knop" onclick="toonUitleg('${sleutel}')" title="Uitleg over deze pagina" aria-label="Uitleg over deze pagina">` +
+         `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg></button>`;
+}
+
+function toonUitleg(sleutel) {
+  const u = PAGINA_UITLEG[sleutel];
+  if (!u) return;
+  sluitUitleg();
+  const laag = document.createElement('div');
+  laag.className = 'uitleg-laag';
+  laag.id = 'uitleg-laag';
+  // Klikken naast het venster sluit het ook — net als bij de andere pop-ups.
+  laag.onclick = (e) => { if (e.target === laag) sluitUitleg(); };
+  laag.innerHTML =
+    '<div class="uitleg-venster" role="dialog" aria-modal="true" aria-label="Uitleg">' +
+      '<div class="uitleg-kop"><h3>' + escHtml(u.titel) + '</h3>' +
+        '<button class="uitleg-sluit" onclick="sluitUitleg()" aria-label="Sluiten">' +
+          '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        '</button></div>' +
+      '<div class="uitleg-body"><p>' + escHtml(u.intro) + '</p><ol>' +
+        u.stappen.map(t => '<li>' + escHtml(t) + '</li>').join('') +
+      '</ol></div>' +
+      '<div class="uitleg-voet"><button onclick="sluitUitleg()">Sluiten</button></div>' +
+    '</div>';
+  document.body.appendChild(laag);
+  document.addEventListener('keydown', _uitlegEscape);
+}
+function sluitUitleg() {
+  const el = document.getElementById('uitleg-laag');
+  if (el) el.remove();
+  document.removeEventListener('keydown', _uitlegEscape);
+}
+function _uitlegEscape(e) { if (e.key === 'Escape') sluitUitleg(); }
+
 function renderTabs() {
   // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
   if (CURRENT_USER && CURRENT_USER.rol === 'bm') {
@@ -2155,7 +2328,7 @@ function renderBeheer() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Beheer</div>
+      <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
       <div class="person-meta"><span class="meta-pill">Medewerkersbeheer — alleen zichtbaar voor Toussaint</span></div>
     </div>
     <div style="padding:18px 20px;max-width:1100px;">
@@ -2354,11 +2527,6 @@ async function beheerVernieuwen() {
   BEHEER_VERNIEUWD_TS = Date.now();
   renderBeheer();
   setTimeout(() => { BEHEER_VERNIEUWD_TS = 0; renderBeheer(); }, 2500);
-}
-
-function toggleInfoTip(id) {
-  const el = document.getElementById(id);
-  if (el) el.hidden = !el.hidden;
 }
 
 async function beheerInviteVerstuur() {
@@ -2571,7 +2739,7 @@ function renderBM(bm) {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">${bm.naam}</div>
+      <div class="person-name">${bm.naam}${btUitlegKnop('medewerker')}</div>
       <div class="person-meta">
         ${bm.rol ? `<span class="meta-pill">${escHtml(bm.rol)}</span>` : ''}
         <span class="meta-pill">Doel: ${bm.doel} starters/jaar</span>
@@ -2680,8 +2848,7 @@ function renderBM(bm) {
       </div>
     </div>
 
-    <div class="section-title">Norm vs. gem. YTD per ${pLabel} (${year}) <button class="info-tip-btn" onclick="toggleInfoTip('itip-ytd-tbl')" title="Uitleg">ℹ</button></div>
-    <div id="itip-ytd-tbl" class="info-tip-panel" hidden><strong>Actueel gemiddelde</strong> = YTD totaal ÷ ${passed} ${pLabel==='week'?'weken':'maanden'} verstreken in ${year}.</div>
+    <div class="section-title">Norm vs. gem. YTD per ${pLabel} (${year})</div>
     <div class="bt-venster"><table class="bt-cijfers bt-cijfers-norm">
       <thead><tr><th>KPI</th><th>Ratio (26 wkn)</th><th>Norm/${pLabel}</th><th>Gem. YTD</th><th>Score</th></tr></thead>
       <tbody>${ratioTable}</tbody>
@@ -2968,7 +3135,7 @@ function renderMedewerkersOverzicht() {
 
   document.getElementById('main').innerHTML = '<div>' +
     '<div class="person-header">' +
-      '<div class="person-name">Medewerkers</div>' +
+      '<div class="person-name">Medewerkers' + btUitlegKnop('medewerkers') + '</div>' +
       '<div class="person-meta">' +
         '<span class="meta-pill">Teamdoel ' + TOTAAL_DOEL + ' starters</span>' +
         '<span class="meta-pill">Stand t/m week ' + CUR.week + '</span>' +
@@ -3066,7 +3233,7 @@ function renderTeam() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Team Resultaten</div>
+      <div class="person-name">Team Resultaten${btUitlegKnop('team')}</div>
       <div class="person-meta">
         <span class="meta-pill">Teamdoel ${TOTAAL_DOEL} starters</span>
         <span class="meta-pill">Ratio's over 26 weken</span>
@@ -5688,8 +5855,7 @@ function renderBmCoachingTab(bm) {
 
       <div style="margin-bottom:14px">
         ${d.isKAM ? `
-        <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Bezoeken & starters (geen standaard funnel) <button class="info-tip-btn" onclick="toggleInfoTip('itip-kam-funnel')" title="Uitleg">ℹ</button></div>
-        <div id="itip-kam-funnel" class="info-tip-panel" hidden>${d.bm.naam.split(' ')[0]} opereert als Key Accountmanager buiten de standaard BM-funnel. Starters komen primair via netwerk, commerciële relaties en directe accountmanagement — niet via de intake→aanbieding→match keten. Daarom geen funnelanalyse; norm is ${fmt(d.norm.bezoeken,1)} bezoeken/week en ${d.bm.doel} starters/jaar.</div>
+        <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Bezoeken & starters (geen standaard funnel)</div>
         ` : `
         <div style="font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Funnelanalyse (laatste 26 weken)</div>
         <div class="funnel-row">
@@ -5773,8 +5939,7 @@ function renderBmCoachingTab(bm) {
         };
 
         const secHtml = `<div style="margin-top:24px;">
-          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Gesprekcoaching — opnames van ${escHtml(bm.naam.split(' ')[0])} <button class="info-tip-btn" onclick="toggleInfoTip('itip-gesprekcoaching')" title="Uitleg">ℹ</button></div>
-          <div id="itip-gesprekcoaching" class="info-tip-panel" hidden>Alleen opnames waarbij <strong>${escHtml(bm.naam)}</strong> als opnemer is geselecteerd. Klik op <strong>Analyseer</strong> voor AI-feedback: wat ging goed, wat kan beter en welk ontwikkelpunt verdient aandacht. Opnames die nog niet zijn toegewezen kun je toewijzen via de recorder-tabs (knop Recente records → Toewijzen).</div>
+          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Gesprekcoaching — opnames van ${escHtml(bm.naam.split(' ')[0])}</div>
           ${totalBm === 0 ? (_opnamesPreloadBezig
             ? `<div style="padding:14px;">${btStatusHtml('⏳ Opnames worden geladen…')}</div>`
             : `<div style="padding:14px;background:#f9fafb;border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--muted);">Geen opnames toegewezen aan ${escHtml(bm.naam.split(' ')[0])}.${totalAll>0?' Er zijn wel '+totalAll+' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (Recente records → Toewijzen).':' Maak een opname via de ITK- of BZK-Recorder.'}</div>`) : ''}
@@ -8368,7 +8533,7 @@ function renderHrmBackoffice() {
 
   el.innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">HRM / Backoffice</div>
+      <div class="person-name">HRM / Backoffice${btUitlegKnop('hrm')}</div>
       <div class="person-meta">
         <span class="meta-pill">${CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '—'}</span>
       </div>
@@ -9141,7 +9306,7 @@ function renderPrognose() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Projecten & Groeiplanning</div>
+      <div class="person-name">Projecten & Groeiplanning${btUitlegKnop('projecten')}</div>
       <div class="person-meta">
         <span class="meta-pill">Ambitieus doel: ${JAAR_DOEL_AMBITIEUS} starters/${year}</span>
         <span class="meta-pill">Huidig tempo: ${extrapolated} starters/jaar</span>
@@ -9291,7 +9456,7 @@ function renderPrognose() {
     </div>
 
     <!-- Gap-Analyse + Groeiscenario + Import (onderaan) -->
-    <div class="section-title">Gap-Analyse <button class="info-tip-btn" onclick="toggleInfoTip('itip-gap-analyse')" title="Uitleg">ℹ</button></div>
+    <div class="section-title">Gap-Analyse</div>
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="kpi-card">
         <div class="label">YTD gerealiseerd</div>
@@ -9315,7 +9480,6 @@ function renderPrognose() {
       </div>
     </div>
 
-    <div id="itip-gap-analyse" class="info-tip-panel" hidden>Het groeiscenario gaat uit van <strong>${hireWeeks.length} nieuwe medewerkers</strong> die starten in ${['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][curMonthIdx]}–dec ${year}, elk met een norm van <strong>${NORM_NEW_BM_PER_MONTH} starter per maand</strong> (= ${NORM_NEW_BM} starters/jaar), direct vanaf de startdatum.</div>
 
     ${canEditProj ? `
     <div class="section-title">Projectenlijst (Excel-import)</div>
@@ -9485,7 +9649,7 @@ function renderKandidaten() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Kandidaten</div>
+      <div class="person-name">Kandidaten${btUitlegKnop('kandidaten')}</div>
       <div class="person-meta">
         <span class="meta-pill">Laatste 10 weken</span>
       </div>
@@ -10341,7 +10505,7 @@ function renderAccountplannenHtml(subTabBtns) {
 
   return `<div>
     <div class="person-header">
-      <div class="person-name">Accountmanagement</div>
+      <div class="person-name">Accountmanagement${btUitlegKnop('accounts')}</div>
       <div class="person-meta"><span class="meta-pill">Key Accountmanagement — klantprofielen &amp; strategie</span></div>
     </div>
     ${subTabBtns}
@@ -10809,14 +10973,12 @@ function renderSalesLeadsHtml(subTabBtns) {
 
   return `<div>
     <div class="person-header">
-      <div class="person-name">RLDV</div>
+      <div class="person-name">RLDV${btUitlegKnop('rldv')}</div>
       <div class="person-meta">
         <span class="meta-pill">${list.length} klanten</span>
         <span class="meta-pill">${filtered.length} getoond</span>
-        <button class="info-tip-btn" onclick="toggleInfoTip('itip-rldv')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div id="itip-rldv" class="info-tip-panel" hidden>Filter op vakgebied, regio, functietype, contactpersoon, status of voorwaarden om een harde selectie te maken. Klik op Zoek om de vacaturepagina van een klant op te zoeken. Print de huidige selectie via Printen.</div>
     ${subTabBtns}
     <div class="filter-toolbar">
         <input type="text" class="filter-search-pill" placeholder="naam, vakgebied, regio, status…" value="${escHtml(SL_SEARCH)}" oninput="SL_SEARCH=this.value;clearTimeout(window._slST);window._slST=setTimeout(renderAccounts,250)" style="min-width:260px;">
@@ -10984,14 +11146,14 @@ function renderStrategischeLeadsHtml(subTabBtns) {
 
   return `<div>
     <div class="person-header">
-      <div class="person-name">Key Accountmanagement (KAM)</div>
+      <div class="person-name">Key Accountmanagement (KAM)${btUitlegKnop('kam')}</div>
       <div class="person-meta">
         <span class="meta-pill">${list.length} klanten</span>
         <span class="meta-pill">${filtered.length} getoond</span>
-        ${canEditAccounts ? '<button class="info-tip-btn" onclick="toggleInfoTip(\'itip-kam-edit\')" title="Uitleg">ℹ</button>' : ''}
+        ${canEditAccounts ? '' : ''}
       </div>
     </div>
-    ${canEditAccounts ? '<div id="itip-kam-edit" class="info-tip-panel" hidden>Klik op om een klant te bewerken. Wijzigingen blijven bevroren tot je op Opslaan klikt — pas dan wordt de score herberekend en de rangschikking bijgewerkt.</div>' : ''}
+    ${canEditAccounts ? '' : ''}
     ${subTabBtns}
     <div class="filter-toolbar">
       <div class="filter-toolbar-row">
@@ -11559,13 +11721,11 @@ function renderCvGenerator() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">CV-generator</div>
+      <div class="person-name">CV-generator${btUitlegKnop('cvgen')}</div>
       <div class="person-meta">
         <span class="meta-pill">Van CV naar commercieel Word-CV in onze huisstijl</span>
-        <button class="info-tip-btn" onclick="toggleInfoTip('itip-cv-gen')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div id="itip-cv-gen" class="info-tip-panel" hidden>Vul eerst de basisgegevens van de kandidaat in, upload daarna het CV (.docx of .pdf). De tool leest de tekst uit, genereert met AI een feitelijke indruk van de kandidaat, en zet alles samen in het huisstijl-Word-bestand dat je kunt downloaden.</div>
 
     <div class="table-card" style="padding:16px;margin-bottom:14px;">
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:10px;">Stap 1 — Kandidaatgegevens</div>
@@ -12028,13 +12188,11 @@ function renderGesprek() {
   const _gesprekBadge = GESPREK_RECORDS.length > 0 ? `<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>` : '';
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Recorder</div>
+      <div class="person-name">Recorder${btUitlegKnop('itk')}</div>
       <div class="person-meta">
         <span class="meta-pill">Sollicitatiegesprek opnemen &amp; automatisch analyseren</span>
-        <button class="info-tip-btn" onclick="toggleInfoTip('itip-itk-rec')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div id="itip-itk-rec" class="info-tip-panel" hidden>Neem het gesprek op via de microfoon van je laptop. Na het stoppen worden de sprekers automatisch herkend en het gesprek geanalyseerd door AI. Informeer kandidaten dat het gesprek wordt opgenomen.</div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
       <button class="bm-subtab-btn active" onclick="">Recorder</button>
       <button class="bm-subtab-btn" onclick="gesprekSubView='records';renderGesprekRecords();gesprekHerlaadRecords()">Recente records${_gesprekBadge}</button>
@@ -12910,7 +13068,7 @@ function renderGesprekRecords() {
     }).join('');
   document.getElementById('main').innerHTML=`<div>
     <div class="person-header">
-      <div class="person-name">Recorder</div>
+      <div class="person-name">Recorder${btUitlegKnop('itk')}</div>
       <div class="person-meta"><span class="meta-pill">Sollicitatiegesprek opnemen &amp; automatisch analyseren</span></div>
     </div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
@@ -12988,7 +13146,7 @@ function renderBezoekRecords() {
     }).join('');
   document.getElementById('main').innerHTML=`<div>
     <div class="person-header">
-      <div class="person-name">BZK-Recorder</div>
+      <div class="person-name">BZK-Recorder${btUitlegKnop('bzk')}</div>
       <div class="person-meta"><span class="meta-pill">Bedrijfsbezoek opnemen &amp; automatisch verslag maken</span></div>
     </div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
@@ -13724,13 +13882,11 @@ function renderBezoekRecorder() {
   const _bezoekBadge = BEZOEK_RECORDS.length > 0 ? `<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>` : '';
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">BZK-Recorder</div>
+      <div class="person-name">BZK-Recorder${btUitlegKnop('bzk')}</div>
       <div class="person-meta">
         <span class="meta-pill">Bedrijfsbezoek opnemen &amp; automatisch verslag maken</span>
-        <button class="info-tip-btn" onclick="toggleInfoTip('itip-bzk-rec')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div id="itip-bzk-rec" class="info-tip-panel" hidden>Neem het bezoekgesprek op via de microfoon van je laptop. Na het stoppen worden sprekers herkend en maakt AI automatisch een bezoekverslag. Informeer je gesprekspartner dat het gesprek wordt opgenomen.</div>
     <div class="bm-subtabs" style="margin-bottom:16px;">
       <button class="bm-subtab-btn active" onclick="">Recorder</button>
       <button class="bm-subtab-btn" onclick="bezoekSubView='records';renderBezoekRecords();bezoekHerlaadRecords()">Recente records${_bezoekBadge}</button>
@@ -13852,14 +14008,12 @@ function renderPlaatsing() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Matchmaker</div>
+      <div class="person-name">Matchmaker${btUitlegKnop('matchmaker')}</div>
       <div class="person-meta">
         <span class="meta-pill">Zoek bedrijven die actief werven voor dit kandidaatprofiel</span>
         ${(() => { try { const s = JSON.parse(localStorage.getItem('matchmaker_stats')||'{}'); return (s.zoeken||0) > 0 ? `<span class="meta-pill" style="background:rgba(255,255,255,.15);color:inherit;font-weight:600;">${s.zoeken}× gebruikt</span><span class="meta-pill" style="background:rgba(255,255,255,.15);color:inherit;font-weight:600;">${s.vacatures||0} vacatures</span>` : ''; } catch(_){ return ''; } })()}
-        <button class="info-tip-btn" onclick="toggleInfoTip('itip-plaatsing')" title="Uitleg">ℹ</button>
       </div>
     </div>
-    <div id="itip-plaatsing" class="info-tip-panel" hidden>Vul het kandidaatprofiel in en klik op "Zoek vacatures". Claude zoekt live op Nederlandse jobboards (Indeed, Werken.nl, Jobbird, limburgvac.nl e.a.) en geeft een lijst van bedrijven die actief werven voor dit profiel — inclusief vacaturelinks en contactpersonen.</div>
 
     <div class="table-card" style="padding:16px;margin-bottom:14px;">
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:12px;">Kandidaatprofiel</div>
@@ -15891,7 +16045,7 @@ function renderFinancieel() {
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
-      <div class="person-name">Financieel</div>
+      <div class="person-name">Financieel${btUitlegKnop('financieel')}</div>
       <div class="person-meta">
         <span class="meta-pill">${list.length} opdrachtgevers</span>
         <span class="meta-pill">Laatste sync: ${lastSyncLabel}</span>
