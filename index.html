@@ -4891,6 +4891,56 @@ async function _dagstartAiTekst(d) {
   }
 }
 
+// Managers hebben geen eigen KPI-profiel. Voor hen gaat de dagstart over het
+// team: het onderwerp is wie de meeste ruimte heeft of wie de voorsprong maakt,
+// en de stand per collega gaat mee zodat de tekst namen kan noemen.
+async function _dagstartTeamAiTekst() {
+  if (!supa) return null;
+  const jaar  = CUR.year;
+  const lijst = bmsMetResultaat();
+  if (!lijst.length) return null;
+
+  const perBm = lijst.map(bm => {
+    const behaald  = +ytdTotals(filterData(bm.naam, jaar)).starters.toFixed(1);
+    const verwacht = +cumDoel(bm, CUR.week, 52).toFixed(1);
+    return { naam: bm.naam, doel: bm.doel, starters: behaald, verwacht, gat: +(behaald - verwacht).toFixed(1) };
+  }).sort((a, b) => a.gat - b.gat);   // grootste achterstand eerst
+
+  const behaald  = +perBm.reduce((t, r) => t + r.starters, 0).toFixed(1);
+  const verwacht = +perBm.reduce((t, r) => t + r.verwacht, 0).toFixed(1);
+  const gat      = +(behaald - verwacht).toFixed(1);
+
+  // Het onderwerp bepalen wij: loopt het team achter, dan gaat het over waar de
+  // ruimte zit; loopt het voor, dan over wie dat veroorzaakt heeft.
+  const achterste = perBm[0];
+  const voorste   = perBm[perBm.length - 1];
+  const hoofdpunt = gat < 0
+    ? { titel: `Team ${fmt(Math.abs(gat),1)} starters onder schema`,
+        reden: `${fmt(behaald,1)} behaald tegen ${fmt(verwacht,1)} verwacht bij week ${CUR.week}. De grootste ruimte zit bij ${achterste.naam} (${fmt(achterste.gat,1)}).` }
+    : { titel: `Team ${fmt(gat,1)} starters vóór op schema`,
+        reden: `${fmt(behaald,1)} behaald tegen ${fmt(verwacht,1)} verwacht bij week ${CUR.week}. ${voorste.naam} draagt daar het meest aan bij (+${fmt(voorste.gat,1)}).` };
+
+  try {
+    const { data, error } = await supa.functions.invoke('dagstart-tekst', {
+      body: {
+        soort:     'team',
+        cijfers:   { week: CUR.week, jaar, aantalCollegas: perBm.length,
+                     startersBehaald: behaald, startersVerwacht: verwacht, verschil: gat },
+        hoofdpunt,
+        punten:    perBm.map(r => ({
+                     titel: r.naam,
+                     reden: `${fmt(r.starters,1)} van de ${fmt(r.verwacht,1)} verwachte starters (jaardoel ${r.doel}), ${r.gat >= 0 ? '+' : ''}${fmt(r.gat,1)}.` })),
+      },
+    });
+    if (error || !data || data.error) return null;
+    if (!data.kern || !data.waarom || !data.focus) return null;
+    return { kern: data.kern, waarom: data.waarom, focus: data.focus };
+  } catch (e) {
+    _meldStil('dagstart-tekst team ophalen', e);
+    return null;
+  }
+}
+
 async function toonDagstart() {
   if (!CURRENT_USER) return;
   const sleutel = 'bt_dagstart_' + (CURRENT_USER.bm_naam || CURRENT_USER.naam || 'onbekend');
@@ -4919,7 +4969,11 @@ async function toonDagstart() {
     }
   }
   if (!boodschap && isManagerLevel()) {
-    try { boodschap = _dagstartTeamBoodschap(); } catch (e) { _meldStil('dagstart teamcijfers', e); }
+    // Ook hier eerst de geschreven tekst, met de vaste teamtekst als vangnet.
+    boodschap = await _dagstartTeamAiTekst();
+    if (!boodschap) {
+      try { boodschap = _dagstartTeamBoodschap(); } catch (e) { _meldStil('dagstart teamcijfers', e); }
+    }
   }
   if (!boodschap) return;
 
