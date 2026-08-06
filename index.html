@@ -725,6 +725,8 @@
                    border-radius:8px; padding:7px 12px; color:rgba(255,255,255,.85);
                    font-family:inherit; font-size:var(--t-sm); cursor:pointer; }
   .one-stil-knop:hover { background:rgba(255,255,255,.16); color:#fff; }
+  .one-stil-knop.aan { background:rgba(244,203,60,.2); border-color:rgba(244,203,60,.5);
+                       color:#f6e2a3; }
   .one-stil-knop svg { width:15px; height:15px; fill:none; stroke:currentColor;
                        stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
   .one-plaats-knop { margin-left:auto; background:var(--accent-gold); border:0;
@@ -748,10 +750,15 @@
                    padding:9px 14px; margin-bottom:14px; font-size:var(--t-sm); color:#f6e2a3; }
   .one-meldingen svg { width:16px; height:16px; flex-shrink:0; fill:none; stroke:currentColor;
                        stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .one-melding-badge { display:inline-block; min-width:18px; text-align:center;
-                       background:var(--accent-gold); color:#16142e; border-radius:99px;
-                       padding:0 6px; font-size:.68rem; font-weight:700; line-height:18px;
-                       margin-left:auto; }
+  /* Het teken in de menukaart. Een aantal zegt weinig — je wilt weten óf er
+     iets is, en of het over jóu gaat. Wit: er staat iets nieuws. Oranje: je
+     bent zelf getagd, dan is het wachten geen optie. */
+  .one-melding-badge { display:inline-flex; align-items:center; justify-content:center;
+                       width:19px; height:19px; border-radius:50%; flex-shrink:0;
+                       margin-left:auto; font-size:.8rem; font-weight:800; line-height:1;
+                       background:rgba(255,255,255,.18); color:#fff; }
+  .one-melding-badge.one-getagd { background:#E87400; color:#fff;
+                                  box-shadow:0 0 0 2px rgba(232,116,0,.28); }
 
   /* Berichtkaart */
   .one-kaart { background:#364160; border:1px solid rgba(255,255,255,.07);
@@ -2479,6 +2486,7 @@ let ONE_FILTER = 'alles';
 let ONE_MIJN_ID = null;
 let ONE_FOTO = null;                 // de gekozen foto, al verkleind
 let ONE_TAGS = [];                   // getagde collega's in het bericht dat je schrijft
+let ONE_ALLEN = false;               // 'iedereen' aangezet: dan tellen losse namen niet meer
 let ONE_FOTO_URLS = {};              // foto_pad → tijdelijke link
 let ONE_OPEN_REACTIES = new Set();   // berichten waar het reactieveld openstaat
 let ONE_SESSIE_SINDS = null;         // stand bij binnenkomst, voor het oplichten
@@ -2507,14 +2515,19 @@ async function loadOne() {
       supa.from('one_reacties').select('*').is('verwijderd_op', null)
           .order('created_at', { ascending:true }).limit(800),
       supa.from('one_knoppen').select('*').limit(3000),
-      supa.from('profiles').select('naam, bm_naam').limit(200),
+      supa.from('profiles').select('naam, bm_naam, einddatum').limit(200),
     ]);
     ONE_POSTS       = posts.data || [];
     ONE_COMMENTAREN = commentaren.data || [];
     ONE_KNOPPEN     = knoppen.data || [];
-    ONE_COLLEGAS    = Array.from(new Set((profielen.data || [])
-                        .map(p => String(p.naam || p.bm_naam || '').trim())
-                        .filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    // Uit dienst? Dan geen naam meer in de keuzelijst. Een oud-collega taggen
+    // levert een melding op die niemand meer leest, en zet de lezer op het
+    // verkeerde been over wie er nog meekijkt.
+    const nu = new Date();
+    ONE_COLLEGAS = Array.from(new Set((profielen.data || [])
+                     .filter(p => !p.einddatum || new Date(p.einddatum) >= nu)
+                     .map(p => String(p.naam || p.bm_naam || '').trim())
+                     .filter(Boolean))).sort((a, b) => a.localeCompare(b));
     await _oneFotoLinks();
   } catch (e) { _meldStil('Brightech ONE ophalen', e); }
 }
@@ -2546,8 +2559,13 @@ function _oneNoemtMij(p) {
   return !!ik && Array.isArray(p.getagd) && p.getagd.includes(ik);
 }
 function oneMeldingBadge() {
-  const n = oneOngelezen().length;
-  return n ? '<span class="one-melding-badge">' + (n > 9 ? '9+' : n) + '</span>' : '';
+  const nieuw = oneOngelezen();
+  if (!nieuw.length) return '';
+  const getagd = nieuw.some(_oneNoemtMij);
+  return '<span class="one-melding-badge' + (getagd ? ' one-getagd' : '') + '" title="' +
+    (getagd ? 'Nieuw bericht waarin jij genoemd wordt' : 'Er staan nieuwe berichten') +
+    '" aria-label="' + (getagd ? 'Nieuw bericht waarin jij genoemd wordt' : 'Nieuwe berichten') +
+    '">!</span>';
 }
 function _oneMarkeerGezien() {
   if (ONE_SESSIE_SINDS === null) ONE_SESSIE_SINDS = _oneSinds();
@@ -2585,6 +2603,7 @@ function _oneWanneer(iso) {
 // andersom zou een collega met een < in zijn bericht de opmaak kunnen slopen.
 function _oneTekstHtml(tekst, getagd) {
   let html = escHtml(String(tekst || ''));
+  html = html.replace(/@Iedereen/g, '<span class="one-tag">@Iedereen</span>');
   const namen = Array.isArray(getagd) ? getagd.slice() : [];
   namen.sort((a, b) => b.length - a.length);   // langste eerst, anders wint de voornaam
   namen.forEach(n => {
@@ -2665,8 +2684,14 @@ function renderOne() {
           '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/>' +
           '<circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 4.5-4.5L12 16l3-3 5 5"/></svg>Foto' +
           '<input type="file" accept="image/*" hidden onchange="oneKiesFoto(this)"></label>' +
-        '<select class="one-select" onchange="oneTagCollega(this)" title="Collega taggen">' +
-          '<option value="">Collega taggen…</option>' + collegaOpties + '</select>' +
+        '<select class="one-select" onchange="oneTagCollega(this)" title="Collega taggen"' +
+          (ONE_ALLEN ? ' disabled' : '') + '>' +
+          '<option value="">Collega taggen\u2026</option>' + collegaOpties + '</select>' +
+        '<button id="one-allen-knop" class="one-stil-knop' + (ONE_ALLEN ? ' aan' : '') + '" ' +
+          'onclick="oneTagIedereen()" title="Iedereen in één keer taggen">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="9" r="2.8"/>' +
+          '<path d="M3 19a5.5 5.5 0 0 1 11 0"/><path d="M15.5 6.4a2.8 2.8 0 0 1 0 5.2"/>' +
+          '<path d="M16.5 13.6A5 5 0 0 1 21 18.5"/></svg>Iedereen</button>' +
         '<span id="one-schrijf-status"></span>' +
         '<button class="one-plaats-knop" onclick="onePlaats()">Plaatsen</button>' +
       '</div>' +
@@ -2853,14 +2878,43 @@ function oneToonFoto(bron) {
 // de lezer, dat tweede voor de meldingen — anders zou een typefout betekenen
 // dat iemand zijn eigen bericht misloopt.
 function _oneTagChipsHtml() {
+  if (ONE_ALLEN) {
+    return '<span class="one-tag-chip">@Iedereen' +
+           '<button onclick="oneTagIedereen(false)" title="Toch niet iedereen taggen">' +
+           '\u00d7</button></span>';
+  }
   return ONE_TAGS.map((n, i) =>
     '<span class="one-tag-chip">@' + escHtml(n) +
     '<button onclick="oneHaalTagWeg(' + i + ')" ' +
     'title="Deze collega niet taggen">×</button></span>').join('');
 }
+// Eén knop voor het hele gezelschap. Bewust niet twintig losse namen in de
+// tekst plakken — dan leest niemand de eerste regel meer. Er komt één woord in
+// beeld, @Iedereen, en achter de schermen krijgt elke actieve collega de
+// melding. Zet je het aan, dan vervallen de losse namen: die zaten er al in.
+function oneTagIedereen(aan) {
+  ONE_ALLEN = (aan === undefined) ? !ONE_ALLEN : !!aan;
+  const veld = document.getElementById('one-tekst');
+  if (ONE_ALLEN) {
+    ONE_TAGS = [];
+    if (veld && veld.value.indexOf('@Iedereen') < 0) {
+      const spatie = veld.value && !/\s$/.test(veld.value) ? ' ' : '';
+      veld.value = veld.value + spatie + '@Iedereen ';
+    }
+  } else if (veld) {
+    veld.value = veld.value.replace(/@Iedereen ?/g, '');
+  }
+  const chips = document.getElementById('one-tags');
+  if (chips) chips.innerHTML = _oneTagChipsHtml();
+  const knop = document.getElementById('one-allen-knop');
+  if (knop) knop.classList.toggle('aan', ONE_ALLEN);
+  if (veld) veld.focus();
+}
+
 function oneTagCollega(keuze) {
   const naam = keuze.value;
   keuze.selectedIndex = 0;
+  if (ONE_ALLEN) return;              // iedereen staat al aan
   if (!naam || ONE_TAGS.includes(naam)) return;
   ONE_TAGS.push(naam);
   const chips = document.getElementById('one-tags');
@@ -2903,8 +2957,13 @@ async function onePlaats() {
     }
     // Ook namen die je zelf hebt ingetypt tellen mee als tag, zolang het een
     // bestaande collega is.
+    const ik = CURRENT_USER.naam || CURRENT_USER.bm_naam || '';
     const uitTekst = ONE_COLLEGAS.filter(n => tekst.indexOf('@' + n) >= 0);
-    const getagd = Array.from(new Set(ONE_TAGS.concat(uitTekst)));
+    // @Iedereen wordt hier vertaald naar de namen van alle actieve collega's,
+    // zodat de melding bij iedereen aankomt zonder dat de tekst vollooopt.
+    const getagd = ONE_ALLEN
+      ? ONE_COLLEGAS.filter(n => n !== ik)
+      : Array.from(new Set(ONE_TAGS.concat(uitTekst)));
 
     const { error } = await supa.from('one_posts').insert({
       onderwerp, tekst, categorie, foto_pad: pad,
@@ -2915,7 +2974,7 @@ async function onePlaats() {
     if (error) throw error;
 
     if (ONE_FOTO && ONE_FOTO.url) URL.revokeObjectURL(ONE_FOTO.url);
-    ONE_FOTO = null; ONE_TAGS = [];
+    ONE_FOTO = null; ONE_TAGS = []; ONE_ALLEN = false;
     ONE_CONCEPT = { onderwerp:'', tekst:'', categorie, reacties: ONE_CONCEPT.reacties };
     await loadOne();
     renderOne();
