@@ -13321,9 +13321,196 @@ function renderCvGenerator() {
     </div>
   </div>`;
 }
+// ════════════════════════════════════════════════════════════════════════════
+// VANGNET VOOR OPNAMES
+//
+// Waarom dit bestaat: een opname leefde tot nu toe alleen in het werkgeheugen
+// van de browser. Ging de upload na een uur opnemen mis — haperend netwerk,
+// verlopen sessie, telefoon op slot — dan was álles weg, en dat is iemand ook
+// echt overkomen. Drie afspraken maken dat onmogelijk:
+//
+//  1. Tijdens het opnemen wordt de audio elke 30 seconden weggeschreven naar
+//     de eigen opslag van de browser (IndexedDB: ruimte zat, overleeft ook
+//     een crash of herladen).
+//  2. Uploaden krijgt drie automatische pogingen. Mislukt het daarna nog,
+//     dan blijft de audio staan en verschijnt een knop "Opnieuw proberen".
+//  3. Bij het openen van de recorder wordt gekeken of er nog een
+//     niet-verwerkte opname klaarstaat van een vorige keer.
+// ════════════════════════════════════════════════════════════════════════════
+
+function _recDbOpen() {
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open('bt_opnames', 1);
+    rq.onupgradeneeded = () => { rq.result.createObjectStore('opnames'); };
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function recBewaar(sleutel, waarde) {
+  try {
+    const db = await _recDbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('opnames', 'readwrite');
+      tx.objectStore('opnames').put(waarde, sleutel);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  } catch (e) { _meldStil('opname lokaal bewaren', e); }
+}
+async function recLees(sleutel) {
+  try {
+    const db = await _recDbOpen();
+    const w = await new Promise((res, rej) => {
+      const rq = db.transaction('opnames').objectStore('opnames').get(sleutel);
+      rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+    });
+    db.close();
+    return w;
+  } catch (_) { return undefined; }
+}
+async function recWis(sleutel) {
+  try {
+    const db = await _recDbOpen();
+    await new Promise((res) => {
+      const tx = db.transaction('opnames', 'readwrite');
+      tx.objectStore('opnames').delete(sleutel);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+    db.close();
+  } catch (_) {}
+}
+
+// Voert een taak maximaal drie keer uit, met een oplopende wachttijd ertussen.
+// Eén netwerk-hapering mag nooit meer het verschil zijn tussen wel en geen verslag.
+async function _metPogingen(taak, meldPoging) {
+  let fout;
+  for (let poging = 1; poging <= 3; poging++) {
+    try { return await taak(); }
+    catch (e) {
+      fout = e;
+      if (poging < 3) { meldPoging(poging); await new Promise(r => setTimeout(r, 4000 * poging)); }
+    }
+  }
+  throw fout;
+}
+
+// Schrijft de opname-tot-nu-toe weg naar de browseropslag. Draait elke 30
+// seconden tijdens het opnemen; bij een crash is er dus hooguit een halve
+// minuut kwijt in plaats van het hele gesprek.
+function _recCheckpoint(st, sleutel) {
+  try {
+    if (!st.audioChunks || !st.audioChunks.length || !st.mediaRecorder) return;
+    const mime = st.mediaRecorder.mimeType || 'audio/webm';
+    const blob = new Blob(st.audioChunks, { type: mime });
+    const meta = sleutel === 'gesprek'
+      ? { naam: st.naam || '', functie: st.functie || '', recorderNaam: st.recorderNaam || '' }
+      : { bedrijf: st.bedrijf || '', contactpersoon: st.contactpersoon || '',
+          soortBezoek: st.soortBezoek || '', recorderNaam: st.recorderNaam || '' };
+    recBewaar(sleutel, { blob, mimeType: mime, tijd: Date.now(),
+      duur: (st.totalRecordingTime || 0) + (st.recordingTime || 0), meta });
+  } catch (e) { _meldStil('opname-checkpoint', e); }
+}
+
+// Kijkt één keer per sessie of er nog een oude opname klaarstaat.
+function _herstelCheck(sleutel, st, renderFn) {
+  if (st._herstelGecheckt) return;
+  st._herstelGecheckt = true;
+  recLees(sleutel).then(w => {
+    if (w && w.blob && w.blob.size > 2000) { st._herstel = w; renderFn(); }
+  });
+}
+
+function _herstelPaneelHtml(sleutel, st) {
+  const h = st._herstel;
+  if (!h || st.recording || st.paused || st.analyzing || st.uploadFout) return '';
+  const wanneer = new Date(h.tijd).toLocaleString('nl-NL',
+    { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const duur = h.duur ? Math.max(1, Math.round(h.duur / 60)) : null;
+  return `<div class="chart-card" style="margin-bottom:14px;border-left:4px solid #f59e0b;padding:14px 16px;">
+    <div style="font-weight:700;font-size:.9rem;margin-bottom:4px;">Niet-verwerkte opname gevonden</div>
+    <div style="font-size:.84rem;color:var(--muted);line-height:1.6;margin-bottom:10px;">
+      Van ${wanneer}${duur ? ', ongeveer ' + duur + ' ' + (duur === 1 ? 'minuut' : 'minuten') : ''}.
+      De audio is veilig op dit apparaat bewaard en kan alsnog verwerkt worden.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="proj-save-btn" onclick="${sleutel}HerstelVerwerk()">Alsnog verwerken</button>
+      <button class="btn-secondary" onclick="${sleutel}HerstelWeggooi()">Weggooien</button>
+    </div></div>`;
+}
+
+function gesprekHerstelVerwerk() {
+  const h = GESPREK._herstel; if (!h) return;
+  if (h.meta) {
+    if (!GESPREK.naam) GESPREK.naam = h.meta.naam || '';
+    if (!GESPREK.functie) GESPREK.functie = h.meta.functie || '';
+    if (!GESPREK.recorderNaam) GESPREK.recorderNaam = h.meta.recorderNaam || '';
+  }
+  GESPREK._herstel = null;
+  gesprekUpload(h.blob, h.mimeType);
+}
+function gesprekHerstelWeggooi() {
+  if (!confirm('Deze opname definitief weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+  GESPREK._herstel = null;
+  recWis('gesprek');
+  renderGesprek();
+}
+function gesprekUploadOpnieuw() {
+  if (GESPREK._laatsteBlob) { GESPREK.uploadFout = false; gesprekUpload(GESPREK._laatsteBlob, GESPREK._laatsteMime); return; }
+  recLees('gesprek').then(w => {
+    if (w && w.blob) { GESPREK.uploadFout = false; gesprekUpload(w.blob, w.mimeType); }
+    else { GESPREK.statusMsg = '❌ Er is geen bewaarde audio meer gevonden.'; renderGesprek(); }
+  });
+}
+function gesprekOpnameWeggooien() {
+  if (!confirm('De opname weggooien? De audio is dan definitief weg.')) return;
+  GESPREK.uploadFout = false; GESPREK._laatsteBlob = null; GESPREK.statusMsg = '';
+  recWis('gesprek');
+  renderGesprek();
+}
+
+function bezoekHerstelVerwerk() {
+  const h = BEZOEK._herstel; if (!h) return;
+  if (h.meta) {
+    if (!BEZOEK.bedrijf) BEZOEK.bedrijf = h.meta.bedrijf || '';
+    if (!BEZOEK.contactpersoon) BEZOEK.contactpersoon = h.meta.contactpersoon || '';
+    if (h.meta.soortBezoek) BEZOEK.soortBezoek = h.meta.soortBezoek;
+    if (!BEZOEK.recorderNaam) BEZOEK.recorderNaam = h.meta.recorderNaam || '';
+  }
+  BEZOEK._herstel = null;
+  bezoekUpload(h.blob, h.mimeType);
+}
+function bezoekHerstelWeggooi() {
+  if (!confirm('Deze opname definitief weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+  BEZOEK._herstel = null;
+  recWis('bezoek');
+  renderBezoekRecorder();
+}
+function bezoekUploadOpnieuw() {
+  if (BEZOEK._laatsteBlob) { BEZOEK.uploadFout = false; bezoekUpload(BEZOEK._laatsteBlob, BEZOEK._laatsteMime); return; }
+  recLees('bezoek').then(w => {
+    if (w && w.blob) { BEZOEK.uploadFout = false; bezoekUpload(w.blob, w.mimeType); }
+    else { BEZOEK.statusMsg = '❌ Er is geen bewaarde audio meer gevonden.'; renderBezoekRecorder(); }
+  });
+}
+function bezoekOpnameWeggooien() {
+  if (!confirm('De opname weggooien? De audio is dan definitief weg.')) return;
+  BEZOEK.uploadFout = false; BEZOEK._laatsteBlob = null; BEZOEK.statusMsg = '';
+  recWis('bezoek');
+  renderBezoekRecorder();
+}
+
 // ── Recorder (sollicitatiegesprek opnemen + analyseren via AI) ────────────
 
 async function gesprekStart() {
+  // Staat er nog iets klaar van een vorige keer? Eerst afhandelen — een nieuwe
+  // opname zou de bewaarde audio stilletjes overschrijven.
+  if (GESPREK._herstel) {
+    alert('Er staat nog een niet-verwerkte opname klaar. Kies eerst "Alsnog verwerken" of "Weggooien".');
+    return;
+  }
+  if (GESPREK.uploadFout) {
+    alert('De vorige opname is nog niet verwerkt. Klik eerst op "Opnieuw proberen" of "Opname weggooien".');
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -13348,6 +13535,10 @@ async function gesprekStart() {
     };
 
     mr.start(1000);
+    GESPREK.uploadFout = false; GESPREK._laatsteBlob = null;
+    // Elke 30 seconden de opname-tot-nu-toe veiligstellen op dit apparaat.
+    if (GESPREK.checkpointTimer) clearInterval(GESPREK.checkpointTimer);
+    GESPREK.checkpointTimer = setInterval(() => _recCheckpoint(GESPREK, 'gesprek'), 30000);
     GESPREK.timerInterval = setInterval(() => { GESPREK.recordingTime++; renderGesprek(); }, 1000);
     renderGesprek();
   } catch(err) {
@@ -13385,6 +13576,7 @@ async function gesprekDoorgaan() {
 }
 
 function gesprekStop() {
+  if (GESPREK.checkpointTimer) { clearInterval(GESPREK.checkpointTimer); GESPREK.checkpointTimer = null; }
   if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
   GESPREK.recording = false;
   GESPREK.paused = false;
@@ -13399,59 +13591,74 @@ function gesprekStop() {
 
 async function gesprekUpload(blob, mimeType) {
   GESPREK.analyzing = true;
+  GESPREK.uploadFout = false;
+  GESPREK._laatsteBlob = blob;
+  GESPREK._laatsteMime = mimeType || 'audio/webm';
   renderGesprek();
-  try {
-    const session = supa ? (await supa.auth.getSession())?.data?.session : null;
-    const authHeader = session?.access_token || null;
-    const userId = session?.user?.id || 'anoniem';
-    const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-    const fd = new FormData();
 
-    // Stap 1: Upload audio naar Supabase Storage vanuit de browser.
-    // Dit gaat direct browser → Storage zonder tussenkomst van de Edge Function,
-    // dus er is geen timeout-risico — ook niet bij opnames van >1 uur.
-    GESPREK.statusMsg = '⏳ Audio uploaden…';
+  // Stap 0: eerst veiligstellen op dit apparaat. Wat er hierna ook misgaat
+  // met het netwerk — de audio zelf kan niet meer verloren gaan.
+  await recBewaar('gesprek', { blob, mimeType: GESPREK._laatsteMime, tijd: Date.now(),
+    duur: (GESPREK.totalRecordingTime || 0) + (GESPREK.recordingTime || 0),
+    meta: { naam: GESPREK.naam || '', functie: GESPREK.functie || '',
+            recorderNaam: GESPREK.recorderNaam || '' } });
+
+  try {
+    const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+    const userId = (supa ? (await supa.auth.getSession())?.data?.session?.user?.id : null) || 'anoniem';
+
+    // Stap 1: Upload audio naar Supabase Storage vanuit de browser — met drie
+    // pogingen, want juist na een lange opname hapert een mobiele verbinding weleens.
+    const mb = Math.round(blob.size / 1024 / 1024 * 10) / 10;
+    GESPREK.statusMsg = '⏳ Audio uploaden… (' + mb + ' MB)';
     renderGesprek();
     const storagePath = userId + '/' + Date.now() + '.' + ext;
-    const { error: uploadError } = await supa.storage
-      .from('audio-opnames')
-      .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
-    if (uploadError) throw new Error('Audio opslaan mislukt: ' + uploadError.message +
-      ' — Controleer of de Storage bucket "audio-opnames" is aangemaakt in Supabase.');
+    await _metPogingen(async () => {
+      const { error } = await supa.storage.from('audio-opnames')
+        .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
+      if (error) throw new Error('Audio opslaan mislukt: ' + error.message +
+        ' — Controleer of de Storage bucket "audio-opnames" is aangemaakt in Supabase.');
+    }, (p) => { GESPREK.statusMsg = '⏳ Upload haperde — nieuwe poging (' + (p + 1) + ' van 3)…'; renderGesprek(); });
+    GESPREK._audioStoragePath = storagePath;
 
-    // Stap 2: Haal een tijdelijke URL op (1 uur geldig — lang genoeg voor transcriptie).
+    // Stap 2: Tijdelijke URL (1 uur geldig — lang genoeg voor transcriptie).
     const { data: urlData, error: urlError } = await supa.storage
       .from('audio-opnames')
       .createSignedUrl(storagePath, 3600);
     if (urlError || !urlData?.signedUrl) throw new Error('Signed URL ophalen mislukt');
-    GESPREK._audioStoragePath = storagePath;
 
-    // Stap 3: Stuur alleen de URL naar de Edge Function — geen groot bestand, geen timeout.
+    // Stap 3: Alleen de URL naar de Edge Function — geen groot bestand, geen
+    // timeout. Ook hier drie pogingen; de sessie wordt per poging opnieuw
+    // opgehaald, want na een uur opnemen kan de oude verlopen zijn.
+    const fd = new FormData();
     fd.append('audio_url', urlData.signedUrl);
     if (GESPREK.naam) fd.append('naam', GESPREK.naam);
     if (GESPREK.functie) fd.append('functie', GESPREK.functie);
 
     GESPREK.statusMsg = '⏳ Transcriptie wordt gestart…';
     renderGesprek();
-    const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-start', {
-      method: 'POST',
-      headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
-      body: fd,
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    const data = await _metPogingen(async () => {
+      const vers = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+      const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-start', {
+        method: 'POST',
+        headers: vers ? { 'Authorization': 'Bearer ' + vers } : {},
+        body: fd,
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error);
+      return d;
+    }, (p) => { GESPREK.statusMsg = '⏳ Starten haperde — nieuwe poging (' + (p + 1) + ' van 3)…'; renderGesprek(); });
     GESPREK.transcriptId = data.transcript_id;
     GESPREK.statusMsg = '⏳ Sprekers worden herkend en getranscribeerd… (1–3 min)';
     renderGesprek();
     gesprekPoll();
   } catch(err) {
-    // Ruim audiobestand op als dat al was geüpload
-    if (GESPREK._audioStoragePath && supa) {
-      supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
-      GESPREK._audioStoragePath = null;
-    }
+    // Bewust NIETS weggooien: de audio staat op dit apparaat bewaard (en
+    // mogelijk al op de server). Opnieuw proberen kan altijd.
     GESPREK.analyzing = false;
-    GESPREK.statusMsg = '⚠️ Fout: ' + err.message;
+    GESPREK.uploadFout = true;
+    GESPREK.statusMsg = '❌ Verwerken is na 3 pogingen niet gelukt (' + (err?.message || err) +
+      '). De opname is NIET verloren — controleer de verbinding en klik op Opnieuw proberen.';
     renderGesprek();
   }
 }
@@ -13481,6 +13688,8 @@ function gesprekPoll() {
         GESPREK.analyzing = false;
         GESPREK.statusMsg = '✅ Analyse klaar!';
         addGesprekRecord();
+        GESPREK._laatsteBlob = null;
+        recWis('gesprek');   // het vangnet mag weg: het verslag staat er
         renderGesprek();
       } else if (data.status === 'error' || data.error) {
         clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
@@ -13499,6 +13708,7 @@ function gesprekPoll() {
 }
 
 function gesprekReset() {
+  if (GESPREK.checkpointTimer) { clearInterval(GESPREK.checkpointTimer); GESPREK.checkpointTimer = null; }
   if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
   if (GESPREK.pollingTimer)  { clearInterval(GESPREK.pollingTimer);  GESPREK.pollingTimer  = null; }
   if (GESPREK.mediaRecorder && GESPREK.mediaRecorder.state !== 'inactive') {
@@ -13642,6 +13852,7 @@ function renderGesprek() {
   }
   // Vangnet: als het opstart-laden om wat voor reden niet liep, alsnog starten
   if (!_opnamesPreloadKlaar && !_opnamesPreloadBezig) _startOpnamesPreload();
+  _herstelCheck('gesprek', GESPREK, renderGesprek);
   if (gesprekSubView === 'records') { renderGesprekRecords(); return; }
   const g = GESPREK;
   const r = g.result;
@@ -13712,6 +13923,7 @@ function renderGesprek() {
       <button class="bm-subtab-btn" onclick="gesprekSubView='records';renderGesprekRecords();gesprekHerlaadRecords()">Recente records${_gesprekBadge}</button>
     </div>
 
+    ${_herstelPaneelHtml('gesprek', g)}
     <div class="chart-card" style="margin-bottom:14px;">
       <div class="two-col" style="gap:12px;margin-bottom:10px;">
         <div>
@@ -13754,6 +13966,8 @@ function renderGesprek() {
         ${!g.recording && !g.paused && !g.analyzing && (g.result || g.transcript)
           ? `<button class="btn-secondary" onclick="gesprekReset()">↺ Nieuw gesprek</button>`
           : ''}
+        ${g.uploadFout && !g.analyzing ? `<button class="proj-save-btn" onclick="gesprekUploadOpnieuw()">Opnieuw proberen</button>
+             <button class="btn-secondary" onclick="gesprekOpnameWeggooien()">Opname weggooien</button>` : ''}
         ${g.statusMsg ? `<span style="font-size:.85rem;color:var(--muted);">${escHtml(g.statusMsg)}</span>` : ''}
       </div>
 
@@ -13885,20 +14099,24 @@ async function _ensureProfilesCache() {
     (data || []).forEach(p => { _PROFILES_CACHE[p.id] = p.naam || p.bm_naam || ''; });
   } catch(e) { _meldStil('profielen ophalen', e); }
 }
-async function _saveVerslagToSupa(type, meta, result, transcript) {
-  if (!supa) return;
+async function _saveVerslagToSupa(type, meta, result, transcript, stil) {
+  if (!supa) return null;
   // Dit is de enige plek waar een opname naar de gedeelde server gaat. Mislukt
-  // dat stilzwijgend, dan denkt de collega dat het gesprek is opgeslagen terwijl
-  // het alleen in zijn eigen browser staat — en bij een andere computer is het weg.
-  // Daarom hier wél een zichtbare waarschuwing.
+  // dat, dan blijft het verslag lokaal staan met het label "alleen op dit
+  // apparaat" en probeert het dashboard het bij elke verversing opnieuw.
+  // Geeft het server-ID terug zodat het lokale record meteen definitief wordt.
   try {
-    const { error } = await supa.from('verslagen')
-      .insert({ type, meta, result, transcript, created_by: CURRENT_USER?.id || null });
+    const { data, error } = await supa.from('verslagen')
+      .insert({ type, meta, result, transcript, created_by: CURRENT_USER?.id || null })
+      .select('id').single();
     if (error) throw error;
+    return data?.id || null;
   } catch (e) {
     _meldStil('opname opslaan op de server (' + type + ')', e);
-    alert('Let op: de opname staat wel in dit scherm, maar kon niet naar de gedeelde server worden opgeslagen.\n\n'
-        + (e?.message || e) + '\n\nSluit dit tabblad nog niet en probeer het zo opnieuw, of maak eerst een kopie van het verslag.');
+    if (stil) return null;
+    alert('Let op: het verslag staat wel in dit scherm, maar kon niet naar de gedeelde server worden opgeslagen.\n\n'
+        + (e?.message || e) + '\n\nHet verslag blijft op dit apparaat bewaard met het label "alleen op dit apparaat"; het dashboard probeert het automatisch opnieuw te delen.');
+    return null;
   }
 }
 
@@ -13977,6 +14195,19 @@ async function loadGesprekRecordsFromDb() {
       heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
     };
   });
+  // Verslagen die alleen in deze browser bestaan (de server-opslag was destijds
+  // mislukt) niet weggooien. Vroeger verdween zo'n verslag stilletjes bij de
+  // eerstvolgende verversing — dat is iemand ook echt overkomen. Nu blijven ze
+  // staan en worden ze meteen opnieuw gepubliceerd.
+  const _gLokaal = bestaand.filter(e =>
+    !(typeof e.id === 'string' && String(e.id).includes('-')) && e.result &&
+    !GESPREK_RECORDS.some(sr => _itkSleutel(sr.naam) === _itkSleutel(e.naam) &&
+      _itkSleutel(sr.functie) === _itkSleutel(e.functie) && sr.datum === e.datum));
+  if (_gLokaal.length) {
+    _gLokaal.forEach(r => { r.ongedeeld = true; });
+    GESPREK_RECORDS = _gLokaal.concat(GESPREK_RECORDS);
+    _herpubliceerVerslagen('gesprek', _gLokaal);
+  }
   _saveGesprekRec();
   if (currentTab === 'gesprek') renderGesprek();
   if (bmSubTab === 'coaching') refreshCoachingTab();
@@ -14023,10 +14254,36 @@ async function loadBezoekRecordsFromDb() {
       heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
     };
   });
+  const _bLokaal = bestaandB.filter(e =>
+    !(typeof e.id === 'string' && String(e.id).includes('-')) && e.result &&
+    !BEZOEK_RECORDS.some(sr => _itkSleutel(sr.bedrijf) === _itkSleutel(e.bedrijf) &&
+      (sr.soortBezoek || '') === (e.soortBezoek || '') && sr.datum === e.datum));
+  if (_bLokaal.length) {
+    _bLokaal.forEach(r => { r.ongedeeld = true; });
+    BEZOEK_RECORDS = _bLokaal.concat(BEZOEK_RECORDS);
+    _herpubliceerVerslagen('bezoek', _bLokaal);
+  }
   _saveBezoekRec();
   if (currentTab === 'bezoek') renderBezoekRecorder();
   if (bmSubTab === 'coaching') refreshCoachingTab();
   _laadTranscriptsAchtergrond('bezoek');    // fase 2, blokkeert niets
+}
+
+// Verslagen die nooit op de server zijn aangekomen alsnog delen. Lukt het,
+// dan krijgt het record zijn server-ID en ziet iedereen het. Lukt het niet,
+// dan blijft het lokaal staan met het label — en proberen we het de volgende
+// keer gewoon weer.
+async function _herpubliceerVerslagen(type, lijst) {
+  for (const r of lijst) {
+    const meta = type === 'gesprek'
+      ? { naam: r.naam, functie: r.functie, datum: r.datum, recorder_naam: r.recorder_naam || '' }
+      : { bedrijf: r.bedrijf, contactpersoon: r.contactpersoon, soortBezoek: r.soortBezoek,
+          datum: r.datum, recorder_naam: r.recorder_naam || '' };
+    const serverId = await _saveVerslagToSupa(type, meta, r.result, r.transcript, true);
+    if (serverId) { r.id = serverId; r.ongedeeld = false; }
+  }
+  if (type === 'gesprek') { _saveGesprekRec(); if (currentTab === 'gesprek' && gesprekSubView === 'records') renderGesprekRecords(); }
+  else { _saveBezoekRec(); if (currentTab === 'bezoek' && bezoekSubView === 'records') renderBezoekRecords(); }
 }
 
 function _setResultOverride(id, result) {
@@ -14094,9 +14351,18 @@ function addGesprekRecord() {
     GESPREK_RECORDS[dupIdx] = { ...GESPREK_RECORDS[dupIdx], ...record, id: bestaandId, transcript: samen };
     _updateGesprekVerslagInSupa(bestaandId, g.result, samen);
   } else {
-    GESPREK_RECORDS.unshift({ ...record, id: Date.now() });
+    const nieuw = { ...record, id: Date.now(), ongedeeld: true };
+    GESPREK_RECORDS.unshift(nieuw);
     if (GESPREK_RECORDS.length > 50) GESPREK_RECORDS.length = 50;
-    _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam }, g.result, g.transcript);
+    // Lukt het opslaan, dan krijgt het record meteen zijn server-ID en is het
+    // definitief. Lukt het niet, dan blijft het staan met het label "alleen op
+    // dit apparaat" en wordt het bij de volgende verversing opnieuw geprobeerd.
+    _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam }, g.result, g.transcript)
+      .then(serverId => {
+        if (serverId) { nieuw.id = serverId; nieuw.ongedeeld = false; }
+        _saveGesprekRec();
+        if (currentTab === 'gesprek' && gesprekSubView === 'records') renderGesprekRecords();
+      });
   }
   _saveGesprekRec();
 }
@@ -14129,9 +14395,15 @@ function addBezoekRecord() {
     // Update bestaand DB-record
     _updateBezoekVerslagInSupa(existingId, b.result, b.transcript);
   } else {
-    BEZOEK_RECORDS.unshift({ ...record, id: Date.now() });
+    const nieuw = { ...record, id: Date.now(), ongedeeld: true };
+    BEZOEK_RECORDS.unshift(nieuw);
     if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
-    _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript);
+    _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript)
+      .then(serverId => {
+        if (serverId) { nieuw.id = serverId; nieuw.ongedeeld = false; }
+        _saveBezoekRec();
+        if (currentTab === 'bezoek' && bezoekSubView === 'records') renderBezoekRecords();
+      });
   }
   _saveBezoekRec();
 }
@@ -14585,6 +14857,7 @@ function renderGesprekRecords() {
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
           ${afsprakenStatusPil(rec.id)}
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
           ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
@@ -14680,6 +14953,7 @@ function renderBezoekRecords() {
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
+          ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
           <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;">${soortEmoji} ${escHtml(soortLabel)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
           ${rec.recorder_naam
@@ -14958,6 +15232,14 @@ let BEZOEK = {
 };
 
 async function bezoekStart() {
+  if (BEZOEK._herstel) {
+    alert('Er staat nog een niet-verwerkte opname klaar. Kies eerst "Alsnog verwerken" of "Weggooien".');
+    return;
+  }
+  if (BEZOEK.uploadFout) {
+    alert('De vorige opname is nog niet verwerkt. Klik eerst op "Opnieuw proberen" of "Opname weggooien".');
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -14978,6 +15260,9 @@ async function bezoekStart() {
       bezoekUpload(blob, mr.mimeType || 'audio/webm');
     };
     mr.start(1000);
+    BEZOEK.uploadFout = false; BEZOEK._laatsteBlob = null;
+    if (BEZOEK.checkpointTimer) clearInterval(BEZOEK.checkpointTimer);
+    BEZOEK.checkpointTimer = setInterval(() => _recCheckpoint(BEZOEK, 'bezoek'), 30000);
     BEZOEK.timerInterval = setInterval(() => { BEZOEK.recordingTime++; renderBezoekRecorder(); }, 1000);
     renderBezoekRecorder();
   } catch(err) {
@@ -14987,6 +15272,7 @@ async function bezoekStart() {
 }
 
 function bezoekStop() {
+  if (BEZOEK.checkpointTimer) { clearInterval(BEZOEK.checkpointTimer); BEZOEK.checkpointTimer = null; }
   if (BEZOEK.timerInterval) { clearInterval(BEZOEK.timerInterval); BEZOEK.timerInterval = null; }
   if (BEZOEK.mediaRecorder && BEZOEK.mediaRecorder.state !== 'inactive') {
     BEZOEK.mediaRecorder.stop();
@@ -14998,30 +15284,43 @@ function bezoekStop() {
 
 async function bezoekUpload(blob, mimeType) {
   BEZOEK.analyzing = true;
+  BEZOEK.uploadFout = false;
+  BEZOEK._laatsteBlob = blob;
+  BEZOEK._laatsteMime = mimeType || 'audio/webm';
   renderBezoekRecorder();
+
+  // Stap 0: eerst veiligstellen op dit apparaat — zie de uitleg bij het
+  // gespreks-vangnet hierboven.
+  await recBewaar('bezoek', { blob, mimeType: BEZOEK._laatsteMime, tijd: Date.now(),
+    duur: BEZOEK.recordingTime || 0,
+    meta: { bedrijf: BEZOEK.bedrijf || '', contactpersoon: BEZOEK.contactpersoon || '',
+            soortBezoek: BEZOEK.soortBezoek || '', recorderNaam: BEZOEK.recorderNaam || '' } });
+
   try {
-    const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
     const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
 
-    // Stap 1: Upload audio direct naar Supabase Storage (browser → Storage, geen Edge Function timeout).
-    BEZOEK.statusMsg = '⏳ Audio uploaden naar opslag… (even geduld bij lange opnames)';
+    // Stap 1: Upload naar Storage — met drie pogingen.
+    const mb = Math.round(blob.size / 1024 / 1024 * 10) / 10;
+    BEZOEK.statusMsg = '⏳ Audio uploaden… (' + mb + ' MB)';
     renderBezoekRecorder();
     const ts = Date.now();
     const userId = (await supa.auth.getUser())?.data?.user?.id || 'anon';
     const storagePath = `${userId}/bezoek_${ts}.${ext}`;
-    const { error: uploadErr } = await supa.storage
-      .from('audio-opnames')
-      .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
-    if (uploadErr) throw new Error('Opslag-upload mislukt: ' + uploadErr.message);
+    await _metPogingen(async () => {
+      const { error } = await supa.storage.from('audio-opnames')
+        .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
+      if (error) throw new Error('Opslag-upload mislukt: ' + error.message);
+    }, (p) => { BEZOEK.statusMsg = '⏳ Upload haperde — nieuwe poging (' + (p + 1) + ' van 3)…'; renderBezoekRecorder(); });
     BEZOEK._audioStoragePath = storagePath;
 
-    // Stap 2: Haal signed URL op (1 uur geldig — ruim voor AssemblyAI).
+    // Stap 2: Signed URL (1 uur geldig — ruim voor AssemblyAI).
     const { data: urlData, error: urlErr } = await supa.storage
       .from('audio-opnames')
       .createSignedUrl(storagePath, 3600);
     if (urlErr || !urlData?.signedUrl) throw new Error('Signed URL ophalen mislukt');
 
-    // Stap 3: Stuur alleen de URL naar bezoek-start (klein payload, geen timeout risico).
+    // Stap 3: Alleen de URL naar bezoek-start — met drie pogingen, en de
+    // sessie per poging vers opgehaald (na een lange opname kan hij verlopen zijn).
     const fd = new FormData();
     fd.append('audio_url', urlData.signedUrl);
     if (BEZOEK.bedrijf) fd.append('bedrijf', BEZOEK.bedrijf);
@@ -15030,25 +15329,27 @@ async function bezoekUpload(blob, mimeType) {
 
     BEZOEK.statusMsg = '⏳ Transcriptie wordt gestart…';
     renderBezoekRecorder();
-    const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-start', {
-      method: 'POST',
-      headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
-      body: fd,
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    const data = await _metPogingen(async () => {
+      const vers = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+      const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-start', {
+        method: 'POST',
+        headers: vers ? { 'Authorization': 'Bearer ' + vers } : {},
+        body: fd,
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error);
+      return d;
+    }, (p) => { BEZOEK.statusMsg = '⏳ Starten haperde — nieuwe poging (' + (p + 1) + ' van 3)…'; renderBezoekRecorder(); });
     BEZOEK.transcriptId = data.transcript_id;
     BEZOEK.statusMsg = '⏳ Sprekers worden herkend en getranscribeerd… (1–3 min)';
     renderBezoekRecorder();
     bezoekPoll();
   } catch(err) {
-    // Opruimen bij fout.
-    if (BEZOEK._audioStoragePath && supa) {
-      supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
-      BEZOEK._audioStoragePath = null;
-    }
+    // Bewust niets weggooien: de audio staat op dit apparaat bewaard.
     BEZOEK.analyzing = false;
-    BEZOEK.statusMsg = '⚠️ Fout: ' + err.message;
+    BEZOEK.uploadFout = true;
+    BEZOEK.statusMsg = '❌ Verwerken is na 3 pogingen niet gelukt (' + (err?.message || err) +
+      '). De opname is NIET verloren — controleer de verbinding en klik op Opnieuw proberen.';
     renderBezoekRecorder();
   }
 }
@@ -15079,6 +15380,8 @@ function bezoekPoll() {
           BEZOEK._audioStoragePath = null;
         }
         addBezoekRecord();
+        BEZOEK._laatsteBlob = null;
+        recWis('bezoek');   // het vangnet mag weg: het verslag staat er
         renderBezoekRecorder();
       } else if (data.status === 'error' || data.error) {
         clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
@@ -15096,6 +15399,7 @@ function bezoekPoll() {
 }
 
 function bezoekReset() {
+  if (BEZOEK.checkpointTimer) { clearInterval(BEZOEK.checkpointTimer); BEZOEK.checkpointTimer = null; }
   if (BEZOEK.timerInterval) { clearInterval(BEZOEK.timerInterval); BEZOEK.timerInterval = null; }
   if (BEZOEK.pollingTimer)  { clearInterval(BEZOEK.pollingTimer);  BEZOEK.pollingTimer  = null; }
   if (BEZOEK.mediaRecorder && BEZOEK.mediaRecorder.state !== 'inactive') {
@@ -15307,6 +15611,7 @@ function renderBezoekRecorder() {
     _bezoekRecsLoaded = true;
     loadBezoekRecordsFromDb();
   }
+  _herstelCheck('bezoek', BEZOEK, renderBezoekRecorder);
   if (bezoekSubView === 'records') { renderBezoekRecords(); return; }
   const b = BEZOEK;
   const r = b.result;
@@ -15454,6 +15759,7 @@ function renderBezoekRecorder() {
       <button class="bm-subtab-btn" onclick="bezoekSubView='records';renderBezoekRecords();bezoekHerlaadRecords()">Recente records${_bezoekBadge}</button>
     </div>
 
+    ${_herstelPaneelHtml('bezoek', b)}
     <div class="chart-card" style="margin-bottom:14px;">
       <div style="margin-bottom:14px;">
         <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:6px;">Type bezoek</label>
@@ -15498,6 +15804,8 @@ function renderBezoekRecorder() {
         ${!b.recording && !b.analyzing && (b.result || b.transcript)
           ? `<button class="btn-secondary" onclick="bezoekReset()">↺ Nieuw bezoek</button>`
           : ''}
+        ${b.uploadFout && !b.analyzing ? `<button class="proj-save-btn" onclick="bezoekUploadOpnieuw()">Opnieuw proberen</button>
+             <button class="btn-secondary" onclick="bezoekOpnameWeggooien()">Opname weggooien</button>` : ''}
         ${b.statusMsg ? `<span style="font-size:.85rem;color:var(--muted);">${escHtml(b.statusMsg)}</span>` : ''}
       </div>
 
