@@ -1075,17 +1075,63 @@
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
   }
-  /* De kolombreedtes staan in het HTML vast in pixels. Bij 390px breedte
-     verdeelt de browser die evenredig en houdt elke kolom nog geen twintig
-     pixels over — vandaar dat bedragen per letter afbraken. Op mobiel laten
-     we de kolommen daarom hun eigen breedte kiezen. */
-  main table col { width: auto !important; }
-  main table { table-layout: auto !important; }
-  .acc-table, .bt-lijst, .bt-cijfers { min-width: 620px; }
-  .acc-table tbody td, .acc-table thead th,
-  .bt-lijst tbody td, .bt-lijst thead th { white-space: nowrap; }
-  /* Grafieken hebben geen minimumbreedte nodig; die schalen zelf mee. */
+  /* Grafieken schalen zelf mee. */
   .chart-card canvas { max-width: 100%; }
+
+  /* ── Brede tabellen worden kaartjes ─────────────────────────────────────
+     Een tabel met veertien kolommen past niet op 390px. In plaats van hem
+     opzij te laten schuiven, zetten we elke rij om in een blokje: de naam
+     bovenaan, daaronder per regel het kolomkopje links en de waarde rechts.
+     Alles blijft zichtbaar en er valt niets meer buiten beeld.
+
+     De kolomkopjes komen uit de tabel zelf: mobielTabelLabels() kopieert na
+     elke render de tekst van de <th> naar een data-label op de bijbehorende
+     cel. Zo hoeft er in de honderden plekken waar tabellen worden opgebouwd
+     niets te veranderen.
+
+     Let op: dit geldt alleen voor .acc-table (Sales Leads, KAM, Financieel).
+     Het weekblok gebruikt procentbreedtes en past al; die laten we met rust. */
+  .acc-table, .acc-table thead, .acc-table tbody, .acc-table tr,
+  .acc-table th, .acc-table td { display: block; width: auto !important; }
+  .acc-table { min-width: 0 !important; table-layout: auto !important; }
+  .acc-table col { width: auto !important; }
+  .acc-table thead { display: none; }            /* kopregel is verhuisd naar de cellen */
+  .acc-table colgroup { display: none; }
+  .acc-table tbody tr {
+    background: var(--card) !important;
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+  .acc-table tbody tr:nth-child(even) { background: var(--card-alt) !important; }
+  .bt-venster .acc-table tbody tr,
+  .bt-venster .acc-table tbody tr:nth-child(even) {
+    background: rgba(255,255,255,.06) !important; border-color: rgba(255,255,255,.09);
+  }
+  .acc-table tbody td {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 4px 0 !important; text-align: right !important;
+    white-space: normal !important; overflow: visible !important;
+    border: none !important; box-shadow: none !important;
+  }
+  .acc-table tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 auto; text-align: left;
+    font-size: var(--t-xs); color: var(--muted); font-weight: var(--w-normaal);
+  }
+  .bt-venster .acc-table tbody td::before { color: rgba(255,255,255,.5); }
+  /* De eerste cel is de naam: die krijgt geen label maar wordt de kop. */
+  .acc-table tbody td:first-child {
+    justify-content: flex-start; text-align: left !important;
+    font-size: var(--t-md); font-weight: var(--w-nadruk);
+    padding-bottom: 7px !important; margin-bottom: 5px;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .bt-venster .acc-table tbody td:first-child { border-bottom-color: rgba(255,255,255,.1) !important; }
+  .acc-table tbody td:first-child::before { content: none; }
+  /* Lege cellen (geen waarde, geen knop) nemen anders onnodig hoogte in. */
+  .acc-table tbody td:empty { display: none; }
+  /* De knoppenrij onderaan het kaartje. */
+  .acc-table .acc-actions-cell { justify-content: flex-end; }
 
   /* Person header: niet sticky op mobiel */
   .person-header { position: static; border-radius: 22px; margin: 0 0 14px; top: auto; z-index: auto; }
@@ -3839,6 +3885,43 @@ function snapshotPvaInputs() {
 }
 
 // ── Main render ───────────────────────────────────────────────────────────────
+// ── Kolomkopjes naar de cellen kopiëren (alleen mobiel) ─────────────────────
+// Op een smal scherm worden de brede tabellen kaartjes: de kopregel verdwijnt
+// en elke cel toont zijn eigen label. Dat label komt uit de <th> van dezelfde
+// kolom en wordt hier als data-label op de cel gezet. Zo hoeft er niets te
+// veranderen aan de tientallen plekken waar die tabellen worden opgebouwd.
+//
+// Draait via een waarnemer op #main, omdat render() op veel plekken vroegtijdig
+// stopt; zo pakken we élke hertekening mee, ook die van de sub-schermen.
+function mobielTabelLabels() {
+  if (window.innerWidth > 768) return;
+  document.querySelectorAll('#main table.acc-table').forEach(tab => {
+    const koppen = Array.from(tab.querySelectorAll('thead th'))
+      .map(th => (th.textContent || '').trim());
+    if (!koppen.length) return;
+    tab.querySelectorAll('tbody tr').forEach(tr => {
+      Array.from(tr.children).forEach((cel, i) => {
+        const label = koppen[i];
+        if (label && cel.getAttribute('data-label') !== label) cel.setAttribute('data-label', label);
+      });
+    });
+  });
+}
+
+let _mobLabelTimer = null;
+function _startMobielTabelWaarnemer() {
+  const doel = document.getElementById('main');
+  if (!doel || typeof MutationObserver === 'undefined') return;
+  const waarnemer = new MutationObserver(() => {
+    // Even wachten: bij één hertekening komen er tientallen wijzigingen binnen.
+    clearTimeout(_mobLabelTimer);
+    _mobLabelTimer = setTimeout(mobielTabelLabels, 60);
+  });
+  waarnemer.observe(doel, { childList: true, subtree: true });
+  mobielTabelLabels();
+}
+window.addEventListener('resize', () => { clearTimeout(_mobLabelTimer); _mobLabelTimer = setTimeout(mobielTabelLabels, 150); });
+
 function render() {
   refreshWeekConstants();
   snapshotPvaInputs();
@@ -5066,6 +5149,7 @@ async function loadProfileAndStart() {
   await loadAllData();
   render();
   verbergLaadscherm();
+  _startMobielTabelWaarnemer();
   toonDagstart().then(toonMemos).catch(() => toonMemos());
   subscribeRealtime();
   _publiceerAchtergrond();
