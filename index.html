@@ -4484,6 +4484,7 @@ function renderMedewerkersOverzicht() {
         '<span class="meta-pill">Stand t/m week ' + CUR.week + '</span>' +
       '</div>' +
     '</div>' +
+    dataWaarschuwingHtml() +
     '<div style="font-size:var(--t-xs);color:rgba(255,255,255,.45);letter-spacing:.04em;margin:6px 0 6px 2px;">STARTERS DIT JAAR</div>' +
     '<div class="bt-venster">' + rankRows + '</div>' +
     renderGebruikBalk(CUR.year, CUR.week) +
@@ -4582,6 +4583,7 @@ function renderTeam() {
         <span class="meta-pill">Ratio's over 26 weken</span>
       </div>
     </div>
+    ${dataWaarschuwingHtml()}
 
     <!-- KPI's per week – volledige breedte -->
     <div class="section-title">Team KPI-grafieken (${year})</div>
@@ -5331,23 +5333,88 @@ async function savePlanVanAanpak(bmNaam) {
 }
 
 // ── Database: KPI-weekdata laden ───────────────────────────────────────────────
+// Staat er iets mis met de cijfers die we konden ophalen? Dan komt dat hier te
+// staan en verschijnt er een gele balk boven de ranglijst. Léég betekent: alles
+// binnengehaald.
+let DATA_WAARSCHUWING = '';
+
 async function loadKpiWeekly() {
   if (!supa) return; // blijft op de ingebouwde voorbeelddata
   const { data, error } = await supa.from('kpi_weekly').select('*');
-  if (error) { console.error('KPI-data laden mislukt:', error); return; }
+  if (error) {
+    console.error('KPI-data laden mislukt:', error);
+    DATA_WAARSCHUWING = 'De weekcijfers konden niet uit de database worden opgehaald (' +
+      (error.message || 'onbekende fout') + '). Wat je hieronder ziet is niet actueel.';
+    return;
+  }
   if (data) {
     const supaRows = data.map(r => ({
       naam: r.bm_naam, jaar: r.jaar, week: r.week,
       intakes: r.intakes||0, bezoeken: r.bezoeken||0, aanbiedingen: r.aanbiedingen||0,
       matchgesprekken: r.matchgesprekken||0, contractvoorstellen: r.contractvoorstellen||0, starters: r.starters||0,
     }));
-    // Supabase-rijen zijn leidend. Hardcoded RAW_HARDCODED vult weken op die
-    // (nog) niet in de DB zitten — bijv. historische data die nooit gemigreerd is.
-    // Zo verdwijnen geen waarden als de DB-tabel incompleet is.
-    const supaKeys = new Set(supaRows.map(r => `${r.naam}|${r.jaar}|${r.week}`));
-    const hardcodedOnly = RAW_HARDCODED.filter(r => !supaKeys.has(`${r.naam}|${r.jaar}|${r.week}`));
+
+    // ── Aanvullen met de ingebouwde historie, maar met verstand ─────────────
+    // De ingebouwde RAW_HARDCODED is een momentopname uit het voorjaar. Die is
+    // bedoeld voor jaren die nooit naar de database zijn gemigreerd. Vroeger
+    // vulde hij ELK gat aan, en dat pakte verkeerd uit: een BM mocht alleen
+    // zijn eigen rijen lezen, dus werden de cijfers van al zijn collega's
+    // stilzwijgend vervangen door die oude momentopname. Geen foutmelding,
+    // wel verkeerde cijfers — het vervelendste soort fout dat er is.
+    //
+    // Drie regels lossen dat op:
+    //   1. Kent de database een jaar helemaal niet? Dan is de ingebouwde data
+    //      echte historie en mag hij mee.
+    //   2. Kent de database het jaar wél, maar deze collega niet? Dan klopt er
+    //      iets niet aan de rechten — dan tonen we liever niets dan iets ouds.
+    //   3. Kent de database deze collega in dit jaar wél? Dan mogen losse
+    //      ontbrekende weken worden aangevuld, precies zoals voorheen.
+    const supaKeys      = new Set(supaRows.map(r => `${r.naam}|${r.jaar}|${r.week}`));
+    const jarenInDb     = new Set(supaRows.map(r => r.jaar));
+    const persoonInDb   = new Set(supaRows.map(r => `${r.naam}|${r.jaar}`));
+    const hardcodedOnly = RAW_HARDCODED.filter(r => {
+      if (!jarenInDb.has(r.jaar)) return true;                       // 1
+      if (!persoonInDb.has(`${r.naam}|${r.jaar}`)) return false;     // 2
+      return !supaKeys.has(`${r.naam}|${r.jaar}|${r.week}`);         // 3
+    });
     RAW = [...supaRows, ...hardcodedOnly];
+
+    _controleerTeamcijfers(persoonInDb);
   }
+}
+
+// Kijkt of we van élke actieve collega cijfers van dit jaar hebben. Ontbreken
+// er twee of meer, dan is dat vrijwel altijd een rechtenkwestie in Supabase —
+// en dan hoort de gebruiker dat te weten in plaats van naar oude cijfers te
+// kijken. Eén ontbrekende collega kan gewoon een nieuwe starter zijn die nog
+// niets heeft ingevuld; daar waarschuwen we niet voor.
+function _controleerTeamcijfers(persoonInDb) {
+  DATA_WAARSCHUWING = '';
+  try {
+    const actief = (BMS || []).filter(b => b && !b.special && !b.inactief).map(b => b.naam);
+    if (actief.length < 3) return;
+    const zonder = actief.filter(n => !persoonInDb.has(`${n}|${CUR.year}`));
+    if (zonder.length < 2) return;
+    DATA_WAARSCHUWING =
+      'Van ' + zonder.slice(0, 6).join(', ') + (zonder.length > 6 ? ' en nog ' + (zonder.length - 6) + ' anderen' : '') +
+      ' konden de cijfers van ' + CUR.year + ' niet worden opgehaald. Hun regels hieronder staan daarom op 0 — ' +
+      'dat is dus geen resultaat maar een leesrecht dat ontbreekt. Vraag de beheerder om ' +
+      'supabase/leesrechten_teamcijfers.sql uit te voeren.';
+  } catch (e) { _meldStil('teamcijfers controleren', e); }
+}
+
+// De gele balk zelf. Staat boven de ranglijst en boven Team Resultaten: precies
+// de twee schermen waar cijfers van collega's te zien zijn.
+function dataWaarschuwingHtml() {
+  if (!DATA_WAARSCHUWING) return '';
+  return '<div style="display:flex;align-items:flex-start;gap:10px;background:rgba(244,203,60,.14);' +
+    'border:1px solid rgba(244,203,60,.4);border-radius:10px;padding:11px 14px;margin-bottom:12px;' +
+    'font-size:var(--t-sm);line-height:1.6;color:#f6e2a3;">' +
+    '<svg viewBox="0 0 24 24" style="width:17px;height:17px;flex-shrink:0;margin-top:2px;fill:none;' +
+    'stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;" aria-hidden="true">' +
+    '<path d="M10.3 4.3 2.6 18a1.7 1.7 0 0 0 1.5 2.5h15.8A1.7 1.7 0 0 0 21.4 18L13.7 4.3a1.7 1.7 0 0 0-3 0z"/>' +
+    '<path d="M12 9.5v4M12 17h.01"/></svg>' +
+    '<span><strong>Let op — deze cijfers zijn niet compleet.</strong> ' + escHtml(DATA_WAARSCHUWING) + '</span></div>';
 }
 
 // ── Database: Projectenlijst laden (Excel-import) ─────────────────────────────
