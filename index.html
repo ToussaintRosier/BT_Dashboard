@@ -7002,7 +7002,9 @@ async function gesprekCoachAnalyse(id) {
     const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-coaching', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
-      body: JSON.stringify({ transcript: rec.transcript, type: 'itk' }),
+      body: JSON.stringify({ transcript: rec.transcript, type: 'itk',
+                             recorder_naam: rec.recorder_naam || '',
+                             gesprekspartner: rec.naam || '' }),
     });
     const data = await res.json();
     GESPREK_COACHING_RESULTS[id] = { loading: false, result: data.error ? null : data, error: data.error || null };
@@ -7026,7 +7028,9 @@ async function bezoekCoachAnalyse(id) {
     const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-coaching', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
-      body: JSON.stringify({ transcript: rec.transcript, type: 'bzk' }),
+      body: JSON.stringify({ transcript: rec.transcript, type: 'bzk',
+                             recorder_naam: rec.recorder_naam || '',
+                             gesprekspartner: [rec.bedrijf, rec.contactpersoon].filter(Boolean).join(' — ') }),
     });
     const data = await res.json();
     BEZOEK_COACHING_RESULTS[id] = { loading: false, result: data.error ? null : data, error: data.error || null };
@@ -13767,6 +13771,23 @@ function bezoekOpnameWeggooien() {
   renderBezoekRecorder();
 }
 
+// AssemblyAI kent alleen "Spreker A" en "Spreker B" — het herkent stemmen, geen
+// mensen. De analyse bepaalt uit de context wie wie is en geeft dat terug; hier
+// zetten we die namen in het transcript. Weet de analyse het niet zeker, dan
+// laat hij die letter weg en blijft "Spreker A" gewoon staan. Liever geen naam
+// dan de verkeerde naam in een verslag dat later wordt teruggelezen.
+function _sprekersVervangen(transcript, sprekers) {
+  if (!transcript || !sprekers || typeof sprekers !== 'object') return transcript;
+  let uit = String(transcript);
+  Object.keys(sprekers).forEach(letter => {
+    const naam = String(sprekers[letter] || '').trim();
+    if (!naam || !/^[A-Za-z]$/.test(letter)) return;
+    if (/^spreker/i.test(naam)) return;          // geen "Spreker A" → "Spreker A"
+    uit = uit.split('[Spreker ' + letter.toUpperCase() + ']').join('[' + naam + ']');
+  });
+  return uit;
+}
+
 // ── Recorder (sollicitatiegesprek opnemen + analyseren via AI) ────────────
 
 async function gesprekStart() {
@@ -13941,6 +13962,9 @@ function gesprekPoll() {
       const params = new URLSearchParams({ id: GESPREK.transcriptId });
       if (GESPREK.naam) params.set('naam', GESPREK.naam);
       if (GESPREK.functie) params.set('functie', GESPREK.functie);
+      // Wie het gesprek voerde: dan schrijft de analyse zijn naam in plaats van
+      // "de interviewer", en kan hij de juiste spreker aan die naam koppelen.
+      if (GESPREK.recorderNaam) params.set('recorder_naam', GESPREK.recorderNaam);
       const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-check?' + params.toString(), {
         headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
       });
@@ -13952,7 +13976,7 @@ function gesprekPoll() {
           supa.storage.from('audio-opnames').remove([GESPREK._audioStoragePath]).catch(() => {});
           GESPREK._audioStoragePath = null;
         }
-        GESPREK.transcript = data.transcript || '';
+        GESPREK.transcript = _sprekersVervangen(data.transcript || '', data.analyse?.sprekers);
         GESPREK.result = data.analyse || null;
         GESPREK.analyzing = false;
         GESPREK.statusMsg = '✅ Analyse klaar!';
@@ -14980,13 +15004,19 @@ async function gesprekRecordHeranalyse(id, silent) {
         'Content-Type': 'application/json',
         ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
       },
-      body: JSON.stringify({ naam: rec.naam, functie: rec.functie, transcript: rec.transcript }),
+      body: JSON.stringify({ naam: rec.naam, functie: rec.functie, transcript: rec.transcript,
+                             recorder_naam: rec.recorder_naam || '' }),
     });
     const data = await res.json();
     if (!res.ok || data.error || !data.analyse || !data.analyse.samenvatting) {
       throw new Error(data.error || 'Heranalyse mislukt.');
     }
     rec.result = data.analyse;
+    // Herkende de analyse wie wie is? Dan gaan die namen ook in het transcript,
+    // zodat je bij het terugkijken niet meer hoeft te raden wie "Spreker B" was.
+    const _nieuwTr = _sprekersVervangen(rec.transcript, data.analyse?.sprekers);
+    const _trGewijzigd = _nieuwTr !== rec.transcript;
+    if (_trGewijzigd) rec.transcript = _nieuwTr;
     _setResultOverride(rec.id, data.analyse); // overleeft page-refresh én DB-reload
     _saveGesprekRec();
     if (supa) {
@@ -15019,17 +15049,23 @@ async function bezoekRecordHeranalyse(id) {
         'Content-Type': 'application/json',
         ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}),
       },
-      body: JSON.stringify({ bedrijf: rec.bedrijf, contactpersoon: rec.contactpersoon, soortBezoek: rec.soortBezoek || 'bedrijfsbezoek', transcript: rec.transcript }),
+      body: JSON.stringify({ bedrijf: rec.bedrijf, contactpersoon: rec.contactpersoon,
+                             soortBezoek: rec.soortBezoek || 'bedrijfsbezoek', transcript: rec.transcript,
+                             recorder_naam: rec.recorder_naam || '' }),
     });
     const data = await res.json();
     if (!res.ok || data.error || !data.analyse || !data.analyse.samenvatting) {
       throw new Error(data.error || 'Heranalyse mislukt.');
     }
     rec.result = data.analyse;
+    const _nieuwTr = _sprekersVervangen(rec.transcript, data.analyse?.sprekers);
+    const _trGewijzigd = _nieuwTr !== rec.transcript;
+    if (_trGewijzigd) rec.transcript = _nieuwTr;
     _setBezoekResultOverride(rec.id, data.analyse);
     _saveBezoekRec();
     if (supa) {
-      const { data: updData, error: updErr } = await supa.from('verslagen').update({ result: data.analyse }).eq('id', rec.id).select('id').single();
+      const _upd = _trGewijzigd ? { result: data.analyse, transcript: rec.transcript } : { result: data.analyse };
+      const { data: updData, error: updErr } = await supa.from('verslagen').update(_upd).eq('id', rec.id).select('id').single();
       if (!updErr && updData) _clearBezoekResultOverride(rec.id);
     }
   } catch(e) {
@@ -15633,13 +15669,14 @@ function bezoekPoll() {
       if (BEZOEK.bedrijf) params.set('bedrijf', BEZOEK.bedrijf);
       if (BEZOEK.contactpersoon) params.set('contactpersoon', BEZOEK.contactpersoon);
       params.set('soort_bezoek', BEZOEK.soortBezoek || 'bedrijfsbezoek');
+      if (BEZOEK.recorderNaam) params.set('recorder_naam', BEZOEK.recorderNaam);
       const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-check?' + params.toString(), {
         headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
       });
       const data = await res.json();
       if (data.status === 'completed') {
         clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
-        BEZOEK.transcript = data.transcript || '';
+        BEZOEK.transcript = _sprekersVervangen(data.transcript || '', data.analyse?.sprekers);
         BEZOEK.result = data.analyse || null;
         BEZOEK.analyzing = false;
         BEZOEK.statusMsg = '✅ Verslag klaar!';
