@@ -3083,6 +3083,28 @@ function oneHaalTagWeg(i) {
 }
 
 // ── Plaatsen ────────────────────────────────────────────────────────────────
+// Storage-fouten komen in het Engels terug en zeggen een collega niets. Hier
+// vertaald naar wat er werkelijk aan de hand is, met de stap die het oplost.
+function _oneFotoFout(fout) {
+  const m = String(fout?.message || fout || '');
+  if (/bucket not found/i.test(m)) {
+    return 'de fotoruimte is nog niet aangemaakt in Supabase. Vraag de beheerder om ' +
+           'supabase/one_fotobucket.sql uit te voeren. Je bericht zelf is niet verloren — ' +
+           'haal de foto weg en plaats het, of probeer het straks opnieuw.';
+  }
+  if (/payload too large|entity too large|exceeded the maximum/i.test(m)) {
+    return 'de foto is te groot voor de opslag (grens is 2 MB). Kies een kleinere foto.';
+  }
+  if (/mime type|not supported/i.test(m)) {
+    return 'dit bestandstype wordt niet geaccepteerd. Gebruik een gewone foto (JPG of PNG).';
+  }
+  if (/violates row-level security|not authorized|permission/i.test(m)) {
+    return 'je hebt geen rechten om foto\'s te plaatsen. Vraag de beheerder om ' +
+           'supabase/one_fotobucket.sql uit te voeren.';
+  }
+  return m;
+}
+
 async function onePlaats() {
   const status = document.getElementById('one-schrijf-status');
   if (!supa || !CURRENT_USER) { btZetStatus(status, '❌ Je bent niet ingelogd.'); return; }
@@ -3103,7 +3125,7 @@ async function onePlaats() {
       pad = ONE_MIJN_ID + '/' + Date.now() + '-' + ONE_FOTO.naam.replace(/\.[^.]+$/, '') + '.jpg';
       const { error: fErr } = await supa.storage.from('one-fotos')
         .upload(pad, ONE_FOTO.blob, { contentType:'image/jpeg' });
-      if (fErr) throw fErr;
+      if (fErr) throw new Error(_oneFotoFout(fErr));
     }
     // Ook namen die je zelf hebt ingetypt tellen mee als tag, zolang het een
     // bestaande collega is.
@@ -3129,7 +3151,7 @@ async function onePlaats() {
     renderOne();
   } catch (e) {
     _meldStil('bericht plaatsen', e);
-    btZetStatus(status, '❌ Plaatsen mislukt: ' + (e?.message || e));
+    btZetStatus(status, '❌ Plaatsen mislukt — ' + (e?.message || e));
   }
 }
 
