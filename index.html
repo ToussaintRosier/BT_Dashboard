@@ -677,6 +677,31 @@
   .memo-voet button:disabled { background:#e6e8ee; color:var(--muted); cursor:default; }
   .memo-teller { font-size:var(--t-xs); color:var(--muted); text-align:center; margin-top:8px; }
 
+
+  /* ── Verslagen: label boven, tekst eronder ──────────────────────────────
+     De waarden stonden in een tabel met twee kolommen, en die erfde de
+     algemene regel dat cijfers rechts uitlijnen. Bij lopende tekst levert dat
+     een rafelige linkerkant op: elke regel begint op een andere plek, dus je
+     oog moet bij elke regel opnieuw zoeken waar de zin start. Nu staat het
+     kopje op zijn eigen regel en begint alle tekst eronder op dezelfde lijn. */
+  .verslag-veld { margin-bottom:11px; }
+  .verslag-veld:last-child { margin-bottom:0; }
+  .verslag-label { display:block; text-align:left;
+                   font-size:.68rem; font-weight:var(--w-nadruk);
+                   letter-spacing:.05em; text-transform:uppercase;
+                   color:var(--muted); margin-bottom:3px; }
+  .verslag-tekst { text-align:left; font-size:.85rem; line-height:1.6;
+                   color:var(--text); white-space:pre-wrap;
+                   overflow-wrap:anywhere; margin:0; }
+  .verslag-lijst { text-align:left; font-size:.85rem; line-height:1.6;
+                   color:var(--text); margin:0; padding-left:17px; }
+  .verslag-lijst li { margin-bottom:5px; }
+  .verslag-lijst li:last-child { margin-bottom:0; }
+  .verslag-lijst li strong { color:var(--text); }
+  /* Binnen een donker venster leest lichte tekst prettiger. */
+  .bt-venster .verslag-tekst, .bt-venster .verslag-lijst { color:rgba(255,255,255,.85); }
+  .bt-venster .verslag-label { color:rgba(255,255,255,.5); }
+
   /* ── Brightech ONE ──────────────────────────────────────────────────────
      De interne feed. Eén brede kolom, want een tijdlijn lees je van boven
      naar beneden; twee kolommen zouden suggereren dat er twee soorten
@@ -14021,6 +14046,44 @@ function _sprekersVervangen(transcript, sprekers) {
   return uit;
 }
 
+// ── Verslagen netjes uitlijnen ──────────────────────────────────────────────
+// Eén plek voor de opmaak van alle verslagvelden, zodat het ITK-record, het
+// BZK-record en het scherm tijdens de opname er hetzelfde uitzien.
+//
+// Regels met een streepje ervoor worden een echte opsomming. Dat is niet
+// alleen netter: de AI schrijft de afspraken als "- Salaris: ...", en zo'n
+// regel loopt bij lange tekst anders door tot onder het streepje, waardoor je
+// niet meer ziet waar het volgende punt begint.
+function verslagTekstHtml(waarde) {
+  const tekst = String(waarde == null ? '' : waarde).trim();
+  if (!tekst) return '<p class="verslag-tekst">—</p>';
+
+  const regels = tekst.split('\n').map(r => r.trim()).filter(Boolean);
+  const bullets = regels.filter(r => /^[-•*]\s+/.test(r));
+  // Alleen een lijst maken als het merendeel echt een opsomming is.
+  if (bullets.length >= 2 && bullets.length >= regels.length - 1) {
+    const items = regels.map(r => {
+      const kaal = r.replace(/^[-•*]\s+/, '');
+      // "Salaris: ..." → het woord vóór de dubbele punt is het onderwerp.
+      const m = kaal.match(/^([A-Za-zÀ-ÿ' ]{2,28}):\s*([\s\S]+)$/);
+      return '<li>' + (m
+        ? '<strong>' + escHtml(m[1]) + ':</strong> ' + escHtml(m[2])
+        : escHtml(kaal)) + '</li>';
+    }).join('');
+    return '<ul class="verslag-lijst">' + items + '</ul>';
+  }
+  return '<p class="verslag-tekst">' + escHtml(tekst) + '</p>';
+}
+
+// Een rijtje [label, waarde] wordt een blok met het kopje boven de tekst.
+// Lege waarden vallen weg: een kopje zonder inhoud is alleen maar ruis.
+function verslagVeldenHtml(rijen) {
+  return (rijen || []).filter(([, v]) => v != null && String(v).trim())
+    .map(([k, v]) => '<div class="verslag-veld">' +
+      '<span class="verslag-label">' + escHtml(k) + '</span>' +
+      verslagTekstHtml(v) + '</div>').join('');
+}
+
 // ── Recorder (sollicitatiegesprek opnemen + analyseren via AI) ────────────
 
 async function gesprekStart() {
@@ -14299,7 +14362,7 @@ function _gesprekBouwHtml(inclTranscript) {
   const naam    = GESPREK.naam    || '';
   const functie = GESPREK.functie || '';
   const datum   = new Date().toLocaleDateString('nl-NL', { day:'2-digit', month:'long', year:'numeric' });
-  const rij = (label, val) => val ? `<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${label}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>` : '';
+  const rij = (label, val) => val ? `<tr><td style="padding:7px 0 0;text-align:left;"><div style="font-weight:700;color:#555;font-size:9pt;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${label}</div><div style="line-height:1.55;text-align:left;">${e(val)}</div></td></tr>` : '';
   const transcriptBlok = inclTranscript && GESPREK.transcript ? `
     <h2 style="font-size:12pt;color:#253151;margin-top:24px;border-bottom:1px solid #ddd;padding-bottom:4px;">Transcriptie</h2>
     <pre style="font-size:9pt;line-height:1.55;white-space:pre-wrap;background:#f9f9f9;padding:12px;border-radius:4px;font-family:monospace;">${e(GESPREK.transcript)}</pre>` : '';
@@ -14389,12 +14452,7 @@ function renderGesprek() {
     return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
   };
 
-  const profielTabel = (rows) => `<table style="width:100%;border-collapse:collapse;font-size:.86rem;">
-    ${rows.filter(([,v]) => v).map(([k,v]) => `<tr>
-      <td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:5px 10px 5px 0;vertical-align:top;width:38%;">${escHtml(k)}</td>
-      <td style="padding:5px 0;line-height:1.55;">${escHtml(v)}</td>
-    </tr>`).join('')}
-  </table>`;
+  const profielTabel = (rows) => verslagVeldenHtml(rows);
 
   const hw = r ? (r.hardeWensen    || {}) : {};
   const zf = r ? (r.zachteFactoren || {}) : {};
@@ -15181,7 +15239,7 @@ function bezoekRecordWisAlles() {
 function _gesprekRecordHtml(rec) {
   const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
   const e=(s)=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-  const rij=(lbl,val)=>val?`<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${lbl}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>`:'';
+  const rij=(lbl,val)=>val?`<tr><td style="padding:7px 0 0;text-align:left;"><div style="font-weight:700;color:#555;font-size:9pt;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${lbl}</div><div style="line-height:1.55;text-align:left;">${e(val)}</div></td></tr>`:'';
   return `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><title>Gespreksverslag${rec.naam?' – '+rec.naam:''}</title>
 <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:2cm;color:#1a1a1a;line-height:1.5}h1{font-size:18pt;color:#253151;border-bottom:2px solid #253151;padding-bottom:8px;margin-bottom:4px}.meta{font-size:10pt;color:#666;margin-bottom:20px}h2{font-size:12pt;color:#253151;margin-top:20px;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:4px}table{width:100%;border-collapse:collapse;font-size:10.5pt}.sam{background:#f5f7fb;padding:12px 16px;border-radius:4px;line-height:1.65;font-size:10.5pt}.drie{display:table;width:100%;border-spacing:16px 0;margin:0 -16px}.dc{display:table-cell;vertical-align:top;width:33%}@media print{body{margin:1.5cm}@page{margin:1.5cm}}</style></head><body>
 <h1>Gespreksverslag</h1>
@@ -15315,7 +15373,7 @@ function _bezoekRecordHtml(rec) {
   const soort=rec.soortBezoek||'bedrijfsbezoek';
   const soortLabel=soort==='evaluatie_medewerker'?'Evaluatie Medewerker':soort==='voorbereiding_matchgesprek'?'Voorbereiding Matchgesprek':'Bedrijfsbezoek';
   const e=(s)=>(strVal(s)||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-  const rij=(lbl,val)=>val?`<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${lbl}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>`:'';
+  const rij=(lbl,val)=>val?`<tr><td style="padding:7px 0 0;text-align:left;"><div style="font-weight:700;color:#555;font-size:9pt;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${lbl}</div><div style="line-height:1.55;text-align:left;">${e(val)}</div></td></tr>`:'';
   const cfBlok=cf.samenvatting?`<h2 style="color:#7c3aed;border-bottom:1px solid #ede9fe;">Coaching feedback${cf.score?' — '+(cf.score==='goed'?'Goed':cf.score==='aandacht'?'Aandacht':'Voldoende'):''}</h2><p>${e(cf.samenvatting)}</p>${cf.sterktePunten?.length?`<p style="color:#15803d;font-weight:700;">Sterke punten:</p><ul>${cf.sterktePunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>`:''}${cf.verbeterpunten?.length?`<p style="color:#b91c1c;font-weight:700;">Verbeterpunten:</p><ul>${cf.verbeterpunten.map(p=>`<li>${e(p)}</li>`).join('')}</ul>`:''}`:'';
   let body='';
   if(soort==='bedrijfsbezoek'){body=`<div class="drie"><div class="dc"><h2>Bedrijfsprofiel</h2><table>${rij('Sector',bp.sector)}${rij('Omvang',bp.omvang)}${rij('Activiteit',bp.activiteit)}</table><h2 style="margin-top:16px;">Wervingsbehoefte</h2><table>${rij('Functies',wb.functies)}${rij('Aantallen',wb.aantallen)}${rij('Profiel',wb.profiel)}${rij('Urgentie',wb.urgentie)}</table></div><div class="dc"><h2>Huidige personeelssituatie</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.huidigePersoneelssituatie||'—')}</p><h2 style="margin-top:16px;">Afspraken &amp; vervolgacties</h2><p style="font-size:10.5pt;line-height:1.6;margin:0;">${e(r.afspraken||'—')}</p></div></div><h2>Commercieel potentieel</h2><div class="pot">${e(r.commercieelePotentie||'—')}</div>`;}
@@ -15365,7 +15423,7 @@ function bezoekRecordKopieer(id) {
 // Records-weergave – Gesprek
 function renderGesprekRecords() {
   if (currentTab !== 'gesprek') return;
-  const PT=(rows)=>`<table style="width:100%;border-collapse:collapse;font-size:.84rem;">${rows.filter(([,v])=>v).map(([k,v])=>`<tr><td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:4px 10px 4px 0;vertical-align:top;width:38%;">${escHtml(k)}</td><td style="padding:4px 0;line-height:1.5;">${escHtml(v)}</td></tr>`).join('')}</table>`;
+  const PT = (rows) => verslagVeldenHtml(rows);
   const badge=GESPREK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>`:'';
 
   // Groepeer records op naam+functie+datum; toon samenvoegknop als groep ≥ 2 heeft
@@ -15410,7 +15468,7 @@ function renderGesprekRecords() {
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--card);">
           <div class="chart-card" style="padding:12px 14px;margin-bottom:12px;">
             <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Samenvatting</div>
-            <p style="margin:0;line-height:1.7;font-size:.85rem;white-space:pre-wrap;">${escHtml(r.samenvatting||'—')}</p>
+            ${verslagTekstHtml(r.samenvatting)}
           </div>
           <div class="three-col" style="gap:10px;margin-bottom:12px;">
             <div class="chart-card" style="padding:12px 14px;">
@@ -15424,7 +15482,7 @@ function renderGesprekRecords() {
             </div>
             <div class="chart-card" style="padding:12px 14px;">
               <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Afspraken</div>
-              <p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p>
+              ${verslagTekstHtml(r.afspraken)}
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${showTr&&rec.transcript?'10px':'0'};">
@@ -15466,7 +15524,7 @@ function renderGesprekRecords() {
 // Records-weergave – Bezoek
 function renderBezoekRecords() {
   if (currentTab !== 'bezoek') return;
-  const PT=(rows)=>`<table style="width:100%;border-collapse:collapse;font-size:.84rem;">${rows.filter(([,v])=>v).map(([k,v])=>`<tr><td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:4px 10px 4px 0;vertical-align:top;width:38%;">${escHtml(k)}</td><td style="padding:4px 0;line-height:1.5;">${escHtml(v)}</td></tr>`).join('')}</table>`;
+  const PT = (rows) => verslagVeldenHtml(rows);
   const badge=BEZOEK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>`:'';
   const _bArchief = BEZOEK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
   const BEZOEK_RECORDS_ZICHTBAAR = BEZOEK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
@@ -16023,7 +16081,7 @@ function _bezoekBouwHtml(inclTranscript) {
   const bedrijf = BEZOEK.bedrijf || '';
   const contact = BEZOEK.contactpersoon || '';
   const datum = new Date().toLocaleDateString('nl-NL', { day:'2-digit', month:'long', year:'numeric' });
-  const rij = (label, val) => val ? `<tr><td style="font-weight:700;color:#555;width:38%;padding:5px 10px 5px 0;vertical-align:top;">${label}</td><td style="padding:5px 0;line-height:1.55;">${e(val)}</td></tr>` : '';
+  const rij = (label, val) => val ? `<tr><td style="padding:7px 0 0;text-align:left;"><div style="font-weight:700;color:#555;font-size:9pt;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${label}</div><div style="line-height:1.55;text-align:left;">${e(val)}</div></td></tr>` : '';
   const transcriptBlok = inclTranscript && BEZOEK.transcript ? `
     <h2 style="font-size:12pt;color:#253151;margin-top:24px;border-bottom:1px solid #ddd;padding-bottom:4px;">Transcriptie</h2>
     <pre style="font-size:9pt;line-height:1.55;white-space:pre-wrap;background:#f9f9f9;padding:12px;border-radius:4px;font-family:monospace;">${e(BEZOEK.transcript)}</pre>` : '';
@@ -16161,12 +16219,7 @@ function renderBezoekRecorder() {
     return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
   };
 
-  const profielTabel = (rows) => `<table style="width:100%;border-collapse:collapse;font-size:.86rem;">
-    ${rows.filter(([,v]) => v).map(([k,v]) => `<tr>
-      <td style="font-weight:700;color:var(--muted);white-space:nowrap;padding:5px 10px 5px 0;vertical-align:top;width:38%;">${escHtml(k)}</td>
-      <td style="padding:5px 0;line-height:1.55;">${escHtml(v)}</td>
-    </tr>`).join('')}
-  </table>`;
+  const profielTabel = (rows) => verslagVeldenHtml(rows);
 
   const bp = r ? (r.bedrijfsprofiel  || {}) : {};
   const wb = r ? (r.wervingsbehoefte || {}) : {};
