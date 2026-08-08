@@ -881,6 +881,46 @@
                               cursor:pointer; font-size:1.1rem; line-height:1; padding:4px 6px; }
   .one-poll-bouw-rij button:hover { color:#fff; }
 
+  /* Taken: hetzelfde principe als de poll, maar met een vinkje dat iets
+     betékent. Wie eraan gekoppeld is vinkt zijn eigen regel af; daarom staan
+     de initialen van de betrokkenen ernaast en niet één anonieme teller. */
+  .one-taken { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
+  .one-taak { display:flex; align-items:flex-start; gap:10px;
+              background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+              border-radius:9px; padding:9px 13px; font-size:var(--t-sm);
+              color:rgba(255,255,255,.85); }
+  .one-taak.klaar { border-color:rgba(127,209,174,.4); background:rgba(127,209,174,.08); }
+  .one-taak-vink { width:19px; height:19px; border-radius:6px; flex-shrink:0; margin-top:1px;
+                   border:1.5px solid rgba(255,255,255,.35); background:none;
+                   display:inline-flex; align-items:center; justify-content:center;
+                   cursor:pointer; padding:0; }
+  .one-taak-vink[disabled] { cursor:default; opacity:.4; }
+  .one-taak-vink svg { width:12px; height:12px; fill:none; stroke:#16142e; stroke-width:3;
+                       stroke-linecap:round; stroke-linejoin:round; opacity:0; }
+  .one-taak-vink.aan { background:#7FD1AE; border-color:#7FD1AE; }
+  .one-taak-vink.aan svg { opacity:1; }
+  .one-taak-tekst { flex:1; min-width:0; line-height:1.55; }
+  .one-taak.klaar .one-taak-tekst { text-decoration:line-through;
+                                    text-decoration-color:rgba(255,255,255,.35); }
+  .one-taak-wie { display:flex; align-items:center; gap:4px; flex-shrink:0; flex-wrap:wrap;
+                  justify-content:flex-end; }
+  .one-taak-ini { width:22px; height:22px; border-radius:50%; display:inline-flex;
+                  align-items:center; justify-content:center; font-size:.62rem;
+                  font-weight:700; color:#16142e; opacity:.45; }
+  .one-taak-ini.gedaan { opacity:1; box-shadow:0 0 0 2px rgba(127,209,174,.55); }
+  .one-taak-stand { font-size:var(--t-xs); color:rgba(255,255,255,.5);
+                    font-variant-numeric:tabular-nums; margin-left:4px; }
+  .one-taken-voet { font-size:var(--t-xs); color:rgba(255,255,255,.45); margin-top:2px; }
+
+  /* Taken opstellen in het berichtvenster */
+  .one-taak-bouw-rij { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .one-taak-bouw-rij > input { flex:1; min-width:180px; background:rgba(255,255,255,.06);
+                               border:1px solid rgba(255,255,255,.14); border-radius:8px;
+                               padding:8px 11px; color:#fff; font-family:inherit;
+                               font-size:var(--t-sm); outline:none; }
+  .one-taak-bouw-rij > input::placeholder { color:rgba(255,255,255,.35); }
+  .one-taak-chips { display:flex; flex-wrap:wrap; gap:5px; margin:2px 0 6px 0; }
+
   /* Reactiebalk */
   .one-balk { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
               margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,.08); }
@@ -2612,6 +2652,9 @@ const ONE_DUIMEN = [
 
 let ONE_POSTS = [], ONE_COMMENTAREN = [], ONE_KNOPPEN = [], ONE_COLLEGAS = [];
 let ONE_POLL_OPTIES = [], ONE_POLL_STEMMEN = [];
+let ONE_TAKEN = [], ONE_TAAK_VINKJES = [];
+// De taken die je aan het opstellen bent: [{ tekst, toegewezen:[naam] }].
+let ONE_TAAK_CONCEPT = [];
 // De poll die je aan het opstellen bent: een lijstje regels. Leeg = geen poll.
 let ONE_POLL_CONCEPT = [];
 let ONE_FILTER = 'alles';
@@ -2641,7 +2684,8 @@ async function loadOne() {
       const { data } = await supa.auth.getUser();
       ONE_MIJN_ID = data?.user?.id || null;
     }
-    const [posts, commentaren, knoppen, profielen, pollOpties, pollStemmen] = await Promise.all([
+    const [posts, commentaren, knoppen, profielen, pollOpties, pollStemmen,
+           taken, taakVinkjes] = await Promise.all([
       supa.from('one_posts').select('*').is('verwijderd_op', null)
           .order('created_at', { ascending:false }).limit(150),
       supa.from('one_reacties').select('*').is('verwijderd_op', null)
@@ -2650,6 +2694,8 @@ async function loadOne() {
       supa.from('profiles').select('naam, bm_naam, einddatum').limit(200),
       supa.from('one_poll_opties').select('*').order('volgorde').limit(600),
       supa.from('one_poll_stemmen').select('*').limit(3000),
+      supa.from('one_taken').select('*').order('volgorde').limit(600),
+      supa.from('one_taak_afgevinkt').select('*').limit(3000),
     ]);
     ONE_POSTS       = posts.data || [];
     ONE_COMMENTAREN = commentaren.data || [];
@@ -2658,6 +2704,8 @@ async function loadOne() {
     // een fout terug; de feed moet daar niet op stukvallen.
     ONE_POLL_OPTIES  = pollOpties.error  ? [] : (pollOpties.data  || []);
     ONE_POLL_STEMMEN = pollStemmen.error ? [] : (pollStemmen.data || []);
+    ONE_TAKEN        = taken.error       ? [] : (taken.data       || []);
+    ONE_TAAK_VINKJES = taakVinkjes.error ? [] : (taakVinkjes.data || []);
     // Uit dienst? Dan geen naam meer in de keuzelijst. Een oud-collega taggen
     // levert een melding op die niemand meer leest, en zet de lezer op het
     // verkeerde been over wie er nog meekijkt.
@@ -2842,22 +2890,26 @@ function renderOne() {
       '<div id="one-tags" class="one-tag-chips">' + _oneTagChipsHtml() + '</div>' +
       '<div id="one-foto-blok" class="one-foto-blok">' + _oneFotoVoorbeeldHtml() + '</div>' +
       _onePollBouwHtml() +
+      _oneTaakBouwHtml() +
       '<div class="one-schrijf-acties">' +
         '<label class="one-stil-knop" title="Foto toevoegen (max 2 MB)">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/>' +
           '<circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 4.5-4.5L12 16l3-3 5 5"/></svg>Foto' +
           '<input type="file" accept="image/*" hidden onchange="oneKiesFoto(this)"></label>' +
-        '<select class="one-stil-knop one-keuze-knop" onchange="oneTagCollega(this)" ' +
-          'title="Collega taggen"' + (ONE_ALLEN ? ' disabled' : '') + '>' +
-          '<option value="">Collega taggen\u2026</option>' + _oneCollegaOpties() + '</select>' +
-        '<button id="one-allen-knop" class="one-stil-knop' + (ONE_ALLEN ? ' aan' : '') + '" ' +
-          'onclick="oneTagIedereen()" title="Iedereen in één keer taggen">' +
-          '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="9" r="2.8"/>' +
-          '<path d="M3 19a5.5 5.5 0 0 1 11 0"/><path d="M15.5 6.4a2.8 2.8 0 0 1 0 5.2"/>' +
-          '<path d="M16.5 13.6A5 5 0 0 1 21 18.5"/></svg>@ALL</button>' +
+        // Eén knop voor beide manieren van taggen: één collega of iedereen.
+        // Twee losse knoppen naast elkaar suggereerden dat het twee dingen zijn.
+        '<select class="one-stil-knop one-keuze-knop' + (ONE_ALLEN ? ' aan' : '') + '" ' +
+          'onchange="oneTagCollega(this)" title="Een collega of iedereen taggen">' +
+          '<option value="">' + (ONE_ALLEN ? '@ALL getagd' : 'Taggen\u2026') + '</option>' +
+          '<option value="@ALL">Iedereen (@ALL)</option>' + _oneCollegaOpties() + '</select>' +
         '<button class="one-stil-knop' + (ONE_POLL_CONCEPT.length ? ' aan' : '') + '" ' +
           'onclick="onePollStart()" title="Een poll toevoegen aan dit bericht">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Poll</button>' +
+        '<button class="one-stil-knop' + (ONE_TAAK_CONCEPT.length ? ' aan' : '') + '" ' +
+          'onclick="oneTaakStart()" title="Taken toevoegen en koppelen aan collega\'s">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+          '<path d="M9 6h11M9 12h11M9 18h7"/><path d="m3 6 1.4 1.4L7 4.8"/>' +
+          '<path d="m3 12 1.4 1.4L7 10.8"/><path d="m3 18 1.4 1.4L7 16.8"/></svg>Taak</button>' +
       '</div>' +
       '<div class="one-schrijf-voet">' +
         '<span id="one-schrijf-status"></span>' +
@@ -2985,6 +3037,171 @@ async function onePollStem(postId, optieId) {
     _meldStil('stemmen', e);
     await loadOne(); _oneOpnieuw();
   }
+}
+
+// ── Taken ───────────────────────────────────────────────────────────────────
+// Een taak hangt aan een naam en aan een vinkje. Iedere gekoppelde collega
+// vinkt zijn eigen regel af, dus een taak voor drie mensen staat op "1 van 3"
+// tot ze alle drie geweest zijn — anders lijkt hij klaar terwijl er nog twee
+// moeten. Hangt de taak aan niemand, dan is hij voor wie hem oppakt.
+function _oneMijnNaam() {
+  return String(CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '');
+}
+function _oneTaakVoorMij(t) {
+  const namen = Array.isArray(t.toegewezen) ? t.toegewezen : [];
+  if (!namen.length) return true;
+  const ik = _oneMijnNaam();
+  return !!ik && namen.includes(ik);
+}
+
+function _oneTakenHtml(p) {
+  const taken = ONE_TAKEN.filter(t => String(t.post_id) === String(p.id))
+    .sort((a, b) => (a.volgorde || 0) - (b.volgorde || 0) || a.id - b.id);
+  if (!taken.length) return '';
+
+  let klaarTotaal = 0;
+  const rijen = taken.map(t => {
+    const vinkjes = ONE_TAAK_VINKJES.filter(v => String(v.taak_id) === String(t.id));
+    const namen = Array.isArray(t.toegewezen) ? t.toegewezen : [];
+    const ikVink = vinkjes.some(v => v.user_id === ONE_MIJN_ID);
+    const klaar = namen.length ? namen.every(n =>
+                     vinkjes.some(v => (v.gebruiker || '') === n)) : vinkjes.length > 0;
+    if (klaar) klaarTotaal++;
+    const magIk = _oneTaakVoorMij(t);
+
+    const wie = namen.length
+      ? namen.map(n => {
+          const gedaan = vinkjes.some(v => (v.gebruiker || '') === n);
+          return '<span class="one-taak-ini ' + (gedaan ? 'gedaan' : '') + '" ' +
+            'style="background:' + _oneAvatarKleur(n) + ';" title="' +
+            escHtml(n + (gedaan ? ' — afgevinkt' : ' — nog te doen')) + '">' +
+            escHtml(_oneInitialen(n)) + '</span>';
+        }).join('') + (namen.length > 1
+          ? '<span class="one-taak-stand">' +
+            namen.filter(n => vinkjes.some(v => (v.gebruiker || '') === n)).length +
+            ' van ' + namen.length + '</span>' : '')
+      : (vinkjes.length
+          ? vinkjes.map(v => '<span class="one-taak-ini gedaan" style="background:' +
+              _oneAvatarKleur(v.gebruiker || '') + ';" title="' +
+              escHtml((v.gebruiker || 'iemand') + ' — opgepakt') + '">' +
+              escHtml(_oneInitialen(v.gebruiker || '?')) + '</span>').join('')
+          : '<span class="one-taak-stand">vrij op te pakken</span>');
+
+    return '<div class="one-taak ' + (klaar ? 'klaar' : '') + '">' +
+      '<button class="one-taak-vink ' + (ikVink ? 'aan' : '') + '"' +
+        (magIk ? '' : ' disabled') +
+        ' title="' + (magIk ? (ikVink ? 'Vinkje terugnemen' : 'Afvinken')
+                            : 'Deze taak staat op naam van een collega') + '"' +
+        (magIk ? ' onclick="oneTaakVink(\'' + p.id + '\',' + t.id + ')"' : '') + '>' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4.5 4.5L19 7"/></svg></button>' +
+      '<span class="one-taak-tekst">' + escHtml(t.tekst) + '</span>' +
+      '<span class="one-taak-wie">' + wie + '</span>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="one-taken">' + rijen +
+    '<div class="one-taken-voet">' + klaarTotaal + ' van ' + taken.length +
+    ' ' + (taken.length === 1 ? 'taak' : 'taken') + ' afgerond.</div></div>';
+}
+
+async function oneTaakVink(postId, taakId) {
+  if (!supa || !ONE_MIJN_ID) return;
+  const bestaand = ONE_TAAK_VINKJES.find(v =>
+    String(v.taak_id) === String(taakId) && v.user_id === ONE_MIJN_ID);
+  try {
+    if (bestaand) {
+      ONE_TAAK_VINKJES = ONE_TAAK_VINKJES.filter(v => v !== bestaand);
+      _oneOpnieuw();
+      const { error } = await supa.from('one_taak_afgevinkt').delete()
+        .eq('taak_id', taakId).eq('user_id', ONE_MIJN_ID);
+      if (error) throw error;
+    } else {
+      const rij = { taak_id: taakId, post_id: postId, user_id: ONE_MIJN_ID,
+                    gebruiker: _oneMijnNaam() };
+      ONE_TAAK_VINKJES.push(Object.assign({}, rij));
+      _oneOpnieuw();
+      const { error } = await supa.from('one_taak_afgevinkt').insert(rij);
+      if (error) throw error;
+    }
+  } catch (e) {
+    _meldStil('taak afvinken', e);
+    await loadOne(); _oneOpnieuw();
+  }
+}
+
+// ── Taken opstellen ─────────────────────────────────────────────────────────
+function _oneTaakBouwHtml() {
+  if (!ONE_TAAK_CONCEPT.length) return '';
+  const rijen = ONE_TAAK_CONCEPT.map((t, i) => {
+    const chips = (t.toegewezen || []).map((n, j) =>
+      '<span class="one-tag-chip">' + escHtml(n) +
+      '<button onclick="oneTaakNaamWeg(' + i + ',' + j + ')" title="Loskoppelen">\u00d7</button></span>'
+    ).join('');
+    return '<div class="one-poll-bouw" style="gap:2px;">' +
+      '<div class="one-taak-bouw-rij">' +
+        '<input type="text" data-taak="' + i + '" maxlength="140" ' +
+          'placeholder="Wat moet er gebeuren?" value="' + escHtml(t.tekst || '') + '" ' +
+          'oninput="ONE_TAAK_CONCEPT[' + i + '].tekst=this.value">' +
+        '<select class="one-mini-select" onchange="oneTaakNaamErbij(' + i + ',this)" ' +
+          'title="Koppelen aan een collega">' +
+          '<option value="">Koppelen aan\u2026</option>' +
+          '<option value="@ALL">Iedereen</option>' + _oneCollegaOpties() + '</select>' +
+        '<button class="one-stil-knop" style="width:auto;" onclick="oneTaakRegelWeg(' + i + ')" ' +
+          'title="Deze taak weghalen">\u00d7</button>' +
+      '</div>' +
+      (chips ? '<div class="one-taak-chips">' + chips + '</div>' : '') +
+    '</div>';
+  }).join('');
+  return rijen +
+    '<div class="one-poll-bouw-rij" style="margin-top:2px;">' +
+      '<button class="one-stil-knop" style="width:auto;" onclick="oneTaakRegelErbij()">Taak toevoegen</button>' +
+      '<button class="one-stil-knop" style="width:auto;" onclick="oneTakenWeg()">Taken weghalen</button>' +
+    '</div>';
+}
+function _oneTaakBewaar() {
+  document.querySelectorAll('input[data-taak]').forEach(el => {
+    const i = Number(el.dataset.taak);
+    if (ONE_TAAK_CONCEPT[i]) ONE_TAAK_CONCEPT[i].tekst = el.value;
+  });
+}
+function oneTaakStart() {
+  _oneBewaarConcept();
+  if (!ONE_TAAK_CONCEPT.length) ONE_TAAK_CONCEPT = [{ tekst:'', toegewezen:[] }];
+  renderOne();
+}
+function oneTaakRegelErbij() {
+  _oneBewaarConcept(); _oneTaakBewaar();
+  if (ONE_TAAK_CONCEPT.length >= 15) return;
+  ONE_TAAK_CONCEPT.push({ tekst:'', toegewezen:[] });
+  renderOne();
+}
+function oneTaakRegelWeg(i) {
+  _oneBewaarConcept(); _oneTaakBewaar();
+  ONE_TAAK_CONCEPT.splice(i, 1);
+  renderOne();
+}
+function oneTakenWeg() {
+  _oneBewaarConcept();
+  ONE_TAAK_CONCEPT = [];
+  renderOne();
+}
+function oneTaakNaamErbij(i, keuze) {
+  const naam = keuze.value;
+  keuze.selectedIndex = 0;
+  if (!naam || !ONE_TAAK_CONCEPT[i]) return;
+  _oneBewaarConcept(); _oneTaakBewaar();
+  const ik = _oneMijnNaam();
+  if (naam === '@ALL') {
+    ONE_TAAK_CONCEPT[i].toegewezen = ONE_COLLEGAS.slice();
+  } else if (!ONE_TAAK_CONCEPT[i].toegewezen.includes(naam)) {
+    ONE_TAAK_CONCEPT[i].toegewezen.push(naam);
+  }
+  renderOne();
+}
+function oneTaakNaamWeg(i, j) {
+  _oneBewaarConcept(); _oneTaakBewaar();
+  if (ONE_TAAK_CONCEPT[i]) ONE_TAAK_CONCEPT[i].toegewezen.splice(j, 1);
+  renderOne();
 }
 
 // ── Poll opstellen ──────────────────────────────────────────────────────────
@@ -3144,6 +3361,7 @@ function _oneKaartHtml(p, sinds) {
     '<h3>' + escHtml(p.onderwerp || '') + '</h3>' +
     '<div class="one-body">' + _oneTekstHtml(p.tekst, p.getagd) + '</div>' +
     _onePollHtml(p) +
+    _oneTakenHtml(p) +
     fotoHtml +
     '<div class="one-balk">' + _oneDuimHtml('post', p.id) +
       '<button class="one-reageer-knop" onclick="oneToggleInvoer(\'' + sleutel + '\')">' +
@@ -3157,7 +3375,7 @@ function _oneKaartHtml(p, sinds) {
 }
 
 function oneZetFilter(sleutel) { ONE_FILTER = sleutel; _oneOpnieuw(); }
-async function oneVernieuw() { _oneBewaarConcept(); _onePollBewaar(); await loadOne(); renderOne(); }
+async function oneVernieuw() { _oneBewaarConcept(); _onePollBewaar(); _oneTaakBewaar(); await loadOne(); renderOne(); }
 
 // De Vernieuwen-knop is weg; in plaats daarvan kijkt de pagina zelf elke minuut
 // of er iets bij is gekomen, maar alleen als je op deze pagina bent en niet
@@ -3263,43 +3481,41 @@ function _oneTagChipsHtml() {
 // beeld, @ALL, en achter de schermen krijgt elke actieve collega de
 // melding. Zet je het aan, dan vervallen de losse namen: die zaten er al in.
 function oneTagIedereen(aan) {
+  _oneBewaarConcept(); _onePollBewaar(); _oneTaakBewaar();
   ONE_ALLEN = (aan === undefined) ? !ONE_ALLEN : !!aan;
-  const veld = document.getElementById('one-tekst');
+  let tekst = ONE_CONCEPT.tekst || '';
   if (ONE_ALLEN) {
     ONE_TAGS = [];
-    if (veld && veld.value.indexOf('@ALL') < 0) {
-      const spatie = veld.value && !/\s$/.test(veld.value) ? ' ' : '';
-      veld.value = veld.value + spatie + '@ALL ';
+    if (tekst.indexOf('@ALL') < 0) {
+      tekst += (tekst && !/\s$/.test(tekst) ? ' ' : '') + '@ALL ';
     }
-  } else if (veld) {
-    veld.value = veld.value.replace(/@ALL ?/g, '');
+  } else {
+    tekst = tekst.replace(/@ALL ?/g, '');
   }
-  const chips = document.getElementById('one-tags');
-  if (chips) chips.innerHTML = _oneTagChipsHtml();
-  const knop = document.getElementById('one-allen-knop');
-  if (knop) knop.classList.toggle('aan', ONE_ALLEN);
-  if (veld) veld.focus();
+  ONE_CONCEPT.tekst = tekst;
+  renderOne();
+  const veld = document.getElementById('one-tekst');
+  if (veld) { veld.focus(); veld.selectionStart = veld.value.length; }
 }
 
 function oneTagCollega(keuze) {
   const naam = keuze.value;
   keuze.selectedIndex = 0;
+  if (naam === '@ALL') { oneTagIedereen(true); return; }
   if (ONE_ALLEN) return;              // iedereen staat al aan
   if (!naam || ONE_TAGS.includes(naam)) return;
+  _oneBewaarConcept(); _onePollBewaar(); _oneTaakBewaar();
   ONE_TAGS.push(naam);
-  const chips = document.getElementById('one-tags');
-  if (chips) chips.innerHTML = _oneTagChipsHtml();
+  const tekst = ONE_CONCEPT.tekst || '';
+  ONE_CONCEPT.tekst = tekst + (tekst && !/\s$/.test(tekst) ? ' ' : '') + '@' + naam + ' ';
+  renderOne();
   const veld = document.getElementById('one-tekst');
-  if (veld) {
-    const spatie = veld.value && !/\s$/.test(veld.value) ? ' ' : '';
-    veld.value = veld.value + spatie + '@' + naam + ' ';
-    veld.focus();
-  }
+  if (veld) { veld.focus(); veld.selectionStart = veld.value.length; }
 }
 function oneHaalTagWeg(i) {
+  _oneBewaarConcept(); _onePollBewaar(); _oneTaakBewaar();
   ONE_TAGS = ONE_TAGS.filter((_, k) => k !== i);
-  const chips = document.getElementById('one-tags');
-  if (chips) chips.innerHTML = _oneTagChipsHtml();
+  renderOne();
 }
 
 // ── Plaatsen ────────────────────────────────────────────────────────────────
@@ -3352,9 +3568,12 @@ async function onePlaats() {
     const ik = CURRENT_USER.naam || CURRENT_USER.bm_naam || '';
     // @ALL wordt hier vertaald naar de namen van alle collega's die nog in
     // dienst zijn, zodat de melding overal aankomt zonder dat de tekst volloopt.
+    _oneTaakBewaar();
+    const uitTaken = ONE_TAAK_CONCEPT.flatMap(t => (t.toegewezen || []))
+      .filter(n => n && n !== ik);
     const getagd = ONE_ALLEN
       ? ONE_COLLEGAS.filter(n => n !== ik)
-      : Array.from(new Set(ONE_TAGS.concat(_oneTagsUitTekst(tekst, ik))));
+      : Array.from(new Set(ONE_TAGS.concat(_oneTagsUitTekst(tekst, ik), uitTaken)));
 
     const { data: nieuwPost, error } = await supa.from('one_posts').insert({
       onderwerp, tekst, categorie, foto_pad: pad,
@@ -3363,6 +3582,28 @@ async function onePlaats() {
       created_by: ONE_MIJN_ID,
     }).select('id').single();
     if (error) throw error;
+
+    // Taken erbij? Ze gaan ook als tag mee, zodat de collega aan wie een taak
+    // hangt een oranje uitroepteken in de menukaart krijgt en het niet mist.
+    _oneTaakBewaar();
+    const taakRegels = ONE_TAAK_CONCEPT
+      .map((t, i) => ({ tekst: String(t.tekst || '').trim(),
+                        toegewezen: (t.toegewezen || []).filter(Boolean),
+                        volgorde: i }))
+      .filter(t => t.tekst);
+    if (taakRegels.length && nieuwPost?.id) {
+      const { error: tErr } = await supa.from('one_taken').insert(
+        taakRegels.map(t => ({ post_id: nieuwPost.id, tekst: t.tekst,
+                               toegewezen: t.toegewezen.length ? t.toegewezen : null,
+                               volgorde: t.volgorde })));
+      if (tErr) {
+        _meldStil('taken opslaan', tErr);
+        btZetStatus(status, '⚠️ Het bericht staat er, maar de taken niet: ' +
+          (/relation .* does not exist/i.test(tErr.message || '')
+            ? 'de takentabellen bestaan nog niet. Vraag de beheerder om supabase/one_taken.sql uit te voeren.'
+            : (tErr.message || tErr)));
+      }
+    }
 
     // Poll erbij? Lege regels vallen af; onder de twee antwoorden is het geen
     // keuze meer en slaan we hem over.
@@ -3381,7 +3622,8 @@ async function onePlaats() {
     }
 
     if (ONE_FOTO && ONE_FOTO.url) URL.revokeObjectURL(ONE_FOTO.url);
-    ONE_FOTO = null; ONE_TAGS = []; ONE_ALLEN = false; ONE_POLL_CONCEPT = [];
+    ONE_FOTO = null; ONE_TAGS = []; ONE_ALLEN = false;
+    ONE_POLL_CONCEPT = []; ONE_TAAK_CONCEPT = [];
     ONE_CONCEPT = { onderwerp:'', tekst:'', categorie, reacties: ONE_CONCEPT.reacties };
     await loadOne();
     renderOne();
