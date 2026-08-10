@@ -599,8 +599,12 @@
                      stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round; }
   .uitleg-laag { position:fixed; inset:0; background:rgba(15,9,47,.6); z-index:400;
                  display:flex; align-items:center; justify-content:center; padding:24px; }
+  /* De kop en de sluitknop blijven staan; alleen de inhoud schuift. Zo weet je
+     tijdens het scrollen nog waar je bent en hoef je niet terug naar boven om
+     het venster te sluiten. */
   .uitleg-venster { background:var(--card); border-radius:var(--radius-groot);
-                    max-width:560px; width:100%; max-height:82vh; overflow-y:auto;
+                    max-width:560px; width:100%; max-height:82vh;
+                    display:flex; flex-direction:column; overflow:hidden;
                     box-shadow:0 20px 60px rgba(0,0,0,.35); }
   .uitleg-kop { background:#F4CB3C; border-radius:var(--radius-groot) var(--radius-groot) 0 0;
                 padding:14px 22px; display:flex; align-items:center;
@@ -611,7 +615,38 @@
                   width:26px; height:26px; border-radius:50%; cursor:pointer;
                   display:inline-flex; align-items:center; justify-content:center; }
   .uitleg-sluit:hover { background:rgba(22,20,46,.28); }
-  .uitleg-body { padding:18px 22px 20px; color:var(--text); font-size:var(--t-md); line-height:1.65; }
+  .uitleg-body { padding:18px 22px 20px; color:var(--text); font-size:var(--t-md);
+                 line-height:1.65; overflow-y:auto; flex:1; min-height:0;
+                 scroll-behavior:smooth; }
+
+  /* ── Inhoudsopgave ──────────────────────────────────────────────────────
+     Een tutorial die je helemaal moet doorlezen om één ding op te zoeken,
+     lees je de tweede keer niet meer. Vandaar een lijstje bovenaan waarmee
+     je meteen bij het onderwerp bent. */
+  .uitleg-inhoud { background:var(--card-alt); border-radius:9px;
+                   padding:11px 14px; margin:0 0 18px; }
+  .uitleg-inhoud h4 { margin:0 0 7px; font-size:var(--t-xs); font-weight:var(--w-nadruk);
+                      color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .uitleg-inhoud ul { margin:0; padding:0; list-style:none; }
+  .uitleg-inhoud li { margin:0 0 3px; }
+  .uitleg-inhoud li:last-child { margin-bottom:0; }
+  .uitleg-inhoud button { background:none; border:0; padding:2px 0; cursor:pointer;
+                          font-family:inherit; font-size:var(--t-sm); line-height:1.5;
+                          color:var(--primary); text-align:left; display:flex;
+                          align-items:baseline; gap:8px; width:100%; }
+  .uitleg-inhoud button:hover { text-decoration:underline; }
+  .uitleg-inhoud .nr { color:var(--muted); font-variant-numeric:tabular-nums;
+                       font-size:var(--t-xs); flex-shrink:0; }
+
+  .uitleg-sectie { scroll-margin-top:4px; padding-top:2px; }
+  .uitleg-sectie + .uitleg-sectie { margin-top:22px; border-top:1px solid var(--card-rand);
+                                    padding-top:18px; }
+  .uitleg-sectie > h4 { margin:0 0 10px; font-size:var(--t-md);
+                        font-weight:var(--w-nadruk); color:var(--text); }
+  .uitleg-terug { display:block; margin-top:10px; background:none; border:0; padding:0;
+                  cursor:pointer; font-family:inherit; font-size:var(--t-xs);
+                  color:var(--muted); }
+  .uitleg-terug:hover { color:var(--primary); text-decoration:underline; }
   .uitleg-body p { margin:0 0 14px; }
   .uitleg-waarom { background:var(--card-alt); border-radius:9px;
                    padding:12px 15px; margin:0 0 18px;
@@ -2407,164 +2442,455 @@ function btZetStatus(el, bericht) {
 const PAGINA_UITLEG = {
   one: { titel: 'Brightech ONE',
     intro: 'De interne tijdlijn: hier deel je met elkaar wat er speelt, en reageer je op elkaar.',
-    waarom: 'Het meeste wat wij weten zit in hoofden en in losse appjes, en verdwijnt daarmee zodra het gesprek voorbij is. Wie er niet bij was, hoort het niet. Door het hier te delen staat het op één plek, blijft het terugleesbaar en hoeft niemand hetzelfde twee keer uit te zoeken. Reageren is geen beleefdheid maar het bewijs dat een bericht is aangekomen — dat scheelt de afzender het navragen. En een compliment dat je opschrijft telt langer mee dan een compliment dat je alleen uitspreekt.',
-    stappen: [
-      'Kies een categorie: Operatie voor werkafspraken, HRM voor personeelszaken, ONS Team voor successen en complimenten, Vraag als je iets niet weet, Dagstart voor de taken van vandaag.',
-      'Geef je bericht een onderwerpregel die op zichzelf te lezen is — die regel bepaalt of iemand doorleest.',
-      'Wil je iemand bereiken, tag hem dan met de keuzelijst Collega taggen, of iedereen tegelijk met de knop @ALL. Een getagde collega krijgt een oranje uitroepteken in de menukaart — ook als je hem in een reactie noemt.',
-      'Een foto mag, maximaal 2 MB; het dashboard verkleint hem zelf. Video kan bewust niet.',
-      'Onder elk bericht en elke reactie staan twee duimen: eens of oneens. Wie erop klikte zie je door je muis erboven te houden — ook bij oneens, want anoniem afkeuren helpt niemand verder.',
-      'Reageren kan op een bericht en op een reactie. Alles is openbaar voor collega\'s; er is hier geen prive-bericht.',
-      'Kom je terug, klik dan op de tab Nieuw voor jou: die toont alleen berichten die nieuw zijn, nieuwe reacties hebben of waarin jij genoemd wordt. In de gewone lijst markeert een streep waar je gebleven was.',
+    secties: [
+      { kop: 'Een bericht plaatsen',
+        waarom: 'Het meeste wat wij weten zit in hoofden en in losse appjes, en verdwijnt zodra het gesprek voorbij is. Wie er niet bij was, hoort het niet. Hier staat het op één plek, blijft het terugleesbaar en hoeft niemand hetzelfde twee keer uit te zoeken.',
+        stappen: [
+          'Kies een categorie: Operatie voor werkafspraken, HRM voor personeelszaken, ONS Team voor successen en complimenten, Vraag als je iets niet weet, Dagstart voor de taken van vandaag.',
+          'Geef je bericht een onderwerpregel die op zichzelf te lezen is. Die ene regel bepaalt of iemand doorleest.',
+          'Een foto mag, maximaal 2 MB. Het dashboard verkleint hem zelf, dus je hoeft niets voor te bereiden. Video kan bewust niet: dat wordt een archief dat niemand terugkijkt.',
+        ]},
+      { kop: 'Collega\'s taggen',
+        waarom: 'Een bericht dat voor iedereen is, is voor niemand. Door te taggen zeg je wie er iets mee moet — en die persoon ziet dat meteen, ook als hij de feed twee dagen niet opent.',
+        stappen: [
+          'Kies in de lijst Taggen één collega, of Iedereen (@ALL) als het het hele team aangaat.',
+          'De naam komt als @Naam in je tekst te staan en licht blauw op zodra het bericht geplaatst is.',
+          'Een getagde collega krijgt een oranje uitroepteken in de menukaart. Zonder tag is dat teken wit: er is wel iets nieuws, maar het gaat niet specifiek over hem.',
+          'Ook een tag in een reactie telt mee. Noem je iemand halverwege een discussie, dan weet hij dat.',
+        ]},
+      { kop: 'Duimen en reageren',
+        waarom: 'Reageren is geen beleefdheid maar het bewijs dat een bericht is aangekomen — dat scheelt de afzender het navragen. En een compliment dat je opschrijft telt langer mee dan een compliment dat je alleen uitspreekt.',
+        stappen: [
+          'Onder elk bericht en elke reactie staan twee duimen: eens of oneens. Klik je op de andere, dan wisselt hij; nog eens klikken neemt je duim terug.',
+          'Houd je muis boven een duim om te zien wie erop klikte. Dat geldt ook voor oneens: anoniem afkeuren helpt niemand verder.',
+          'Reageren kan op een bericht én op een reactie. Antwoorden springen één niveau in; dieper wordt het onleesbaar.',
+          'Alles is openbaar voor collega\'s. Er is hier geen privébericht.',
+        ]},
+      { kop: 'Polls en taken',
+        waarom: 'Een vraag als "wie kan er donderdag?" levert in een gewone feed twintig losse reacties op die niemand optelt. Een poll telt zichzelf op. En een taak die je alleen uitspreekt is een taak die je kwijtraakt; een taak met een naam en een vinkje is terug te vinden.',
+        stappen: [
+          'Klik op Poll, zet de vraag in de onderwerpregel en typ de antwoorden eronder. Meerdere antwoorden aanvinken mag; achter elke regel groeit een balkje met het aantal.',
+          'Klik op Taak om taken te maken en er collega\'s aan te koppelen. Wie gekoppeld is, wordt automatisch getagd en ziet het oranje teken.',
+          'Iedere gekoppelde collega vinkt zijn eigen regel af. Een taak voor drie mensen staat op "1 van 3" tot ze alle drie geweest zijn.',
+          'Koppel je een taak aan niemand, dan is hij vrij op te pakken: de eerste die afvinkt zet hem op klaar, met zijn naam erbij.',
+        ]},
+      { kop: 'Bijblijven zonder zoeken',
+        waarom: 'Een feed wordt pas een last als je zelf moet uitzoeken wat je nog niet had gezien. Daarom doet het dashboard dat voor je.',
+        stappen: [
+          'De tab Nieuw voor jou staat vooraan en toont alleen berichten die nieuw zijn, nieuwe reacties hebben of waarin jij genoemd wordt.',
+          'In de gewone lijst loopt een streepje op de plek waar je gebleven was.',
+          'De strook bovenaan vat samen wat er nieuw is en of je genoemd wordt.',
+          'De pagina haalt zelf elke minuut nieuwe berichten op — maar nooit terwijl je zit te typen.',
+        ]},
     ]},
+
   medewerkers: { titel: 'Medewerkers',
-    intro: 'De ranglijst van alle business managers op basis van hun voortgang richting het jaardoel.',
-    waarom: 'Een jaardoel is te ver weg om op te sturen en één week is te kort om iets aan af te lezen. Dit scherm vertaalt het jaardoel naar de vraag waar iemand nú zou moeten staan, en zet iedereen daar naast elkaar. Dat maakt zichtbaar wie ruimte heeft en wie hulp kan gebruiken, vóórdat het einde van het jaar dat voor je beslist. De volgorde is bewust geen wedstrijd: het is een verdeling van aandacht.',
-    stappen: [
-      'Bovenaan staat het teamdoel en tot welke week de cijfers lopen.',
-      'De lijst staat op volgorde van voortgang: wie het verst op schema ligt staat boven.',
-      'De balk achter een naam vergelijkt de stand met wat je déze week verwacht mag hebben — niet met het jaartotaal, want dan lijkt in januari iedereen achter te lopen.',
-      'Klik op een naam in de menukaart links om die persoon in detail te bekijken.',
+    intro: 'De ranglijst van alle business managers, het gebruik van de tools en de weekcijfers van het hele team.',
+    secties: [
+      { kop: 'Starters dit jaar — de ranglijst',
+        waarom: 'Een jaardoel is te ver weg om op te sturen en één week is te kort om iets aan af te lezen. Dit scherm vertaalt het jaardoel naar de vraag waar iemand nú zou moeten staan, en zet iedereen daar naast elkaar. Dat maakt zichtbaar wie ruimte heeft en wie hulp kan gebruiken, vóórdat het einde van het jaar dat voor je beslist. De volgorde is bewust geen wedstrijd: het is een verdeling van aandacht.',
+        stappen: [
+          'Bovenaan staat het teamdoel en tot welke week de cijfers lopen.',
+          'De lijst staat op volgorde van voortgang: wie het verst op schema ligt staat boven.',
+          'Het percentage vergelijkt de stand met wat je déze week verwacht mag hebben — niet met het jaartotaal, want dan lijkt in januari iedereen achter te lopen.',
+          'Bij iemand die halverwege het jaar begon, loopt de verwachting pas vanaf zijn startweek op. Dat wordt in Beheer ingesteld.',
+          'Klik op een naam in de menukaart links om die persoon in detail te bekijken.',
+        ]},
+      { kop: 'Toolgebruik — totaal, alle collega\'s',
+        waarom: 'De recorders, de matchmaker en de CV-generator zijn gebouwd om werk uit handen te nemen, maar een tool die niemand gebruikt kost alleen maar geld. Deze tellers laten zien of ze echt in de routine zitten. Ze tellen álle collega\'s bij elkaar op, niet alleen wat jij toevallig ziet, en de regel "laatst gebruikt" is vaak veelzeggender dan het totaal: honderd opnames van vorig jaar zeggen minder dan drie van deze week.',
+        stappen: [
+          'Per tool zie je het totaal van dit jaar, hoeveel er deze week bij kwamen, en wanneer hij voor het laatst is gebruikt.',
+          'Staat er "niets deze week" bij een tool die je wel zou verwachten, dan is dat een gespreksonderwerp — meestal weet iemand niet dat de tool bestaat of loopt hij ergens tegenaan.',
+          'De cijfers komen rechtstreeks uit de database, dus ze tellen ook mee wat collega\'s op hun eigen computer hebben gedaan.',
+        ]},
+      { kop: 'KPI\'s per week — teamtotaal',
+        waarom: 'Starters komen nooit uit het niets: er gaan intakes, bezoeken, aanbiedingen en matchgesprekken aan vooraf. Als je alleen op starters kijkt, kijk je naar iets dat drie maanden geleden is gebeurd. In deze tabel zie je de hele trechter van het team per week, en daarmee of het over een kwartaal goed komt. Een week waarin de intakes inzakken is een waarschuwing voor het najaar, niet voor morgen.',
+        stappen: [
+          'Elke week is een balk die je open- en dichtklapt. De huidige week staat standaard open.',
+          'Per week zie je het teamtotaal per KPI, met daaronder de bijdrage per collega.',
+          'Heeft iemand zijn week nog niet opgeslagen, dan telt het dashboard alvast zijn pipeline mee — anders zou de week kunstmatig laag lijken.',
+          'De week erna staat er ook al: dat is wat er nu al in de pipeline gepland staat.',
+          'Klik op "openen" bij een week om te zien wie er nog moet invullen.',
+        ]},
     ]},
 
   medewerker: { titel: 'Pagina van een medewerker',
-    intro: 'Alles van één business manager: cijfers, plan, coaching en de eigen pipeline.',
-    waarom: 'Een starter komt nooit uit het niets: er gaan intakes, bezoeken, aanbiedingen en matchgesprekken aan vooraf. Als je alleen op starters stuurt, stuur je op iets dat drie maanden geleden is gebeurd. Door de hele trechter bij te houden zie je vandaag al of het over een kwartaal goed komt. Daarom is de weekinvoer geen administratie maar het vroegste signaal dat er is.',
-    stappen: [
-      'Onder het tabblad KPI\'s staat de weekinvoer. Vul in wat er die week is gedaan en klik op Opslaan; daarna gaat de rij op slot, zodat cijfers niet ongemerkt veranderen.',
-      'Wijzigen kan altijd via de knop in de weekbalk — de rij gaat dan weer open.',
-      'Het pipeline-schema eronder telt automatisch mee: wat je daar sleept, komt terug in de weekcijfers. Vul dus niet twee keer hetzelfde in.',
-      'Plan van aanpak gaat over de wéék erop. Coaching leest de cijfers en benoemt waar de trechter lekt.',
+    intro: 'Alles van één business manager, verdeeld over zes tabbladen: cijfers, plan, coaching, analyse en de twee ladders.',
+    secties: [
+      { kop: 'KPI\'s — weekinvoer en pipeline',
+        waarom: 'De weekinvoer is geen administratie maar het vroegste signaal dat er is. Wie de trechter bijhoudt, ziet vandaag al of het over een kwartaal goed komt. Wie alleen starters telt, komt er te laat achter.',
+        stappen: [
+          'Vul in de weekbalk in wat er die week is gedaan en klik op Opslaan. Daarna gaat de rij op slot, zodat cijfers niet ongemerkt veranderen.',
+          'Wijzigen kan altijd via de knop in de weekbalk; de rij gaat dan weer open.',
+          'Het pipeline-schema eronder telt automatisch mee: wat je daar sleept komt terug in de weekcijfers. Vul dus niet twee keer hetzelfde in.',
+          'Een starter of contractvoorstel dat je met een collega deelt, telt bij ieder voor de helft. Zo klopt het teamtotaal.',
+          'Met de pijltjes boven het schema blader je door de weken terug.',
+        ]},
+      { kop: 'Plan van aanpak',
+        waarom: 'Een week die je niet plant, wordt gevuld door wat er toevallig binnenkomt. Het plan gaat daarom over de wéék erop, niet over de week die net voorbij is: je legt vast wat je gaat doen, zodat je achteraf kunt zien of het gelukt is en waarom niet.',
+        stappen: [
+          'De vijf vakken lopen van recruitment tot accountmanagement. Vul in wat je concreet gaat doen, niet wat je hoopt.',
+          'Wat je invult schuift automatisch door naar de volgende week, zodat je niet elke maandag opnieuw begint.',
+          'De managernotitie eronder is zichtbaar voor iedereen; die schuift ook mee.',
+          'Met het weeklogboek erboven blader je terug naar eerdere weken.',
+          'De printknop maakt er een leesbaar A4 van, ook van een oudere week.',
+        ]},
+      { kop: 'Coaching',
+        waarom: 'Coaching gaat mis als het over indrukken gaat. Dit tabblad leest de eigen cijfers en benoemt waar de trechter lekt: veel intakes maar weinig matchgesprekken is een ander gesprek dan weinig intakes. Zo praat je over hetzelfde, met dezelfde getallen erbij.',
+        stappen: [
+          'De coaching wordt automatisch opnieuw berekend zodra er nieuwe weekcijfers zijn.',
+          'De verhoudingen tussen de KPI\'s wijzen de plek aan waar het spaak loopt.',
+          'Is er een ITK- of BZK-opname van deze collega, dan kun je daar gespreksfeedback bij opvragen: wat ging goed in het gesprek zelf, en wat kan scherper.',
+          'Gebruik dit als voorbereiding op een gesprek, niet als oordeel: de cijfers zeggen wát er gebeurt, niet waarom.',
+        ]},
+      { kop: 'Performance-Analyse',
+        waarom: 'Een volle agenda en tegenvallende cijfers is een ander probleem dan een lege agenda met dezelfde cijfers. In het eerste geval zit het in de kwaliteit van de afspraken, in het tweede in het aantal. Deze analyse legt de agenda naast de resultaten en zegt welk van de twee het is.',
+        stappen: [
+          'Laad de agenda-export in en start de analyse.',
+          'De uitkomst is rol-bewust: bij een Key Accountmanager wordt op andere KPI\'s gelet dan bij een business manager.',
+          'Het resultaat kun je exporteren of printen voor het gesprek.',
+        ]},
+      { kop: 'Motivatieladder en Werkintensiteit',
+        waarom: 'Cijfers vertellen wat iemand doet, niet wat hem op de been houdt of wat hem opbreekt. Deze twee ladders zijn er om dat gesprek te kunnen voeren met dezelfde woorden — zonder ze wordt het al snel een mening tegenover een mening.',
+        stappen: [
+          'De Motivatieladder gaat over wat iemand drijft; de Werkintensiteitsladder over hoeveel er van hem gevraagd wordt.',
+          'Gebruik ze als praatplaat in een een-op-een, niet als beoordeling.',
+          'Beide staan als afbeelding op het scherm en zijn dus ook te tonen tijdens het gesprek.',
+        ]},
     ]},
 
   team: { titel: 'Team Resultaten',
-    intro: 'De optelsom van alle business managers, per week en per maand.',
-    waarom: 'Losse weken schommelen altijd: één vakantie of één grote klant en het beeld klopt niet meer. Opgeteld over het team en uitgezet tegen de norm zie je pas of een dip toeval is of een patroon. Dit is de plek waar je bijstuurt op capaciteit — meer mensen, andere verdeling, andere focus — en niet op individuele prestaties.',
-    stappen: [
-      'Kies boven de grafiek of je per week of per maand kijkt. Per maand dempt de ruis, per week zie je sneller een omslag.',
-      'De normlijn laat zien wat het team in die periode had moeten halen.',
-      'Klap in de tabel eronder een week open om te zien wie wat heeft bijgedragen.',
-      'De historie per jaar staat onderaan, nieuwste jaar eerst — handig om te zien of dit jaar echt afwijkt.',
+    intro: 'De optelsom van alle business managers: grafieken, verhoudingen, weekinvoer en de historie per jaar.',
+    secties: [
+      { kop: 'De grafieken',
+        waarom: 'Losse weken schommelen altijd: één vakantie of één grote klant en het beeld klopt niet meer. Opgeteld over het team en uitgezet tegen de norm zie je pas of een dip toeval is of een patroon. Dit is de plek waar je bijstuurt op capaciteit — meer mensen, andere verdeling, andere focus — en niet op individuele prestaties.',
+        stappen: [
+          'Kies boven de grafiek of je per week of per maand kijkt. Per maand dempt de ruis, per week zie je sneller een omslag.',
+          'De normlijn laat zien wat het team in die periode had moeten halen.',
+          'Elke KPI heeft zijn eigen schaal, zodat een kleine reeks niet wegvalt naast een grote.',
+          'Klik in de legenda op een naam om die collega even uit de grafiek te halen.',
+        ]},
+      { kop: 'Verhoudingen tussen de KPI\'s',
+        waarom: 'Hoeveel intakes heb je nodig voor één starter? Dat getal zegt meer over de kwaliteit van het werk dan het aantal intakes zelf. Verandert de verhouding, dan verandert er iets in de markt of in de manier van werken — en dat wil je weten voordat het in de starters zichtbaar wordt.',
+        stappen: [
+          'De verhoudingen worden over zesentwintig weken berekend, zodat één goede of slechte week het beeld niet kantelt.',
+          'Vergelijk de verhouding van het team met die van een individuele collega om te zien waar iemand afwijkt.',
+          'Een verhouding die verslechtert bij gelijkblijvende aantallen is een signaal om naar de gesprekken zelf te kijken.',
+        ]},
+      { kop: 'Openstaande weekinvoer',
+        waarom: 'Eén collega die zijn week niet invult, maakt het teamtotaal onbruikbaar — en dat merk je pas als je erop wilt sturen. Dit blok laat zien wie er nog moet, zodat je het kunt vragen in plaats van te wachten.',
+        stappen: [
+          'Per week zie je wie al heeft opgeslagen en wie nog niet.',
+          'Ontbreekt er invoer, dan rekent het dashboard voorlopig met de pipeline van die collega.',
+          'Een waarschuwingsteken betekent dat de pipeline hoger uitkomt dan wat er is opgeslagen — meestal is er dan iets vergeten door te zetten.',
+        ]},
+      { kop: 'Historie per jaar',
+        waarom: 'Zonder vorig jaar ernaast is een goed jaar niet te herkennen. De historie staat er om te zien of dit jaar echt afwijkt of dat het seizoen gewoon zijn werk doet.',
+        stappen: [
+          'De jaren staan onder elkaar, nieuwste jaar eerst.',
+          'Per jaar zie je dezelfde KPI\'s, zodat je ze naast elkaar kunt leggen.',
+          'Collega\'s die uit dienst zijn blijven in de historie staan: hun cijfers waren destijds echt.',
+        ]},
     ]},
 
   projecten: { titel: 'Projecten & Groeiplanning',
-    intro: 'Alle lopende plaatsingen, hun looptijd en wat dat betekent voor de bezetting.',
-    waarom: 'Omzet komt niet van nieuwe plaatsingen maar van lopende. Elke plaatsing die afloopt is omzet die verdwijnt, en dat gebeurt op een datum die je van tevoren kent. Door einddatums bij te houden zie je maanden vooruit waar het gat valt, en kun je werven vóórdat het gat er is. Vandaar dat de definitieve einddatum belangrijker is dan hij lijkt: daar rekent de hele prognose mee.',
-    stappen: [
-      'Filter of zoek bovenin op naam, opdrachtgever of de initialen van een collega.',
-      'Klik een regel open voor de evaluatiemomenten en de contractgegevens.',
-      'Vul de definitieve einddatum in zodra die bekend is. Zolang die leeg is, rekent de prognose met de verwachte datum — en die is bijna altijd optimistisch.',
-      'De grafiek onderaan telt per week hoeveel projecten er lopen, inclusief wat er nog aankomt en wie er stopt.',
+    intro: 'Alle lopende plaatsingen, hun looptijd, de gevolgen voor de bezetting en de bonusberekening.',
+    secties: [
+      { kop: 'Het overzicht',
+        waarom: 'Omzet komt niet van nieuwe plaatsingen maar van lopende. Elke plaatsing die afloopt is omzet die verdwijnt, en dat gebeurt op een datum die je van tevoren kent. Door einddatums bij te houden zie je maanden vooruit waar het gat valt, en kun je werven vóórdat het gat er is.',
+        stappen: [
+          'Filter of zoek bovenin op naam, opdrachtgever of de initialen van een collega.',
+          'Klik op een kolomkop om te sorteren; op datum sorteren laat zien wat er als eerste afloopt.',
+          'Een rood gekleurde einddatum betekent dat de datum verstreken is zonder dat er een definitieve datum is ingevuld.',
+          'Met de Excel-knop haal je de hele lijst eruit voor een overleg.',
+        ]},
+      { kop: 'Details per project',
+        waarom: 'De evaluatiemomenten en de contractgegevens horen bij het project, niet in een apart bestand. Door ze onder de regel te zetten staan ze er als je ze nodig hebt en zitten ze niet in de weg als je alleen de looptijd wilt zien.',
+        stappen: [
+          'Klik op het driehoekje vóór de naam om de regel open te klappen.',
+          'Bovenin staan de evaluatiemomenten: week 1, week 2 en daarna per maand. Een verstreken moment dat niet is afgevinkt krijgt een uitroepteken bij de naam.',
+          'Daaronder staan de contractgegevens: contractvorm, tarief, marge en de gedeelde bonusverdeling.',
+          'Wijzigingen sla je per regel op; zolang je niet opslaat verandert er niets in de database.',
+        ]},
+      { kop: 'Einddatums en de prognose',
+        waarom: 'De definitieve einddatum is belangrijker dan hij lijkt: daar rekent de hele prognose mee. Zolang die leeg is, gaat het dashboard uit van de verwachte datum, en die is bijna altijd optimistisch. Eén verkeerde datum betekent een gat in de planning dat je pas ziet als het er al is.',
+        stappen: [
+          'Vul de definitieve einddatum in zodra die bekend is; het veld kleurt groen.',
+          'De prognose stopper is iets anders: daarmee haal je een project uit de gele prognoselijn zonder de werkelijke einddatum te veranderen.',
+          'De grafiek onderaan telt per week hoeveel projecten er lopen, inclusief wat er nog aankomt en wie er stopt.',
+          'De gele lijn is de prognose, de blauwe de werkelijkheid; loopt de gele ver boven de blauwe, dan staat er meer gepland dan er hard is.',
+        ]},
+      { kop: 'Bonussen',
+        waarom: 'Een bonusregeling die niemand kan narekenen, motiveert niet — die roept vragen op. Hier staat per plaatsing hoe het bedrag is opgebouwd, met dezelfde cijfers waarmee het is uitgerekend.',
+        stappen: [
+          'Kies bovenin op welke periode je wilt filteren.',
+          'Per plaatsing zie je de onderdelen die meetellen en het aandeel per collega.',
+          'Bij een gedeelde plaatsing telt ieder voor zijn eigen deel; de percentages tellen samen op tot honderd.',
+          'Ontbreken er gegevens, dan wordt dat onderdeel op nul gezet in plaats van geschat.',
+        ]},
     ]},
 
   kandidaten: { titel: 'Kandidaten',
     intro: 'Alle intakes van de afgelopen tien weken, van het hele team bij elkaar.',
-    waarom: 'De meeste kandidaten passen niet bij de vacature waarvoor ze binnenkwamen, maar wél bij die van een collega. Zonder gedeeld overzicht blijft die kennis bij één persoon hangen en loopt de kandidaat weg. Dit scherm is er om dwars door elkaars intakes te kijken: één blik op functie, regio en salarisindicatie is genoeg om te zien of je iemand kunt gebruiken.',
-    stappen: [
-      'De kaartjes staan gegroepeerd per week, nieuwste week bovenaan.',
-      'Op elk kaartje zie je functie, regio, salarisindicatie en reisbereidheid — samen bepalen die of iemand plaatsbaar is.',
-      'De drie gekleurde bollen zijn een handmatige kleurcode; klik erop om de status te zetten.',
-      'Het kruisje haalt een kandidaat uit dit overzicht, bijvoorbeeld als hij elders is begonnen.',
+    secties: [
+      { kop: 'Waarom dit overzicht bestaat',
+        waarom: 'De meeste kandidaten passen niet bij de vacature waarvoor ze binnenkwamen, maar wél bij die van een collega. Zonder gedeeld overzicht blijft die kennis bij één persoon hangen en loopt de kandidaat weg. Eén blik op functie, regio en salarisindicatie is genoeg om te zien of je iemand kunt gebruiken.',
+        stappen: [
+          'De kaartjes staan gegroepeerd per week, nieuwste week bovenaan.',
+          'Op elk kaartje zie je functie, regio, salarisindicatie en reisbereidheid — samen bepalen die of iemand plaatsbaar is.',
+          'Met de zoekbalk bovenin zoek je dwars door alle weken op naam, functie, regio of collega.',
+        ]},
+      { kop: 'Status bijhouden',
+        waarom: 'Een kandidatenlijst zonder status wordt binnen twee weken een lijst waar niemand meer op durft te bellen. De kleurcode is er om in één oogopslag te zien wat er nog moet gebeuren.',
+        stappen: [
+          'De drie gekleurde bollen zijn een handmatige kleurcode; klik erop om de status te zetten.',
+          'Groen betekent afgerond, oranje dat er een actie ligt, en geen kleur dat er nog niets mee gedaan is.',
+          'Het kruisje haalt een kandidaat uit dit overzicht, bijvoorbeeld als hij elders is begonnen. De intake zelf blijft gewoon in de pipeline staan.',
+        ]},
     ]},
 
   accounts: { titel: 'Accountmanagement',
-    intro: 'Het klantenbestand, verdeeld over drie sub-tabbladen.',
-    waarom: 'Nieuwe klanten winnen kost een veelvoud van wat het kost om een bestaande klant te houden. Toch verdwijnt onderhoud altijd als eerste uit de agenda, omdat er geen deadline op staat. Deze drie tabbladen maken die stille achteruitgang zichtbaar: wie ken je nog niet, hoe sterk is de relatie met wie je wél kent, en wat is het plan per klant.',
-    stappen: [
-      'RLDV is de lijst met sales leads: bedrijven waar nog geen relatie mee is.',
-      'Key Accountmanagement bevat de bestaande klanten met hun score.',
-      'Accountplan is de plek voor de uitgewerkte plannen per klant.',
-      'Wissel bovenin van tabblad; elk tabblad heeft zijn eigen filters en eigen uitleg.',
+    intro: 'Het klantenbestand, verdeeld over drie sub-tabbladen met elk hun eigen doel.',
+    secties: [
+      { kop: 'De drie tabbladen',
+        waarom: 'Nieuwe klanten winnen kost een veelvoud van wat het kost om een bestaande klant te houden. Toch verdwijnt onderhoud altijd als eerste uit de agenda, omdat er geen deadline op staat. Door leads, klanten en plannen uit elkaar te trekken, krijgt elk zijn eigen ritme.',
+        stappen: [
+          'Sales Leads (RLDV) is de lijst met bedrijven waar nog geen relatie mee is.',
+          'Key Accountmanagement bevat de bestaande klanten met hun score.',
+          'Accountplan is de plek voor de uitgewerkte plannen per klant.',
+          'Elk tabblad heeft zijn eigen filters en zijn eigen uitleg achter het i-tje.',
+        ]},
+      { kop: 'Accountplan',
+        waarom: 'Een accountplan dat in iemands hoofd zit, is geen plan maar een voornemen. Op papier is het overdraagbaar: een collega kan het overnemen en jij kunt over een half jaar nakijken of het gelopen is zoals bedacht.',
+        stappen: [
+          'Maak per klant een plan aan en beschrijf wat je wilt bereiken en met wie.',
+          'Leg vast wie de contactpersonen zijn en hoe vaak je contact hebt.',
+          'Werk het plan bij na een bezoek, zolang het gesprek nog vers is.',
+        ]},
     ]},
 
   rldv: { titel: 'RLDV — sales leads',
     intro: 'Bedrijven waar we nog binnen willen komen, met per bedrijf de kenmerken die bepalen of het past.',
-    waarom: 'Koud bellen zonder selectie levert vooral afwijzingen op, en dat kost meer motivatie dan tijd. Door vooraf vast te leggen welk type functies een bedrijf werft, in welke regio het zit en of de voorwaarden bekend zijn, bel je alleen nog bedrijven waar je iets te bieden hebt. De schuifjes zijn dus geen administratie maar je belijst.',
-    stappen: [
-      'Filter op vakgebied, regio, contactpersoon, status of voorwaarden om een gerichte selectie te maken.',
-      'De schuifjes geven per functietype aan of het bedrijf daarvoor interessant is.',
-      'Het vergrootglas achteraan zoekt de website van dat bedrijf op — handig vlak voor je belt.',
-      'Met het potlood bewerk je een regel; wijzigingen gaan pas naar de server als je opslaat, zodat je niet halverwege iets vastlegt.',
+    secties: [
+      { kop: 'Selecteren voor je belt',
+        waarom: 'Koud bellen zonder selectie levert vooral afwijzingen op, en dat kost meer motivatie dan tijd. Door vooraf vast te leggen welk type functies een bedrijf afneemt, bel je alleen waar de kans reëel is — en dat merk je aan het gesprek.',
+        stappen: [
+          'Filter op vakgebied, regio, contactpersoon, status of voorwaarden om een gerichte selectie te maken.',
+          'De schuifjes geven per functietype aan of het bedrijf daarvoor interessant is.',
+          'De knop Website zoekt het bedrijf op — handig vlak voor je belt.',
+          'Met de printknop maak je een belllijst voor een blok bellen.',
+        ]},
+      { kop: 'Bijwerken',
+        waarom: 'Een leadlijst is alleen zo goed als de laatste keer dat iemand hem heeft bijgewerkt. Daarom gaat bewerken hier bewust in twee stappen: je kunt niet per ongeluk iets vastleggen.',
+        stappen: [
+          'Klik op het potlood om een regel te bewerken.',
+          'Wijzigingen gaan pas naar de server als je op Opslaan klikt.',
+          'Noteer bij een afwijzing kort waaróm — dat scheelt de volgende collega een teleurstelling.',
+        ]},
     ]},
 
   kam: { titel: 'Key Accountmanagement',
     intro: 'De bestaande klanten, met een score die aangeeft hoe sterk de relatie is.',
-    waarom: 'Een klant die niet opzegt lijkt tevreden, maar dat zegt niets: de meeste klanten verdwijnen geruisloos. De score dwingt je de relatie op te delen in onderdelen die je wél kunt beïnvloeden — ken je de beslisser, ken je de voorwaarden, mag je actief aanbieden. Zakt een score, dan weet je precies waar het aan ligt. De kolom met de laatste wijziging is de eenvoudigste alarmbel die er is: is er lang niets bijgewerkt, dan is er waarschijnlijk ook lang geen contact geweest.',
-    stappen: [
-      'De score telt de losse onderdelen op; het streepje links van de naam geeft het niveau aan.',
-      'Klik op het potlood om een klant te bewerken. De regel blijft bevroren tot je op Opslaan klikt.',
-      'De kolom Laatste wijziging kleurt rood als een klant lang niet is bijgewerkt.',
-      'Met Top 11 en Gewenst 11 markeer je waar de meeste aandacht naartoe gaat — beperk dat aantal bewust, anders is niets meer prioriteit.',
+    secties: [
+      { kop: 'De score',
+        waarom: 'Een klant die niet opzegt lijkt tevreden, maar dat zegt niets: de meeste klanten verdwijnen geruisloos. De score dwingt je de relatie op te delen in onderdelen die je kunt beïnvloeden, zodat je ziet wáár het dun wordt in plaats van alleen dát het dun wordt.',
+        stappen: [
+          'De score telt de losse onderdelen op; het streepje links van de naam geeft het niveau aan.',
+          'Een lage score bij een grote klant is dringender dan een lage score bij een kleine.',
+          'De kolom Laatste wijziging kleurt rood als een klant lang niet is bijgewerkt — dat is meestal het eerste signaal.',
+        ]},
+      { kop: 'Bewerken en prioriteren',
+        waarom: 'Als alles prioriteit heeft, heeft niets prioriteit. Top 11 en Gewenst 11 zijn er om die keuze hardop te maken en er een klein aantal van te houden.',
+        stappen: [
+          'Klik op het potlood om een klant te bewerken. De regel blijft bevroren tot je op Opslaan klikt.',
+          'Met Top 11 markeer je de klanten waar de meeste aandacht naartoe gaat; met Gewenst 11 waar je die aandacht naartoe wílt.',
+          'Beperk dat aantal bewust — de elf staat er niet voor niets.',
+        ]},
     ]},
 
   financieel: { titel: 'Financieel',
     intro: 'Omzet, facturen, uren en marge — opgehaald uit Moneybird en de urenregistratie.',
-    waarom: 'Omzet is niet hetzelfde als geld: een verstuurde factuur die niet betaald wordt is een verlies dat je pas maanden later voelt. Daarom staan vervallen facturen hier apart, met het aantal dagen dat de oudste openstaat. Declarabiliteit en marge vertellen het andere deel van het verhaal: hoeveel van de uren die je betaalt, breng je ook in rekening. Twee bedrijven met dezelfde omzet kunnen daar volledig uit elkaar lopen.',
-    stappen: [
-      'Klik op Synchroniseren om de laatste stand uit Moneybird op te halen.',
-      'De urenrapportage laad je zelf als bestand; die wordt in je eigen browser doorgerekend, dus er gaan geen persoonsgegevens naar buiten.',
-      'Kies per onderdeel de periode: jaar, kwartaal, maand of week.',
-      'Vervallen facturen staan apart, met het aantal dagen dat de oudste openstaat.',
+    secties: [
+      { kop: 'Gegevens ophalen',
+        waarom: 'Cijfers die je met de hand overtypt, zijn cijfers waar iemand op een dag een fout in maakt. Daarom komt alles hier rechtstreeks uit de bron.',
+        stappen: [
+          'Klik op Synchroniseren om de laatste stand uit Moneybird op te halen.',
+          'Duurt de synchronisatie te lang, dan stopt hij zichzelf en meldt hij dat hij is afgekapt; klik dan nog een keer.',
+          'De urenrapportage laad je zelf als bestand. Die wordt in je eigen browser doorgerekend, dus er gaan geen persoonsgegevens naar buiten.',
+          'Kies per onderdeel de periode: jaar, kwartaal, maand of week.',
+        ]},
+      { kop: 'Omzet tegenover begroting',
+        waarom: 'Een omzet van een ton zegt niets zonder het getal waar je op mikte. De begroting staat er niet om af te rekenen maar om vroeg te zien dat de lijn afbuigt, terwijl er nog iets aan te doen is.',
+        stappen: [
+          'De grafiek zet de werkelijke omzet naast de begrote lijn.',
+          'Wissel tussen jaar, kwartaal, maand en week; per week zie je een omslag het snelst.',
+          'Onder de grafiek staat dezelfde vergelijking per opdrachtgever.',
+        ]},
+      { kop: 'Vervallen facturen',
+        waarom: 'Omzet is niet hetzelfde als geld. Een verstuurde factuur die niet betaald wordt is een verlies dat je pas maanden later voelt, en hoe langer hij openstaat hoe kleiner de kans dat hij nog binnenkomt. Daarom staat dit apart en niet ergens onderaan.',
+        stappen: [
+          'Het blok toont het openstaande bedrag inclusief btw en het aantal dagen dat de oudste factuur openstaat.',
+          'Klap het open voor de factuurnummers per klant.',
+          'Facturen die nog gepland staan tellen niet mee als omzet — die zijn immers nog niet verstuurd.',
+        ]},
+      { kop: 'Uren, marge en ranking',
+        waarom: 'Marge ontstaat niet bij het tekenen van het contract maar elke week opnieuw, in de uren die wel of niet declarabel zijn. Ziekte, overuren en leegloop vreten stilletjes aan het resultaat; hier worden ze zichtbaar per periode.',
+        stappen: [
+          'Declarabiliteit toont welk deel van de gewerkte uren daadwerkelijk is doorbelast.',
+          'Ziekte-uren en overuren staan apart, omdat ze een heel ander gesprek opleveren.',
+          'Marge kun je per opdrachtgever bekijken.',
+          'De ranking per opdrachtgever is sorteerbaar: klik op een kolomkop om de grootste of juist de zwakste bovenaan te zetten.',
+        ]},
+      { kop: 'Oude klanten',
+        waarom: 'Een klant die dit jaar niets afneemt maar vorig jaar wel, is geen verloren klant maar een openstaande vraag. Dit lijstje is het goedkoopste belwerk dat er is.',
+        stappen: [
+          'Het tabblad toont klanten zonder omzet dit jaar, met wat ze vorig jaar deden.',
+          'Gebruik het bedrag van vorig jaar om te bepalen wie je als eerste belt.',
+        ]},
     ]},
 
   hrm: { titel: 'HRM / Backoffice',
-    intro: 'Evaluatiemomenten bewaken en nieuwe medewerkers aanmelden.',
-    waarom: 'De meeste plaatsingen die misgaan, gaan mis in de eerste maanden — en bijna altijd was er een signaal dat niemand heeft opgepakt. De evaluatiecyclus zet die momenten vast op de kalender vanaf de startdatum, zodat opvolgen niet afhangt van wie eraan denkt. Een oranje moment is dus geen administratieve achterstand maar een gesprek dat nog niet gevoerd is.',
-    stappen: [
-      'Evaluatiebeheer toont per medewerker welke evaluatiemomenten al zijn gedaan.',
-      'Een oranje moment is verstreken maar nog niet afgevinkt; groen is afgerond.',
-      'Bij het aanvinken vraagt het scherm om bevestiging dat het ook in Salesforce staat — dat blijft de bron voor de klant.',
-      'Onder Aanmeldformulier vul je een nieuwe medewerker in en exporteer je dat als Word-bestand.',
+    intro: 'Evaluatiemomenten bewaken, nieuwe medewerkers aanmelden en de standaardteksten beheren.',
+    secties: [
+      { kop: 'Evaluatiebeheer',
+        waarom: 'De meeste plaatsingen die misgaan, gaan mis in de eerste maanden — en bijna altijd was er een signaal dat niemand heeft opgepakt. De evaluatiecyclus zet die momenten vast in de agenda, juist wanneer het druk is en niemand eraan denkt.',
+        stappen: [
+          'Het overzicht toont per medewerker welke evaluatiemomenten al zijn gedaan.',
+          'Een oranje moment is verstreken maar nog niet afgevinkt; groen is afgerond.',
+          'De cyclus begint met week 1 en week 2, daarna maandelijks — juist het begin is bepalend.',
+          'Bij het aanvinken vraagt het scherm om bevestiging dat het ook in Salesforce staat; dat blijft de bron voor de klant.',
+        ]},
+      { kop: 'Aanmeldformulier',
+        waarom: 'Een aanmelding die half is ingevuld, kost de backoffice meer tijd dan hij bespaart. De verplichte velden staan er niet om te pesten maar om te voorkomen dat er drie keer heen en weer gemaild moet worden.',
+        stappen: [
+          'Vul het formulier in; verplichte velden zijn gemarkeerd en blokkeren het exporteren.',
+          'Kies bovenin een standaard om de vaste teksten in één keer te vullen.',
+          'Exporteer het als Word-bestand voor de ondertekening.',
+          'Opgeslagen formulieren blijven bewaard, zodat je een aanmelding later nog kunt terugzoeken.',
+        ]},
+      { kop: 'Standaard',
+        waarom: 'Iedereen die zijn eigen formulering gebruikt, levert twintig varianten op van dezelfde afspraak. Standaardteksten maken de aanmelding sneller en de afspraken eenduidig.',
+        stappen: [
+          'Beheer hier de vaste teksten die in het aanmeldformulier terechtkomen.',
+          'Pas een standaard aan als de afspraken wijzigen; nieuwe aanmeldingen gebruiken dan meteen de nieuwe tekst.',
+        ]},
     ]},
 
   cvgen: { titel: 'CV-generator',
     intro: 'Van een aangeleverd CV naar een presentabel CV in de Brightech-huisstijl.',
-    waarom: 'Een opdrachtgever besluit in twintig seconden of hij verder leest. Een CV in eigen opmaak, met een korte indruk van de kandidaat erboven, wint die twintig seconden vaker dan het originele document. Bovendien haal je persoonsgegevens weg die er niet in horen. De AI-tekst is nadrukkelijk een suggestie: jij hebt de kandidaat gesproken, het model niet — wat er staat moet kloppen met wat jij gezien hebt.',
-    stappen: [
-      'Vul eerst de basisgegevens van de kandidaat in.',
-      'Upload het CV als .docx of .pdf; de tekst wordt er automatisch uit gehaald.',
-      'Klik op Genereer tekstsuggestie voor een feitelijke indruk — lees die altijd na en pas aan waar het niet klopt.',
-      'Vul de laatste velden aan en download het Word-CV.',
+    secties: [
+      { kop: 'Het CV opbouwen',
+        waarom: 'Een opdrachtgever besluit in twintig seconden of hij verder leest. Een CV in eigen opmaak, met een korte indruk van de kandidaat erboven, wint die twintig seconden. Het gaat niet om mooier maken maar om sneller laten zien waarom deze persoon past.',
+        stappen: [
+          'Vul eerst de basisgegevens van de kandidaat in.',
+          'Upload het CV als .docx of .pdf, of sleep het in het vak; de tekst wordt er automatisch uit gehaald.',
+          'Klik op Genereer tekstsuggestie voor een feitelijke indruk. Lees die altijd na en pas aan waar het niet klopt — jij kent de kandidaat, het model niet.',
+          'Vul opleiding, werkervaring, talen en hobby\'s aan. Met de knoppen erboven maak je opsommingen.',
+          'Download het Word-CV en controleer de opmaak voordat je het verstuurt.',
+        ]},
     ]},
 
   itk: { titel: 'ITK-Recorder',
     intro: 'Neem een intakegesprek op en laat er automatisch een verslag van maken.',
-    waarom: 'Wie tijdens een gesprek aantekeningen maakt, luistert half. En wat je achteraf opschrijft is gekleurd door wat je toevallig onthouden hebt. Door op te nemen kun je het gesprek volledig voeren en krijg je er een verslag bij dat de kandidaat letterlijk citeert. Daar komt bij dat het gesprek zelf beoordeeld wordt — op doorvragen, samenvatten, concrete afspraken — en dat is de snelste manier om beter te worden in het voeren ervan.',
-    stappen: [
-      'Vul de naam van de kandidaat in en kies wie het gesprek voert.',
-      'Start de opname. Laat het tabblad open staan tot je klaar bent.',
-      'Na het stoppen worden de sprekers herkend en wordt het gesprek geanalyseerd; dat duurt een paar minuten.',
-      'Het verslag verschijnt onder Recente records, en kun je daar delen met de kandidaat of downloaden.',
+    secties: [
+      { kop: 'Opnemen',
+        waarom: 'Wie tijdens een gesprek aantekeningen maakt, luistert half. En wat je achteraf opschrijft is gekleurd door wat je toevallig onthouden hebt. Door op te nemen kun je het gesprek voeren zoals je het zou willen voeren, en komt het verslag er daarna vanzelf.',
+        stappen: [
+          'Vul de naam van de kandidaat en de functie in, en kies wie het gesprek voert. Die naam komt in het verslag terug in plaats van "de interviewer".',
+          'Start de opname. Je kunt tussendoor pauzeren en weer verdergaan; het blijft één opname.',
+          'De opname wordt elke dertig seconden op je eigen apparaat veiliggesteld. Valt de verbinding weg, dan is er niets kwijt en kun je het later alsnog verwerken.',
+          'Klik op Stop & Analyseer als je klaar bent. Mislukt het uploaden, dan verschijnt de knop Opnieuw proberen — gooi nooit iets weg zolang die er staat.',
+        ]},
+      { kop: 'Het verslag',
+        waarom: 'Een verslag is pas nuttig als er de dingen in staan waar je later op moet terugvallen: wat wil deze kandidaat verdienen, hoe ver wil hij reizen, wanneer kan hij beginnen. Daar is de analyse op gericht.',
+        stappen: [
+          'Na het stoppen worden de sprekers herkend en wordt het gesprek geanalyseerd; reken op enkele minuten.',
+          'Herkent de analyse wie wie is, dan komen de echte namen in het transcript te staan in plaats van Spreker A en B.',
+          'Het verslag is verdeeld in harde uitgangspunten, zachte factoren en afspraken.',
+          'Onder Afspraken staan salaris, werkgebied, opzegtermijn en het vervolg — de vier dingen die je anders opnieuw moet vragen.',
+        ]},
+      { kop: 'Recente records',
+        waarom: 'Een verslag dat alleen op jouw computer staat, bestaat voor de rest van het team niet. Alles komt daarom op de gedeelde server; wat daar (nog) niet is aangekomen krijgt een zichtbaar label.',
+        stappen: [
+          'Alle verslagen staan onder Recente records, met de initialen van wie het gesprek voerde.',
+          'Staat er "alleen op dit apparaat", dan is het opslaan mislukt; het dashboard probeert het automatisch opnieuw.',
+          'Met Afspraken delen maak je een link voor de kandidaat met alleen de afspraken erin.',
+          'Met Heranalyse laat je hetzelfde gesprek opnieuw beoordelen — handig als de analyse is verbeterd.',
+          'Kopiëren, printen en downloaden als Word kan per verslag.',
+        ]},
     ]},
 
   bzk: { titel: 'BZK-Recorder',
     intro: 'Neem een bedrijfsbezoek, evaluatie of matchvoorbereiding op en krijg er een verslag van.',
-    waarom: 'Bij een bedrijfsbezoek valt de belangrijkste informatie meestal terloops: een reorganisatie, een vertrekkende manager, een budget dat vrijkomt. Dat soort zinnen haal je uit een opname wél terug en uit je geheugen niet. De keuze bovenaan bepaalt waar de analyse op let, want een evaluatie met een medewerker vraagt iets heel anders dan een verkoopgesprek.',
-    stappen: [
-      'Kies bovenaan welk soort gesprek je opneemt — dat bepaalt waar de analyse op let.',
-      'Vul de bedrijfsnaam en contactpersoon in en kies wie opneemt.',
-      'Start de opname; na het stoppen wordt het gesprek verwerkt.',
-      'Het verslag komt bij Recente records te staan.',
+    secties: [
+      { kop: 'Het juiste type kiezen',
+        waarom: 'Bij een bedrijfsbezoek let je op andere dingen dan bij een evaluatie met een gedetacheerde medewerker. Door het type vooraf te kiezen, weet de analyse waar hij op moet letten en krijg je een verslag dat ergens over gaat.',
+        stappen: [
+          'Kies bovenaan het soort gesprek: bedrijfsbezoek, evaluatie medewerker of voorbereiding matchgesprek.',
+          'Het formulier past zich aan: bij een evaluatie vraagt het om de medewerker, bij een bedrijfsbezoek om de contactpersoon.',
+          'Vul ook in wie het gesprek voert; die naam komt in het verslag terug.',
+        ]},
+      { kop: 'Opnemen en verwerken',
+        waarom: 'Bij een bedrijfsbezoek valt de belangrijkste informatie meestal terloops: een reorganisatie, een vertrekkende manager, een budget dat vrijkomt. Dat soort zinnen haal je nooit uit je geheugen terug, maar wel uit een transcript.',
+        stappen: [
+          'Start de opname; ook hier wordt hij elke dertig seconden op je apparaat veiliggesteld.',
+          'Na het stoppen wordt het gesprek verwerkt en verschijnt het verslag.',
+          'Bij elk verslag zit coachingfeedback op het gesprek zelf: wat ging goed, wat kan scherper.',
+          'Het verslag komt bij Recente records te staan, met dezelfde knoppen als bij de ITK-recorder.',
+        ]},
     ]},
 
   matchmaker: { titel: 'Matchmaker',
     intro: 'Zoek bij een kandidaatprofiel actuele vacatures op Nederlandse jobboards.',
-    waarom: 'Een goede kandidaat zonder passende opdracht is de duurste vorm van stilstand die er is. In plaats van te wachten tot er een vacature binnenkomt, draai je het om: je zoekt bedrijven die nú werven op precies dit profiel. Dat levert twee dingen op — een plek voor deze kandidaat, en een reden om een bedrijf te bellen dat je nog niet kende.',
-    stappen: [
-      'Vul minimaal één functietitel in en kies de regio.',
-      'Een CV meesturen is optioneel, maar maakt de match aanzienlijk beter.',
-      'Klik op Zoek vacatures — dit duurt ongeveer vijftien seconden.',
-      'De resultaten zijn een startpunt, geen eindoordeel: controleer altijd zelf de vacature voordat je belt.',
+    secties: [
+      { kop: 'Zoeken',
+        waarom: 'Een goede kandidaat zonder passende opdracht is de duurste vorm van stilstand die er is. In plaats van te wachten tot er een vacature binnenkomt, draai je het om: je zoekt de markt af bij deze specifieke persoon.',
+        stappen: [
+          'Vul minimaal één functietitel in en kies de regio.',
+          'Een CV meesturen is optioneel, maar maakt de match aanzienlijk beter.',
+          'Klik op Zoek vacatures; dit duurt ongeveer vijftien seconden.',
+          'Uitzendbureaus worden zoveel mogelijk weggefilterd, zodat je bij de opdrachtgever zelf uitkomt.',
+        ]},
+      { kop: 'Wat je met de uitkomst doet',
+        waarom: 'De uitkomst is een startpunt, geen eindoordeel. Een vacature kan al vervuld zijn of anders in elkaar zitten dan de tekst suggereert.',
+        stappen: [
+          'Controleer altijd zelf de vacature voordat je belt.',
+          'Gebruik de gevonden bedrijven ook als leads: staat er een bedrijf tussen dat nog niet in RLDV staat, voeg het daar dan toe.',
+        ]},
     ]},
 
   beheer: { titel: 'Beheer',
-    intro: 'Medewerkers, rollen, doelen en toegang tot het dashboard.',
-    waarom: 'Alle normen in dit dashboard worden hiervandaan afgeleid. Staat een jaardoel of een startweek verkeerd, dan klopt niet alleen dat ene getal: de voortgangsbalken, de coaching en de dagstart rekenen er allemaal mee. De startweek is daarbij het makkelijkst over het hoofd te zien — begint iemand in juli, dan mag hij niet worden afgerekend op de weken daarvoor.',
-    stappen: [
-      'Voeg een medewerker toe en stel rol, jaardoel en startweek in.',
-      'De startweek bepaalt vanaf wanneer de norm meetelt — belangrijk bij iemand die halverwege het jaar begint.',
-      'Met Uitnodigen krijgt iemand een e-mail om zelf een wachtwoord in te stellen; jij ziet dat wachtwoord nooit.',
-      'Inactief zetten haalt iemand uit alle overzichten, maar bewaart de historie — verwijderen zou de teamcijfers van vorige jaren veranderen.',
+    intro: 'Medewerkers, rollen, doelen, toegang en de memo\'s aan het team.',
+    secties: [
+      { kop: 'Medewerkers en doelen',
+        waarom: 'Alle normen in dit dashboard worden hiervandaan afgeleid. Staat een jaardoel of een startweek verkeerd, dan klopt niet alleen dat ene getal: de voortgangsbalken, de teamnorm en de coaching rekenen er allemaal mee. Dit is de plek waar één tikfout zich door het hele dashboard verspreidt.',
+        stappen: [
+          'Voeg een medewerker toe en stel rol, jaardoel en startweek in.',
+          'De startweek bepaalt vanaf wanneer de norm meetelt — belangrijk bij iemand die halverwege het jaar begint.',
+          'Met de norm-instelling kun je voor een enkele collega afwijkende normen zetten, bijvoorbeeld bij een Key Accountmanager.',
+          'Inactief zetten haalt iemand uit alle overzichten maar bewaart de historie; verwijderen zou de teamcijfers van vorige jaren veranderen.',
+        ]},
+      { kop: 'Toegang',
+        waarom: 'Wachtwoorden die iemand anders instelt, komen op een briefje terecht. Daarom stelt elke collega zijn eigen wachtwoord in en ziet niemand — ook de beheerder niet — wat het is.',
+        stappen: [
+          'Met Uitnodigen krijgt iemand een e-mail om zelf een wachtwoord in te stellen.',
+          'De rol bepaalt wat iemand ziet: een business manager ziet zijn eigen pagina, een manager alles.',
+          'Werkt een uitnodiging niet, controleer dan eerst of het e-mailadres klopt.',
+        ]},
+      { kop: 'Memo\'s',
+        waarom: 'Een wijziging landt niet omdat je hem één keer vertelt. Een memo verschijnt bij het opstarten en verdwijnt pas na een leesbevestiging — en achteraf is zichtbaar wie hem wel en niet gezien heeft.',
+        stappen: [
+          'Schrijf een memo en kies voor wie hij bedoeld is; laat je het leeg, dan is hij voor iedereen.',
+          'Met een publicatiedatum zet je een memo vooruit klaar: schrijven op vrijdag, tonen op maandag.',
+          'In de lijst zie je per memo hoeveel collega\'s hem hebben bevestigd.',
+          'Intrekken kan altijd; de bevestigingen blijven bewaard.',
+        ]},
+      { kop: 'Foutenlogboek',
+        waarom: 'Fouten die stil worden weggeslikt, blijven jaren onopgemerkt. De laatste dertig meldingen worden hier bewaard, zodat je bij een klacht kunt kijken of er iets is misgegaan in plaats van te moeten gissen.',
+        stappen: [
+          'De lijst toont wat er misging, waar, en wanneer.',
+          'Stuur de melding door als je iets niet begrijpt; er staat meestal genoeg in om het te herleiden.',
+        ]},
     ]},
 };
 
@@ -2578,6 +2904,34 @@ function toonUitleg(sleutel) {
   const u = PAGINA_UITLEG[sleutel];
   if (!u) return;
   sluitUitleg();
+
+  // Oudere uitleg had één blok waarom + stappen. Die vorm blijft werken, zodat
+  // een pagina die nog niet is uitgebreid gewoon blijft doen wat hij deed.
+  const secties = Array.isArray(u.secties) && u.secties.length
+    ? u.secties
+    : [{ kop: 'Zo werkt het', waarom: u.waarom, stappen: u.stappen || [] }];
+
+  const inhoud = secties.length > 1
+    ? '<nav class="uitleg-inhoud"><h4>In dit scherm</h4><ul>' +
+      secties.map((sec, i) =>
+        '<li><button onclick="uitlegNaar(' + i + ')">' +
+        '<span class="nr">' + (i + 1) + '</span><span>' + escHtml(sec.kop) + '</span>' +
+        '</button></li>').join('') +
+      '</ul></nav>'
+    : '';
+
+  const blokken = secties.map((sec, i) =>
+    '<section class="uitleg-sectie" id="uitleg-sec-' + i + '">' +
+      (secties.length > 1 ? '<h4>' + escHtml(sec.kop) + '</h4>' : '') +
+      (sec.waarom ? '<div class="uitleg-waarom"><h4>Waarom dit ertoe doet</h4><p>' +
+                    escHtml(sec.waarom) + '</p></div>' : '') +
+      (secties.length === 1 ? '<h4 class="uitleg-koptekst">Zo werkt het</h4>' : '') +
+      '<ol>' + (sec.stappen || []).map(t => '<li>' + escHtml(t) + '</li>').join('') + '</ol>' +
+      (secties.length > 1 && i > 0
+        ? '<button class="uitleg-terug" onclick="uitlegNaarBoven()">terug naar het overzicht</button>'
+        : '') +
+    '</section>').join('');
+
   const laag = document.createElement('div');
   laag.className = 'uitleg-laag';
   laag.id = 'uitleg-laag';
@@ -2589,17 +2943,28 @@ function toonUitleg(sleutel) {
         '<button class="uitleg-sluit" onclick="sluitUitleg()" aria-label="Sluiten">' +
           '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
         '</button></div>' +
-      '<div class="uitleg-body">' +
+      '<div class="uitleg-body" id="uitleg-body">' +
         '<p>' + escHtml(u.intro) + '</p>' +
-        (u.waarom ? '<div class="uitleg-waarom"><h4>Waarom dit ertoe doet</h4><p>' +
-                    escHtml(u.waarom) + '</p></div>' : '') +
-        '<h4 class="uitleg-koptekst">Zo werkt het</h4>' +
-        '<ol>' + u.stappen.map(t => '<li>' + escHtml(t) + '</li>').join('') + '</ol>' +
+        inhoud +
+        blokken +
       '</div>' +
       '<div class="uitleg-voet"><button onclick="sluitUitleg()">Sluiten</button></div>' +
     '</div>';
   document.body.appendChild(laag);
   document.addEventListener('keydown', _uitlegEscape);
+}
+
+// Springen naar een onderwerp. Het venster zelf blijft staan; alleen de inhoud
+// schuift, zodat de titel en de sluitknop in beeld blijven.
+function uitlegNaar(i) {
+  const doel = document.getElementById('uitleg-sec-' + i);
+  const body = document.getElementById('uitleg-body');
+  if (!doel || !body) return;
+  body.scrollTo({ top: doel.offsetTop - body.offsetTop - 6, behavior: 'smooth' });
+}
+function uitlegNaarBoven() {
+  const body = document.getElementById('uitleg-body');
+  if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function sluitUitleg() {
   const el = document.getElementById('uitleg-laag');
