@@ -1462,9 +1462,13 @@
                             font-variant-numeric:tabular-nums;
                             border-left:1px solid rgba(255,255,255,.14);
                             border-right:1px solid rgba(255,255,255,.14); }
-  /* Vergrendelde week: alleen het getal, geen suggestie dat je er iets mee kunt. */
+  /* Vergrendelde week: dezelfde vorm, maar zichtbaar buiten werking. De vorm
+     mag niet veranderen — anders zie je op het ene kaartje een stapper en op
+     het andere een los getal, en dat leest als twee verschillende dingen. */
   .card-aanb-stap.vast { border-color:rgba(255,255,255,.12); }
-  .card-aanb-stap.vast .cijfer { border:0; color:rgba(255,255,255,.7); }
+  .card-aanb-stap.vast button { color:rgba(255,255,255,.2); cursor:default; }
+  .card-aanb-stap.vast .cijfer { color:rgba(255,255,255,.65);
+                                 border-color:rgba(255,255,255,.1); }
   /* De keuzelijst 1e/2e/3e gesprek liep tegen hetzelfde aan: lichte opmaak
      op een donkere kaart. */
   .pipe-card select.card-aanb-input { background:rgba(255,255,255,.1);
@@ -1698,7 +1702,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260810-1544 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260810-1546 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4309,7 +4313,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260810-1544';
+const APP_VERSIE = '20260810-1546';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19704,7 +19708,11 @@ function renderPipeline(bm) {
                    onclick="event.stopPropagation();pipeStapAanb('${bmE}','${c.id}',1)"
                    ${aanbGetal >= 99 ? 'disabled' : ''}>+</button>
                </span>`
-            : `<span class="card-aanb-stap vast" title="Week is vergrendeld"><span class="cijfer">${aanbGetal}</span></span>`;
+            : `<span class="card-aanb-stap vast" title="Deze week staat op slot — klik op Wijzigen om aan te passen">
+                 <button type="button" disabled aria-hidden="true">&minus;</button>
+                 <span class="cijfer">${aanbGetal}</span>
+                 <button type="button" disabled aria-hidden="true">+</button>
+               </span>`;
         const aanbHtml = '';
         const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
         const gesprekHtml = isMatch
