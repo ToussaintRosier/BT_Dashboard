@@ -1216,6 +1216,23 @@
   .proj-overview-row.overdue { background:#fef2f2; border-radius:8px; padding:8px 10px; margin:2px 0; border-bottom:1px solid #fecaca; }
   /* Deze knoppen (weeknavigatie, goedkeuren) stonden als witte pillen op de
      donkere achtergrond en trokken meer aandacht dan de inhoud. */
+  /* Weeknavigatie: twee pijlen met de stapgrootte ertussen, als één geheel.
+     Sta je op een andere week, dan wordt dat middenstuk de knop terug naar
+     vandaag — zo is er nooit een derde knopje nodig. */
+  .week-nav { display:inline-flex; align-items:stretch; height:22px;
+              border:1px solid rgba(255,255,255,.2); border-radius:5px;
+              overflow:hidden; vertical-align:middle; }
+  .week-nav button { background:none; border:0; cursor:pointer; font-family:inherit;
+                     font-size:var(--t-xs); line-height:1; padding:0 8px;
+                     color:rgba(255,255,255,.65); }
+  .week-nav button:hover { background:rgba(255,255,255,.1); color:#fff; }
+  .week-nav .midden { padding:0 9px; color:rgba(255,255,255,.45);
+                      border-left:1px solid rgba(255,255,255,.16);
+                      border-right:1px solid rgba(255,255,255,.16); }
+  .week-nav .midden.terug { color:var(--accent-gold); }
+  .week-nav .midden:not(.terug) { cursor:default; }
+  .week-nav .midden:not(.terug):hover { background:none; color:rgba(255,255,255,.45); }
+
   .goedkeur-btn { border:1px solid rgba(255,255,255,.25); background:transparent;
                   color:rgba(255,255,255,.85); border-radius:6px; padding:5px 12px;
                   font-size:.76rem; font-weight:var(--w-nadruk); cursor:pointer; }
@@ -1649,7 +1666,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260810-1402 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260810-1514 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4260,7 +4277,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260810-1402';
+const APP_VERSIE = '20260810-1514';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19710,10 +19727,12 @@ function renderPipeline(bm) {
   // hele regel hoogte.
   return `<div class="section-title" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
     <span>Kandidaten pipeline</span>
-    <span style="display:flex;align-items:center;gap:5px;">
-      <button class="goedkeur-btn" onclick="pipeNavWeek(-1)" title="4 weken terug">← 4 wkn</button>
-      ${pipeWeekOffset !== 0 ? `<button class="goedkeur-btn" onclick="pipeNavWeekReset()" title="Terug naar vandaag">Vandaag</button>` : ''}
-      <button class="goedkeur-btn" onclick="pipeNavWeek(1)" title="4 weken vooruit">4 wkn →</button>
+    <span class="week-nav">
+      <button onclick="pipeNavWeek(-1)" title="4 weken terug" aria-label="4 weken terug">←</button>
+      ${pipeWeekOffset !== 0
+        ? `<button class="midden terug" onclick="pipeNavWeekReset()" title="Terug naar deze week">vandaag</button>`
+        : `<span class="midden">4 wkn</span>`}
+      <button onclick="pipeNavWeek(1)" title="4 weken vooruit" aria-label="4 weken vooruit">→</button>
     </span>
   </div>
   ${blocks}`;
