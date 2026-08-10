@@ -207,7 +207,7 @@
   select { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:7px 12px; border-radius:8px; font-size:.85rem; cursor:pointer; }
   select option { color:#111; background:#fff; }
   .app-layout { display:flex; align-items:flex-start; }
-  .sidebar { width:230px; flex-shrink:0; background:#253151; border-right:1px solid rgba(255,255,255,.1); padding:18px 10px; min-height:calc(100vh - 106px); position:sticky; top:106px; }
+  .sidebar { width:230px; flex-shrink:0; background:#253151; border-right:1px solid rgba(255,255,255,.1); padding:10px 10px 18px; min-height:calc(100vh - 60px); position:sticky; top:60px; }
   .sidebar-cat { margin-bottom:4px; border-top:1px solid rgba(255,255,255,.08); padding-top:6px; }
   .sidebar-cat:first-child { border-top:none; padding-top:0; }
   .sidebar-cat-btn { width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; background:none; border:none; padding:10px 12px; font-weight:700; font-size:.83rem; letter-spacing:.2px; color:#fff; cursor:pointer; border-radius:8px; transition:background .15s; }
@@ -230,7 +230,7 @@
   .sidebar-item { display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:none; border:none; padding:8px 12px; font-size:.81rem; color:rgba(255,255,255,.7); cursor:pointer; border-radius:6px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background .15s; }
   .sidebar-item:hover { background:rgba(255,255,255,.08); color:#fff; }
   .sidebar-item.active { background:var(--accent); color:#fff; }
-  main { padding:28px 32px 40px; flex:1; min-width:0; }
+  main { padding:16px 32px 40px; flex:1; min-width:0; }
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:10px; margin:12px 0; }
   .kpi-card { background:var(--card); border-radius:var(--radius); padding:10px 14px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(37,49,81,.09); }
   .kpi-card .label { font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; }
@@ -303,9 +303,11 @@
   tbody tr:hover { background: rgba(37,49,81,.03); }
   /* Het ratioblok was het laatste grote witte vlak op deze schermen. */
   .norm-intro { background:#364160; border:1px solid rgba(255,255,255,.07);
-                border-radius:var(--radius-groot); padding:14px 18px; margin-bottom:16px;
-                font-size:.88rem; line-height:1.7; color:rgba(255,255,255,.8); }
-  .norm-intro strong { color:#fff; font-weight:var(--w-nadruk); }
+                border-radius:var(--radius-groot); padding:11px 15px; margin-bottom:14px;
+                font-size:var(--t-xs); line-height:1.55; color:rgba(255,255,255,.45); }
+  .norm-intro strong { color:rgba(255,255,255,.9); font-weight:var(--w-nadruk); }
+  /* De getallen zijn waar je naar kijkt; de woorden eromheen mogen wijken. */
+  .norm-getal { color:rgba(255,255,255,.9); font-variant-numeric:tabular-nums; }
   .recommend-box { background:#f0fdf4; border:1px solid #86efac; border-radius:var(--radius); padding:16px 20px; margin-bottom:16px; }
   .recommend-box h3 { font-size:.95rem; font-weight:700; color:#166534; margin-bottom:8px; }
   .recommend-box p  { font-size:.88rem; color:#166534; line-height:1.7; }
@@ -1234,7 +1236,7 @@
                      #F8DA6B 0%, #F4CB3C 30%, #B79A55 55%, #3C4A6E 78%,
                      rgba(37,49,81,0) 100%);
                    border-radius:26px 0 0 26px; padding:10px 24px; border:none;
-                   margin:6px 0 14px;
+                   margin:0 0 14px;
                    display:flex; align-items:center; justify-content:space-between;
                    flex-wrap:wrap; gap:12px; position:sticky; top:60px; z-index:90;
                    box-shadow:none; }
@@ -1626,7 +1628,7 @@
   .toggle-group button { padding: 7px 11px; font-size: .8rem; }
 
   /* Invoer-tabel horizontaal scrollen */
-  .norm-intro { font-size: .83rem; }
+  .norm-intro { font-size: .72rem; }
 
   /* Logo kleiner op mobiel */
   body > header img { height: 30px !important; }
@@ -1647,7 +1649,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260810-1342 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260810-1402 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2285,6 +2287,8 @@ function getYear() { return +document.getElementById('yearSelect').value; }
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function weekToMonth(w) { return Math.ceil(w / (52/12)); }
 function fmt(n, dec=1)  { return (+n).toFixed(dec); }
+// Zelfde getal, maar zoals wij het schrijven: één decimaal met een komma.
+function fmtNl(n, dec=1) { return (+n).toFixed(dec).replace('.', ','); }
 function pct(a,b)       { return b ? Math.round(a/b*100) : 0; }
 function pctBar(p)      { return Math.min(100, p); }
 function barColor(p)    { return p>=100?'var(--over)':p>=90?'var(--success)':p>=60?'var(--warn)':' var(--danger)'; }
@@ -4256,7 +4260,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260810-1342';
+const APP_VERSIE = '20260810-1402';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5432,7 +5436,7 @@ function renderBM(bm) {
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">Coaching</button>
       <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">Performance-Analyse</button>
       <button class="bm-subtab-btn ${bmSubTab==='motivatieladder'?'active':''}" onclick="selectBmSubTab('motivatieladder')">Motivatieladder</button>
-      <button class="bm-subtab-btn ${bmSubTab==='werkintensiteit'?'active':''}" onclick="selectBmSubTab('werkintensiteit')">⚡ Werkintensiteit</button>
+      <button class="bm-subtab-btn ${bmSubTab==='werkintensiteit'?'active':''}" onclick="selectBmSubTab('werkintensiteit')">Werkintensiteit</button>
     </div>
     <div id="bm-subtab-content"></div>
   </div>`;
@@ -5462,11 +5466,13 @@ function renderBM(bm) {
   document.getElementById('bm-subtab-content').innerHTML = `
     ${renderPipeline(bm)}
 
-    <div class="norm-intro" style="margin-top:28px;">
-      <strong>Individuele ratio's (laatste 26 weken, ${ratios.weeksUsed} weekrecords):</strong>
-      ${fmt(ratios.intakes,2)} intakes · ${fmt(ratios.bezoeken,2)} bezoeken ·
-      ${fmt(ratios.aanbiedingen,2)} aanbiedingen · ${fmt(ratios.matchgesprekken,2)} matchgesprekken per starter.<br>
-      Op basis van jaardoel <strong>${bm.doel} starters</strong> is de norm per ${pLabel} bepaald waartegen hieronder wordt afgezet.
+    <div class="norm-intro" style="margin-top:22px;">
+      Ratio's over 26 weken (${ratios.weeksUsed} weekrecords) per starter:
+      <span class="norm-getal">${fmtNl(ratios.intakes)}</span> intakes ·
+      <span class="norm-getal">${fmtNl(ratios.bezoeken)}</span> bezoeken ·
+      <span class="norm-getal">${fmtNl(ratios.aanbiedingen)}</span> aanbiedingen ·
+      <span class="norm-getal">${fmtNl(ratios.matchgesprekken)}</span> matchgesprekken.<br>
+      Jaardoel <strong>${bm.doel} starters</strong> — daaruit volgt de norm per ${pLabel} hieronder.
     </div>
 
     <div class="section-title">
