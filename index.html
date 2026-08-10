@@ -133,6 +133,24 @@
   /* Datum rechtsboven. In dit dashboard draait alles om weeknummers — de
      weekinvoer, de pipeline, de teamcijfers — maar nergens stond welke week het
      is. Nu wel, in dezelfde grijstint als de rest van de bijzaken. */
+  /* Nieuwe versie beschikbaar. Onopvallend, maar niet weg te kijken: hij blijft
+     staan tot je bijwerkt of hem wegklikt. Zonder dit blijft een telefoon die
+     dagenlang open staat op oude code draaien — inclusief de fouten die we net
+     hebben opgelost. */
+  .versie-balk { position:fixed; left:50%; transform:translateX(-50%); bottom:16px;
+                 z-index:9996; display:flex; align-items:center; gap:12px;
+                 background:var(--card); color:var(--text);
+                 border-radius:99px; padding:9px 12px 9px 18px;
+                 box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--t-sm);
+                 max-width:calc(100vw - 32px); }
+  .versie-balk button { border:0; border-radius:99px; padding:6px 15px; cursor:pointer;
+                        font-family:inherit; font-size:var(--t-xs);
+                        font-weight:var(--w-nadruk);
+                        background:var(--accent-gold); color:#16142e; }
+  .versie-balk .later { background:none; color:var(--muted); font-weight:var(--w-normaal);
+                        padding:6px 4px; }
+  .versie-balk .later:hover { color:var(--text); }
+
   .kop-datum { color:rgba(255,255,255,.55); font-size:.78rem; white-space:nowrap;
                font-variant-numeric:tabular-nums; }
 
@@ -1629,6 +1647,9 @@
 }
 </style>
 </head>
+<!-- BT-VERSIE 20260810-1342 — wordt bij elke oplevering ververst. Het dashboard
+     vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
+     er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
 
 <header>
@@ -4222,6 +4243,75 @@ async function oneVastzetten(id, aan) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// NIEUWE VERSIE BESCHIKBAAR
+//
+// Een telefoon met het dashboard open blijft draaien op de code die hij ooit
+// heeft opgehaald. Wie zijn scherm niet ververst, houdt weken de oude versie —
+// inclusief fouten die allang gerepareerd zijn. Dat is precies wat er gebeurde
+// met de recorder: de melding op het scherm kwam uit een versie van dagen
+// eerder, terwijl het vangnet er al in zat.
+//
+// Daarom kijkt het dashboard zelf of er iets nieuws klaarstaat: bij het
+// terugkomen op het tabblad en verder elk kwartier. Zo ja, dan verschijnt
+// onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
+// anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
+// ════════════════════════════════════════════════════════════════════════════
+const APP_VERSIE = '20260810-1342';
+let _versieGemeld = false;
+
+function _versieUitTekst(tekst) {
+  const m = String(tekst || '').match(/BT-VERSIE\s+([0-9A-Za-z._-]+)/);
+  return m ? m[1] : null;
+}
+
+async function versieControle() {
+  if (_versieGemeld || document.hidden) return;
+  try {
+    const res = await fetch('index.html?v=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const nieuw = _versieUitTekst(await res.text());
+    if (!nieuw || nieuw === APP_VERSIE) return;
+    _versieGemeld = true;
+    toonVersieBalk();
+  } catch (_) { /* geen net, geen melding — volgende keer weer */ }
+}
+
+function toonVersieBalk() {
+  if (document.getElementById('versie-balk')) return;
+  const balk = document.createElement('div');
+  balk.className = 'versie-balk';
+  balk.id = 'versie-balk';
+  balk.innerHTML =
+    '<span>Er is een nieuwe versie van het dashboard.</span>' +
+    '<button onclick="versieBijwerken()">Bijwerken</button>' +
+    '<button class="later" onclick="document.getElementById(\'versie-balk\').remove()">Later</button>';
+  document.body.appendChild(balk);
+}
+
+async function versieBijwerken() {
+  // Eerst de browseropslag leegmaken, anders levert herladen dezelfde oude
+  // versie op — dat is precies de valkuil die we willen dichtzetten.
+  try {
+    if (window.caches) {
+      const namen = await caches.keys();
+      await Promise.all(namen.map(n => caches.delete(n)));
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.update().catch(() => {})));
+    }
+  } catch (_) {}
+  location.reload();
+}
+
+function _versieWaakhond() {
+  versieControle();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) versieControle(); });
+  window.addEventListener('focus', versieControle);
+  setInterval(versieControle, 15 * 60 * 1000);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // DE BALK BOVENAAN
 //
 // Drie dingen zijn hier veranderd, en alle drie om dezelfde reden: de balk nam
@@ -5264,6 +5354,7 @@ function applyDesktopZoom() {
 window.addEventListener('resize', applyDesktopZoom);
 applyDesktopZoom();
 startKopDatum();
+_versieWaakhond();
 
 function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
