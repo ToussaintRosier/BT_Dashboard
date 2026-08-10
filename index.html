@@ -3452,11 +3452,18 @@ function _oneTakenHtml(p) {
               escHtml(_oneInitialen(v.gebruiker || '?')) + '</span>').join('')
           : '<span class="one-taak-stand">vrij op te pakken</span>');
 
+    // Wie deze taak heeft afgerond — nodig voor de tekst bij het vinkje.
+    const doorWie = vinkjes.map(v => v.gebruiker).filter(Boolean).join(', ');
+    const vinkAan = klaar || ikVink;
+    const vinkTitel = klaar
+      ? 'Afgerond' + (doorWie ? ' door ' + doorWie : '') + (magIk && ikVink ? ' — klik om je vinkje terug te nemen' : '')
+      : magIk ? (ikVink ? 'Jij bent geweest — klik om je vinkje terug te nemen' : 'Afvinken')
+              : 'Deze taak staat op naam van een collega';
+
     return '<div class="one-taak ' + (klaar ? 'klaar' : '') + '">' +
-      '<button class="one-taak-vink ' + (ikVink ? 'aan' : '') + '"' +
+      '<button class="one-taak-vink ' + (vinkAan ? 'aan' : '') + '"' +
         (magIk ? '' : ' disabled') +
-        ' title="' + (magIk ? (ikVink ? 'Vinkje terugnemen' : 'Afvinken')
-                            : 'Deze taak staat op naam van een collega') + '"' +
+        ' title="' + escHtml(vinkTitel) + '"' +
         (magIk ? ' onclick="oneTaakVink(\'' + p.id + '\',' + t.id + ')"' : '') + '>' +
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4.5 4.5L19 7"/></svg></button>' +
       '<span class="one-taak-tekst">' + escHtml(t.tekst) + '</span>' +
