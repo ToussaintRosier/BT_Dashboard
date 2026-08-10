@@ -1446,6 +1446,30 @@
   .card-aanb-label { font-size:.62rem; color:var(--muted); white-space:nowrap; }
   .card-aanb-input { width:38px; border:1px solid var(--border); border-radius:4px; padding:1px 3px; font-size:.75rem; font-weight:700; text-align:center; outline:none; color:var(--primary); }
   .card-aanb-input:focus { border-color:var(--primary); box-shadow:0 0 0 2px #dbeafe; }
+  /* Aantal aanbiedingen: eigen − / + in plaats van de pijltjes van de browser. */
+  .card-aanb-stap { display:inline-flex; align-items:stretch; height:18px;
+                    border:1px solid rgba(255,255,255,.18); border-radius:5px;
+                    overflow:hidden; flex-shrink:0; vertical-align:middle; }
+  .card-aanb-stap button { background:none; border:0; cursor:pointer; font-family:inherit;
+                           font-size:.78rem; line-height:1; padding:0 6px;
+                           color:rgba(255,255,255,.55);
+                           display:inline-flex; align-items:center; }
+  .card-aanb-stap button:hover:not(:disabled) { color:#fff; background:rgba(255,255,255,.1); }
+  .card-aanb-stap button:disabled { opacity:.3; cursor:default; }
+  .card-aanb-stap .cijfer { display:inline-flex; align-items:center; justify-content:center;
+                            min-width:15px; padding:0 5px; line-height:1;
+                            font-size:.72rem; font-weight:var(--w-nadruk); color:#fff;
+                            font-variant-numeric:tabular-nums;
+                            border-left:1px solid rgba(255,255,255,.14);
+                            border-right:1px solid rgba(255,255,255,.14); }
+  /* Vergrendelde week: alleen het getal, geen suggestie dat je er iets mee kunt. */
+  .card-aanb-stap.vast { border-color:rgba(255,255,255,.12); }
+  .card-aanb-stap.vast .cijfer { border:0; color:rgba(255,255,255,.7); }
+  /* De keuzelijst 1e/2e/3e gesprek liep tegen hetzelfde aan: lichte opmaak
+     op een donkere kaart. */
+  .pipe-card select.card-aanb-input { background:rgba(255,255,255,.1);
+                                      border-color:rgba(255,255,255,.16); color:#fff; }
+  .pipe-card select.card-aanb-input option { background:#253151; color:#fff; }
   .pipe-add-btn { background:none; border:1px dashed #d1d5db; border-radius:5px; padding:3px 6px; font-size:.72rem; color:var(--muted); cursor:pointer; text-align:center; transition:all .13s; margin-top:auto; width:100%; }
   .pipe-add-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-light); }
   .pipe-cell-hdr { display:flex; align-items:center; justify-content:space-between; padding:4px 7px; margin:-6px -6px 6px; border-radius:7px 7px 0 0; border-bottom:1px solid rgba(0,0,0,.06); }
@@ -1674,7 +1698,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260810-1529 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260810-1544 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4285,7 +4309,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260810-1529';
+const APP_VERSIE = '20260810-1544';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19668,12 +19692,19 @@ function renderPipeline(bm) {
       const cellCount = isAanb ? cellCards.reduce((s,c) => s + (+c.aanb || 0), 0) : cellCards.length;
 
       const cardsHtml = cellCards.map(c => {
-        const aanbInlineHtml = isAanb
-          ? `<input class="card-aanb-input" type="number" min="0" max="99" value="${c.aanb||0}"
-               onchange="pipeUpdateAanb('${bmE}','${c.id}',this.value)"
-               onclick="event.stopPropagation()" ondragstart="event.stopPropagation()"
-               style="width:28px;margin-right:2px;" ${weekEditable?'':'disabled readonly'}/>`
-          : '';
+        const aanbGetal = +c.aanb || 0;
+        const aanbInlineHtml = !isAanb ? ''
+          : weekEditable
+            ? `<span class="card-aanb-stap" ondragstart="event.stopPropagation()" onclick="event.stopPropagation()">
+                 <button type="button" title="Eén minder" aria-label="Eén aanbieding minder"
+                   onclick="event.stopPropagation();pipeStapAanb('${bmE}','${c.id}',-1)"
+                   ${aanbGetal <= 0 ? 'disabled' : ''}>&minus;</button>
+                 <span class="cijfer">${aanbGetal}</span>
+                 <button type="button" title="Eén erbij" aria-label="Eén aanbieding erbij"
+                   onclick="event.stopPropagation();pipeStapAanb('${bmE}','${c.id}',1)"
+                   ${aanbGetal >= 99 ? 'disabled' : ''}>+</button>
+               </span>`
+            : `<span class="card-aanb-stap vast" title="Week is vergrendeld"><span class="cijfer">${aanbGetal}</span></span>`;
         const aanbHtml = '';
         const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
         const gesprekHtml = isMatch
@@ -19975,6 +20006,17 @@ function pipeUpdateAanb(bmNaam, cardId, value) {
     .update({ aanb: card.aanb, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
     .eq('id', cardId)
     .then(({error}) => { if (error) console.error('Aanbod bijwerken mislukt:', error); });
+}
+
+// ── Aantal aanbiedingen: één stapje op of neer ────────────────────────────────
+function pipeStapAanb(bmNaam, cardId, richting) {
+  if (!canEdit(bmNaam)) return;
+  const card = pipeLoad(bmNaam).find(c => c.id === cardId);
+  if (!card) return;
+  const nieuw = Math.min(99, Math.max(0, (+card.aanb || 0) + richting));
+  if (nieuw === (+card.aanb || 0)) return;
+  pipeUpdateAanb(bmNaam, cardId, nieuw);
+  render();
 }
 
 // ── Update gesprek-ronde (1e/2e/3e) ────────────────────────────────────────────
