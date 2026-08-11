@@ -1785,7 +1785,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1424 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1429 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4407,7 +4407,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1424';
+const APP_VERSIE = '20260811-1429';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5968,7 +5968,9 @@ function renderMedewerkersOverzicht() {
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.bm.naam)}</span>
         </div>
         <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:2px;">
-          verwacht ${fmt(r.ytdTarget, 1)} · jaardoel ${r.bm.doel}
+          verwacht ${fmt(r.ytdTarget, 1)} · jaardoel ${r.bm.doel}${r.bm.doelOnbekend
+            ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>`
+            : ''}
         </div>
       </div>
       <div style="text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0;">
@@ -7472,10 +7474,19 @@ async function loadBeheerData() {
     const isInHardcodedBMS = BMS_HARDCODED_NAMEN.has(naam);
     if (!heeftDoel && !isInHardcodedBMS) continue;
 
-    const doel  = doelenMap[naam] ?? p.doel ?? 12;
+    // Volgorde van betrouwbaarheid: wat de manager dit jaar heeft ingesteld,
+    // dan wat er in het profiel staat, dan het getal uit de vaste lijst in dit
+    // bestand. Dat laatste is bekend en juist — veel beter dan een standaard
+    // van 12 die voor niemand klopt.
+    const hardcodedDoel = BMS.find(b => b.naam === naam)?.doel;
+    const doel = doelenMap[naam] ?? p.doel ?? hardcodedDoel ?? 12;
+    // Is er nergens een doel te vinden, dan is 12 een gok. Onthoud dat, zodat
+    // het scherm het kan melden in plaats van te doen alsof het klopt.
+    const doelOnbekend = doelenMap[naam] == null && p.doel == null && hardcodedDoel == null;
     const bestaandBMSKleur = BMS.find(b => b.naam === naam)?.kleur;
     const kleur = p.kleur || bestaandBMSKleur || fallbackKleuren[kleurIdx++ % fallbackKleuren.length];
     const bm    = { naam, doel, kleur };
+    if (doelOnbekend) bm.doelOnbekend = true;
 
     // Uit dienst / inactief: de medewerker blijft in BMS staan zodat zijn
     // cijfers van vóór de einddatum gewoon blijven meetellen in de historie.
