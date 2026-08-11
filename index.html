@@ -1774,7 +1774,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1241 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1323 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4396,7 +4396,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1241';
+const APP_VERSIE = '20260811-1323';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7549,12 +7549,44 @@ function toonLaadscherm(totaalStappen) {
 }
 
 // Meld welke stap nu bezig is en schuif de balk op
+// Welke onderdelen deze keer niet geladen konden worden. Leeg = alles goed.
+let LAAD_MISLUKT = [];
+
+// Voert één laadstap uit. Gaat hij mis, dan gaat het opstarten gewoon door en
+// onthouden we wát er misging — in plaats van halverwege blijven staan.
+async function laadPoging(naam, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    console.error('Laden mislukt: ' + naam, e);
+    LAAD_MISLUKT.push(naam);
+  }
+}
+
 function laadStap(tekst) {
   _laadStap++;
   const st = document.getElementById('bt-laad-stap');
   const bk = document.getElementById('bt-laad-balk');
   if (st) st.textContent = tekst;
   if (bk) bk.style.width = Math.min(100, Math.round(_laadStap / _laadTotaal * 100)) + '%';
+}
+
+// Ontbreekt er iets, dan hoor je dat te weten. Half geladen cijfers die er
+// volledig uitzien zijn gevaarlijker dan een zichtbare waarschuwing.
+function toonLaadmelding() {
+  const bestaand = document.getElementById('laad-melding');
+  if (bestaand) bestaand.remove();
+  if (!LAAD_MISLUKT.length) return;
+  const balk = document.createElement('div');
+  balk.className = 'versie-balk';
+  balk.id = 'laad-melding';
+  balk.style.bottom = '70px';
+  balk.innerHTML =
+    '<span>Niet alles kon geladen worden: <strong>' + escHtml(LAAD_MISLUKT.join(', ')) +
+    '</strong>. De cijfers op het scherm kunnen onvolledig zijn.</span>' +
+    '<button onclick="location.reload()">Opnieuw</button>' +
+    '<button class="later" onclick="document.getElementById(\'laad-melding\').remove()">Sluiten</button>';
+  document.body.appendChild(balk);
 }
 
 function verbergLaadscherm() {
@@ -7587,6 +7619,7 @@ function verbergBezig() {
 }
 
 async function loadAllData() {
+  LAAD_MISLUKT = [];
   // Opnames (ITK + BZK) als ALLEREERSTE starten, zonder await. Ze stonden
   // eerder achteraan, achter dertien andere laadstappen — daardoor kwamen ze
   // pas in beeld als de rest van het dashboard al klaar was. Nu lopen ze
@@ -7596,27 +7629,27 @@ async function loadAllData() {
   // loadBeheerData in try/catch: als het misgaat (bijv. doelen-tabel mist of
   // onverwachte DB-fout), blijft de rest van de data gewoon laden.
   laadStap('Medewerkers en doelen…');
-  try { await loadBeheerData(); } catch(e) { console.error('loadBeheerData fout (niet fataal):', e); }
-  try { await loadAanmeldSaved(); } catch(e) { console.error('loadAanmeldSaved fout (niet fataal):', e); }
-  laadStap('Weekcijfers…');        await loadKpiWeekly();
-  laadStap('Pipeline…');           await pipeFetchAll();
-  laadStap('Projecten…');          await loadProjecten();
-                                   await loadProjEvaluaties();
-  laadStap('Plannen van aanpak…'); await loadPlanVanAanpak();
-  laadStap('Accountmanagement…');  await accountsFetchAll();
-                                   await salesLeadsFetchAll();
-  laadStap('Financiële cijfers…'); await loadFinancieelOmzet();
-                                   await loadBegroting();
-  laadStap('Urenrapportage…');     await loadUrenrapportage();
+  await laadPoging('medewerkers en doelen', loadBeheerData);
+  await laadPoging('aanmeldformulier', loadAanmeldSaved);
+  laadStap('Weekcijfers…');        await laadPoging('weekcijfers', loadKpiWeekly);
+  laadStap('Pipeline…');           await laadPoging('pipeline', pipeFetchAll);
+  laadStap('Projecten…');          await laadPoging('projecten', loadProjecten);
+                                   await laadPoging('projectevaluaties', loadProjEvaluaties);
+  laadStap('Plannen van aanpak…'); await laadPoging('plannen van aanpak', loadPlanVanAanpak);
+  laadStap('Accountmanagement…');  await laadPoging('accountmanagement', accountsFetchAll);
+                                   await laadPoging('sales leads', salesLeadsFetchAll);
+  laadStap('Financiële cijfers…'); await laadPoging('omzetcijfers', loadFinancieelOmzet);
+                                   await laadPoging('begroting', loadBegroting);
+  laadStap('Urenrapportage…');     await laadPoging('urenrapportage', loadUrenrapportage);
   laadStap('Rapportages…');
-  try { await loadComrapAnalyses(); } catch(e) { console.error('loadComrapAnalyses fout (niet fataal):', e); }
-  try { await loadEcDocumenten(); } catch(e) { console.error('loadEcDocumenten fout (niet fataal):', e); }
-  try { await loadGebruikLog(); } catch(e) { console.error('loadGebruikLog fout (niet fataal):', e); }
-  try { await loadToolgebruik(); } catch(e) { console.error('loadToolgebruik fout (niet fataal):', e); }
-  try { await loadMemos(); } catch(e) { console.error('loadMemos fout (niet fataal):', e); }
-  try { await loadOne(); } catch(e) { console.error('loadOne fout (niet fataal):', e); }
+  await laadPoging('rapportages', loadComrapAnalyses);
+  await laadPoging('documenten', loadEcDocumenten);
+  await laadPoging('gebruikslog', loadGebruikLog);
+  await laadPoging('toolgebruik', loadToolgebruik);
+  await laadPoging('memos', loadMemos);
+  await laadPoging('Brightech ONE', loadOne);
   laadStap('Berekeningen…');
-  recomputeRatios();
+  await laadPoging('berekeningen', async () => recomputeRatios());
 }
 
 // Laadt de opnames + de status van gedeelde afspraken op de achtergrond en
@@ -7719,9 +7752,19 @@ async function loadProfileAndStart() {
   document.getElementById('app-root').style.display = '';
   vulKopGebruiker();
   toonLaadscherm(10);         // 10 stappen, komt overeen met de laadStap()-aanroepen in loadAllData()
-  await loadAllData();
-  render();
-  verbergLaadscherm();
+  // try/finally: wat er ook misgaat, het laadscherm verdwijnt en het dashboard
+  // wordt getekend. Blijven hangen op een spinner is geen optie — dan kan
+  // iemand niets meer, ook niet de dingen die wél geladen zijn.
+  try {
+    await loadAllData();
+  } catch (e) {
+    console.error('Onverwachte fout bij het laden:', e);
+    LAAD_MISLUKT.push('een onbekend onderdeel');
+  } finally {
+    try { render(); } catch (e) { console.error('Tekenen mislukt:', e); }
+    verbergLaadscherm();
+    toonLaadmelding();
+  }
   _startMobielTabelWaarnemer();
   toonDagstart().then(toonMemos).catch(() => toonMemos());
   _dagstartWaakhond();
