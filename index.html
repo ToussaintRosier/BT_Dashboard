@@ -1785,7 +1785,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1421 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1424 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4407,7 +4407,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1421';
+const APP_VERSIE = '20260811-1424';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4921,8 +4921,8 @@ let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten'
 // niet in staat, mag iedereen die de pagina ziet ook gebruiken.
 const RECHTEN_WIJZIGEN = {
   beheer:      () => isBeheerder(),
-  projecten:   () => isProjKandEditor(),
-  kandidaten:  () => isProjKandEditor(),
+  projecten:   () => magProjectenWijzigen(),
+  kandidaten:  () => magKandidatenWijzigen(),
   hrm:         () => isHrmEditor(),
   team:        () => isManagerLevel(),
   // Commerciële Rapportage staat er bewust niet in: op die pagina zit geen
@@ -5050,10 +5050,12 @@ function renderBeheerRechten() {
         <span><span class="nee" style="font-size:.86rem;">–</span> geen toegang</span>
       </div>
       <div style="font-size:.74rem;color:var(--text-muted);line-height:1.6;margin-top:14px;">
-        Twee dingen volgen niet uit de rol: <strong>Beheer</strong> is aan één naam
-        gebonden, en wijzigen op <strong>Projecten</strong> en <strong>Kandidaten</strong>
-        hangt aan een vinkje dat je per collega zet bij <strong>Collega's →
-        Bewerken</strong>.
+        Drie dingen volgen niet zomaar uit de rol. <strong>Beheer</strong> is aan
+        één naam gebonden. Wijzigen op <strong>Projecten</strong> en
+        <strong>Kandidaten</strong> hangt aan een vinkje dat je per collega zet
+        bij <strong>Collega's → Bewerken</strong>. En <strong>Projecten</strong>
+        mag backoffice altijd bijwerken, ook zonder dat vinkje — Kandidaten niet,
+        want dat bepaalt wat collega's van elkaar zien.
       </div>
     </div>
   </div>`;
@@ -5128,7 +5130,7 @@ function renderBeheer() {
           <label style="display:flex;align-items:center;gap:9px;font-size:.84rem;color:var(--text);cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:6px;">
             <input type="checkbox" id="beh-projkand" ${editProfiel.proj_kand_editor ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;">
             <span>Mag wijzigen op <strong>Projecten</strong> en <strong>Kandidaten</strong>
-              <span style="display:block;font-size:.76rem;color:var(--text-muted);font-weight:400;">Zonder dit vinkje kan iemand die pagina's wel bekijken, maar er niets veranderen.</span>
+              <span style="display:block;font-size:.76rem;color:var(--text-muted);font-weight:400;">Zonder dit vinkje kan iemand die pagina's wel bekijken, maar er niets veranderen. Backoffice mag Projecten sowieso bijwerken.</span>
             </span>
           </label>
         </div>
@@ -5604,8 +5606,26 @@ function canView(bmNaam) {
 // wijzigingen doorvoeren en kandidaten uit het Kandidaten-overzicht
 // uitsluiten — iedereen anders (ook andere managers/backoffice) krijgt daar
 // alleen een viewer-versie. Gestuurd door de DB-kolom profiles.proj_kand_editor.
-function isProjKandEditor() {
+// Het vinkje in het profiel, plus de mensen die sowieso alles mogen.
+function _heeftProjKandVink() {
   return !!CURRENT_USER && (!!CURRENT_USER.proj_kand_editor || isVolledigBevoegd() || isBeheerder());
+}
+
+// Projecten bijwerken hoort bij het werk van backoffice, dus die rol mag het
+// altijd — ook zonder vinkje.
+function magProjectenWijzigen() {
+  return _heeftProjKandVink() || CURRENT_USER?.rol === 'backoffice';
+}
+
+// Kandidaten uitsluiten blijft beperkt tot wie het vinkje heeft. Dat raakt wat
+// collega's van elkaar zien; daar hoort een kleinere kring bij.
+function magKandidatenWijzigen() {
+  return _heeftProjKandVink();
+}
+
+// Oude naam, nog in gebruik waar het over Projecten gaat.
+function isProjKandEditor() {
+  return magProjectenWijzigen();
 }
 function toggleSidebar() {
   sidebarOpen = !sidebarOpen;
@@ -12476,7 +12496,7 @@ function renderPrognose() {
   const isManager = isManagerLevel();
   // Alleen Yoël en Toussaint mogen hier daadwerkelijk iets wijzigen; iedereen
   // anders krijgt deze hele pagina als alleen-lezen overzicht te zien.
-  const canEditProj = isProjKandEditor();
+  const canEditProj = magProjectenWijzigen();
   const year = getYear();
 
   // Alleen huidige medewerkers meenemen in de prognose
@@ -12921,7 +12941,7 @@ function getKandidatenWeeks() {
 }
 function renderKandidaten() {
   const weeks = getKandidatenWeeks();
-  const canExclude = isProjKandEditor();
+  const canExclude = magKandidatenWijzigen();
   const isManager = isManagerLevel();
 
   // Kleur-instellingen per status
