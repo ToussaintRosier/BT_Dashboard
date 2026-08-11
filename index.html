@@ -1447,6 +1447,26 @@
   .card-aanb-input { width:38px; border:1px solid var(--border); border-radius:4px; padding:1px 3px; font-size:.75rem; font-weight:700; text-align:center; outline:none; color:var(--primary); }
   .card-aanb-input:focus { border-color:var(--primary); box-shadow:0 0 0 2px #dbeafe; }
   /* Aantal aanbiedingen: eigen − / + in plaats van de pijltjes van de browser. */
+  /* Rechtenoverzicht: pagina's als rijen, collega's als kolommen. */
+  .rr-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius);
+             background:var(--card); }
+  .rr { border-collapse:collapse; font-size:.76rem; width:100%; }
+  .rr th, .rr td { padding:5px 7px; white-space:nowrap; }
+  .rr thead th { position:sticky; top:0; background:var(--card); font-weight:var(--w-nadruk);
+                 font-size:.7rem; color:var(--text-muted); text-align:center;
+                 border-bottom:1px solid var(--border); vertical-align:bottom; }
+  .rr thead th.pagina { text-align:left; }
+  .rr tbody tr:nth-child(even) { background:var(--card-alt); }
+  .rr td.pagina { text-align:left; color:var(--text); }
+  .rr td.cel { text-align:center; font-size:.86rem; }
+  .rr .ja   { color:#0e9f6e; }
+  .rr .zien { color:var(--text-muted); }
+  .rr .nee  { color:#d1d5db; }
+  .rr .rolregel td { font-size:.66rem; color:var(--text-muted); padding-bottom:8px;
+                     text-align:center; }
+  .rr-legenda { display:flex; flex-wrap:wrap; gap:16px; margin-top:12px;
+                font-size:.74rem; color:var(--text-muted); align-items:center; }
+
   /* De recordslijst: één paneel, haarlijnen ertussen, geen kaartje per regel. */
   .rec-paneel { background:#fff; border-radius:var(--radius); overflow:hidden;
                 border:1px solid var(--border); }
@@ -1754,7 +1774,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1155 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1241 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4376,7 +4396,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1155';
+const APP_VERSIE = '20260811-1241';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4684,9 +4704,22 @@ function goMedewerkersOverzicht() {
 function isBeheerder() {
   return !!CURRENT_USER && CURRENT_USER.naam === 'Toussaint Rosier';
 }
-// Yoël Bronckers heeft rol='kam' maar ook volledige manager-UI rechten.
+// Collega's die volledige rechten hebben zonder dat hun rol dat zegt. Yoël
+// staat als 'kam' in de profielen en Annyck valt buiten de BM-funnel, maar
+// allebei doen ze het werk van een manager.
+//
+// Dit is een uitzondering op de rol en hoort dat ook te blijven zien: geef je
+// ze in Beheer de rol Manager, dan kunnen ze hier weer uit. Zolang ze hier
+// staan, geldt het overal tegelijk — vandaar één lijst in plaats van losse
+// namen verspreid door de code.
+const VOLLEDIG_BEVOEGD = ['Yoël Bronckers', 'Annyck Nelissen'];
+
+function isVolledigBevoegd() {
+  return !!CURRENT_USER && VOLLEDIG_BEVOEGD.includes(CURRENT_USER.naam);
+}
+
 function isManagerLevel() {
-  return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || CURRENT_USER.naam === 'Yoël Bronckers');
+  return !!CURRENT_USER && (CURRENT_USER.rol === 'manager' || isVolledigBevoegd());
 }
 
 // ── Beheer-tab ────────────────────────────────────────────────────────────────
@@ -4855,7 +4888,165 @@ async function memoIntrekken(id) {
   } catch (e) { alert('Intrekken mislukt: ' + (e?.message || e)); }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// RECHTENOVERZICHT
+//
+// Er bestaat geen tabel met rechten per persoon. Rechten volgen uit de rol
+// (bm / kam / manager / backoffice), met twee uitzonderingen: Beheer is aan één
+// naam gebonden, en wijzigen op Projecten en Kandidaten hangt aan de kolom
+// proj_kand_editor in de profielen.
+//
+// Dat maakt het overzicht juist nuttig — die kennis zit nu alleen in de code.
+// Maar het maakt ook dat je hem niet met de hand mag natekenen: dan heb je twee
+// beschrijvingen die uit elkaar gaan lopen. Daarom leest dit overzicht het
+// echte menu af: we zetten de ingelogde gebruiker tijdelijk om, laten het
+// dashboard het menu bouwen zoals die collega het ziet, en kijken wat erin
+// staat. Verandert er iets aan de rechten, dan verandert dit overzicht mee.
+// ════════════════════════════════════════════════════════════════════════════
+let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten'
+
+// Wie mag er op een pagina niet alleen kijken maar ook wijzigen. Deze regels
+// roepen de bestaande functies aan in plaats van ze over te schrijven; wat hier
+// niet in staat, mag iedereen die de pagina ziet ook gebruiken.
+const RECHTEN_WIJZIGEN = {
+  beheer:      () => isBeheerder(),
+  projecten:   () => isProjKandEditor(),
+  kandidaten:  () => isProjKandEditor(),
+  hrm:         () => isHrmEditor(),
+  team:        () => isManagerLevel(),
+  comrap:      () => isManagerLevel(),
+  financieel:  () => isManagerLevel(),
+  // Records is voor iedereen volledig: het is dezelfde lijst die je op de
+  // recorderpagina's ook al mag bewerken, alleen bij elkaar gezet.
+  records:     () => true,
+  accounts:    () => CURRENT_USER?.rol !== 'backoffice',
+  medewerkers: () => canEdit(CURRENT_USER?.bm_naam || CURRENT_USER?.naam),
+};
+
+function _rechtenVoor(gebruiker) {
+  const bewaarUser = CURRENT_USER;
+  const balk       = document.getElementById('sidebar');
+  const bewaarHtml = balk ? balk.innerHTML : '';
+  const uit = { paginas: [], recht: {} };
+  try {
+    CURRENT_USER = gebruiker;
+    renderTabs();
+    const tijdelijk = document.createElement('div');
+    tijdelijk.innerHTML = balk ? balk.innerHTML : '';
+    for (const knop of tijdelijk.querySelectorAll('[onclick]')) {
+      const aan = knop.getAttribute('onclick') || '';
+      let sleutel = (/selectTab\('([a-z]+)'\)/.exec(aan) || [])[1];
+      // Het overzicht van medewerkers gaat via een eigen functie in plaats van
+      // via selectTab; zonder deze regel zou die pagina hier ontbreken.
+      if (!sleutel && aan.includes('goMedewerkersOverzicht')) sleutel = 'medewerkers';
+      if (!sleutel || uit.recht[sleutel]) continue;
+      const label = (knop.textContent || '').replace(/\s+/g, ' ').trim() || sleutel;
+      uit.paginas.push({ sleutel, label });
+      const test = RECHTEN_WIJZIGEN[sleutel];
+      uit.recht[sleutel] = (!test || test()) ? 'wijzig' : 'zien';
+    }
+  } finally {
+    CURRENT_USER = bewaarUser;
+    if (balk) balk.innerHTML = bewaarHtml;
+  }
+  return uit;
+}
+
+// De collega's die in het overzicht komen: iedereen met een profiel die nog in
+// dienst is. Uit dienst laten we weg — hun rechten zeggen niets meer.
+function _rechtenCollegas() {
+  return (BEHEER_PROFIELEN || [])
+    .filter(p => !p.einddatum || new Date(p.einddatum) >= new Date())
+    .map(p => ({
+      naam: p.bm_naam || p.naam,
+      rol:  p.rol,
+      gebruiker: { naam: p.naam, bm_naam: p.bm_naam || p.naam, rol: p.rol,
+                   proj_kand_editor: p.proj_kand_editor },
+    }))
+    .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+}
+
+function beheerSubview(welke) { BEHEER_SUBVIEW = welke; renderBeheer(); }
+
+function _rechtenSubtabs() {
+  const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
+      onclick="beheerSubview('${w}')">${t}</button>`;
+  return `<div class="bm-subtabs" style="display:flex;gap:6px;padding:12px 20px 0;">
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}</div>`;
+}
+
+function renderBeheerRechten() {
+  const collegas = _rechtenCollegas();
+  const perPersoon = collegas.map(c => ({ c, r: _rechtenVoor(c.gebruiker) }));
+
+  // De volgorde van de pagina's volgt het menu van degene die het meeste ziet;
+  // pagina's die alleen bij iemand anders voorkomen worden erachter geplakt.
+  const rijen = [];
+  const gezien = new Set();
+  for (const { r } of [...perPersoon].sort((a, b) => b.r.paginas.length - a.r.paginas.length)) {
+    for (const p of r.paginas) {
+      if (gezien.has(p.sleutel)) continue;
+      gezien.add(p.sleutel);
+      rijen.push(p);
+    }
+  }
+
+  const teken = (recht) => recht === 'wijzig' ? '<span class="ja">✓</span>'
+                         : recht === 'zien'   ? '<span class="zien">◉</span>'
+                         :                      '<span class="nee">–</span>';
+
+  const rolLabel = (rol) => (BEHEER_ROL_OPTIES.find(o => o.value === rol) || {}).label || rol || '—';
+
+  const tabel = collegas.length === 0
+    ? `<div style="padding:26px;text-align:center;color:var(--text-muted);font-size:.85rem;">
+         Nog geen profielen geladen.</div>`
+    : `<div class="rr-wrap"><table class="rr">
+    <thead>
+      <tr>
+        <th class="pagina">Pagina</th>
+        ${perPersoon.map(({ c }) => `<th title="${escHtml(rolLabel(c.rol))}">${escHtml(c.naam.split(' ')[0])}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="rolregel"><td class="pagina"></td>
+        ${perPersoon.map(({ c }) => `<td>${escHtml((c.rol || '—').toUpperCase())}</td>`).join('')}
+      </tr>
+      ${rijen.map(p => `<tr>
+        <td class="pagina">${escHtml(p.label)}</td>
+        ${perPersoon.map(({ r }) => `<td class="cel">${teken(r.recht[p.sleutel])}</td>`).join('')}
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
+      <div class="person-meta"><span class="meta-pill">${collegas.length} collega's · ${rijen.length} pagina's</span></div>
+    </div>
+    ${_rechtenSubtabs()}
+    <div style="padding:14px 20px 30px;max-width:1100px;">
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:12px;">
+        Afgelezen uit het menu zoals iedere collega het zelf ziet, dus dit loopt
+        niet achter op de werkelijkheid. Rechten volgen uit de rol; wil je iets
+        wijzigen, pas dan de rol aan bij Collega's.
+      </div>
+      ${tabel}
+      <div class="rr-legenda">
+        <span><span class="ja" style="font-size:.86rem;">✓</span> zien en wijzigen</span>
+        <span><span class="zien" style="font-size:.86rem;">◉</span> alleen zien</span>
+        <span><span class="nee" style="font-size:.86rem;">–</span> geen toegang</span>
+      </div>
+      <div style="font-size:.74rem;color:var(--text-muted);line-height:1.6;margin-top:14px;">
+        Twee dingen volgen niet uit de rol: <strong>Beheer</strong> is aan één naam
+        gebonden, en wijzigen op <strong>Projecten</strong> en <strong>Kandidaten</strong>
+        hangt aan het vinkje <em>proj_kand_editor</em> in het profiel.
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderBeheer() {
+  if (BEHEER_SUBVIEW === 'rechten') { renderBeheerRechten(); return; }
   const huidigJaar = new Date().getFullYear();
 
   // Bouw doelen-map: naam → jaardoel voor huidig jaar
@@ -5129,7 +5320,8 @@ function renderBeheer() {
       <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
       <div class="person-meta"><span class="meta-pill">Medewerkersbeheer — alleen zichtbaar voor Toussaint</span></div>
     </div>
-    <div style="padding:18px 20px;max-width:1100px;">
+    ${_rechtenSubtabs()}
+    <div style="padding:14px 20px 18px;max-width:1100px;">
       ${memoHtml}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
@@ -5390,7 +5582,7 @@ function canView(bmNaam) {
 // uitsluiten — iedereen anders (ook andere managers/backoffice) krijgt daar
 // alleen een viewer-versie. Gestuurd door de DB-kolom profiles.proj_kand_editor.
 function isProjKandEditor() {
-  return !!CURRENT_USER && !!CURRENT_USER.proj_kand_editor;
+  return !!CURRENT_USER && (!!CURRENT_USER.proj_kand_editor || isVolledigBevoegd() || isBeheerder());
 }
 function toggleSidebar() {
   sidebarOpen = !sidebarOpen;
