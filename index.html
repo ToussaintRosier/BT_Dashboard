@@ -1447,6 +1447,33 @@
   .card-aanb-input { width:38px; border:1px solid var(--border); border-radius:4px; padding:1px 3px; font-size:.75rem; font-weight:700; text-align:center; outline:none; color:var(--primary); }
   .card-aanb-input:focus { border-color:var(--primary); box-shadow:0 0 0 2px #dbeafe; }
   /* Aantal aanbiedingen: eigen − / + in plaats van de pijltjes van de browser. */
+  /* De recordslijst: één paneel, haarlijnen ertussen, geen kaartje per regel. */
+  .rec-paneel { background:#fff; border-radius:var(--radius); overflow:hidden;
+                border:1px solid var(--border); }
+  .rec-dagkop { display:flex; align-items:center; justify-content:space-between;
+                padding:5px 12px; background:#f5f7fa; border-bottom:1px solid #e6e9ef;
+                font-size:.68rem; color:var(--muted); }
+  .rec-dagkop + .rec-rij { border-top:0; }
+  .rec-paneel .rec-dagkop:not(:first-child) { border-top:1px solid #e6e9ef; }
+  .rec-dagkop .telling { color:#a3a9b8; }
+  .rec-rij { border-bottom:1px solid #f0f2f6; }
+  .rec-rij:last-child { border-bottom:0; }
+  /* Een dubbel record blijft opvallen, maar met een streepje in plaats van een
+     rand rondom — anders breekt hij de rustige lijnen van het paneel. */
+  .rec-rij.dubbel > div:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
+  .rec-kop { display:flex; align-items:center; gap:9px; padding:6px 12px;
+             cursor:pointer; user-select:none; font-size:.74rem; }
+  .rec-kop:hover { background:#f8fafc; }
+  .rec-kop.open { background:#f4f6f9; }
+  .rec-kop .badge { font-size:.64rem; padding:1px 6px; }
+  /* Aard en collega als tekst in plaats van als blokje: minder kleur, zelfde
+     informatie, en ze lijnen uit omdat de breedte vastligt. */
+  .rec-aard { width:92px; flex-shrink:0; color:#4b5563; font-size:.68rem; }
+  .rec-collega { width:76px; flex-shrink:0; color:var(--muted); font-size:.68rem;
+                 overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+                 cursor:pointer; }
+  .rec-collega:hover { color:var(--primary); }
+
   /* Records: de filterbalk boven de lijst. */
   .rec-filters { background:rgba(255,255,255,.06); border-radius:var(--radius-groot);
                  padding:12px 14px; margin-bottom:12px; }
@@ -1727,7 +1754,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1145 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1155 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4349,7 +4376,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1145';
+const APP_VERSIE = '20260811-1155';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16487,12 +16514,11 @@ function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
       const isDup = groepTelling[groepKey] >= 2;
       const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
       const recIni = _recInitials(rec.recorder_naam);
-      return `<div style="border:1px solid ${isDup?'#f59e0b':'var(--border)'};border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
-        <div onclick="toggleGesprekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':isDup?'#fffbeb':'#fff'};user-select:none;">
+      return `<div class="rec-rij${isDup?' dubbel':''}">
+        <div class="rec-kop${open?' open':''}" onclick="toggleGesprekRecord('${rec.id}')"${isDup?' style="background:#fffbeb;"':''}>
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
-          <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           ${soortPil||''}
-          <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          <span style="font-weight:var(--w-nadruk);font-size:.76rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
           ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
           ${afsprakenStatusPil(rec.id)}
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
@@ -16500,9 +16526,9 @@ function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
           <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
           ${GESPREK_HERANALYSE_BUSY.has(rec.id)?`<span style="font-size:.7rem;font-weight:700;background:#eef2ff;color:var(--primary);border:1px solid #c7d2fe;border-radius:20px;padding:2px 8px;flex-shrink:0;" title="Het samenvoegen is klaar — de AI werkt de analyse nog bij">Analyse loopt</span>`:''}
           ${aardPil||''}
-          ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
+          ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
           ${rec.recorder_naam
-            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;width:74px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:center;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
+            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" class="rec-collega" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
           }
           <span onclick="event.stopPropagation();gesprekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">${btActie('prullenbak')}</span>
@@ -16538,6 +16564,26 @@ function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
       </div>`;
+}
+
+// Zet de records onder elkaar in één paneel, met de datum één keer per dag als
+// kopje erboven. De lijsten zijn al op datum gesorteerd, dus we hoeven alleen
+// opeenvolgende gelijke datums samen te nemen. Staat er een onleesbare datum
+// tussen, dan krijgt die gewoon zijn eigen kopje in plaats van dat de groepering
+// omvalt.
+function _recLijstHtml(rijen) {
+  let uit = '', i = 0;
+  while (i < rijen.length) {
+    const datum = rijen[i].datum || 'zonder datum';
+    let n = i;
+    while (n < rijen.length && (rijen[n].datum || 'zonder datum') === datum) n++;
+    const aantal = n - i;
+    uit += `<div class="rec-dagkop">${escHtml(datum)}`
+         + `<span class="telling">${aantal} record${aantal === 1 ? '' : 's'}</span></div>`;
+    for (let k = i; k < n; k++) uit += rijen[k].html;
+    i = n;
+  }
+  return `<div class="rec-paneel">${uit}</div>`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -16679,16 +16725,16 @@ function renderRecords() {
   const lijst = zicht.length === 0
     ? `<div style="text-align:center;padding:44px;color:rgba(255,255,255,.45);font-size:.88rem;">
          Geen records die aan deze filters voldoen.</div>`
-    : zicht.map(r => {
+    : _recLijstHtml(zicht.map(r => {
         const soortPil = `<span class="rec-soort ${r.soort.toLowerCase()}">${r.soort}</span>`;
         // Bij een intake staat de aard niet in het record; die is per definitie
         // Intake. Toch tonen we hem, anders staat die kolom bij de helft van de
         // regels leeg en lees je de rij niet meer als een rij.
-        const aardPil = `<span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;min-width:104px;text-align:center;">📄 Intake</span>`;
-        return r.soort === 'ITK'
+        const aardPil = `<span class="rec-aard">Intake</span>`;
+        return { datum: r.rec.datum, html: r.soort === 'ITK'
           ? _recRegelGesprek(r.rec, groepTelling, soortPil, aardPil)
-          : _recRegelBezoek(r.rec, soortPil);
-      }).join('');
+          : _recRegelBezoek(r.rec, soortPil) };
+      }));
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
@@ -16727,7 +16773,7 @@ function renderGesprekRecords() {
   const GESPREK_RECORDS_ZICHTBAAR = GESPREK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
   const items=GESPREK_RECORDS_ZICHTBAAR.length===0
     ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen gesprekken.</div>`
-    :GESPREK_RECORDS_ZICHTBAAR.map(rec=>_recRegelGesprek(rec,groepTelling)).join('');
+    :_recLijstHtml(GESPREK_RECORDS_ZICHTBAAR.map(rec=>({datum:rec.datum,html:_recRegelGesprek(rec,groepTelling)})));
   document.getElementById('main').innerHTML=`<div>
     <div class="person-header">
       <div class="person-name">Recorder${btUitlegKnop('itk')}</div>
@@ -16769,17 +16815,16 @@ function _recRegelBezoek(rec, soortPil) {
       else if(soort==='evaluatie_medewerker'){openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Welzijn &amp; sfeer</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.welzijn||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Werkprestaties</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.werkprestaties||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid #f59e0b;"><div style="font-size:.7rem;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Aandachtspunten</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.aandachtspunten||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(r.afspraken||'—')}</p></div></div></div>`;}
       else{openContent=`<div class="two-col" style="gap:10px;margin-bottom:12px;"><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Kandidaatprofiel</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.kandidaatprofiel)||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Bedrijfskennis</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.bedrijfskennis)||'—')}</p></div></div><div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Oefening</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.oefening)||'—')}</p></div><div class="chart-card" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--primary);"><div style="font-size:.7rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Advies</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.advies)||'—')}</p></div><div class="chart-card" style="padding:12px 14px;"><div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Afspraken</div><p style="margin:0;line-height:1.65;font-size:.84rem;white-space:pre-wrap;">${escHtml(strVal(r.afspraken)||'—')}</p></div></div></div>`;}
       const cfHtml=cf.samenvatting?`<div class="chart-card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid #7c3aed;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.4px;">Coaching feedback</div>${cf.score?`<span style="font-size:.7rem;font-weight:700;color:${cf.score==='goed'?'#15803d':cf.score==='aandacht'?'#b91c1c':'#a16207'};">${cf.score==='goed'?'Goed':cf.score==='aandacht'?'Aandacht':'Voldoende'}</span>`:''}</div><p style="margin:0 0 8px;line-height:1.6;font-size:.84rem;">${escHtml(cf.samenvatting)}</p>${cf.sterktePunten?.length?`<div style="font-size:.76rem;color:#15803d;font-weight:700;margin-bottom:3px;">Sterk:</div><ul style="margin:0 0 6px;padding-left:16px;font-size:.83rem;">${cf.sterktePunten.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>`:''}${cf.verbeterpunten?.length?`<div style="font-size:.76rem;color:#b91c1c;font-weight:700;margin-bottom:3px;">Verbeteren:</div><ul style="margin:0;padding-left:16px;font-size:.83rem;">${cf.verbeterpunten.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>`:''}</div>`:'';
-      return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
-        <div onclick="toggleBezoekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
+      return `<div class="rec-rij">
+        <div class="rec-kop${open?' open':''}" onclick="toggleBezoekRecord('${rec.id}')">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
-          <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
           ${soortPil||''}
           ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
-          <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
-          <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;min-width:104px;text-align:center;">${soortEmoji} ${escHtml(soortLabel)}</span>
-          ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
+          <span style="font-weight:var(--w-nadruk);font-size:.76rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          <span class="rec-aard">${escHtml(soortLabel)}</span>
+          ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
           ${rec.recorder_naam
-            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;width:74px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:center;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
+            ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" class="rec-collega" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
           }
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">${btActie('prullenbak')}</span>
@@ -16815,7 +16860,7 @@ function renderBezoekRecords() {
   const BEZOEK_RECORDS_ZICHTBAAR = BEZOEK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
   const items=BEZOEK_RECORDS_ZICHTBAAR.length===0
     ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen bezoekverslagen.</div>`
-    :BEZOEK_RECORDS_ZICHTBAAR.map(rec=>_recRegelBezoek(rec)).join('');
+    :_recLijstHtml(BEZOEK_RECORDS_ZICHTBAAR.map(rec=>({datum:rec.datum,html:_recRegelBezoek(rec)})));
   document.getElementById('main').innerHTML=`<div>
     <div class="person-header">
       <div class="person-name">BZK-Recorder${btUitlegKnop('bzk')}</div>
