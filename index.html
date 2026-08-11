@@ -1785,7 +1785,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1328 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1421 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4407,7 +4407,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1328';
+const APP_VERSIE = '20260811-1421';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4925,7 +4925,9 @@ const RECHTEN_WIJZIGEN = {
   kandidaten:  () => isProjKandEditor(),
   hrm:         () => isHrmEditor(),
   team:        () => isManagerLevel(),
-  comrap:      () => isManagerLevel(),
+  // Commerciële Rapportage staat er bewust niet in: op die pagina zit geen
+  // slot, dus wie hem ziet mag er ook analyses maken en opslaan. Hier een
+  // beperking neerzetten zou het overzicht laten liegen over de werkelijkheid.
   financieel:  () => isManagerLevel(),
   // Records is voor iedereen volledig: het is dezelfde lijst die je op de
   // recorderpagina's ook al mag bewerken, alleen bij elkaar gezet.
@@ -5050,7 +5052,8 @@ function renderBeheerRechten() {
       <div style="font-size:.74rem;color:var(--text-muted);line-height:1.6;margin-top:14px;">
         Twee dingen volgen niet uit de rol: <strong>Beheer</strong> is aan één naam
         gebonden, en wijzigen op <strong>Projecten</strong> en <strong>Kandidaten</strong>
-        hangt aan het vinkje <em>proj_kand_editor</em> in het profiel.
+        hangt aan een vinkje dat je per collega zet bij <strong>Collega's →
+        Bewerken</strong>.
       </div>
     </div>
   </div>`;
@@ -5120,6 +5123,14 @@ function renderBeheer() {
           <select id="beh-rol" onchange="beheerEditRolToggle()" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
             ${BEHEER_ROL_OPTIES.map(r=>`<option value="${r.value}"${editProfiel.rol===r.value?' selected':''}>${r.label}</option>`).join('')}
           </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:9px;font-size:.84rem;color:var(--text);cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:6px;">
+            <input type="checkbox" id="beh-projkand" ${editProfiel.proj_kand_editor ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;">
+            <span>Mag wijzigen op <strong>Projecten</strong> en <strong>Kandidaten</strong>
+              <span style="display:block;font-size:.76rem;color:var(--text-muted);font-weight:400;">Zonder dit vinkje kan iemand die pagina's wel bekijken, maar er niets veranderen.</span>
+            </span>
+          </label>
         </div>
         <div id="beh-jaardoel-wrap" style="${(editProfiel.rol==='bm'||editProfiel.rol==='kam')?'':'display:none;'}">
           <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Jaardoel ${huidigJaar}</label>
@@ -5483,8 +5494,9 @@ async function beheerSaveProfiel(profielId) {
     }
 
     // Update profiel
+    const projKand = !!document.getElementById('beh-projkand')?.checked;
     const { error: pErr } = await supa.from('profiles').update({
-      naam, email: email||null, rol, begindatum, einddatum
+      naam, email: email||null, rol, begindatum, einddatum, proj_kand_editor: projKand
     }).eq('id', profielId);
     if (pErr) throw new Error(pErr.message);
 
