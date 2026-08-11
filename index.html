@@ -1785,7 +1785,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1429 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1459 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4407,7 +4407,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1429';
+const APP_VERSIE = '20260811-1459';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6041,15 +6041,17 @@ function renderMedewerkersOverzicht() {
       if (staleStarters) vals.starters = pipe.starters || 0;
       if (!isSaved) anyLive = true;
       for (const k of KPIS) totals[k] += vals[k] || 0;
+      // Een week waarin iemand niets deed is informatie, geen ruis. Verborg je
+      // die regel, dan lijkt het alsof de collega er niet was — en dat verschil
+      // zie je nergens meer terug. Hij staat er dus altijd, wel gedempt.
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
-      if (!hasAny && !isCurOrNext) return null;
       const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', activeNormFix(bm), bm.doelStartFraction);
       const status = isSaved
         ? (staleStarters
             ? '<span style="color:#fbbf24;font-size:.75rem;" title="Invoer verouderd — pipeline toont meer starters; zet dit recht via Wijzigen + Opslaan">opg.</span>'
             : '<span style="color:#4ade80;font-size:.76rem;" title="Opgeslagen">✔</span>')
         : '<span style="color:rgba(255,255,255,.45);font-size:.72rem;font-style:italic;" title="Nog niet opgeslagen — pipeline-stand">live</span>';
-      return '<tr>' +
+      return '<tr' + (hasAny ? '' : ' style="opacity:.45;" title="Deze week geen activiteit vastgelegd"') + '>' +
         '<td style="padding:5px 0 5px 12px;font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
           'border-bottom:1px solid rgba(255,255,255,.14);border-radius:8px 0 0 8px;' +
           'box-shadow:inset 3px 0 0 ' + bm.kleur + ';">' +
@@ -7235,6 +7237,10 @@ async function loadUrenrapportage() {
   UREN_KPI_OPDRACHTGEVER_CACHE = opdrachtgever.data || [];
   UREN_KPI_WEEK_CACHE = (week.data || []).sort((a, b) => (a.jaar - b.jaar) || (a.week - b.week));
 }
+
+// Normen worden op één decimaal getoond; dus wordt er ook op één decimaal
+// gerekend. Anders klopt het percentage niet met de twee getallen ernaast.
+function normAfgerond(x) { return Math.round((+x || 0) * 10) / 10; }
 
 // ── COMRAP-analyses: laden + opslaan als benchmark ───────────────────────────
 async function loadComrapAnalyses() {
@@ -11454,18 +11460,17 @@ function renderComrap() {
   const teamNorm = {};
   for (const k of kpiKeys) {
     teamTot[k]  = bmRows.reduce((s, b) => s + (parseFloat(b.row[k]) || 0), 0);
-    teamNorm[k] = +bmRows.reduce((s, b) => s + (b.norm[k] || 0), 0).toFixed(1);
+    // Eerst per persoon afronden, dan optellen — zo is het teamtotaal precies de
+    // som van de getallen die eronder staan.
+    teamNorm[k] = normAfgerond(bmRows.reduce((s, b) => s + normAfgerond(b.norm[k]), 0));
   }
 
-  // Kanban: actieve procedures (pipeline cards niet verwijderd, fase matchgesprek/intake/aanbieding/contractvoorstel)
-  const ACTIVE_STAGES = ['match_1e','match_2e','match_3e','intake','aanbieden','contractvoorstel'];
-  let kanbanAantal = 0;
-  for (const bm of bmsMetResultaat()) {
-    const cards = pipeLoad(bm.naam);
-    for (const c of cards) {
-      if (!c.verwijderd_op && ACTIVE_STAGES.includes(c.stage)) kanbanAantal++;
-    }
-  }
+  // Het aantal lopende dossiers. Dit stond hier met een eigen lijst fasenamen
+  // die niet bestonden ('intake' in plaats van 'Intake'), waardoor er altijd 0
+  // op het scherm kwam. Nu komt het uit dezelfde functie die ook de analyse
+  // voedt — één telling, dus scherm en analyse kunnen niet meer verschillen.
+  const pipelineNu   = _comrapPipeline(w, y);
+  const kanbanAantal = pipelineNu.totaal_actief;
 
   // Render KPI-tabel rij-kleur
   function kleur(val, norm) {
@@ -11484,7 +11489,7 @@ function renderComrap() {
   const bmRijen = bmRows.map(b => {
     const cellen = kpiKeys.map((k, idx) => {
       const v = parseFloat(b.row[k]) || 0;
-      const n = b.norm[k] || 0;
+      const n = normAfgerond(b.norm[k]);
       const toon = n > 0 || v > 0;
       const stijl = celStijl(k, idx);
       if (!toon) return `<td style="padding:5px 8px;text-align:center;color:#ccc;${stijl}">—</td>`;
@@ -11618,9 +11623,10 @@ function renderComrap() {
       ${simpleMarkdown(st.resultaat)}
     </div>
     <div class="comrap-result-btns" style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">
+      ${st.bewaardMelding ? `<span style="align-self:center;font-size:.8rem;color:${st.bewaardMelding.startsWith('Let op') ? '#b45309' : 'var(--text-muted)'};margin-right:6px;">${escHtml(st.bewaardMelding)}</span>` : ''}
       <button onclick="comrapKopieer()" style="background:#f4f6f9;border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">Kopieer tekst</button>
       <button onclick="comrapPdf()" style="background:#253151;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">Exporteer PDF</button>
-      <button id="comrap-sla-op-btn" onclick="comrapSlaOpClick()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">Opslaan als benchmark</button>
+      <button id="comrap-sla-op-btn" onclick="comrapSlaOpClick()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;" title="De analyse is al automatisch bewaard; hiermee sla je hem nog een keer op.">Nogmaals opslaan</button>
       <button onclick="window._comrapState.resultaat='';renderComrap();" style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:8px 18px;font-size:.82rem;cursor:pointer;">Wis resultaat</button>
     </div>
     ` : ''}
@@ -11749,6 +11755,59 @@ function comrapPdf() {
   win.document.close();
 }
 
+// De week erna, met een correcte jaarwisseling: we rekenen via de maandag van
+// de opgegeven ISO-week en tellen daar zeven dagen bij op.
+function _weekErna(jaar, week) {
+  const maandag = new Date(Date.UTC(jaar, 0, 4));
+  maandag.setUTCDate(maandag.getUTCDate() - ((maandag.getUTCDay() + 6) % 7) + (week - 1) * 7 + 7);
+  return isoWeek(maandag);
+}
+
+// Alles wat er in de pijplijn zit: per fase, per persoon, plus wat er voor de
+// week erna gepland staat. Zonder dit kan de analyse niets zinnigs zeggen over
+// wat eraan komt — en dat was precies de klacht.
+function _comrapPipeline(week, jaar) {
+  const na = _weekErna(jaar, week);
+  const perFase = {}, naFase = {};
+  const perPersoon = [];
+  let totaalActief = 0;
+
+  for (const stage of PIPE_STAGES) { perFase[stage] = 0; naFase[stage] = 0; }
+
+  for (const bm of bmsMetResultaat()) {
+    const kaarten = pipeLoad(bm.naam).filter(c => !c.verwijderd_op);
+    const mijn = { naam: bm.naam, actief: {}, volgende_week: {} };
+    for (const stage of PIPE_STAGES) {
+      const inFase = kaarten.filter(c => c.stage === stage);
+      const naWeek = inFase.filter(c => c.week === na.week && c.jaar === na.year);
+      if (inFase.length) { mijn.actief[stage] = inFase.length; perFase[stage] += inFase.length; }
+      if (naWeek.length) { mijn.volgende_week[stage] = naWeek.length; naFase[stage] += naWeek.length; }
+      if (stage !== 'Starter') totaalActief += inFase.length;
+    }
+    if (Object.keys(mijn.actief).length || Object.keys(mijn.volgende_week).length) perPersoon.push(mijn);
+  }
+
+  // De matchgesprekken apart, met de ronde erbij: dat is de fase waar de
+  // vooruitblik het vaakst over gaat.
+  const matchRondes = { '1e gesprek': 0, '2e gesprek': 0, '3e gesprek': 0, 'ronde onbekend': 0 };
+  for (const bm of bmsMetResultaat()) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.verwijderd_op || c.stage !== 'Matchgesprekken') continue;
+      const r = c.gesprek === 1 ? '1e gesprek' : c.gesprek === 2 ? '2e gesprek'
+              : c.gesprek === 3 ? '3e gesprek' : 'ronde onbekend';
+      matchRondes[r]++;
+    }
+  }
+
+  return {
+    totaal_actief: totaalActief,
+    per_fase: perFase,
+    matchgesprekken_per_ronde: matchRondes,
+    volgende_week: { week: na.week, jaar: na.year, per_fase: naFase },
+    per_persoon: perPersoon,
+  };
+}
+
 async function comrapAnalyse() {
   const st = window._comrapState;
   if (st.bezig) return;
@@ -11764,18 +11823,21 @@ async function comrapAnalyse() {
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     const kpis   = {};
     for (const k of kpiKeys) {
-      kpis[k] = { realisatie: Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0), norm: norm[k] || 0 };
+      const realisatie = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
+      const n = normAfgerond(norm[k]);
+      kpis[k] = {
+        realisatie, norm: n,
+        // Percentage meesturen in plaats van het aan de analyse over te laten:
+        // dan staat er altijd hetzelfde getal als jij zelf zou uitrekenen.
+        procent: n > 0 ? Math.round((realisatie / n) * 100) : null,
+      };
     }
     return { naam: bm.naam, rol: bm.rol || 'Business Manager', kpis };
   });
 
-  // Kanban
-  const ACTIVE_STAGES = ['match_1e','match_2e','match_3e','intake','aanbieden','contractvoorstel'];
-  let kanban = 0;
-  for (const bm of bmsMetResultaat()) {
-    const cards = pipeLoad(bm.naam);
-    for (const c of cards) if (!c.verwijderd_op && ACTIVE_STAGES.includes(c.stage)) kanban++;
-  }
+  // De volledige pijplijn, niet één getal.
+  const pipeline = _comrapPipeline(w, y);
+  const kanban = pipeline.totaal_actief;
 
   // Afbeeldingen als content-blokken
   const imageBlokken = st.imports.filter(f => f.type && f.type.startsWith('image/')).map(f => ({
@@ -11791,8 +11853,9 @@ async function comrapAnalyse() {
   // Sla kpi_snapshot op in state voor gebruik bij "Opslaan als benchmark"
   st.kpiSnapshot = bmData;
 
-  // Historische analyses als context (max 4, meest recent eerst)
-  const historische_analyses = COMRAP_ANALYSES.slice(0, 4).map(a => ({
+  // Tien eerdere analyses mee, meest recent eerst. Met vier weken zie je een
+  // uitschieter; met tien zie je of iets een trend is.
+  const historische_analyses = COMRAP_ANALYSES.slice(0, 10).map(a => ({
     week: a.week, jaar: a.jaar, tekst: a.analyse_tekst,
   }));
 
@@ -11807,15 +11870,23 @@ async function comrapAnalyse() {
       headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
       body: JSON.stringify({
         week: w, jaar: y, bm_data: bmData,
-        kanban, notities: st.notities + tekstImports, images: imageBlokken,
+        kanban, pipeline, notities: st.notities + tekstImports, images: imageBlokken,
         historische_analyses,
       }),
     });
     const json = await resp.json();
     if (json.error) throw new Error(json.error);
     st.resultaat = json.analyse || json.content || '(Geen resultaat ontvangen)';
+    // Meteen bewaren. Een analyse die je moet onthouden op te slaan, is een
+    // analyse die de volgende keer niet meetelt als vergelijking — en juist die
+    // vergelijking is waar de trends uit komen.
+    const bewaard = await comrapSlaOp(w, y, st.kpiSnapshot || null, st.resultaat);
+    st.bewaardMelding = bewaard.ok
+      ? 'Automatisch opgeslagen bij Opgeslagen.'
+      : 'Let op: opslaan mislukte (' + bewaard.msg + '). Gebruik de knop hieronder.';
   } catch(e) {
     st.resultaat = '❌ Fout bij analyse: ' + e.message;
+    st.bewaardMelding = '';
   } finally {
     st.bezig = false;
     renderComrap();
