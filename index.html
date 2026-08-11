@@ -1447,6 +1447,31 @@
   .card-aanb-input { width:38px; border:1px solid var(--border); border-radius:4px; padding:1px 3px; font-size:.75rem; font-weight:700; text-align:center; outline:none; color:var(--primary); }
   .card-aanb-input:focus { border-color:var(--primary); box-shadow:0 0 0 2px #dbeafe; }
   /* Aantal aanbiedingen: eigen − / + in plaats van de pijltjes van de browser. */
+  /* Records: de filterbalk boven de lijst. */
+  .rec-filters { background:rgba(255,255,255,.06); border-radius:var(--radius-groot);
+                 padding:12px 14px; margin-bottom:12px; }
+  .rec-filter-rij { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+                    gap:9px; }
+  .rec-filters label { display:block; }
+  .rec-filters .kop { display:block; font-size:.62rem; color:rgba(255,255,255,.45);
+                      margin-bottom:4px; letter-spacing:.03em; }
+  .rec-filters select { width:100%; height:30px; font-family:inherit; font-size:.78rem;
+                        background:rgba(255,255,255,.1); color:#fff;
+                        border:1px solid rgba(255,255,255,.16); border-radius:6px;
+                        padding:0 7px; outline:none; }
+  .rec-filters select:focus { border-color:rgba(255,255,255,.4); }
+  .rec-filters select option { background:#253151; color:#fff; }
+  .rec-voet { display:flex; align-items:center; justify-content:space-between;
+              gap:12px; margin-top:10px; font-size:.72rem; color:rgba(255,255,255,.4); }
+  .rec-wis { background:none; border:1px solid rgba(255,255,255,.2); border-radius:99px;
+             color:rgba(255,255,255,.6); font-family:inherit; font-size:.72rem;
+             padding:3px 12px; cursor:pointer; }
+  .rec-wis:hover { color:#fff; border-color:rgba(255,255,255,.45); }
+  .rec-soort { font-size:.66rem; border-radius:4px; padding:2px 6px; flex-shrink:0;
+               font-weight:var(--w-nadruk); }
+  .rec-soort.itk { background:#fef3c7; color:#92400e; }
+  .rec-soort.bzk { background:#dbeafe; color:#1e40af; }
+
   .card-aanb-stap { display:inline-flex; align-items:stretch; height:18px;
                     border:1px solid rgba(255,255,255,.18); border-radius:5px;
                     overflow:hidden; flex-shrink:0; vertical-align:middle; }
@@ -1702,7 +1727,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1046 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1104 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4322,7 +4347,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1046';
+const APP_VERSIE = '20260811-1104';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4508,7 +4533,7 @@ function renderTabs() {
         </div>
       </div>
       <div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+        <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
@@ -4516,6 +4541,7 @@ function renderTabs() {
           <button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>
           <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>
           <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>
+          <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('gesprek')}Records</button>
           <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>
         </div>
       </div>
@@ -4563,7 +4589,7 @@ function renderTabs() {
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
     </div>
     <div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+      <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         ${btCatLabel('management','Management')}
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
@@ -4572,6 +4598,7 @@ function renderTabs() {
         <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>
         <button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>
         <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>
+        <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('gesprek')}Records</button>
         <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>
       </div>
     </div>
@@ -5429,6 +5456,7 @@ function selectTab(i) {
   if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || i === 'team' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
+  if (i === 'records') managementOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
@@ -6192,6 +6220,7 @@ function render() {
   if (currentTab === 'gesprek') { renderGesprek(); return; }
   if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
   if (currentTab === 'beheer') { if (isBeheerder()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+  if (currentTab === 'records') { renderRecords(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
   if (currentTab === 'projecten') { renderPrognose(); return; }
   if (currentTab === 'team')      { renderTeam();    return; }
@@ -7402,6 +7431,7 @@ function _hertekenNaOpnames() {
   try {
     if (currentTab === 'gesprek')      { renderGesprek(); return; }
     if (currentTab === 'bezoek')       { renderBezoekRecorder(); return; }
+    if (currentTab === 'records')      { renderRecords(); return; }
     if (currentTab === 'hrm')          { renderHrmBackoffice(); return; }
     if (bmSubTab === 'coaching')       { refreshCoachingTab(); return; }
   } catch(e) { _meldStil('scherm bijwerken na laden opnames', e); }
@@ -7448,7 +7478,7 @@ async function loadProfileAndStart() {
     try {
       const saved = JSON.parse(localStorage.getItem('bt_last_tab'));
       if (saved !== null && saved !== undefined) {
-        const validStr = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing','gesprek','bezoek','medewerkers','projecten','comrap','team'];
+        const validStr = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing','gesprek','bezoek','records','medewerkers','projecten','comrap','team'];
         if (validStr.includes(saved)) {
           currentTab = saved;
         } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved < BMS.length) {
@@ -16439,26 +16469,11 @@ function bezoekRecordKopieer(id) {
   navigator.clipboard.writeText(lines.filter(Boolean).join('\n')).catch(()=>{});
 }
 
-// Records-weergave – Gesprek
-function renderGesprekRecords() {
-  if (currentTab !== 'gesprek') return;
+// Eén regel in de recordslijst. Wordt gebruikt door de recorderpagina én door
+// het Records-overzicht onder Management, zodat beide altijd hetzelfde tonen.
+function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
   const PT = (rows) => verslagVeldenHtml(rows);
-  const badge=GESPREK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>`:'';
 
-  // Groepeer records op naam+functie+datum; toon samenvoegknop als groep ≥ 2 heeft
-  const groepTelling = {};
-  GESPREK_RECORDS.forEach(r => {
-    const k = _gspKey(r);
-    groepTelling[k] = (groepTelling[k] || 0) + 1;
-  });
-
-  // Opnames van collega's die uit dienst zijn verdwijnen uit de lijst. Ze blijven
-  // wél bestaan; zodra de einddatum in Beheer wordt leeggemaakt staan ze er weer.
-  const _gArchief = GESPREK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
-  const GESPREK_RECORDS_ZICHTBAAR = GESPREK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
-  const items=GESPREK_RECORDS_ZICHTBAAR.length===0
-    ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen gesprekken.</div>`
-    :GESPREK_RECORDS_ZICHTBAAR.map(rec=>{
       const r=rec.result||{}, hw=r.hardeWensen||{}, zf=r.zachteFactoren||{};
       const open=GESPREK_OPEN.has(rec.id), showTr=GESPREK_SHOW_TR.has(rec.id);
       const title=[rec.naam,rec.functie].filter(Boolean).join(' — ')||'Gesprek';
@@ -16470,14 +16485,16 @@ function renderGesprekRecords() {
         <div onclick="toggleGesprekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':isDup?'#fffbeb':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
-          ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
+          ${soortPil||''}
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          ${aardPil||''}
           ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
           ${afsprakenStatusPil(rec.id)}
           ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
           ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.74rem;padding:3px 9px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
           <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
           ${GESPREK_HERANALYSE_BUSY.has(rec.id)?`<span style="font-size:.7rem;font-weight:700;background:#eef2ff;color:var(--primary);border:1px solid #c7d2fe;border-radius:20px;padding:2px 8px;flex-shrink:0;" title="Het samenvoegen is klaar — de AI werkt de analyse nog bij">Analyse loopt</span>`:''}
+          ${recIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(recIni)}</span>`:''}
           ${rec.recorder_naam
             ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
@@ -16515,7 +16532,196 @@ function renderGesprekRecords() {
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
       </div>`;
-    }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RECORDS — één overzicht van alles wat er is opgenomen
+//
+// Dit is bewust géén nieuwe weergave: de regels komen uit precies dezelfde
+// functies als de twee recorderpagina's (_recRegelGesprek / _recRegelBezoek).
+// Uitklappen, toewijzen, printen, verwijderen en heranalyseren werken hier dus
+// hetzelfde, en blijven vanzelf gelijk als daar iets verandert. Nieuw is alleen
+// dat de twee lijsten samengevoegd en gefilterd worden.
+// ════════════════════════════════════════════════════════════════════════════
+let RECORDS_FILTER = { soort:'', aard:'', status:'', collega:'', klant:'', medewerker:'' };
+
+const _RECORDS_MAANDEN = { januari:0, februari:1, maart:2, april:3, mei:4, juni:5,
+                           juli:6, augustus:7, september:8, oktober:9, november:10, december:11 };
+
+// De datum staat alleen als tekst in het record ("11 augustus 2026"). Om twee
+// lijsten door elkaar te kunnen sorteren maken we er een echte datum van.
+// Lukt dat niet, dan zakt de regel naar onderen in plaats van dat de sortering
+// stilletjes omvalt.
+function _recDatumSort(datum) {
+  const m = String(datum || '').match(/(\d{1,2})\s+([a-zA-Zé]+)\s+(\d{4})/);
+  if (!m) return 0;
+  const mnd = _RECORDS_MAANDEN[m[2].toLowerCase()];
+  if (mnd === undefined) return 0;
+  return Date.UTC(+m[3], mnd, +m[1]);
+}
+
+function _recAardVanBezoek(rec) {
+  const soort = rec.soortBezoek || 'bedrijfsbezoek';
+  return soort === 'evaluatie_medewerker'        ? 'Evaluatie'
+       : soort === 'voorbereiding_matchgesprek'  ? 'Voorbereiding'
+       :                                           'Bedrijfsbezoek';
+}
+
+// Alle records op één hoop, met de velden waarop gefilterd kan worden.
+// Opnames van oud-collega's blijven verborgen, net als op de recorderpagina's.
+function _recAlleRegels() {
+  const uit = [];
+  for (const rec of GESPREK_RECORDS) {
+    if (isInactieveCollega(rec.recorder_naam)) continue;
+    uit.push({ rec, soort:'ITK', aard:'Intake',
+               collega: rec.recorder_naam || '',
+               klant: '',                       // een intake kent geen opdrachtgever
+               medewerker: rec.naam || '',
+               // Alleen een intake heeft afspraken die gedeeld en geaccordeerd
+               // worden; een bezoekverslag kent die stap niet.
+               status: afsprakenStatus(rec.id).tekst,
+               sort: _recDatumSort(rec.datum) });
+  }
+  for (const rec of BEZOEK_RECORDS) {
+    if (isInactieveCollega(rec.recorder_naam)) continue;
+    const aard = _recAardVanBezoek(rec);
+    // Bij een evaluatie worden de twee velden andersom ingevuld: de naam van de
+    // medewerker staat vooraan en de klant erachter. Dat volgen we hier, anders
+    // komen er namen in de klantenlijst te staan.
+    const omgedraaid = aard === 'Evaluatie';
+    uit.push({ rec, soort:'BZK', aard,
+               collega: rec.recorder_naam || '',
+               klant:      omgedraaid ? (rec.contactpersoon || '') : (rec.bedrijf || ''),
+               medewerker: omgedraaid ? (rec.bedrijf || '')        : (rec.contactpersoon || ''),
+               status: '',
+               sort: _recDatumSort(rec.datum) });
+  }
+  return uit.sort((a, b) => b.sort - a.sort);
+}
+
+function _recPast(r) {
+  const f = RECORDS_FILTER;
+  return (!f.soort      || r.soort      === f.soort)
+      && (!f.aard       || r.aard       === f.aard)
+      && (!f.status     || r.status     === f.status)
+      && (!f.collega    || r.collega    === f.collega)
+      && (!f.klant      || r.klant      === f.klant)
+      && (!f.medewerker || r.medewerker === f.medewerker);
+}
+
+// De keuzelijsten vullen zich met wat er écht in de records staat. Een naam die
+// nergens voorkomt, staat er dus ook niet tussen — je kunt niet per ongeluk op
+// leegte filteren.
+function _recKeuzeHtml(sleutel, label, waarden) {
+  const uniek = [...new Set(waarden.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'nl'));
+  return `<label><span class="kop">${escHtml(label)}</span>
+    <select onchange="recordsZetFilter('${sleutel}',this.value)">
+      <option value="">Alle</option>
+      ${uniek.map(v => `<option value="${escHtml(v)}"${RECORDS_FILTER[sleutel] === v ? ' selected' : ''}>${escHtml(v)}</option>`).join('')}
+    </select></label>`;
+}
+
+function recordsZetFilter(sleutel, waarde) {
+  RECORDS_FILTER[sleutel] = waarde || '';
+  renderRecords();
+}
+
+function recordsWisFilters() {
+  RECORDS_FILTER = { soort:'', aard:'', status:'', collega:'', klant:'', medewerker:'' };
+  renderRecords();
+}
+
+function recordsHerlaad() {
+  _herlaadStatus.gesprek = 'loading';
+  renderRecords();
+  Promise.all([loadGesprekRecordsFromDb(), loadBezoekRecordsFromDb()]).then(() => {
+    _herlaadStatus.gesprek = 'done';
+    renderRecords();
+    setTimeout(() => { _herlaadStatus.gesprek = ''; renderRecords(); }, 2000);
+  });
+}
+
+function renderRecords() {
+  if (currentTab !== 'records') return;
+  const alle = _recAlleRegels();
+  const zicht = alle.filter(_recPast);
+
+  // Voor de melding "deel" op dubbele gespreksrecords: zelfde telling als op de
+  // recorderpagina, anders verdwijnt die waarschuwing hier.
+  const groepTelling = {};
+  GESPREK_RECORDS.forEach(r => { const k = _gspKey(r); groepTelling[k] = (groepTelling[k] || 0) + 1; });
+
+  const filters = `<div class="rec-filters">
+    <div class="rec-filter-rij">
+      ${_recKeuzeHtml('soort',      'Soort',      alle.map(r => r.soort))}
+      ${_recKeuzeHtml('klant',      'Klant',      alle.map(r => r.klant))}
+      ${_recKeuzeHtml('medewerker', 'Medewerker', alle.map(r => r.medewerker))}
+      ${_recKeuzeHtml('aard',       'Aard',       alle.map(r => r.aard))}
+      ${_recKeuzeHtml('status',     'Status',     alle.map(r => r.status))}
+      ${_recKeuzeHtml('collega',    'Collega',    alle.map(r => r.collega))}
+    </div>
+    <div class="rec-voet">
+      <span>${zicht.length === alle.length
+                ? `${alle.length} records`
+                : `${zicht.length} van ${alle.length} records`}${
+              RECORDS_FILTER.klant  ? ' · intakes vallen weg, die kennen geen klant' : ''}${
+              RECORDS_FILTER.status ? ' · alleen intakes, alleen die hebben een status' : ''}</span>
+      <button class="rec-wis" onclick="recordsWisFilters()">Wis filters</button>
+    </div>
+  </div>`;
+
+  const lijst = zicht.length === 0
+    ? `<div style="text-align:center;padding:44px;color:rgba(255,255,255,.45);font-size:.88rem;">
+         Geen records die aan deze filters voldoen.</div>`
+    : zicht.map(r => {
+        const soortPil = `<span class="rec-soort ${r.soort.toLowerCase()}">${r.soort}</span>`;
+        // Bij een intake staat de aard niet in het record; die is per definitie
+        // Intake. Toch tonen we hem, anders staat die kolom bij de helft van de
+        // regels leeg en lees je de rij niet meer als een rij.
+        const aardPil = `<span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;min-width:104px;text-align:center;">📄 Intake</span>`;
+        return r.soort === 'ITK'
+          ? _recRegelGesprek(r.rec, groepTelling, soortPil, aardPil)
+          : _recRegelBezoek(r.rec, soortPil);
+      }).join('');
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">Records</div>
+      <div class="person-meta">
+        <span class="meta-pill">${alle.length} opnames</span>
+        ${_herlaadStatus.gesprek === 'loading'
+          ? `<span class="meta-pill">Laden…</span>`
+          : `<button class="rec-wis" style="color:#16142e;border-color:rgba(0,0,0,.25);" onclick="recordsHerlaad()">Herlaad</button>`}
+      </div>
+    </div>
+    ${filters}
+    ${lijst}
+  </div>`;
+}
+
+// Records-weergave – Gesprek
+function renderGesprekRecords() {
+  // Sta je op het Records-overzicht, dan ververst die pagina; zo werkt elke
+  // knop daar zonder dat we alle aanroepen hoeven na te lopen.
+  if (currentTab === 'records') { renderRecords(); return; }
+  if (currentTab !== 'gesprek') return;
+  const PT = (rows) => verslagVeldenHtml(rows);
+  const badge=GESPREK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${GESPREK_RECORDS.length}</span>`:'';
+
+  // Groepeer records op naam+functie+datum; toon samenvoegknop als groep ≥ 2 heeft
+  const groepTelling = {};
+  GESPREK_RECORDS.forEach(r => {
+    const k = _gspKey(r);
+    groepTelling[k] = (groepTelling[k] || 0) + 1;
+  });
+
+  // Opnames van collega's die uit dienst zijn verdwijnen uit de lijst. Ze blijven
+  // wél bestaan; zodra de einddatum in Beheer wordt leeggemaakt staan ze er weer.
+  const _gArchief = GESPREK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
+  const GESPREK_RECORDS_ZICHTBAAR = GESPREK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
+  const items=GESPREK_RECORDS_ZICHTBAAR.length===0
+    ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen gesprekken.</div>`
+    :GESPREK_RECORDS_ZICHTBAAR.map(rec=>_recRegelGesprek(rec,groepTelling))
   document.getElementById('main').innerHTML=`<div>
     <div class="person-header">
       <div class="person-name">Recorder${btUitlegKnop('itk')}</div>
@@ -16540,16 +16746,10 @@ function renderGesprekRecords() {
   </div>`;
 }
 
-// Records-weergave – Bezoek
-function renderBezoekRecords() {
-  if (currentTab !== 'bezoek') return;
+// Idem voor een bezoekverslag.
+function _recRegelBezoek(rec, soortPil) {
   const PT = (rows) => verslagVeldenHtml(rows);
-  const badge=BEZOEK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>`:'';
-  const _bArchief = BEZOEK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
-  const BEZOEK_RECORDS_ZICHTBAAR = BEZOEK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
-  const items=BEZOEK_RECORDS_ZICHTBAAR.length===0
-    ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen bezoekverslagen.</div>`
-    :BEZOEK_RECORDS_ZICHTBAAR.map(rec=>{
+
       const r=rec.result||{}, bp=r.bedrijfsprofiel||{}, wb=r.wervingsbehoefte||{}, cf=r.coachingFeedback||{};
       const soort=rec.soortBezoek||'bedrijfsbezoek';
       const soortEmoji=soort==='evaluatie_medewerker'?'👤':soort==='voorbereiding_matchgesprek'?'🎯':'🏢';
@@ -16567,10 +16767,11 @@ function renderBezoekRecords() {
         <div onclick="toggleBezoekRecord('${rec.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open?'#f4f6f9':'#fff'};user-select:none;">
           <span style="font-size:.7rem;color:var(--muted);display:inline-block;transform:rotate(${open?90:0}deg);transition:transform .15s;">▶</span>
           <span style="font-size:.76rem;color:var(--muted);min-width:115px;flex-shrink:0;">${escHtml(rec.datum)}</span>
-          ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
+          ${soortPil||''}
           ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
-          <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;">${soortEmoji} ${escHtml(soortLabel)}</span>
           <span style="font-weight:600;font-size:.87rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(title)}</span>
+          <span style="font-size:.7rem;background:#eef2ff;color:var(--primary);border-radius:4px;padding:1px 6px;flex-shrink:0;min-width:104px;text-align:center;">${soortEmoji} ${escHtml(soortLabel)}</span>
+          ${brecIni?`<span title="${escHtml(rec.recorder_naam)}" style="background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;">${escHtml(brecIni)}</span>`:''}
           ${rec.recorder_naam
             ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" style="font-size:.72rem;color:var(--primary);background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 8px;max-width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
@@ -16594,7 +16795,21 @@ function renderBezoekRecords() {
           ${showTr&&rec.transcript?`<div style="background:#f8faff;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:2px;"><pre style="margin:0;font-size:.77rem;line-height:1.6;white-space:pre-wrap;font-family:monospace;color:var(--text);">${escHtml(rec.transcript)}</pre></div>`:''}
         </div>`:''}
       </div>`;
-    }).join('');
+}
+
+// Records-weergave – Bezoek
+function renderBezoekRecords() {
+  // Sta je op het Records-overzicht, dan ververst die pagina; zo werkt elke
+  // knop daar zonder dat we alle aanroepen hoeven na te lopen.
+  if (currentTab === 'records') { renderRecords(); return; }
+  if (currentTab !== 'bezoek') return;
+  const PT = (rows) => verslagVeldenHtml(rows);
+  const badge=BEZOEK_RECORDS.length>0?`<span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:5px;">${BEZOEK_RECORDS.length}</span>`:'';
+  const _bArchief = BEZOEK_RECORDS.filter(r => isInactieveCollega(r.recorder_naam));
+  const BEZOEK_RECORDS_ZICHTBAAR = BEZOEK_RECORDS.filter(r => !isInactieveCollega(r.recorder_naam));
+  const items=BEZOEK_RECORDS_ZICHTBAAR.length===0
+    ?`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem;">Nog geen opgeslagen bezoekverslagen.</div>`
+    :BEZOEK_RECORDS_ZICHTBAAR.map(rec=>_recRegelBezoek(rec))
   document.getElementById('main').innerHTML=`<div>
     <div class="person-header">
       <div class="person-name">BZK-Recorder${btUitlegKnop('bzk')}</div>
