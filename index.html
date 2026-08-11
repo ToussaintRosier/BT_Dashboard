@@ -1727,7 +1727,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1129 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260811-1133 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2540,6 +2540,8 @@ const BT_ICONEN = {
   one:         '<path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H9l-4 3.5V6.5A2.5 2.5 0 0 1 7.5 4h10A2.5 2.5 0 0 1 20 6.5z"/><path d="M8.5 8.5h8M8.5 12h5"/>',
   medewerkers: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.2M17 14.2a5.5 5.5 0 0 1 3.5 5.1"/>',
   overzicht:   '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  // Records: een stapeltje verslagen — twee vellen achter elkaar met regels.
+  records:     '<path d="M8 3h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9.5 8h5M9.5 11.5h5M9.5 15h3"/>',
   management:  '<path d="M3 21h18M5 21V10M19 21V10M12 3l8 5H4z"/>',
   team:        '<path d="M3 20h18M6.5 20v-6M11 20V8M15.5 20v-4M20 20V5"/>',
   projecten:   '<path d="M3 17l6-6 4 4 8-8"/><path d="M21 8V4h-4"/>',
@@ -4347,7 +4349,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1129';
+const APP_VERSIE = '20260811-1133';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4541,7 +4543,7 @@ function renderTabs() {
           <button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>
           <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>
           <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>
-          <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('gesprek')}Records</button>
+          <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>
           <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>
         </div>
       </div>
@@ -4598,7 +4600,7 @@ function renderTabs() {
         <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>
         <button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>
         <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>
-        <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('gesprek')}Records</button>
+        <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>
         <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>
       </div>
     </div>
@@ -15480,6 +15482,10 @@ function gesprekDownload(formaat) {
 }
 
 function renderGesprek() {
+  // Sta je op Records, dan hoort die pagina opnieuw getekend te worden.
+  // Zonder dit doet uitklappen daar niets: de knop roept deze functie aan,
+  // en die stopte hier omdat je niet op het recordertabblad staat.
+  if (currentTab === 'records') { renderRecords(); return; }
   if (currentTab !== 'gesprek') return; // opname loopt door, maar UI niet overschrijven
   // Pre-fill recorderNaam met ingelogde gebruiker als nog leeg
   if (!GESPREK.recorderNaam && CURRENT_USER?.naam) GESPREK.recorderNaam = CURRENT_USER.naam;
@@ -17434,6 +17440,10 @@ function bezoekDownload(formaat) {
 }
 
 function renderBezoekRecorder() {
+  // Sta je op Records, dan hoort die pagina opnieuw getekend te worden.
+  // Zonder dit doet uitklappen daar niets: de knop roept deze functie aan,
+  // en die stopte hier omdat je niet op het recordertabblad staat.
+  if (currentTab === 'records') { renderRecords(); return; }
   if (currentTab !== 'bezoek') return; // opname loopt door, maar UI niet overschrijven
   // Pre-fill recorderNaam met ingelogde gebruiker als nog leeg
   if (!BEZOEK.recorderNaam && CURRENT_USER?.naam) BEZOEK.recorderNaam = CURRENT_USER.naam;
