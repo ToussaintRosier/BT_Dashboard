@@ -1282,6 +1282,19 @@
   .person-header .meta-pill { font-size:.75rem; padding:3px 10px; font-weight:var(--w-normaal); }
   .person-header .meta-pill { background:rgba(255,255,255,.13); color:#fff;
                               border:0.5px solid rgba(255,255,255,.16); }
+  /* De twee ladderknoppen in de kopbalk. Rond en zonder label: de balk mocht
+     niet breder worden, dus staat de naam in de tooltip en boven de pop-up. */
+  .ladder-knop { width:24px; height:24px; border-radius:50%; padding:0; flex-shrink:0;
+                 background:rgba(255,255,255,.16); border:0.5px solid rgba(255,255,255,.34);
+                 color:#fff; cursor:pointer; display:inline-flex;
+                 align-items:center; justify-content:center; transition:background .15s; }
+  .ladder-knop:hover { background:rgba(255,255,255,.32); }
+  .ladder-streep { width:1px; height:16px; background:rgba(255,255,255,.28);
+                   margin:0 2px; flex-shrink:0; }
+  .ladder-venster { max-width:820px; }
+  .ladder-plaat { max-width:100%; max-height:64vh; object-fit:contain;
+                  border-radius:var(--radius); border:1px solid var(--border); }
+
   .bm-subtabs { display:flex; gap:6px; margin:0 0 18px; }
   .bm-subtab-btn { background:none; border:none; padding:10px 18px; font-size:.9rem; font-weight:700; color:#94a3b8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
   .bm-subtab-btn:hover { color:var(--accent); }
@@ -1890,7 +1903,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1808 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1837 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -3311,6 +3324,75 @@ function uitlegNaarBoven() {
   const body = document.getElementById('uitleg-body');
   if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
 }
+// ════════════════════════════════════════════════════════════════════════════
+// DE TWEE LADDERS
+//
+// Praatplaten voor een een-op-een: de Motivatieladder gaat over wat iemand
+// drijft, de Werkintensiteitsladder over hoeveel er van hem gevraagd wordt.
+// Voor iedereen dezelfde afbeelding, dus staan ze op één plek — in de balk van
+// het medewerkersoverzicht — en niet elf keer als tabblad op een eigen kaart.
+// ════════════════════════════════════════════════════════════════════════════
+const LADDERS = {
+  motivatie: {
+    titel: 'Motivatieladder',
+    bron:  () => MOTIVATIELADDER_IMG,
+    regel: 'Waar iemand zijn drijfveer vandaan haalt. Bedoeld als praatplaat in een een-op-een, niet als beoordeling.',
+  },
+  werk: {
+    titel: 'Werkintensiteitsladder',
+    bron:  () => WERKINTENSITEIT_IMG,
+    regel: 'Hoeveel er van iemand gevraagd wordt. Bedoeld als praatplaat in een een-op-een, niet als beoordeling.',
+  },
+};
+
+// De twee knoppen in de balk. Bewust alleen een pictogram: labels maakten de
+// balk breder, en daar was juist bezwaar tegen. De naam staat in de tooltip en
+// boven de pop-up.
+function ladderKnoppenHtml() {
+  const knop = (sleutel, pad) => `<button class="ladder-knop" onclick="toonLadder('${sleutel}')"
+      title="${escHtml(LADDERS[sleutel].titel)}" aria-label="${escHtml(LADDERS[sleutel].titel)}">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${pad}</svg>
+    </button>`;
+  return knop('motivatie', '<path d="M4 20h4v-4h4v-4h4V8h4"/>')
+       + knop('werk', '<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/>')
+       + `<span class="ladder-streep"></span>`;
+}
+
+function toonLadder(sleutel) {
+  const l = LADDERS[sleutel];
+  if (!l) return;
+  sluitLadder();
+  const bron = l.bron();
+  const laag = document.createElement('div');
+  laag.className = 'uitleg-laag';
+  laag.id = 'ladder-laag';
+  laag.onclick = (e) => { if (e.target === laag) sluitLadder(); };
+  laag.innerHTML =
+    '<div class="uitleg-venster ladder-venster" role="dialog" aria-modal="true" aria-label="' + escHtml(l.titel) + '">' +
+      '<div class="uitleg-kop"><h3>' + escHtml(l.titel) + '</h3>' +
+        '<button class="uitleg-sluit" onclick="sluitLadder()" aria-label="Sluiten">' +
+          '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        '</button></div>' +
+      '<div class="uitleg-body" style="text-align:center;">' +
+        (bron
+          ? '<img src="' + bron + '" alt="' + escHtml(l.titel) + '" class="ladder-plaat">'
+          : '<div class="info-box blue">De afbeelding is nog niet toegevoegd.</div>') +
+        '<p style="font-size:.82rem;color:var(--muted);line-height:1.6;margin:12px 0 0;text-align:left;">' +
+          escHtml(l.regel) + '</p>' +
+      '</div>' +
+      '<div class="uitleg-voet"><button onclick="sluitLadder()">Sluiten</button></div>' +
+    '</div>';
+  document.body.appendChild(laag);
+  document.addEventListener('keydown', _ladderEscape);
+}
+function sluitLadder() {
+  const el = document.getElementById('ladder-laag');
+  if (el) el.remove();
+  document.removeEventListener('keydown', _ladderEscape);
+}
+function _ladderEscape(e) { if (e.key === 'Escape') sluitLadder(); }
+
 function sluitUitleg() {
   const el = document.getElementById('uitleg-laag');
   if (el) el.remove();
@@ -4520,7 +4602,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1808';
+const APP_VERSIE = '20260812-1837';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6436,7 +6518,14 @@ function selectTab(i) {
   closeSidebar();
   renderTabs(); render();
 }
-function selectBmSubTab(tab) { bmSubTab = tab; render(); }
+function selectBmSubTab(tab) {
+  // De ladders waren tabbladen en zijn nu knoppen in de kopbalk van het
+  // overzicht. Wie nog met zo'n keuze in het geheugen zit, zou naar een leeg
+  // vlak kijken.
+  if (tab === 'motivatieladder' || tab === 'werkintensiteit') tab = 'kpis';
+  bmSubTab = tab;
+  render();
+}
 
 // ── BM Panel ──────────────────────────────────────────────────────────────────
 function renderBM(bm) {
@@ -6500,8 +6589,6 @@ function renderBM(bm) {
       ${heeftBumGesprek(bm.naam) ? `<button class="bm-subtab-btn ${bmSubTab==='bum'?'active':''}" onclick="selectBmSubTab('bum')">BUM-gesprek</button>` : ''}
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">Coaching</button>
       <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">Performance-Analyse</button>
-      <button class="bm-subtab-btn ${bmSubTab==='motivatieladder'?'active':''}" onclick="selectBmSubTab('motivatieladder')">Motivatieladder</button>
-      <button class="bm-subtab-btn ${bmSubTab==='werkintensiteit'?'active':''}" onclick="selectBmSubTab('werkintensiteit')">Werkintensiteit</button>
     </div>
     <div id="bm-subtab-content"></div>
   </div>`;
@@ -6521,14 +6608,6 @@ function renderBM(bm) {
   }
   if (bmSubTab === 'coaching') {
     document.getElementById('bm-subtab-content').innerHTML = renderBmCoachingTab(bm);
-    return;
-  }
-  if (bmSubTab === 'motivatieladder') {
-    document.getElementById('bm-subtab-content').innerHTML = renderMotivatieladder(bm);
-    return;
-  }
-  if (bmSubTab === 'werkintensiteit') {
-    document.getElementById('bm-subtab-content').innerHTML = renderWerkintensiteitsladder(bm);
     return;
   }
   if (bmSubTab === 'agenda') {
@@ -6905,6 +6984,7 @@ function renderMedewerkersOverzicht() {
     '<div class="person-header">' +
       '<div class="person-name">Medewerkers' + btUitlegKnop('medewerkers') + '</div>' +
       '<div class="person-meta">' +
+        ladderKnoppenHtml() +
         '<span class="meta-pill">Teamdoel ' + TOTAAL_DOEL + ' starters</span>' +
         '<span class="meta-pill">Stand t/m week ' + CUR.week + '</span>' +
       '</div>' +
@@ -8087,27 +8167,6 @@ function printPlanVanAanpak(bmNaam, year, week) {
   setTimeout(() => { win.print(); }, 300);
 }
 
-// ── Motivatieladder (per medewerker) ───────────────────────────────────────────
-function renderMotivatieladder(bm) {
-  if (!canView(bm.naam)) return '<div class="info-box blue">Geen rechten om dit te bekijken.</div>';
-  if (!MOTIVATIELADDER_IMG) {
-    return `<div class="info-box blue">De <strong>Motivatieladder</strong>-afbeelding is nog niet toegevoegd. Vraag Toussaint om het document aan te leveren.</div>`;
-  }
-  return `<div style="text-align:center">
-    <img src="${MOTIVATIELADDER_IMG}" alt="Motivatieladder" style="max-width:100%;border-radius:var(--radius);border:1px solid var(--border);">
-  </div>`;
-}
-
-// ── Werkintensiteitsladder (per medewerker) ─────────────────────────────────
-function renderWerkintensiteitsladder(bm) {
-  if (!canView(bm.naam)) return '<div class="info-box blue">Geen rechten om dit te bekijken.</div>';
-  if (!WERKINTENSITEIT_IMG) {
-    return `<div class="info-box blue">⚡ De <strong>Werkintensiteitsladder</strong>-afbeelding is nog niet toegevoegd. Upload de afbeelding zodat Toussaint hem kan inbedden.</div>`;
-  }
-  return `<div style="text-align:center">
-    <img src="${WERKINTENSITEIT_IMG}" alt="Werkintensiteitsladder" style="max-width:100%;border-radius:var(--radius);border:1px solid var(--border);">
-  </div>`;
-}
 
 function unlockPlanVanAanpak(bmNaam) {
   WEEKLY_EDIT_UNLOCKED.add(`plan|${bmNaam}|${NEXT.year}|${NEXT.week}`);
