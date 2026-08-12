@@ -1873,7 +1873,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1438 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1454 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4503,7 +4503,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1438';
+const APP_VERSIE = '20260812-1454';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4829,6 +4829,7 @@ function eisWijzig(sleutel, stil) {
   if (!stil) {
     const naam = (ONDERDELEN.find(o => o.sleutel === sleutel) || {}).label || 'dit onderdeel';
     alert('Je kunt hier alleen kijken.\n\n' + naam + ' staat voor jou op alleen-lezen. ' +
+          'Wat je hier ziet klopt, je kunt het alleen niet aanpassen.\n\n' +
           'Vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het op wijzigen te zetten.');
   }
   return false;
@@ -8589,7 +8590,7 @@ function renderDocumentatieEC() {
 }
 
 async function comrapSlaOp(week, jaar, kpiSnapshot, analyseTekst) {
-  if (!eisWijzig('comrap')) return;
+  if (!magWijzigen('comrap')) return;
   if (!supa) return { ok: false, msg: 'Geen verbinding' };
   const { error } = await supa.from('comrap_analyses').insert({
     week, jaar,
@@ -11091,7 +11092,7 @@ function projCollegaLoad(src, id) {
   try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; }
 }
 function projCollegaSave(src, id, arr) {
-  if (!eisWijzig('projecten')) return;
+  if (!magWijzigen('projecten') && !magWijzigen('medewerkers')) return;
   // localStorage als directe fallback (ook offline beschikbaar)
   _veiligLokaalOpslaan(projCollegaKey(src,id), arr, 'collega-initialen project');
   if (!supa) return;
@@ -11122,6 +11123,7 @@ function projCollegaLoadOrDefault(src, id, bmField) {
 // containerId = het DOM-element dat de chips bevat (zodat goedkeur + overzicht
 // dezelfde toggle-functie kunnen gebruiken met een andere container-id).
 function projCollegaToggle(src, id, init, containerId) {
+  if (!eisWijzig('projecten')) return;
   const cur = projCollegaLoad(src, id);
   const idx = cur.indexOf(init);
   if (idx >= 0) cur.splice(idx, 1); else cur.push(init);
@@ -11240,7 +11242,7 @@ function projEvalLoad(src, id) {
   try { return JSON.parse(localStorage.getItem(projEvalKey(src,id))||'[]'); } catch(_){ return []; }
 }
 function projEvalSave(src, id, arr) {
-  if (!eisWijzig('projecten')) return;
+  if (!magWijzigen('projecten') && !magWijzigen('hrm')) return;
   // Update cache direct zodat UI meteen klopt
   const cacheKey = `${src}_${id}`;
   PROJ_EVAL_CACHE[cacheKey] = arr;
@@ -11277,6 +11279,7 @@ function projEvalToggle_vis(safeId) {
 }
 
 function projEvalToggle(src, id, idx) {
+  if (!eisWijzig('projecten')) return;
   const cur = projEvalLoad(src, id);
   const i   = cur.indexOf(idx);
   if (i >= 0) cur.splice(i, 1); else cur.push(idx);
@@ -11371,6 +11374,7 @@ function hrmEvalToggle(src, id, idx) {
   if (modal) { modal.dataset.src = src; modal.dataset.id = id; modal.dataset.idx = idx; modal.style.display = 'flex'; }
 }
 function hrmEvalConfirm(yes) {
+  if (!eisWijzig('hrm')) return;
   const modal = document.getElementById('hrm-salesforce-modal');
   if (!modal) return;
   modal.style.display = 'none';
@@ -11982,6 +11986,7 @@ function showContractModal(bmNaam, cardId) {
   modal.style.display = 'flex';
 }
 function contractModalConfirm() {
+  if (!eisWijzig('medewerkers')) return;
   const modal = document.getElementById('hrm-contract-modal');
   if (!modal) return;
   const bmNaam  = modal.dataset.bmNaam;
@@ -12011,7 +12016,7 @@ function contractModalCancel() {
   if (modal) modal.style.display = 'none';
 }
 async function _pipeGoedkeuringAkkoordProceed(bmNaam, cardId) {
-  if (!eisWijzig('medewerkers')) return;
+  if (!magWijzigen('medewerkers')) return;
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
   const startDatum = card?.start_datum || toISODate(new Date());
@@ -12031,6 +12036,7 @@ async function _pipeGoedkeuringAkkoordProceed(bmNaam, cardId) {
 // Koppelt automatisch elkaars initialen als collega en hergebruikt de bestaande
 // contract-modal voor het invullen van projectgegevens.
 async function pipeSetGedeeldAkkoord(bmNaam1, id1, bmNaam2, id2) {
+  if (!eisWijzig('medewerkers')) return;
   // Auto-koppel initialen zodat beide BMs als collega zichtbaar zijn
   const ini1 = bmInitialen(bmNaam1), ini2 = bmInitialen(bmNaam2);
   const c1col = projCollegaLoad('pipeline', id1);
@@ -12064,7 +12070,7 @@ async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
 }
 
 async function _pipeGedeeldAkkoordProceed(bmNaam1, id1, bmNaam2, id2) {
-  if (!eisWijzig('medewerkers')) return;
+  if (!magWijzigen('medewerkers')) return;
   const startDatum = toISODate(new Date());
   for (const [bmNaam, cardId] of [[bmNaam1, id1],[bmNaam2, id2]]) {
     if (supa) {
@@ -13020,6 +13026,7 @@ function _comrapPipeline(week, jaar) {
 }
 
 async function comrapAnalyse() {
+  if (!eisWijzig('comrap')) return;
   const st = window._comrapState;
   if (st.bezig) return;
 
@@ -14763,7 +14770,7 @@ function apFieldChange(id, field, value) {
 }
 
 async function apSaveToSupa(id) {
-  if (!eisWijzig('accounts')) return;
+  if (!magWijzigen('accounts')) return;
   if (!supa) return;
   const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
@@ -17621,7 +17628,7 @@ function addGesprekRecord() {
 }
 
 async function _updateGesprekVerslagInSupa(localId, result, transcript) {
-  if (!eisWijzig('gesprek')) return;
+  if (!magWijzigen('gesprek')) return;
   if (!supa) return;
   try {
     // Een UUID komt uit de database; een getal is een record dat alleen nog
@@ -17663,7 +17670,7 @@ function addBezoekRecord() {
 }
 
 async function _updateBezoekVerslagInSupa(localId, result, transcript) {
-  if (!eisWijzig('bezoek')) return;
+  if (!magWijzigen('bezoek')) return;
   if (!supa) return;
   try {
     // localId kan een UUID zijn (uit DB) of een timestamp-getal (lokaal).
@@ -17777,7 +17784,7 @@ function gesprekRecordWisAlles() {
 // Samenvoeg-functie: combineert meerdere records met dezelfde naam+functie+datum tot 1
 let _samenvoegBusy = false;
 async function gesprekSamenvoegGroep(groepKey, silent) {
-  if (!eisWijzig('gesprek')) return;
+  if (!eisWijzig('gesprek', silent)) return;
   if (_samenvoegBusy) return;
   const groep = GESPREK_RECORDS.filter(r => _gspKey(r) === groepKey);
   if (groep.length < 2) return;
@@ -17955,7 +17962,7 @@ function gesprekRecordKopieer(id) {
 // silent=true: geen pop-ups bij fouten. Gebruikt door het samenvoegen, dat de
 // heranalyse op de achtergrond draait terwijl de gebruiker doorwerkt.
 async function gesprekRecordHeranalyse(id, silent) {
-  if (!eisWijzig('gesprek')) return;
+  if (!eisWijzig('gesprek', silent)) return;
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
   if (!rec.transcript || rec.transcript.trim().length < 20) {
@@ -20977,7 +20984,7 @@ function projContractLoad(src, id) {
 //   src='excel'    → Supabase UPDATE (fire-and-forget) + lokale cache bijwerken; bonus in localStorage
 //   src='pipeline' → Supabase UPDATE op pipeline_cards + PIPE_CACHE bijwerken; bonus in localStorage
 function projContractSave(src, id, obj) {
-  if (!eisWijzig('projecten')) return;
+  if (!magWijzigen('projecten') && !magWijzigen('medewerkers')) return;
   if (src === 'excel') {
     // Bonus is niet in DB — bewaar apart in localStorage
     try {
