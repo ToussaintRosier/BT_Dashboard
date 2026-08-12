@@ -1447,6 +1447,30 @@
   .card-aanb-input { width:38px; border:1px solid var(--border); border-radius:4px; padding:1px 3px; font-size:.75rem; font-weight:700; text-align:center; outline:none; color:var(--primary); }
   .card-aanb-input:focus { border-color:var(--primary); box-shadow:0 0 0 2px #dbeafe; }
   /* Aantal aanbiedingen: eigen − / + in plaats van de pijltjes van de browser. */
+  /* BUM-gesprek. De vraagstelling staat onder de titel in plaats van in een
+     tooltip: je moet hem kunnen lezen terwijl je aan het typen bent. */
+  .bum-vak { margin-bottom:18px; }
+  .bum-titel { font-size:.86rem; font-weight:var(--w-nadruk); color:var(--text); }
+  .bum-vraag { font-size:.74rem; color:var(--text-muted); line-height:1.55; margin:2px 0 7px; }
+  .bum-vak textarea { width:100%; padding:9px 11px; font-size:.85rem; line-height:1.6;
+                      font-family:inherit; border:1px solid var(--border);
+                      border-radius:7px; resize:none; overflow:hidden;
+                      background:var(--input-bg,#fff); color:var(--text);
+                      box-sizing:border-box; }
+  .bum-vak textarea:disabled { background:#f7f8fa; color:var(--text-muted); }
+  /* De acties uit het vorige gesprek: overgenomen, niet overgetypt. */
+  .bum-vorige { background:#f5f7fa; border-radius:7px; padding:9px 11px; margin-bottom:10px; }
+  .bum-vorige .kop { font-size:.7rem; color:var(--text-muted); margin-bottom:4px; }
+  .bum-vorige .tekst { font-size:.8rem; color:#4b5563; line-height:1.6; white-space:pre-wrap; }
+  .bum-log-bar { display:flex; align-items:center; justify-content:space-between;
+                 background:var(--card-alt); border:1px solid var(--border);
+                 border-radius:7px; padding:8px 13px; margin-bottom:5px;
+                 cursor:pointer; font-size:.83rem; user-select:none; }
+  .bum-log-bar:hover { border-color:var(--border-strong,var(--border)); }
+  .bum-log-bar .chev { font-size:.75rem; color:var(--text-muted); }
+  .bum-log-inhoud { border:1px solid var(--border); border-top:0; border-radius:0 0 7px 7px;
+                    padding:12px 14px; margin:-5px 0 9px; background:var(--card); }
+
   /* Collega toevoegen: alleen een teken, geen omhulsel. Het valt weg tegen de
      rij tot je het nodig hebt; het vlak eromheen blijft groot genoeg om op te
      tikken. */
@@ -1785,7 +1809,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260811-1532 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1138 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4407,7 +4431,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260811-1532';
+const APP_VERSIE = '20260812-1138';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4936,6 +4960,14 @@ const RECHTEN_WIJZIGEN = {
   medewerkers: () => canEdit(CURRENT_USER?.bm_naam || CURRENT_USER?.naam),
 };
 
+// Onderdelen die geen eigen menupagina zijn maar wel een recht vormen. De
+// functie krijgt de collega mee omdat het hier niet gaat om wat íemand mag zien
+// bij een ander, maar om wat er op zijn eigen kaart staat.
+const RECHTEN_TABBLADEN = [
+  { sleutel: 'bum', label: 'BUM-gesprek (tabblad)',
+    recht: (g) => heeftBumGesprek(g.bm_naam || g.naam) ? 'wijzig' : null },
+];
+
 function _rechtenVoor(gebruiker) {
   const bewaarUser = CURRENT_USER;
   const balk       = document.getElementById('sidebar');
@@ -4957,6 +4989,16 @@ function _rechtenVoor(gebruiker) {
       uit.paginas.push({ sleutel, label });
       const test = RECHTEN_WIJZIGEN[sleutel];
       uit.recht[sleutel] = (!test || test()) ? 'wijzig' : 'zien';
+    }
+
+    // Niet alles is een menupagina. Sommige onderdelen zitten als tabblad in de
+    // kaart van een medewerker en verschillen tóch per persoon; die zou je hier
+    // nooit zien als we alleen het menu aflezen.
+    for (const extra of RECHTEN_TABBLADEN) {
+      const stand = extra.recht(gebruiker);
+      if (!stand) continue;
+      uit.paginas.push({ sleutel: extra.sleutel, label: extra.label });
+      uit.recht[extra.sleutel] = stand;
     }
   } finally {
     CURRENT_USER = bewaarUser;
@@ -5056,6 +5098,11 @@ function renderBeheerRechten() {
         bij <strong>Collega's → Bewerken</strong>. En <strong>Projecten</strong>
         mag backoffice altijd bijwerken, ook zonder dat vinkje — Kandidaten niet,
         want dat bepaalt wat collega's van elkaar zien.
+        <br><br>
+        <strong>BUM-gesprek</strong> is geen pagina in het menu maar een tabblad
+        op de eigen medewerkerkaart. Een leeg vakje betekent hier dus niet "geen
+        toegang" maar "dit tabblad staat niet op zijn kaart". Als manager zie je
+        het bij alle drie.
       </div>
     </div>
   </div>`;
@@ -5786,6 +5833,7 @@ function renderBM(bm) {
     <div class="bm-subtabs">
       <button class="bm-subtab-btn ${bmSubTab==='kpis'?'active':''}" onclick="selectBmSubTab('kpis')">KPI's</button>
       <button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">Plan van aanpak</button>
+      ${heeftBumGesprek(bm.naam) ? `<button class="bm-subtab-btn ${bmSubTab==='bum'?'active':''}" onclick="selectBmSubTab('bum')">BUM-gesprek</button>` : ''}
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">Coaching</button>
       <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">Performance-Analyse</button>
       <button class="bm-subtab-btn ${bmSubTab==='motivatieladder'?'active':''}" onclick="selectBmSubTab('motivatieladder')">Motivatieladder</button>
@@ -5797,6 +5845,14 @@ function renderBM(bm) {
   if (bmSubTab === 'plan') {
     document.getElementById('bm-subtab-content').innerHTML = renderPlanVanAanpak(bm);
     setTimeout(pvaTaResizeAll, 0);
+    return;
+  }
+  if (bmSubTab === 'bum') {
+    // Staat het tabblad niet bij deze collega, val dan terug op de KPI's in
+    // plaats van een lege pagina te tonen.
+    if (!heeftBumGesprek(bm.naam)) { bmSubTab = 'kpis'; render(); return; }
+    document.getElementById('bm-subtab-content').innerHTML = renderBumGesprek(bm);
+    setTimeout(bumTaResizeAll, 0);
     return;
   }
   if (bmSubTab === 'coaching') {
@@ -6697,6 +6753,269 @@ function planField(id, title, value, opts) {
     <div class="plan-field-title">${title}</div>
     <textarea id="${id}" rows="${opts.rows||2}" placeholder="${opts.placeholder||''}" data-pva-ta="1" ${disabled}${autosaveAttr}>${escHtml(value||'')}</textarea>
   </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// BUM-GESPREK
+//
+// Het plan van aanpak gaat over de week. Dit gaat over de laag daarboven: hoe
+// onze grootste klanten zich ontwikkelen, waar we energie op zetten, en of de
+// portefeuille gezond is. Zulke gesprekken voer je een paar keer per kwartaal,
+// en juist daarom moet er iets van blijven staan — anders bespreek je over drie
+// maanden hetzelfde nog een keer.
+//
+// Twee keuzes die afwijken van het plan van aanpak:
+//   • Er is geen wekelijkse verplichting. Er staat alleen een gesprek in het
+//     logboek als er werkelijk een is geweest; tien keer "geen gesprek" onder
+//     elkaar zegt niets.
+//   • De acties uit het vórige gesprek worden automatisch overgenomen, en dan
+//     niet van vorige week maar van het laatste gesprek dát er was. Zonder dat
+//     wordt de opvolging overgeslagen, en dat is nou net waar het om draait.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Wie dit tabblad heeft. Deze drie voeren de BUM-gesprekken; komt er iemand bij,
+// dan hoort zijn naam hier. Jij ziet het tabblad op hun kaart omdat je manager
+// bent, niet omdat je in deze lijst staat.
+const BUM_COLLEGAS = ['Luc Kools', 'Charlotte Gigase', 'Yoël Bronckers'];
+function heeftBumGesprek(naam) { return BUM_COLLEGAS.includes(naam); }
+
+// De zes onderwerpen. Titel, veldnaam en de vraag die eronder staat.
+const BUM_ONDERWERPEN = [
+  { veld: 'accounts', titel: 'Ontwikkeling strategische accounts',
+    vraag: 'Welke ontwikkeling zien we bij onze belangrijkste klanten? Waar groeit of krimpt de behoefte? Welke afdelingen, locaties of disciplines kunnen we verder ontwikkelen? Hoe staat de relatie en de DMU ervoor?' },
+  { veld: 'kansen', titel: 'Kansen & commerciële focus',
+    vraag: 'Welke concrete kansen zien we voor de komende weken en maanden? Waar zetten we bewust meer energie op? Welke klant, prospect, discipline of regio verdient extra aandacht?' },
+  { veld: 'partnerships', titel: 'Partnerships & relatieontwikkeling',
+    vraag: 'Waar staan we in de samenwerking? Zijn we leverancier of daadwerkelijk partner? Welke stap verdiept de relatie? Welke stakeholders moeten we beter leren kennen?' },
+  { veld: 'markt', titel: 'Markt & klantinzichten',
+    vraag: 'Wat horen en zien we in de markt — bij klanten, concurrenten, tarieven, schaarste of investeringen? En vooral: wat betekent dat voor Brightech?' },
+  { veld: 'portfolio', titel: 'Portfolio & commerciële balans',
+    vraag: 'Hoe gezond is onze klantenportefeuille? Zijn we te afhankelijk van bepaalde klanten? Waar hebben we veel potentieel maar nog weinig projecten? Waar lopen projecten af en wat komt daartegenover?' },
+];
+
+let BUM_RIJEN = [];
+let BUM_LOG_OPEN = new Set();
+let BUM_AUTOSAVE_TIMERS = {};
+
+async function loadBumGesprekken() {
+  if (!supa) return;
+  const { data, error } = await supa.from('bum_gesprek').select('*');
+  if (error) { console.error('BUM-gesprekken laden mislukt:', error); return; }
+  BUM_RIJEN = data || [];
+}
+
+function getBumRij(bmNaam, jaar, week) {
+  return BUM_RIJEN.find(r => r.bm_naam === bmNaam && r.jaar === jaar && r.week === week) || null;
+}
+
+// Alle gesprekken van één collega, nieuwste eerst. Alleen weken waarin
+// daadwerkelijk iets is vastgelegd.
+function bumGesprekken(bmNaam) {
+  return BUM_RIJEN
+    .filter(r => r.bm_naam === bmNaam)
+    .sort((a, b) => (b.jaar - a.jaar) || (b.week - a.week));
+}
+
+// Het laatste gesprek vóór deze week. Niet "vorige week": een BUM-gesprek is
+// onregelmatig, dus vorige week is meestal leeg en dan zou de opvolging
+// verdwijnen.
+function bumVorigGesprek(bmNaam, jaar, week) {
+  return bumGesprekken(bmNaam)
+    .find(r => (r.jaar < jaar) || (r.jaar === jaar && r.week < week)) || null;
+}
+
+function toggleBumLog(bmNaam, jaar, week) {
+  const sleutel = `${bmNaam}|${jaar}|${week}`;
+  if (BUM_LOG_OPEN.has(sleutel)) BUM_LOG_OPEN.delete(sleutel);
+  else BUM_LOG_OPEN.add(sleutel);
+  render();
+}
+
+function _bumVeldHtml(bm, o, waarde, vast) {
+  return `<div class="bum-vak">
+    <div class="bum-titel">${escHtml(o.titel)}</div>
+    <div class="bum-vraag">${escHtml(o.vraag)}</div>
+    <textarea id="bum-${o.veld}-${bm.naam.replace(/\s+/g,'_')}" rows="3"
+      data-bum-bm="${escHtml(bm.naam)}" ${vast ? 'disabled' : ''}
+      oninput="bumTaResize(this);bumPlanAutosave('${escApos(bm.naam)}')"
+      placeholder="${vast ? '' : 'Nog niets ingevuld'}">${escHtml(waarde || '')}</textarea>
+  </div>`;
+}
+
+function bumTaResize(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = (el.scrollHeight + 2) + 'px';
+}
+function bumTaResizeAll() {
+  document.querySelectorAll('[data-bum-bm]').forEach(bumTaResize);
+}
+
+function renderBumGesprek(bm) {
+  if (!canView(bm.naam)) return '<div class="info-box blue">Geen rechten om dit gesprek te bekijken.</div>';
+  if (!supa) return '<div class="info-box blue"><strong>BUM-gesprek</strong> komt beschikbaar zodra de database is gekoppeld.</div>';
+
+  const safeId   = bm.naam.replace(/\s+/g,'_');
+  const jaar = CUR.year, week = CUR.week;
+  const rij      = getBumRij(bm.naam, jaar, week);
+  const lockKey  = `bum|${bm.naam}|${jaar}|${week}`;
+  const already  = !!rij;
+  const unlocked = !already || WEEKLY_EDIT_UNLOCKED.has(lockKey);
+  const vast     = already && !unlocked;
+  const d        = rij || {};
+  const magSchrijven = canEdit(bm.naam) || isManagerLevel();
+
+  const vorig = bumVorigGesprek(bm.naam, jaar, week);
+  // Bewerkte tekst gaat voor; anders nemen we over wat er de vorige keer is
+  // afgesproken.
+  const vorigeActies = (d.vorige_acties != null && d.vorige_acties !== '')
+    ? d.vorige_acties
+    : (vorig ? (vorig.nieuwe_acties || '') : '');
+
+  const vakken = BUM_ONDERWERPEN
+    .map(o => _bumVeldHtml(bm, o, d[o.veld], vast || !magSchrijven)).join('');
+
+  const vorigBlok = vorig
+    ? `<div class="bum-vorige">
+         <div class="kop">Afgesproken in week ${vorig.week} · ${vorig.jaar} — automatisch overgenomen</div>
+         <div class="tekst">${escHtml(vorigeActies || 'Er stonden toen geen acties genoteerd.')}</div>
+       </div>`
+    : `<div class="bum-vorige"><div class="kop">Eerste vastgelegde gesprek</div>
+         <div class="tekst">Er is nog geen eerder gesprek om acties uit over te nemen.</div></div>`;
+
+  const knop = !magSchrijven ? ''
+    : unlocked
+      ? `<button onclick="saveBumGesprek('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Opslaan</button>`
+      : `<button onclick="unlockBumGesprek('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Wijzigen</button>`;
+
+  return `<div style="max-width:900px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="font-weight:var(--w-nadruk);font-size:.9rem;">Week ${week} · ${jaar}</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="bum-status-${safeId}" style="font-size:.78rem;color:var(--text-muted);"></span>
+        ${knop}
+      </div>
+    </div>
+
+    <div class="chart-card" style="padding:16px 18px;">
+      ${vakken}
+      <div style="border-top:1px solid var(--border);padding-top:14px;">
+        <div class="bum-titel">Gezamenlijke acties &amp; voortgang</div>
+        <div class="bum-vraag">Wat spraken we vorige keer af en wat is daarvan terechtgekomen? Welke 3 tot 5 acties spreken we nu af, wie is eigenaar en wanneer moet het klaar zijn?</div>
+        ${vorigBlok}
+        ${_bumVeldHtml(bm, { veld:'gerealiseerd', titel:'Wat is daarvan gerealiseerd?', vraag:'' }, d.gerealiseerd, vast || !magSchrijven)}
+        ${_bumVeldHtml(bm, { veld:'nieuwe_acties', titel:'Nieuwe acties — wie, wat, wanneer', vraag:'' }, d.nieuwe_acties, vast || !magSchrijven)}
+        <textarea id="bum-vorige_acties-${safeId}" data-bum-bm="${escHtml(bm.naam)}" style="display:none;">${escHtml(vorigeActies)}</textarea>
+      </div>
+    </div>
+
+    ${renderBumLogboek(bm)}
+  </div>`;
+}
+
+function renderBumLogboek(bm) {
+  const alle = bumGesprekken(bm.naam).filter(r => !(r.jaar === CUR.year && r.week === CUR.week));
+  if (!alle.length) {
+    return `<div style="margin-top:20px;font-size:.8rem;color:var(--text-muted);">Nog geen eerdere gesprekken vastgelegd.</div>`;
+  }
+  const regels = alle.map(r => {
+    const sleutel = `${bm.naam}|${r.jaar}|${r.week}`;
+    const open = BUM_LOG_OPEN.has(sleutel);
+    const bar = `<div class="bum-log-bar" onclick="toggleBumLog('${escApos(bm.naam)}',${r.jaar},${r.week})">
+      <span>Week ${r.week} · ${r.jaar}</span>
+      <span class="chev">${open ? '▲ Sluiten' : '▼ Openen'}</span>
+    </div>`;
+    if (!open) return bar;
+    const blok = (titel, tekst) => `<div class="bum-vak">
+      <div class="bum-titel">${escHtml(titel)}</div>
+      <div style="font-size:.83rem;line-height:1.65;white-space:pre-wrap;color:var(--text);">${escHtml(tekst || '—')}</div>
+    </div>`;
+    return bar + `<div class="bum-log-inhoud">
+      ${BUM_ONDERWERPEN.map(o => blok(o.titel, r[o.veld])).join('')}
+      ${blok('Wat is gerealiseerd', r.gerealiseerd)}
+      ${blok('Afgesproken acties', r.nieuwe_acties)}
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:22px;">
+    <div class="plan-col-label">Eerdere gesprekken (${alle.length})</div>
+    ${regels}
+  </div>`;
+}
+
+function buildBumPayload(bmNaam) {
+  const safeId = bmNaam.replace(/\s+/g,'_');
+  const lees = veld => {
+    const el = document.getElementById(`bum-${veld}-${safeId}`);
+    return el ? (el.value || '').trim() : '';
+  };
+  const p = { bm_naam: bmNaam, jaar: CUR.year, week: CUR.week,
+              updated_by: CURRENT_USER ? CURRENT_USER.id : null,
+              updated_at: new Date().toISOString() };
+  for (const o of BUM_ONDERWERPEN) p[o.veld] = lees(o.veld);
+  p.vorige_acties = lees('vorige_acties');
+  p.gerealiseerd  = lees('gerealiseerd');
+  p.nieuwe_acties = lees('nieuwe_acties');
+  return p;
+}
+
+// Stil opslaan tijdens het typen, zonder het scherm opnieuw te tekenen. Dat
+// laatste is belangrijk: een herrender midden in een zin verplaatst je cursor
+// en dan raak je vertrouwen in het veld kwijt.
+async function bumAutosave(bmNaam) {
+  if (!supa || !CURRENT_USER) return;
+  const lockKey = `bum|${bmNaam}|${CUR.year}|${CUR.week}`;
+  const already = !!getBumRij(bmNaam, CUR.year, CUR.week);
+  if (already && !WEEKLY_EDIT_UNLOCKED.has(lockKey)) return;
+  const safeId   = bmNaam.replace(/\s+/g,'_');
+  const statusEl = document.getElementById(`bum-status-${safeId}`);
+  const payload  = buildBumPayload(bmNaam);
+  const { data, error } = await supa.from('bum_gesprek')
+    .upsert(payload, { onConflict: 'bm_naam,jaar,week' }).select();
+  if (error) { console.error('Automatisch opslaan BUM-gesprek mislukt:', error); return; }
+  if (!data || !data.length) {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#b45309;">Niet opgeslagen — draai supabase/bum_gesprek.sql</span>';
+    return;
+  }
+  const idx = BUM_RIJEN.findIndex(r => r.bm_naam === bmNaam && r.jaar === CUR.year && r.week === CUR.week);
+  if (idx >= 0) BUM_RIJEN[idx] = { ...BUM_RIJEN[idx], ...data[0] }; else BUM_RIJEN.push(data[0]);
+  if (statusEl) statusEl.textContent = '✓ Automatisch opgeslagen om ' +
+    new Date().toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
+}
+
+function bumPlanAutosave(bmNaam) {
+  clearTimeout(BUM_AUTOSAVE_TIMERS[bmNaam]);
+  BUM_AUTOSAVE_TIMERS[bmNaam] = setTimeout(() => bumAutosave(bmNaam), 1000);
+}
+
+async function saveBumGesprek(bmNaam) {
+  if (!supa || !CURRENT_USER) return;
+  const safeId   = bmNaam.replace(/\s+/g,'_');
+  const statusEl = document.getElementById(`bum-status-${safeId}`);
+  clearTimeout(BUM_AUTOSAVE_TIMERS[bmNaam]);
+  if (statusEl) statusEl.textContent = 'Opslaan…';
+  const payload = buildBumPayload(bmNaam);
+  // .select() erachter: zonder terugmelding is "geen fout" niet hetzelfde als
+  // "opgeslagen" — bij ontbrekende rechten verwerkt de database nul rijen en
+  // meldt dat als succes.
+  const { data, error } = await supa.from('bum_gesprek')
+    .upsert(payload, { onConflict: 'bm_naam,jaar,week' }).select();
+  if (error) {
+    console.error('Opslaan BUM-gesprek mislukt:', error);
+    if (statusEl) btZetStatus(statusEl, '❌ ' + error.message);
+    return;
+  }
+  if (!data || !data.length) {
+    if (statusEl) btZetStatus(statusEl, '❌ Er is niets opgeslagen. Draai supabase/bum_gesprek.sql.');
+    return;
+  }
+  WEEKLY_EDIT_UNLOCKED.delete(`bum|${bmNaam}|${CUR.year}|${CUR.week}`);
+  await loadBumGesprekken();
+  render();
+}
+
+function unlockBumGesprek(bmNaam) {
+  WEEKLY_EDIT_UNLOCKED.add(`bum|${bmNaam}|${CUR.year}|${CUR.week}`);
+  render();
 }
 
 function renderPlanVanAanpak(bm) {
@@ -7696,6 +8015,7 @@ async function loadAllData() {
   laadStap('Projecten…');          await laadPoging('projecten', loadProjecten);
                                    await laadPoging('projectevaluaties', loadProjEvaluaties);
   laadStap('Plannen van aanpak…'); await laadPoging('plannen van aanpak', loadPlanVanAanpak);
+                                   await laadPoging('BUM-gesprekken', loadBumGesprekken);
   laadStap('Accountmanagement…');  await laadPoging('accountmanagement', accountsFetchAll);
                                    await laadPoging('sales leads', salesLeadsFetchAll);
   laadStap('Financiële cijfers…'); await laadPoging('omzetcijfers', loadFinancieelOmzet);
