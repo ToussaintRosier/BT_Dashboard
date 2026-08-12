@@ -1279,6 +1279,32 @@
   .plan-col.afgesproken { background:#f8faff; border:1px solid #dbeafe; border-radius:var(--radius); padding:12px 14px; }
   .plan-col.nieuw { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
   .plan-field-title { font-size:.78rem; font-weight:600; color:var(--text); margin-bottom:5px; }
+  /* Twee vragen naast elkaar. De vraag krijgt de resterende ruimte, zodat het
+     invoervak zich naar de onderkant van de cel drukt: loopt de ene vraag over
+     twee regels en de andere over één, dan beginnen de vakken tóch op dezelfde
+     hoogte. Zonder dit verspringt het zodra iemand het scherm smaller maakt. */
+  .plan-duo { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:stretch; }
+  .plan-duo > .plan-field { display:flex; flex-direction:column; margin-bottom:0; }
+  .plan-duo > .plan-field .plan-field-title { flex:1; }
+  @media (max-width: 720px) { .plan-duo { grid-template-columns:1fr; } }
+
+  /* De blokken van het plan. Nummer en titel op één regel, met daaronder in
+     cursief waar het blok over gaat — keuze, uitkomst of stappen. Dat
+     onderscheid is de reden dat deze blokken náást elkaar bestaan; zet je het
+     er niet bij, dan vervaagt het binnen een maand. */
+  .pva-blok { font-size:var(--t-md); font-weight:var(--w-nadruk); color:var(--primary);
+              margin:18px 0 3px; }
+  .pva-blok-sub { font-size:.75rem; color:var(--text-muted); font-style:italic;
+                  margin:0 0 8px; }
+  .pva-cijfers { background:var(--card); border:1px solid var(--border);
+                 border-radius:8px; padding:9px 11px; margin-bottom:10px; }
+  .pva-cijfers .kop { font-size:.68rem; font-weight:var(--w-nadruk); color:var(--text-muted);
+                      letter-spacing:.05em; margin-bottom:5px; }
+  .pva-verwacht { display:flex; gap:16px; flex-wrap:wrap; align-items:center;
+                  font-size:.76rem; color:var(--text-muted); margin-top:4px; }
+  .pva-verwacht input { width:58px; padding:3px 7px; font-size:.78rem; font-family:inherit;
+                        border:1px solid var(--border); border-radius:6px;
+                        text-align:right; background:var(--input-bg,#fff); color:var(--text); }
   .plan-field textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.85rem; font-family:inherit; resize:none; overflow:hidden; min-height:56px; }
   .plan-field textarea:disabled { background:#f3f4f6; color:#4b5563; }
   .plan-field { margin-bottom:12px; }
@@ -1462,12 +1488,19 @@
   .bum-vorige { background:#f5f7fa; border-radius:7px; padding:9px 11px; margin-bottom:10px; }
   .bum-vorige .kop { font-size:.7rem; color:var(--text-muted); margin-bottom:4px; }
   .bum-vorige .tekst { font-size:.8rem; color:#4b5563; line-height:1.6; white-space:pre-wrap; }
+  /* Het logboek staat rechtstreeks op de donkere pagina, niet op een lichte
+     kaart. Hier de kleuren van een lichte achtergrond gebruiken levert
+     donkerblauwe tekst op donkerblauw op — onleesbaar. Daarom vaste, lichte
+     kleuren in plaats van de variabelen. */
+  .bum-log-kop { font-size:.72rem; font-weight:var(--w-nadruk); color:rgba(255,255,255,.5);
+                 text-transform:uppercase; letter-spacing:.03em; margin-bottom:7px; }
   .bum-log-bar { display:flex; align-items:center; justify-content:space-between;
-                 background:var(--card-alt); border:1px solid var(--border);
+                 background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
                  border-radius:7px; padding:8px 13px; margin-bottom:5px;
-                 cursor:pointer; font-size:.83rem; user-select:none; }
-  .bum-log-bar:hover { border-color:var(--border-strong,var(--border)); }
-  .bum-log-bar .chev { font-size:.75rem; color:var(--text-muted); }
+                 cursor:pointer; font-size:.83rem; color:#fff; user-select:none; }
+  .bum-log-bar:hover { background:rgba(255,255,255,.13); border-color:rgba(255,255,255,.25); }
+  .bum-log-bar .chev { font-size:.75rem; color:rgba(255,255,255,.45); }
+  /* De inhoud eronder wél op een lichte kaart: daar staat leestekst in. */
   .bum-log-inhoud { border:1px solid var(--border); border-top:0; border-radius:0 0 7px 7px;
                     padding:12px 14px; margin:-5px 0 9px; background:var(--card); }
 
@@ -1809,7 +1842,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1138 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1204 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4431,7 +4464,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1138';
+const APP_VERSIE = '20260812-1204';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6736,6 +6769,140 @@ async function saveWeeklyEntry(bmNaam, week, year) {
 // schuift hij vanzelf door naar de volgende week.
 const PLAN_FIELDS = ['doel_vorige_week','behaald','verklaring','nieuw_weekdoel','acties','vacature_focus','obstakel','focuspunt','team_support','manager_notitie'];
 
+// ════════════════════════════════════════════════════════════════════════════
+// DE CIJFERS IN HET PLAN VAN AANPAK
+//
+// Er stond een vinkje "behaald? ja / nee" dat met de hand werd ingevuld, terwijl
+// de weekcijfers dat antwoord al hebben. Dat is niet alleen dubbel werk: een
+// vinkje dat afwijkt van de cijfers is erger dan geen vinkje, want dan weet
+// niemand meer welke van de twee klopt.
+//
+// Het dashboard ziet bovendien iets wat je in één gesprek makkelijk mist: dat
+// dit de derde week op rij is dat een KPI achterblijft. Eén mindere week is een
+// incident, drie op rij is een patroon — en dat is een ander gesprek.
+// ════════════════════════════════════════════════════════════════════════════
+const PVA_KPI_LABELS = {
+  intakes: 'Intakes', bezoeken: 'Bezoeken', aanbiedingen: 'Aanbiedingen',
+  matchgesprekken: 'Matchgesprekken', contractvoorstellen: 'Contractvoorstellen',
+  starters: 'Starters',
+};
+
+// Realisatie en norm van één week. Zelfde bron als de weektabel: opgeslagen
+// cijfers, en voor starters het maximum van invoer en pipeline — een starter die
+// ná het opslaan is toegevoegd hoort gewoon mee te tellen.
+function _pvaWeekCijfers(bm, jaar, week) {
+  const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
+  const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
+  const norm  = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS,
+                              'week', activeNormFix(bm), bm.doelStartFraction);
+  const uit = {};
+  for (const k of KPIS) {
+    const basis = saved ? (saved[k] || 0) : (pipe[k] || 0);
+    uit[k] = {
+      realisatie: (k === 'starters') ? Math.max(basis, pipe[k] || 0) : basis,
+      norm: Math.round((norm[k] || 0) * 10) / 10,
+      opgeslagen: !!saved,
+    };
+  }
+  return uit;
+}
+
+// Hoeveel weken op rij blijft deze KPI onder de norm? Weken zonder norm slaan we
+// over: daar valt niets te missen.
+function _pvaReeksOnderNorm(bm, jaar, week, kpi) {
+  let n = 0, y = jaar, w = week;
+  for (let i = 0; i < 12; i++) {
+    const c = _pvaWeekCijfers(bm, y, w)[kpi];
+    if (!c || !c.norm) break;
+    if (c.realisatie >= c.norm) break;
+    n++;
+    const vorige = weekBefore(y, w);
+    y = vorige.year; w = vorige.week;
+  }
+  return n;
+}
+
+function _pvaGetal(k, v) {
+  return fmtNl(v, (k === 'starters' || k === 'contractvoorstellen') ? 1 : 0);
+}
+
+// Blok 1: wat stond er, wat werd het, en valt er een patroon op. De eigen
+// verwachting van vorige week komt erbij als die is ingevuld — dan gaat het
+// gesprek over wat jij dacht, niet alleen over de norm.
+function _pvaTerugblikHtml(bm, jaar, week, vorigePlan) {
+  const cijfers  = _pvaWeekCijfers(bm, jaar, week);
+  const verwacht = (vorigePlan && vorigePlan.verwachting_kpi) || {};
+  const rijen = KPIS.filter(k => cijfers[k].norm > 0 || cijfers[k].realisatie > 0).map(k => {
+    const c = cijfers[k];
+    const gehaald = c.realisatie >= c.norm;
+    const eigen = verwacht[k];
+    return `<tr>
+      <td style="padding:2px 8px 2px 0;font-size:.8rem;color:var(--text);">${PVA_KPI_LABELS[k]}</td>
+      <td style="padding:2px 0;font-size:.8rem;text-align:right;font-variant-numeric:tabular-nums;color:${gehaald ? '#15803d' : '#b45309'};font-weight:var(--w-nadruk);">${_pvaGetal(k, c.realisatie)}</td>
+      <td style="padding:2px 0 2px 8px;font-size:.78rem;text-align:right;color:var(--text-muted);font-variant-numeric:tabular-nums;">van ${fmtNl(c.norm)}</td>
+      <td style="padding:2px 0 2px 14px;font-size:.75rem;color:var(--text-muted);">${
+        eigen != null && eigen !== '' ? `jij verwachtte ${escHtml(String(eigen))}` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  // Alleen melden vanaf twee weken op rij. Eén mindere week is ruis.
+  const patronen = KPIS.map(k => ({ k, n: _pvaReeksOnderNorm(bm, jaar, week, k) }))
+    .filter(x => x.n >= 2).sort((a, b) => b.n - a.n)
+    .map(x => `${PVA_KPI_LABELS[x.k].toLowerCase()} (${x.n} weken)`);
+
+  const patroonHtml = patronen.length
+    ? `<div style="margin-top:7px;padding:7px 9px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:.78rem;color:#92400e;line-height:1.5;">
+         Meerdere weken op rij onder de norm: <strong>${patronen.join(', ')}</strong>.
+       </div>`
+    : '';
+
+  return `<div class="pva-cijfers">
+    <div class="kop">WEEK ${week} · ${jaar} — UIT DE WEEKCIJFERS${cijfers.starters.opgeslagen ? '' : ' (nog niet opgeslagen, stand uit de pipeline)'}</div>
+    ${rijen ? `<table style="border-collapse:collapse;">${rijen}</table>`
+            : `<div style="font-size:.8rem;color:var(--text-muted);">Voor deze week staan er nog geen cijfers.</div>`}
+    ${patroonHtml}
+  </div>`;
+}
+
+// Blok 2: het verloop over zes weken. Eén week zegt weinig; een reeks laat zien
+// of iets oploopt, terugloopt of stilstaat — en dát is waar de vraag "waar zit
+// beweging" over gaat.
+function _pvaVerloopHtml(bm, jaar, week) {
+  const weken = [];
+  let y = jaar, w = week;
+  for (let i = 0; i < 6; i++) { weken.unshift({ y, w }); const v = weekBefore(y, w); y = v.year; w = v.week; }
+  const regels = KPIS.map(k => {
+    const reeks = weken.map(x => _pvaWeekCijfers(bm, x.y, x.w)[k]);
+    if (!reeks.some(c => c.realisatie > 0 || c.norm > 0)) return '';
+    return `<div style="margin-bottom:2px;"><span style="color:var(--text);">${PVA_KPI_LABELS[k]}</span>
+      <span style="color:var(--text-muted);font-variant-numeric:tabular-nums;">${
+        reeks.map(c => _pvaGetal(k, c.realisatie)).join(' · ')}</span></div>`;
+  }).filter(Boolean).join('');
+  return `<div class="pva-cijfers">
+    <div class="kop">VERLOOP LAATSTE ZES WEKEN — WEEK ${weken[0].w} TOT EN MET ${week}</div>
+    <div style="font-size:.8rem;line-height:1.6;">${regels || '<span style="color:var(--text-muted);">Nog te weinig weken om een verloop te tonen.</span>'}</div>
+  </div>`;
+}
+
+// Blok 4: de verwachte aantallen. Bewust optioneel — wie niets invult, houdt de
+// norm als vergelijking. Verplicht maken betekent dat mensen een getal gokken,
+// en dan vergelijk je volgende week met een gok.
+function _pvaVerwachtingHtml(bm, safeId, d, frozen) {
+  const verw = d.verwachting_kpi || {};
+  const norm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS,
+                             'week', activeNormFix(bm), bm.doelStartFraction);
+  const vakjes = KPIS.filter(k => (norm[k] || 0) > 0).map(k => `
+    <label>${PVA_KPI_LABELS[k]}
+      <input type="number" step="0.5" min="0" id="pva-verw-${k}-${safeId}"
+        value="${verw[k] != null ? escHtml(String(verw[k])) : ''}"
+        placeholder="${fmtNl(Math.round((norm[k]||0)*10)/10)}"
+        ${frozen ? 'disabled' : `oninput="pvaScheduleAutosave('${escApos(bm.naam)}')"`}>
+    </label>`).join('');
+  if (!vakjes) return '';
+  return `<div class="pva-verwacht">${vakjes}
+    <span>Optioneel — het grijze getal is de norm.</span></div>`;
+}
+
 function planField(id, title, value, opts) {
   opts = opts || {};
   const disabled = opts.disabled ? 'disabled' : '';
@@ -6890,9 +7057,9 @@ function renderBumGesprek(bm) {
 
   return `<div style="max-width:900px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <div style="font-weight:var(--w-nadruk);font-size:.9rem;">Week ${week} · ${jaar}</div>
+      <div style="font-weight:var(--w-nadruk);font-size:.9rem;color:#fff;">Week ${week} · ${jaar}</div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span id="bum-status-${safeId}" style="font-size:.78rem;color:var(--text-muted);"></span>
+        <span id="bum-status-${safeId}" style="font-size:.78rem;color:rgba(255,255,255,.5);"></span>
         ${knop}
       </div>
     </div>
@@ -6916,7 +7083,7 @@ function renderBumGesprek(bm) {
 function renderBumLogboek(bm) {
   const alle = bumGesprekken(bm.naam).filter(r => !(r.jaar === CUR.year && r.week === CUR.week));
   if (!alle.length) {
-    return `<div style="margin-top:20px;font-size:.8rem;color:var(--text-muted);">Nog geen eerdere gesprekken vastgelegd.</div>`;
+    return `<div style="margin-top:20px;font-size:.8rem;color:rgba(255,255,255,.45);">Nog geen eerdere gesprekken vastgelegd.</div>`;
   }
   const regels = alle.map(r => {
     const sleutel = `${bm.naam}|${r.jaar}|${r.week}`;
@@ -6937,7 +7104,7 @@ function renderBumLogboek(bm) {
     </div>`;
   }).join('');
   return `<div style="margin-top:22px;">
-    <div class="plan-col-label">Eerdere gesprekken (${alle.length})</div>
+    <div class="bum-log-kop">Eerdere gesprekken (${alle.length})</div>
     ${regels}
   </div>`;
 }
@@ -7032,15 +7199,6 @@ function renderPlanVanAanpak(bm) {
   const frozen    = already && !unlocked;
   const d         = curRow || {};
 
-  // Doel vorige week schuift automatisch door vanuit nieuw_weekdoel van PREV,
-  // tenzij er al een eigen (eventueel aangepaste) waarde voor deze week is opgeslagen.
-  const doelVorigeWeek = (d.doel_vorige_week != null && d.doel_vorige_week !== '') ? d.doel_vorige_week : (prevRow.nieuw_weekdoel || '');
-
-  const jaNeeHtml = `<div class="plan-ja-nee">
-    <span class="plan-field-title" style="margin:0">Behaald?</span>
-    <label><input type="radio" name="plan-behaald-${safeId}" value="ja" data-pva-bm="${escHtml(bm.naam)}" ${d.behaald==='ja'?'checked':''} ${frozen?'disabled':''} onchange="pvaScheduleAutosave('${escApos(bm.naam)}')"> Ja</label>
-    <label><input type="radio" name="plan-behaald-${safeId}" value="nee" data-pva-bm="${escHtml(bm.naam)}" ${d.behaald==='nee'?'checked':''} ${frozen?'disabled':''} onchange="pvaScheduleAutosave('${escApos(bm.naam)}')"> Nee</label>
-  </div>`;
 
   const statusText = frozen
     ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">Bevroren &amp; opgeslagen voor deze week</span>`
@@ -7058,6 +7216,10 @@ function renderPlanVanAanpak(bm) {
   const mgrNoteAlready  = !!(d.manager_notitie && String(d.manager_notitie).trim() !== '');
   // Carry-forward: als deze week nog geen notitie heeft, voorvullen vanuit vorige week
   const mgrNotitieCarry = mgrNoteAlready ? d.manager_notitie : (prevRow.manager_notitie || '');
+  // Staat hier de notitie van vorige week omdat er deze week nog niets is
+  // geschreven? Dan hoort dat erbij. Anders lijkt het alsof de manager elke week
+  // hetzelfde vindt, terwijl hij misschien alleen nog niets heeft ingevuld.
+  const mgrNotitieOngewijzigd = !mgrNoteAlready && !!(prevRow.manager_notitie || '').trim();
   const mgrNoteLockKey  = `mgrnote|${bm.naam}|${NEXT.year}|${NEXT.week}`;
   const mgrNoteUnlocked = !mgrNoteAlready || WEEKLY_EDIT_UNLOCKED.has(mgrNoteLockKey);
   const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
@@ -7078,31 +7240,46 @@ function renderPlanVanAanpak(bm) {
 
     ${!frozen ? _renderPvaRec(bm.naam, safeId) : ''}
 
-    <div class="section-title" style="margin:0 0 4px">Review &amp; Preview Werkafspraken</div>
-    <div style="font-size:.75rem;color:rgba(0,0,0,.4);margin:0 0 10px;font-style:italic;">Terugblik door collega</div>
-    ${planField(`pva-doel_vorige_week-${safeId}`, 'Noteer je doel van vorige week.', doelVorigeWeek, {disabled:frozen, placeholder:'Doel van vorige week…', bmNaam:bm.naam, field:'doel_vorige_week'})}
-    ${jaNeeHtml}
-    ${planField(`pva-verklaring-${safeId}`, 'Geef een korte verklaring: wat werkte, wat werkte niet?', d.verklaring, {disabled:frozen, bmNaam:bm.naam, field:'verklaring'})}
-    <div style="margin-top:12px;padding:10px 12px;background:rgba(109,40,217,.05);border:1px solid rgba(109,40,217,.18);border-radius:8px;">
+    <div class="pva-blok" style="margin-top:0;">1&nbsp; Review vorige week</div>
+    <div class="pva-blok-sub">De cijfers komen uit het dashboard; jij vult in wat erachter zat.</div>
+    ${_pvaTerugblikHtml(bm, CUR.year, CUR.week, prevRow)}
+    <div class="plan-duo">
+      ${planField(`pva-gewerkt-${safeId}`, 'Wat heeft gewerkt?', d.gewerkt, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'gewerkt'})}
+      ${planField(`pva-geremd-${safeId}`, 'Wat heeft het resultaat geremd?', d.geremd, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'geremd'})}
+    </div>
+
+    <div class="pva-blok">2&nbsp; Stand van zaken</div>
+    <div class="pva-blok-sub">Data als vertrekpunt — wat jij erin ziet, telt.</div>
+    ${_pvaVerloopHtml(bm, CUR.year, CUR.week)}
+    ${planField(`pva-stand_van_zaken-${safeId}`, 'Wat valt jou op in je eigen cijfers? Waar zit beweging en waar niet?', d.stand_van_zaken, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'stand_van_zaken'})}
+
+    <div class="pva-blok">3&nbsp; Commerciële &amp; recruitmentfocus</div>
+    <div class="pva-blok-sub">De keuze: waar zet je bewust op in?</div>
+    ${planField(`pva-vacature_focus-${safeId}`, 'Waar liggen deze week je belangrijkste kansen? Welke vacatures, kandidaten of accounts krijgen prioriteit — en waarom die?', d.vacature_focus, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'vacature_focus'})}
+
+    <div class="pva-blok">4&nbsp; Weekdoel &amp; resultaat</div>
+    <div class="pva-blok-sub">De uitkomst: wat moet er eind de week staan?</div>
+    ${planField(`pva-nieuw_weekdoel-${safeId}`, 'Wat wil je eind deze week concreet bereikt hebben? Wanneer is de week voor jou geslaagd?', d.nieuw_weekdoel, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'nieuw_weekdoel'})}
+    ${_pvaVerwachtingHtml(bm, safeId, d, frozen)}
+
+    <div class="pva-blok">5&nbsp; Acties</div>
+    <div class="pva-blok-sub">De stappen ernaartoe.</div>
+    ${planField(`pva-acties-${safeId}`, 'Welke concrete acties ga je uitvoeren? Wie doet wat, en wanneer is het klaar?', d.acties, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'acties'})}
+
+    <div class="pva-blok">6&nbsp; Coaching &amp; ondersteuning</div>
+    <div class="pva-blok-sub">Ontwikkeling en leiderschap.</div>
+    <div class="plan-duo">
+      ${planField(`pva-ontwikkeling-${safeId}`, 'Waar wil je jezelf deze week in verbeteren?', d.ontwikkeling, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'ontwikkeling'})}
+      ${planField(`pva-belemmering-${safeId}`, 'Waar heb je hulp, samenwerking of een besluit voor nodig?', d.belemmering, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'belemmering'})}
+    </div>
+
+    <div style="margin-top:18px;padding:10px 12px;background:rgba(109,40,217,.05);border:1px solid rgba(109,40,217,.18);border-radius:8px;">
       <div style="font-size:.72rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Review manager${isManager && !mgrNoteFrozen ? ' <span style="font-weight:400;text-transform:none;letter-spacing:0;color:rgba(109,40,217,.6);">— wordt automatisch opgeslagen</span>' : ''}</div>
+      ${mgrNotitieOngewijzigd ? `<div style="font-size:.73rem;color:#92400e;margin-bottom:6px;">Ongewijzigd overgenomen uit week ${CUR.week}. Pas hem aan, of laat hem leeg als er deze week niets bij te zeggen valt.</div>` : ''}
       ${planField(`pva-manager_notitie-${safeId}`, '', mgrNotitieCarry, {disabled: !isManager || mgrNoteFrozen, rows:3, placeholder: isManager ? 'Notities van de manager…' : 'Nog geen notitie van de manager voor deze week.', bmNaam:bm.naam, field:'manager_notitie', autosaveFn:'pvaScheduleAutosaveManagerNotitie'})}
       ${mgrNoteActionBtn ? `<div style="margin-top:6px">${mgrNoteActionBtn}</div>` : ''}
       <div id="pva-mgrnote-status-${safeId}"></div>
     </div>
-
-    <div class="section-title" style="margin:18px 0 8px">Nieuw weekdoel</div>
-    ${planField(`pva-nieuw_weekdoel-${safeId}`, 'Bespreek weekdoel + planning komende week.', d.nieuw_weekdoel, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'nieuw_weekdoel'})}
-
-    <div class="section-title" style="margin:18px 0 8px">Acties</div>
-    ${planField(`pva-acties-${safeId}`, 'Maak een lijst van geplande acties deze week (KPI).', d.acties, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'acties'})}
-
-    <div class="section-title" style="margin:18px 0 8px">Recruitmentfocus/Accountmanagement</div>
-    ${planField(`pva-vacature_focus-${safeId}`, 'Op welke vacature of welke opdrachtgever(s) ligt je focus?', d.vacature_focus, {disabled:frozen, bmNaam:bm.naam, field:'vacature_focus'})}
-    ${planField(`pva-obstakel-${safeId}`, 'Loop je hierbij ergens tegenaan?', d.obstakel, {disabled:frozen, bmNaam:bm.naam, field:'obstakel'})}
-
-    <div class="section-title" style="margin:18px 0 8px">Afsluiting / focus</div>
-    ${planField(`pva-focuspunt-${safeId}`, 'Noteer je belangrijkste focuspunt voor de week.', d.focuspunt, {disabled:frozen, bmNaam:bm.naam, field:'focuspunt'})}
-    ${planField(`pva-team_support-${safeId}`, 'Bereid kort voor waar je ondersteuning van het team nodig hebt.', d.team_support, {disabled:frozen, bmNaam:bm.naam, field:'team_support'})}
 
     <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
       ${actionBtn}
@@ -7130,21 +7307,30 @@ function renderPvaLogboek(bm, safeId) {
     let content = '';
     if (open) {
       if (!row) {
-        content = `<div class="pva-log-content"><span class="sub">Geen plan van aanpak opgeslagen voor week ${w.week} · ${w.year}.</span></div>`;
-      } else {
+        // Oud en nieuw door elkaar: weken van vóór de herziening hebben andere
+        // velden. We tonen per week alleen wat er in die week is ingevuld, zodat
+        // een oud plan leesbaar blijft zoals het is opgeschreven.
+        const veld = (titel, tekst) => (tekst && String(tekst).trim())
+          ? `<div class="plan-field"><div class="plan-field-title">${titel}</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(tekst)}</textarea></div>`
+          : '';
         content = `<div class="pva-log-content">
-          <div class="plan-field"><div class="plan-field-title">Doel vorige week</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.doel_vorige_week||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Behaald?</div><textarea rows="1" data-pva-ta="1" disabled>${row.behaald==='ja'?'Ja':row.behaald==='nee'?'Nee':'—'}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Verklaring</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.verklaring||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Nieuw weekdoel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.nieuw_weekdoel||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Acties</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.acties||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Recruitmentfocus/Accountmanagement</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.vacature_focus||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Obstakel</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.obstakel||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Focuspunt</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.focuspunt||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Benodigde teamondersteuning</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.team_support||'')}</textarea></div>
-          <div class="plan-field"><div class="plan-field-title">Review manager</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(row.manager_notitie||'')}</textarea></div>
+          ${veld('Wat heeft gewerkt', row.gewerkt)}
+          ${veld('Wat heeft het resultaat geremd', row.geremd)}
+          ${veld('Stand van zaken', row.stand_van_zaken)}
+          ${veld('Commerciële &amp; recruitmentfocus', row.vacature_focus)}
+          ${veld('Weekdoel &amp; resultaat', row.nieuw_weekdoel)}
+          ${veld('Acties', row.acties)}
+          ${veld('Waar wil je jezelf in verbeteren', row.ontwikkeling)}
+          ${veld('Waar heb je hulp bij nodig', row.belemmering)}
+          ${veld('Doel vorige week', row.doel_vorige_week)}
+          ${veld('Behaald?', row.behaald === 'ja' ? 'Ja' : row.behaald === 'nee' ? 'Nee' : '')}
+          ${veld('Verklaring', row.verklaring)}
+          ${veld('Obstakel', row.obstakel)}
+          ${veld('Focuspunt', row.focuspunt)}
+          ${veld('Benodigde teamondersteuning', row.team_support)}
+          ${veld('Review manager', row.manager_notitie)}
           <div style="margin-top:8px">
-            <button onclick="printPlanVanAanpak('${escApos(bm.naam)}',${w.year},${w.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-weight:700;font-size:.78rem;cursor:pointer;">Printen — week ${w.week}</button>
+            <button onclick="printPlanVanAanpak('${escApos(bm.naam)}',${w.year},${w.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">Afdrukken</button>
           </div>
         </div>`;
       }
@@ -7246,18 +7432,25 @@ function unlockPlanVanAanpak(bmNaam) {
 function buildPvaPayload(bmNaam) {
   const safeId = bmNaam.replace(/\s+/g,'_');
   const val = (id) => document.getElementById(id)?.value?.trim() || '';
-  const behaaldEl = document.querySelector(`input[name="plan-behaald-${safeId}"]:checked`);
+  // De verwachte aantallen per KPI. Alleen wat werkelijk is ingevuld: een leeg
+  // vakje is geen nul maar "geen verwachting opgegeven", en dat verschil telt bij
+  // de terugblik van volgende week.
+  const verwachtingKpi = {};
+  for (const k of KPIS) {
+    const v = val(`pva-verw-${k}-${safeId}`);
+    if (v !== '') verwachtingKpi[k] = parseFloat(String(v).replace(',', '.'));
+  }
   const payload = {
     bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week,
-    doel_vorige_week: val(`pva-doel_vorige_week-${safeId}`),
-    behaald: behaaldEl ? behaaldEl.value : null,
-    verklaring: val(`pva-verklaring-${safeId}`),
-    nieuw_weekdoel: val(`pva-nieuw_weekdoel-${safeId}`),
-    acties: val(`pva-acties-${safeId}`),
-    vacature_focus: val(`pva-vacature_focus-${safeId}`),
-    obstakel: val(`pva-obstakel-${safeId}`),
-    focuspunt: val(`pva-focuspunt-${safeId}`),
-    team_support: val(`pva-team_support-${safeId}`),
+    gewerkt:         val(`pva-gewerkt-${safeId}`),
+    geremd:          val(`pva-geremd-${safeId}`),
+    stand_van_zaken: val(`pva-stand_van_zaken-${safeId}`),
+    vacature_focus:  val(`pva-vacature_focus-${safeId}`),
+    nieuw_weekdoel:  val(`pva-nieuw_weekdoel-${safeId}`),
+    verwachting_kpi: Object.keys(verwachtingKpi).length ? verwachtingKpi : null,
+    acties:          val(`pva-acties-${safeId}`),
+    ontwikkeling:    val(`pva-ontwikkeling-${safeId}`),
+    belemmering:     val(`pva-belemmering-${safeId}`),
     updated_by: CURRENT_USER.id, updated_at: new Date().toISOString(),
   };
   // Managernotitie alleen meesturen als het veld daadwerkelijk gerenderd was
@@ -17743,6 +17936,15 @@ async function pvaRecAnalyse(bmNaam) {
 
 function pvaRecFill(bmNaam, fields) {
   const safeId = bmNaam.replace(/\s+/g,'_');
+  // Komt er nog een antwoord binnen met de oude veldnamen, dan schuiven we die
+  // naar de nieuwe in plaats van de tekst te laten verdwijnen. Twee oude velden
+  // vormen samen één nieuw veld; die plakken we aan elkaar.
+  const samen = (...delen) => delen.filter(x => x && String(x).trim()).join('\n\n');
+  fields = { ...fields,
+    gewerkt:     fields.gewerkt     || fields.verklaring,
+    geremd:      fields.geremd      || '',
+    belemmering: fields.belemmering || samen(fields.obstakel, fields.team_support),
+    ontwikkeling: fields.ontwikkeling || fields.focuspunt || '' };
   const fill = (fieldKey, elId) => {
     const val = fields[fieldKey];
     if (!val) return;
@@ -17757,17 +17959,14 @@ function pvaRecFill(bmNaam, fields) {
     if (val) row[fieldKey] = val;
   };
 
-  if (fields.behaald === 'ja' || fields.behaald === 'nee') {
-    const rb = document.querySelector(`input[name="plan-behaald-${safeId}"][value="${fields.behaald}"]`);
-    if (rb && !rb.disabled) { rb.checked = true; rb.dispatchEvent(new Event('change')); }
-  }
-  fill('verklaring',      `pva-verklaring-${safeId}`);
+  fill('gewerkt',         `pva-gewerkt-${safeId}`);
+  fill('geremd',          `pva-geremd-${safeId}`);
+  fill('stand_van_zaken', `pva-stand_van_zaken-${safeId}`);
+  fill('vacature_focus',  `pva-vacature_focus-${safeId}`);
   fill('nieuw_weekdoel',  `pva-nieuw_weekdoel-${safeId}`);
   fill('acties',          `pva-acties-${safeId}`);
-  fill('vacature_focus',  `pva-vacature_focus-${safeId}`);
-  fill('obstakel',        `pva-obstakel-${safeId}`);
-  fill('focuspunt',       `pva-focuspunt-${safeId}`);
-  fill('team_support',    `pva-team_support-${safeId}`);
+  fill('ontwikkeling',    `pva-ontwikkeling-${safeId}`);
+  fill('belemmering',     `pva-belemmering-${safeId}`);
 
   // Direct opslaan naar Supabase — omzeilt de frozen/vergrendeld-check van pvaAutosave,
   // zodat recorder-data altijd wordt bewaard ook als de week al een bestaande rij heeft.
