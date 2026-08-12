@@ -1524,6 +1524,32 @@
   .rr-legenda { display:flex; flex-wrap:wrap; gap:16px; margin-top:12px;
                 font-size:.74rem; color:var(--text-muted); align-items:center; }
 
+  /* Onderdelen aan- en uitzetten: één regel per onderdeel, schakelaar rechts. */
+  .ond-groep { font-size:.7rem; font-weight:var(--w-nadruk); letter-spacing:.06em;
+               text-transform:uppercase; color:var(--text-muted); margin:20px 0 6px; }
+  .ond-paneel { background:var(--card); border:1px solid var(--border);
+                border-radius:var(--radius); overflow:hidden; }
+  .ond-regel { display:flex; align-items:center; gap:14px; padding:11px 14px;
+               border-bottom:1px solid var(--border); }
+  .ond-regel:last-child { border-bottom:0; }
+  .ond-regel.uit { background:var(--card-alt); }
+  .ond-tekst { flex:1; min-width:0; }
+  .ond-naam { font-size:.85rem; font-weight:var(--w-nadruk); color:var(--text); }
+  .ond-regel.uit .ond-naam { color:var(--text-muted); }
+  .ond-sub { font-size:.72rem; color:var(--text-muted); line-height:1.5; margin-top:2px; }
+  /* De schakelaar zelf. Een knop en geen selectievakje: zo is er één klikgebied
+     en kan hij tijdens het opslaan uitgezet worden. */
+  .ond-sw { width:42px; height:24px; border-radius:999px; border:1px solid var(--border);
+            background:#e5e7eb; position:relative; cursor:pointer; flex:0 0 auto;
+            transition:background .15s; padding:0; }
+  .ond-sw span { position:absolute; top:2px; left:2px; width:18px; height:18px;
+                 border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25);
+                 transition:left .15s; }
+  .ond-sw.aan { background:#0e9f6e; border-color:#0e9f6e; }
+  .ond-sw.aan span { left:21px; }
+  .ond-sw:disabled { opacity:.5; cursor:default; }
+  .ond-vast { font-size:.7rem; color:var(--text-muted); flex:0 0 auto; }
+
   /* De recordslijst: één paneel, haarlijnen ertussen, geen kaartje per regel. */
   .rec-paneel { background:#fff; border-radius:var(--radius); overflow:hidden;
                 border:1px solid var(--border); }
@@ -1831,7 +1857,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1215 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1250 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4453,7 +4479,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1215';
+const APP_VERSIE = '20260812-1250';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4617,6 +4643,106 @@ function zetJaar(jaar) {
   render();
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ONDERDELEN AAN- EN UITZETTEN
+//
+// Eén tabelletje in Supabase bepaalt wat er in het dashboard te zien is. Zet je
+// bij Beheer een vinkje uit, dan is dat onderdeel bij de eerstvolgende keer
+// verversen voor iedereen weg — zonder nieuwe versie van dit bestand.
+//
+// ONBEKEND BETEKENT AAN
+//   Alleen een sleutel die in ONDERDELEN_UIT staat wordt verborgen. Die verzameling
+//   vult zich uitsluitend met rijen die uitdrukkelijk op uit staan. Gaat het
+//   laden mis, is de tabel leeg, of bestaat hij nog niet — dan blijft de
+//   verzameling leeg en is alles zichtbaar.
+//
+//   Dat is bewust andersom dan je zou verwachten. De slechtst denkbare uitkomst
+//   is nu dat er iets zichtbaar is dat uit had moeten staan, en dat zie je
+//   meteen. Andersom zou een storing collega's voor een leeg dashboard zetten
+//   zonder dat iemand begrijpt waarom.
+//
+// WAT DIT NIET IS
+//   Geen slot. Een uitgezet onderdeel is uit het scherm, niet uit de database.
+//   Wie de gegevens echt niet mag zien, hoort tegengehouden te worden door een
+//   regel op de tabel zelf.
+// ════════════════════════════════════════════════════════════════════════════
+
+// De onderdelen die je kunt uitzetten. Een sleutel die hier niet in staat kan
+// ook niet geschakeld worden — dat is opzet: dan zie je in dit lijstje precies
+// waar de schakelaars over gaan.
+const ONDERDELEN = [
+  { sleutel:'one',         label:'Brightech ONE',           groep:'Hoofdmenu' },
+  { sleutel:'medewerkers', label:'Medewerkers',             groep:'Hoofdmenu',
+    uitleg:'De hele categorie, inclusief de kaarten van individuele collega’s.' },
+  { sleutel:'accounts',    label:'Accountmanagement',       groep:'Hoofdmenu' },
+  { sleutel:'kandidaten',  label:'Kandidaten',              groep:'Hoofdmenu' },
+  { sleutel:'team',        label:'Team Resultaten',         groep:'Management' },
+  { sleutel:'projecten',   label:'Projecten',               groep:'Management' },
+  { sleutel:'financieel',  label:'Financieel',              groep:'Management' },
+  { sleutel:'comrap',      label:'Commerciële Rapportage',  groep:'Management' },
+  { sleutel:'records',     label:'Records',                 groep:'Management' },
+  { sleutel:'hrm',         label:'HRM/Backoffice',          groep:'Management' },
+  { sleutel:'cvgen',       label:'CV-generator',            groep:'Tools' },
+  { sleutel:'plaatsing',   label:'Matchmaker',              groep:'Tools' },
+  { sleutel:'gesprek',     label:'ITK-Recorder',            groep:'Tools' },
+  { sleutel:'bezoek',      label:'BZK-Recorder',            groep:'Tools' },
+  { sleutel:'bum',         label:'BUM-gesprek',             groep:'Op de medewerkerkaart',
+    uitleg:'Het tabblad bij Luc, Charlotte en Yoël. Vastgelegde gesprekken blijven bewaard.' },
+];
+
+// Beheer ontbreekt hier bewust en kan dus niet uit. Kon dat wel, dan zet je
+// jezelf met één klik buiten de deur en is de enige weg terug via de database —
+// en daar kan niet iedereen bij.
+const ONDERDELEN_VAST = ['beheer'];
+
+let ONDERDELEN_UIT = new Set();   // uitsluitend wat uitdrukkelijk uit staat
+let ONDERDELEN_RIJEN = [];        // de rijen zelf, voor de reden in het scherm
+
+function onderdeelAan(sleutel) {
+  if (ONDERDELEN_VAST.includes(sleutel)) return true;
+  return !ONDERDELEN_UIT.has(sleutel);
+}
+
+// Eén menu-onderdeel: tonen of weglaten.
+function mi(sleutel, html) { return onderdeelAan(sleutel) ? html : ''; }
+
+// Een hele categorie in de zijbalk. Staat er niets meer onder, dan hoort de kop
+// ook weg te vallen; anders klap je een lege categorie open.
+function miGroep(sleutels, html) { return sleutels.some(onderdeelAan) ? html : ''; }
+
+async function laadOnderdelen() {
+  if (!supa) return;                                   // demomodus: alles aan
+  const { data, error } = await supa.from('onderdelen').select('sleutel,aan,reden,updated_at');
+  // Bewust geen melding en geen lege verzameling terugzetten: gaat dit mis, dan
+  // blijft staan wat er stond en dat is in het slechtste geval "alles aan".
+  if (error) { console.error('Onderdelen laden mislukt:', error); return; }
+  ONDERDELEN_RIJEN = data || [];
+  ONDERDELEN_UIT = new Set(ONDERDELEN_RIJEN.filter(r => r.aan === false).map(r => r.sleutel));
+}
+
+// Het tabblad waar je terechtkomt als het onderdeel waar je stond is uitgezet.
+// Loopt de lijst af tot er één aan staat; Beheer sluit de rij omdat dat er
+// altijd is voor wie hem mag zien.
+function eersteZichtbaarTabblad() {
+  for (const sleutel of ['one', 'medewerkers', 'team', 'accounts', 'kandidaten']) {
+    if (onderdeelAan(sleutel)) return sleutel;
+  }
+  return 'beheer';
+}
+
+// Na het laden: stond iemand nog op een onderdeel dat inmiddels uit staat — via
+// het onthouden tabblad van de vorige keer — dan zou hij naar een leeg scherm
+// kijken zonder menu-item om weg te klikken.
+function _corrigeerTabblad() {
+  if (typeof currentTab === 'number') {
+    if (!onderdeelAan('medewerkers')) currentTab = eersteZichtbaarTabblad();
+    return;
+  }
+  if (typeof currentTab === 'string' && !onderdeelAan(currentTab)) {
+    currentTab = eersteZichtbaarTabblad();
+  }
+}
+
 function renderTabs() {
   // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
   if (CURRENT_USER && CURRENT_USER.rol === 'bm') {
@@ -4625,10 +4751,10 @@ function renderTabs() {
     const _bmIdx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
     const _bmInMed = currentTab === 'medewerkers' || currentTab === _bmIdx;
     document.getElementById('sidebar').innerHTML = `
-      <div class="sidebar-cat">
+      ${mi('one', `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='one'?'active-cat':''}" onclick="selectTab('one')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('one')}Brightech ONE</span>${oneMeldingBadge()}</button>
-      </div>
-      <div class="sidebar-cat">
+      </div>`)}
+      ${mi('medewerkers', `<div class="sidebar-cat">
         <div class="sidebar-cat-btn ${_bmInMed?'active-cat':''}" style="cursor:pointer;" onclick="toggleMedewerkers(event)">
           ${btCatLabel('medewerkers','Medewerkers')}
           <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
@@ -4637,38 +4763,38 @@ function renderTabs() {
           <button class="sidebar-item ${currentTab==='medewerkers'?'active':''}" onclick="goMedewerkersOverzicht()">${btIcon('overzicht')}Overzicht</button>
           ${_bmIdx >= 0 ? `<button class="sidebar-item ${currentTab===_bmIdx?'active':''}" onclick="selectTab(${_bmIdx})">${escHtml(CURRENT_USER.bm_naam)}</button>` : ''}
         </div>
-      </div>
-      <div class="sidebar-cat">
+      </div>`)}
+      ${miGroep(['team','projecten','comrap','records','hrm'], `<div class="sidebar-cat">
         <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
-          <button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>
-          <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>
-          <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>
-          <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>
-          <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>
+          ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
+          ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
+          ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
+          ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
+          ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
         </div>
-      </div>
-      <div class="sidebar-cat">
+      </div>`)}
+      ${mi('accounts', `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('accounts')}Accountmanagement</span></button>
-      </div>
-      <div class="sidebar-cat">
+      </div>`)}
+      ${mi('kandidaten', `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('kandidaten')}Kandidaten</span></button>
-      </div>
-      <div class="sidebar-cat">
+      </div>`)}
+      ${miGroep(['cvgen','plaatsing','gesprek','bezoek'], `<div class="sidebar-cat">
         <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
           ${btCatLabel('tools','Tools')}
           <span class="sidebar-caret ${toolsOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
-          <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">${btIcon('cvgen')}CV-generator</button>
-          <button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>
-          <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">${btIcon('recorder')}ITK-Recorder</button>
-          <button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">${btIcon('bezoek')}BZK-Recorder</button>
+          ${mi('cvgen', `<button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">${btIcon('cvgen')}CV-generator</button>`)}
+          ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
+          ${mi('gesprek', `<button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">${btIcon('recorder')}ITK-Recorder</button>`)}
+          ${mi('bezoek', `<button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">${btIcon('bezoek')}BZK-Recorder</button>`)}
         </div>
-      </div>
+      </div>`)}
       ${isBeheerder() ? `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('beheer')}Beheer</span></button>
       </div>` : ''}`;
@@ -4684,48 +4810,48 @@ function renderTabs() {
   ).join('');
 
   document.getElementById('sidebar').innerHTML = `
-    <div class="sidebar-cat">
+    ${mi('one', `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='one'?'active-cat':''}" onclick="selectTab('one')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('one')}Brightech ONE</span>${oneMeldingBadge()}</button>
-    </div>
-    <div class="sidebar-cat">
+    </div>`)}
+    ${mi('medewerkers', `<div class="sidebar-cat">
       <div class="sidebar-cat-btn ${inMedewerkers?'active-cat':''}" style="cursor:pointer;" onclick="toggleMedewerkers(event)">
         <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="goMedewerkersOverzicht(); event.stopPropagation();">${btIcon('medewerkers')}Medewerkers</span>
         <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
-    </div>
-    <div class="sidebar-cat">
+    </div>`)}
+    ${miGroep(['team','projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
       <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         ${btCatLabel('management','Management')}
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
-        <button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>
-        <button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>
-        <button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>
-        <button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>
-        <button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>
-        <button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>
+        ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
+        ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
+        ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
+        ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
+        ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
+        ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
       </div>
-    </div>
-    <div class="sidebar-cat">
+    </div>`)}
+    ${mi('accounts', `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('accounts')}Accountmanagement</span></button>
-    </div>
-    <div class="sidebar-cat">
+    </div>`)}
+    ${mi('kandidaten', `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('kandidaten')}Kandidaten</span></button>
-    </div>
-    <div class="sidebar-cat">
+    </div>`)}
+    ${miGroep(['cvgen','plaatsing','gesprek','bezoek'], `<div class="sidebar-cat">
       <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
         ${btCatLabel('tools','Tools')}
         <span class="sidebar-caret ${toolsOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${toolsOpen?'flex':'none'};">
-        <button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">${btIcon('cvgen')}CV-generator</button>
-        <button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>
-        <button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">${btIcon('recorder')}ITK-Recorder</button>
-        <button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">${btIcon('bezoek')}BZK-Recorder</button>
+        ${mi('cvgen', `<button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">${btIcon('cvgen')}CV-generator</button>`)}
+        ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
+        ${mi('gesprek', `<button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">${btIcon('recorder')}ITK-Recorder</button>`)}
+        ${mi('bezoek', `<button class="sidebar-item ${currentTab==='bezoek'?'active':''}" onclick="selectTab('bezoek')">${btIcon('bezoek')}BZK-Recorder</button>`)}
       </div>
-    </div>
+    </div>`)}
     ${isBeheerder() ? `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('beheer')}Beheer</span></button>
     </div>` : ''}`;
@@ -4960,7 +5086,7 @@ async function memoIntrekken(id) {
 // dashboard het menu bouwen zoals die collega het ziet, en kijken wat erin
 // staat. Verandert er iets aan de rechten, dan verandert dit overzicht mee.
 // ════════════════════════════════════════════════════════════════════════════
-let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten'
+let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten' | 'onderdelen'
 
 // Wie mag er op een pagina niet alleen kijken maar ook wijzigen. Deze regels
 // roepen de bestaande functies aan in plaats van ze over te schrijven; wat hier
@@ -5049,7 +5175,7 @@ function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
   return `<div class="bm-subtabs" style="display:flex;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}</div>`;
 }
 
 function renderBeheerRechten() {
@@ -5130,8 +5256,150 @@ function renderBeheerRechten() {
   </div>`;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// BEHEER → ONDERDELEN
+//
+// Eén regel per onderdeel met een schakelaar. Uitzetten verbergt het bij
+// iedereen zodra ze verversen; de gegevens blijven staan.
+// ════════════════════════════════════════════════════════════════════════════
+
+function _ondRij(sleutel) {
+  return (ONDERDELEN_RIJEN || []).find(r => r.sleutel === sleutel) || null;
+}
+
+function renderBeheerOnderdelen() {
+  const groepen = [];
+  for (const o of ONDERDELEN) {
+    let g = groepen.find(x => x.naam === o.groep);
+    if (!g) { g = { naam: o.groep, items: [] }; groepen.push(g); }
+    g.items.push(o);
+  }
+
+  const uitAantal = ONDERDELEN.filter(o => !onderdeelAan(o.sleutel)).length;
+
+  const regel = (o) => {
+    const aan = onderdeelAan(o.sleutel);
+    const rij = _ondRij(o.sleutel);
+    const sinds = (!aan && rij && rij.updated_at)
+      ? new Date(rij.updated_at).toLocaleDateString('nl-NL', { day:'numeric', month:'long', year:'numeric' })
+      : '';
+    const onder = !aan
+      ? `Uit${sinds ? ' sinds ' + sinds : ''}${rij && rij.reden ? ' — ' + escHtml(rij.reden) : ''}`
+      : (o.uitleg ? escHtml(o.uitleg) : '');
+    return `<div class="ond-regel${aan ? '' : ' uit'}">
+      <div class="ond-tekst">
+        <div class="ond-naam">${escHtml(o.label)}</div>
+        ${onder ? `<div class="ond-sub">${onder}</div>` : ''}
+      </div>
+      <button class="ond-sw${aan ? ' aan' : ''}" id="ond-sw-${o.sleutel}"
+              title="${aan ? 'Aan — klik om uit te zetten' : 'Uit — klik om aan te zetten'}"
+              onclick="zetOnderdeel('${o.sleutel}', ${aan ? 'false' : 'true'})"><span></span></button>
+    </div>`;
+  };
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
+      <div class="person-meta"><span class="meta-pill">${
+        uitAantal === 0 ? 'alles staat aan' : uitAantal + ' onderdeel' + (uitAantal === 1 ? '' : 'en') + ' uit'}</span></div>
+    </div>
+    ${_rechtenSubtabs()}
+    <div style="padding:14px 20px 30px;max-width:760px;">
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:4px;">
+        Wat hier uit staat, verdwijnt bij iedereen uit het menu zodra hij de
+        pagina ververst. Er hoeft geen nieuwe versie van het dashboard voor
+        opgeleverd te worden. Uitzetten verbergt alleen: alles wat is ingevuld
+        blijft bewaard en komt terug zodra je het weer aanzet.
+      </div>
+      <div id="ond-melding" style="font-size:.78rem;min-height:20px;margin-bottom:8px;"></div>
+      ${groepen.map(g => `<div class="ond-groep">${escHtml(g.naam)}</div>
+        <div class="ond-paneel">${g.items.map(regel).join('')}</div>`).join('')}
+
+      <div class="ond-groep">Staat altijd aan</div>
+      <div class="ond-paneel">
+        <div class="ond-regel">
+          <div class="ond-tekst">
+            <div class="ond-naam">Beheer</div>
+            <div class="ond-sub">Bewust niet te schakelen. Zou je deze pagina kunnen
+              uitzetten, dan sluit je jezelf met één klik buiten en is de enige weg
+              terug via de database.</div>
+          </div>
+          <span class="ond-vast">vast</span>
+        </div>
+      </div>
+
+      <div style="font-size:.74rem;color:var(--text-muted);line-height:1.6;margin-top:16px;">
+        Twee dingen om te weten. Een onderdeel dat uit staat verdwijnt ook uit
+        het overzicht bij <strong>Rechten</strong> — dat leest het menu af, en
+        wat er niet is heeft ook geen rechten meer. En dit is geen slot: de
+        gegevens blijven in de database staan en blijven daar leesbaar voor wie
+        is ingelogd. Moet iemand er echt niet bij kunnen, dan is daar een regel
+        op de tabel zelf voor nodig.
+      </div>
+    </div>
+  </div>`;
+}
+
+// Een onderdeel aan- of uitzetten en meteen wegschrijven.
+async function zetOnderdeel(sleutel, aan) {
+  if (!isBeheerder()) return;
+  const melding = (tekst, kleur) => {
+    const el = document.getElementById('ond-melding');
+    if (el) el.innerHTML = `<span style="color:${kleur};">${tekst}</span>`;
+  };
+  if (!supa) { melding('Geen verbinding met de database.', '#dc2626'); return; }
+
+  // Bij uitzetten vragen we waarom. Over drie maanden weet niemand meer waarom
+  // iets uit stond, en dan blijft het uit staan omdat niemand het aandurft.
+  // Annuleren betekent hier: toch niet uitzetten.
+  let reden = null;
+  if (!aan) {
+    reden = prompt('Waarom zet je "' + (ONDERDELEN.find(o => o.sleutel === sleutel) || {}).label + '" uit?\n(mag leeg blijven — annuleren laat hem aan staan)');
+    if (reden === null) return;
+    reden = reden.trim() || null;
+  }
+
+  const knop = document.getElementById('ond-sw-' + sleutel);
+  if (knop) knop.disabled = true;
+  melding('Opslaan…', 'var(--text-muted)');
+
+  let userId = null;
+  try { const { data } = await supa.auth.getUser(); userId = data?.user?.id || null; } catch (_) {}
+
+  // .select() erachter is geen opsmuk. Zonder schrijfrecht doet Postgres niets,
+  // raakt nul rijen en meldt succes — dan zou dit scherm "opgeslagen" tonen
+  // terwijl er niets is gebeurd. Nu zien we dat er niets terugkomt.
+  const { data, error } = await supa.from('onderdelen')
+    .upsert({ sleutel, aan, reden, updated_by: userId, updated_at: new Date().toISOString() },
+            { onConflict: 'sleutel' })
+    .select();
+
+  if (knop) knop.disabled = false;
+  if (error) {
+    console.error('Onderdeel opslaan mislukt:', error);
+    melding('Niet opgeslagen: ' + (error.message || 'onbekende fout'), '#dc2626');
+    return;
+  }
+  if (!data || data.length === 0) {
+    melding('Niet opgeslagen — geen schrijfrechten op de tabel onderdelen.', '#dc2626');
+    return;
+  }
+
+  // Pas ná een bevestigd antwoord het scherm bijwerken. Eerder zou het scherm
+  // iets tonen wat de database niet weet.
+  ONDERDELEN_RIJEN = ONDERDELEN_RIJEN.filter(r => r.sleutel !== sleutel).concat(data[0]);
+  if (aan) ONDERDELEN_UIT.delete(sleutel); else ONDERDELEN_UIT.add(sleutel);
+
+  const label = (ONDERDELEN.find(o => o.sleutel === sleutel) || {}).label || sleutel;
+  renderBeheerOnderdelen();
+  renderTabs();
+  melding(label + ' staat nu ' + (aan ? 'aan' : 'uit') +
+          '. Collega\'s zien dit zodra ze de pagina verversen.', '#0e9f6e');
+}
+
 function renderBeheer() {
-  if (BEHEER_SUBVIEW === 'rechten') { renderBeheerRechten(); return; }
+  if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
+  if (BEHEER_SUBVIEW === 'onderdelen') { renderBeheerOnderdelen(); return; }
   const huidigJaar = new Date().getFullYear();
 
   // Bouw doelen-map: naam → jaardoel voor huidig jaar
@@ -5783,6 +6051,10 @@ startKopDatum();
 _versieWaakhond();
 
 function selectTab(i) {
+  // Een uitgezet onderdeel is niet meer te openen. Zonder deze regel kon je er
+  // nog steeds komen via het onthouden tabblad of een knop elders in het scherm
+  // die nooit door het menu loopt.
+  if (typeof i === 'string' && !onderdeelAan(i)) i = eersteZichtbaarTabblad();
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
   _veiligLokaalOpslaan('bt_last_tab', i, 'laatste tabblad onthouden');
@@ -6946,7 +7218,11 @@ function planField(id, title, value, opts) {
 // dan hoort zijn naam hier. Jij ziet het tabblad op hun kaart omdat je manager
 // bent, niet omdat je in deze lijst staat.
 const BUM_COLLEGAS = ['Luc Kools', 'Charlotte Gigase', 'Yoël Bronckers'];
-function heeftBumGesprek(naam) { return BUM_COLLEGAS.includes(naam); }
+function heeftBumGesprek(naam) {
+  // Ook via de schakelaar bij Beheer uit te zetten. Staat hij uit, dan valt het
+  // tabblad bij alle drie weg; wat er is vastgelegd blijft gewoon staan.
+  return onderdeelAan('bum') && BUM_COLLEGAS.includes(naam);
+}
 
 // De zes onderwerpen. Titel, veldnaam en de vraag die eronder staat.
 const BUM_ONDERWERPEN = [
@@ -8217,6 +8493,8 @@ async function loadAllData() {
 
   // loadBeheerData in try/catch: als het misgaat (bijv. doelen-tabel mist of
   // onverwachte DB-fout), blijft de rest van de data gewoon laden.
+  // Als eerste: bepaalt wat er verderop überhaupt getekend moet worden.
+  await laadPoging('onderdelen', laadOnderdelen);
   laadStap('Medewerkers en doelen…');
   await laadPoging('medewerkers en doelen', loadBeheerData);
   await laadPoging('aanmeldformulier', loadAanmeldSaved);
@@ -8351,6 +8629,7 @@ async function loadProfileAndStart() {
     console.error('Onverwachte fout bij het laden:', e);
     LAAD_MISLUKT.push('een onbekend onderdeel');
   } finally {
+    _corrigeerTabblad();
     try { render(); } catch (e) { console.error('Tekenen mislukt:', e); }
     verbergLaadscherm();
     toonLaadmelding();
