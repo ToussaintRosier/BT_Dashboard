@@ -1523,6 +1523,15 @@
                      text-align:center; }
   .rr-legenda { display:flex; flex-wrap:wrap; gap:16px; margin-top:12px;
                 font-size:.74rem; color:var(--text-muted); align-items:center; }
+  /* Aanklikbare cellen. Een ruim klikgebied: de tekens zelf zijn klein en je
+     zit hier vaak een hele kolom door te lopen. */
+  .rr td.klik { cursor:pointer; user-select:none; }
+  .rr td.klik:hover { background:var(--card-alt); box-shadow:inset 0 0 0 1px var(--border); }
+  .rr td.vast { color:var(--text-muted); cursor:not-allowed; }
+  .rr th .herstel { background:none; border:0; color:var(--text-muted); cursor:pointer;
+                    font-size:.7rem; padding:0 2px; line-height:1; }
+  .rr th .herstel:hover { color:var(--primary); }
+  .rr tr.afwijking td { background:#fef2f2; }
 
   /* Onderdelen aan- en uitzetten: één regel per onderdeel, schakelaar rechts. */
   .ond-groep { font-size:.7rem; font-weight:var(--w-nadruk); letter-spacing:.06em;
@@ -1857,7 +1866,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1250 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1327 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4479,7 +4488,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1250';
+const APP_VERSIE = '20260812-1327';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4644,6 +4653,99 @@ function zetJaar(jaar) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// RECHTEN PER PERSOON
+//
+// Wie wat mag stond tot nu toe in de rol: een BM zag geen Financieel omdat hij
+// BM was. Dat staat nu per persoon in de tabel `rechten`, en is per onderdeel
+// aan te klikken bij Beheer → Rechten.
+//
+// LEEG BETEKENT: PRECIES ZOALS HET WAS
+//   Staat er voor iemand niets in de tabel, dan geldt het sjabloon van zijn rol.
+//   Dat sjabloon bootst letterlijk na wat de oude functies teruggaven — het is
+//   geen nieuw idee over wie wat hoort te mogen. Daardoor verandert het invoeren
+//   van deze tabel niets, en verandert het mislukken van het laden ook niets.
+//
+//   Zou leeg "geen rechten" betekenen, dan zou één storing iedereen buitensluiten.
+//
+// DRIE STANDEN
+//   geen · zien · wijzig
+//
+// WAT HIER NIET IN ZIT
+//   Een handvol losse manager-handelingen loopt nog via isManagerLevel(): een
+//   opname verwijderen, een bericht vastzetten in Brightech ONE, de coachblokken.
+//   Dat zijn geen pagina's en ze horen niet in een pagina-matrix thuis.
+// ════════════════════════════════════════════════════════════════════════════
+
+let RECHTEN_RIJEN = [];   // wat er uitdrukkelijk per persoon is vastgelegd
+
+// Het sjabloon per rol. Bewust een functie van het hele profiel en niet van de
+// rol alleen: Yoël staat als 'kam' in de profielen en Annyck als 'backoffice',
+// terwijl ze allebei het werk van een manager doen. Een sjabloon dat alleen naar
+// de rol keek zou die twee bij de eerste opslag uitkleden.
+function rechtSjabloon(g) {
+  if (!g) return {};
+  const rol      = g.rol;
+  const zwaar    = rol === 'manager' || (VOLLEDIG_BEVOEGD || []).includes(g.naam);
+  // Let op: het projecten-/kandidatenvinkje hangt níet aan manager-zijn. Een
+  // manager zonder vinkje mocht Projecten en Kandidaten ook voorheen niet
+  // bijwerken; alleen het vinkje zelf, de twee volledig bevoegde namen en de
+  // beheerder gaven dat recht.
+  const vinkje   = !!g.proj_kand_editor
+                   || (VOLLEDIG_BEVOEGD || []).includes(g.naam)
+                   || g.naam === 'Toussaint Rosier';
+  const w = (ja) => ja ? 'wijzig' : 'zien';
+
+  return {
+    one:          'wijzig',
+    // Alle kaarten van collega's zien. Dit verving rol === 'bm' in de zijbalk:
+    // een BM ziet alleen zijn eigen kaart, de rest ziet iedereen.
+    medewerkers_allen: zwaar ? 'wijzig' : (rol === 'bm' ? 'geen' : 'zien'),
+    medewerkers:  'wijzig',                       // je eigen kaart mag je altijd bijwerken
+    team:         w(zwaar),
+    projecten:    w(vinkje || rol === 'backoffice'),
+    // Let op: dit volgt de pagina en niet het oude menu. De zijbalk toonde
+    // Financieel aan iedereen behalve een BM, maar de pagina stuurde alles wat
+    // geen manager of backoffice was meteen door naar Accountmanagement. Een KAM
+    // zag dus een menu-item dat nergens heen ging. Het sjabloon neemt de pagina
+    // als waarheid over; wie het toch wil zien, zet het in de matrix op zien.
+    financieel:   (zwaar || rol === 'backoffice') ? 'zien' : 'geen',
+    comrap:       'wijzig',
+    records:      'wijzig',
+    hrm:          w(zwaar),
+    accounts:     w(rol !== 'backoffice'),
+    kandidaten:   w(vinkje),
+    cvgen:        'wijzig',
+    plaatsing:    'wijzig',
+    gesprek:      'wijzig',
+    bezoek:       'wijzig',
+    bum:          (BUM_COLLEGAS || []).includes(g.bm_naam || g.naam) ? 'wijzig' : 'geen',
+  };
+}
+
+// De stand van één onderdeel voor één persoon. Volgorde is hier de hele logica:
+// een onderdeel dat in het algemeen uit staat kan niemand terugkrijgen.
+function rechtVoor(gebruiker, sleutel) {
+  if (!gebruiker) return 'geen';
+  if (ONDERDELEN_VAST.includes(sleutel)) return 'wijzig';   // Beheer regelt zichzelf
+  if (!onderdeelAan(sleutel)) return 'geen';
+  const rij = RECHTEN_RIJEN.find(r => r.naam === gebruiker.naam && r.sleutel === sleutel);
+  if (rij) return rij.stand;
+  return rechtSjabloon(gebruiker)[sleutel] || 'geen';
+}
+
+function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen'; }
+function magWijzigen(sleutel){ return rechtVoor(CURRENT_USER, sleutel) === 'wijzig'; }
+
+async function laadRechten() {
+  if (!supa) return;
+  const { data, error } = await supa.from('rechten').select('naam,sleutel,stand');
+  // Net als bij de onderdelen: gaat dit mis, dan blijft staan wat er stond en
+  // valt alles terug op het rolsjabloon — de situatie van vandaag.
+  if (error) { console.error('Rechten laden mislukt:', error); return; }
+  RECHTEN_RIJEN = data || [];
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ONDERDELEN AAN- EN UITZETTEN
 //
 // Eén tabelletje in Supabase bepaalt wat er in het dashboard te zien is. Zet je
@@ -4703,12 +4805,14 @@ function onderdeelAan(sleutel) {
   return !ONDERDELEN_UIT.has(sleutel);
 }
 
-// Eén menu-onderdeel: tonen of weglaten.
-function mi(sleutel, html) { return onderdeelAan(sleutel) ? html : ''; }
+// Eén menu-onderdeel: tonen of weglaten. Loopt via magZien(), en die kijkt eerst
+// of het onderdeel in het algemeen aan staat — dus één plek waar beide
+// schakelaars samenkomen.
+function mi(sleutel, html) { return magZien(sleutel) ? html : ''; }
 
 // Een hele categorie in de zijbalk. Staat er niets meer onder, dan hoort de kop
 // ook weg te vallen; anders klap je een lege categorie open.
-function miGroep(sleutels, html) { return sleutels.some(onderdeelAan) ? html : ''; }
+function miGroep(sleutels, html) { return sleutels.some(magZien) ? html : ''; }
 
 async function laadOnderdelen() {
   if (!supa) return;                                   // demomodus: alles aan
@@ -4725,7 +4829,7 @@ async function laadOnderdelen() {
 // altijd is voor wie hem mag zien.
 function eersteZichtbaarTabblad() {
   for (const sleutel of ['one', 'medewerkers', 'team', 'accounts', 'kandidaten']) {
-    if (onderdeelAan(sleutel)) return sleutel;
+    if (magZien(sleutel)) return sleutel;
   }
   return 'beheer';
 }
@@ -4735,19 +4839,23 @@ function eersteZichtbaarTabblad() {
 // kijken zonder menu-item om weg te klikken.
 function _corrigeerTabblad() {
   if (typeof currentTab === 'number') {
-    if (!onderdeelAan('medewerkers')) currentTab = eersteZichtbaarTabblad();
+    if (!magZien('medewerkers')) currentTab = eersteZichtbaarTabblad();
     return;
   }
-  if (typeof currentTab === 'string' && !onderdeelAan(currentTab)) {
+  if (typeof currentTab === 'string' && currentTab !== 'beheer' && !magZien(currentTab)) {
     currentTab = eersteZichtbaarTabblad();
   }
 }
 
 function renderTabs() {
-  // BM-rol: alleen eigen tab te zien, geen team-/coaching-/prognoseoverzichten
-  if (CURRENT_USER && CURRENT_USER.rol === 'bm') {
-    // "Kandidaten"-overzicht (alle Intakes van alle BM's, laatste 10 weken) is
-    // voor alle BM's beschikbaar.
+  // Twee vormen van de zijbalk. Wie de kaarten van collega's niet mag inzien
+  // krijgt onder Medewerkers alleen zijn eigen naam; de rest krijgt de volledige
+  // lijst. Dat hing vroeger aan de rol 'bm'; nu aan het recht, zodat het in de
+  // matrix te zien en te veranderen is.
+  //
+  // Verder zijn de twee zijbalken gelijk: welke pagina's erin staan bepaalt
+  // mi() uit de rechten, niet deze splitsing.
+  if (CURRENT_USER && !magZien('medewerkers_allen')) {
     const _bmIdx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
     const _bmInMed = currentTab === 'medewerkers' || currentTab === _bmIdx;
     document.getElementById('sidebar').innerHTML = `
@@ -4760,18 +4868,19 @@ function renderTabs() {
           <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">
-          <button class="sidebar-item ${currentTab==='medewerkers'?'active':''}" onclick="goMedewerkersOverzicht()">${btIcon('overzicht')}Overzicht</button>
+          ${mi('medewerkers', `<button class="sidebar-item ${currentTab==='medewerkers'?'active':''}" onclick="goMedewerkersOverzicht()">${btIcon('overzicht')}Overzicht</button>`)}
           ${_bmIdx >= 0 ? `<button class="sidebar-item ${currentTab===_bmIdx?'active':''}" onclick="selectTab(${_bmIdx})">${escHtml(CURRENT_USER.bm_naam)}</button>` : ''}
         </div>
       </div>`)}
-      ${miGroep(['team','projecten','comrap','records','hrm'], `<div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+      ${miGroep(['team','projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
+        <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
           ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
           ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
+          ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
           ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
@@ -5178,25 +5287,57 @@ function _rechtenSubtabs() {
     ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}</div>`;
 }
 
+// De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
+// eigen menupagina is maar wel per persoon verschilt.
+function _matrixRijen() {
+  const uit = [];
+  for (const o of ONDERDELEN) {
+    uit.push({ sleutel: o.sleutel,
+               label: o.sleutel === 'medewerkers' ? 'Medewerkers — eigen kaart' : o.label });
+    if (o.sleutel === 'medewerkers') {
+      uit.push({ sleutel: 'medewerkers_allen', label: 'Medewerkers — alle kaarten' });
+    }
+  }
+  return uit;
+}
+
+const _RR_VOLGORDE = ['geen', 'zien', 'wijzig'];
+const _RR_TEKEN = { geen:'–', zien:'◉', wijzig:'✓' };
+const _RR_KLASSE = { geen:'nee', zien:'zien', wijzig:'ja' };
+const _RR_WOORD = { geen:'geen toegang', zien:'alleen zien', wijzig:'zien en wijzigen' };
+
 function renderBeheerRechten() {
   const collegas = _rechtenCollegas();
-  const perPersoon = collegas.map(c => ({ c, r: _rechtenVoor(c.gebruiker) }));
+  const rijen = _matrixRijen();
 
-  // De volgorde van de pagina's volgt het menu van degene die het meeste ziet;
-  // pagina's die alleen bij iemand anders voorkomen worden erachter geplakt.
-  const rijen = [];
-  const gezien = new Set();
-  for (const { r } of [...perPersoon].sort((a, b) => b.r.paginas.length - a.r.paginas.length)) {
-    for (const p of r.paginas) {
-      if (gezien.has(p.sleutel)) continue;
-      gezien.add(p.sleutel);
-      rijen.push(p);
+  // De controle: bouw per collega het échte menu op en kijk of dat overeenkomt
+  // met wat de tabel zegt. Vroeger wás dit het overzicht; nu is het de toets
+  // erop. Zonder deze stap kan het scherm iets tonen wat niemand zo ziet.
+  const afwijkingen = [];
+  const uitMenu = {};
+  for (const c of collegas) {
+    const echt = _rechtenVoor(c.gebruiker);
+    uitMenu[c.naam] = echt;
+    for (const r of rijen) {
+      if (r.sleutel === 'medewerkers_allen' || r.sleutel === 'bum') continue;
+      const volgensTabel = rechtVoor(c.gebruiker, r.sleutel) !== 'geen';
+      const inMenu = !!echt.recht[r.sleutel];
+      if (volgensTabel !== inMenu) afwijkingen.push({ naam: c.naam, sleutel: r.sleutel, label: r.label });
     }
   }
 
-  const teken = (recht) => recht === 'wijzig' ? '<span class="ja">✓</span>'
-                         : recht === 'zien'   ? '<span class="zien">◉</span>'
-                         :                      '<span class="nee">–</span>';
+  const cel = (c, r) => {
+    const stand = rechtVoor(c.gebruiker, r.sleutel);
+    const uitgezet = !onderdeelAan(r.sleutel);
+    const volgende = _RR_VOLGORDE[(_RR_VOLGORDE.indexOf(stand) + 1) % 3];
+    const eigen = !!RECHTEN_RIJEN.find(x => x.naam === c.gebruiker.naam && x.sleutel === r.sleutel);
+    if (uitgezet) {
+      return `<td class="cel vast" title="Dit onderdeel staat bij Onderdelen in het algemeen uit.">–</td>`;
+    }
+    return `<td class="cel klik" title="${escHtml(c.naam)} · ${escHtml(r.label)}: ${_RR_WOORD[stand]}${eigen ? '' : ' (uit de rol)'}"
+      onclick="zetRecht('${escApos(c.gebruiker.naam)}','${r.sleutel}','${volgende}')"
+      ><span class="${_RR_KLASSE[stand]}">${_RR_TEKEN[stand]}</span>${eigen ? '' : '<span style="opacity:.35;">·</span>'}</td>`;
+  };
 
   const rolLabel = (rol) => (BEHEER_ROL_OPTIES.find(o => o.value === rol) || {}).label || rol || '—';
 
@@ -5206,54 +5347,144 @@ function renderBeheerRechten() {
     : `<div class="rr-wrap"><table class="rr">
     <thead>
       <tr>
-        <th class="pagina">Pagina</th>
-        ${perPersoon.map(({ c }) => `<th title="${escHtml(rolLabel(c.rol))}">${escHtml(c.naam.split(' ')[0])}</th>`).join('')}
+        <th class="pagina">Onderdeel</th>
+        ${collegas.map(c => {
+          const heeftEigen = RECHTEN_RIJEN.some(x => x.naam === c.gebruiker.naam);
+          return `<th title="${escHtml(rolLabel(c.rol))}">${escHtml(c.naam.split(' ')[0])}${
+            heeftEigen ? `<button class="herstel" title="Alles voor ${escHtml(c.naam)} terug naar de rol"
+              onclick="herstelRechten('${escApos(c.gebruiker.naam)}')">↺</button>` : ''}</th>`;
+        }).join('')}
       </tr>
     </thead>
     <tbody>
       <tr class="rolregel"><td class="pagina"></td>
-        ${perPersoon.map(({ c }) => `<td>${escHtml((c.rol || '—').toUpperCase())}</td>`).join('')}
+        ${collegas.map(c => `<td>${escHtml((c.rol || '—').toUpperCase())}</td>`).join('')}
       </tr>
-      ${rijen.map(p => `<tr>
-        <td class="pagina">${escHtml(p.label)}</td>
-        ${perPersoon.map(({ r }) => `<td class="cel">${teken(r.recht[p.sleutel])}</td>`).join('')}
+      ${rijen.map(r => `<tr${afwijkingen.some(a => a.sleutel === r.sleutel) ? ' class="afwijking"' : ''}>
+        <td class="pagina">${escHtml(r.label)}</td>
+        ${collegas.map(c => cel(c, r)).join('')}
       </tr>`).join('')}
+      <tr class="rolregel"><td class="pagina" style="color:var(--text-muted);">Beheer (vast)</td>
+        ${collegas.map(c => `<td class="cel vast">${c.gebruiker.naam === 'Toussaint Rosier' ? '✓' : '–'}</td>`).join('')}
+      </tr>
     </tbody>
   </table></div>`;
+
+  const eigenAantal = RECHTEN_RIJEN.length;
 
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
       <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
-      <div class="person-meta"><span class="meta-pill">${collegas.length} collega's · ${rijen.length} pagina's</span></div>
+      <div class="person-meta"><span class="meta-pill">${collegas.length} collega's · ${
+        eigenAantal === 0 ? 'alles volgt de rol' : eigenAantal + ' handmatig gezet'}</span></div>
     </div>
     ${_rechtenSubtabs()}
     <div style="padding:14px 20px 30px;max-width:1100px;">
-      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:12px;">
-        Afgelezen uit het menu zoals iedere collega het zelf ziet, dus dit loopt
-        niet achter op de werkelijkheid. Rechten volgen uit de rol; wil je iets
-        wijzigen, pas dan de rol aan bij Collega's.
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:10px;">
+        Klik een vakje om te wisselen tussen zien en wijzigen, alleen zien, en
+        geen toegang. Een vakje met een stip erachter is handmatig gezet; zonder
+        stip volgt het de rol. Met ↺ boven een kolom zet je iemand helemaal terug
+        naar zijn rol.
       </div>
+      <div id="rr-melding" style="font-size:.78rem;min-height:20px;margin-bottom:8px;"></div>
       ${tabel}
       <div class="rr-legenda">
         <span><span class="ja" style="font-size:.86rem;">✓</span> zien en wijzigen</span>
         <span><span class="zien" style="font-size:.86rem;">◉</span> alleen zien</span>
         <span><span class="nee" style="font-size:.86rem;">–</span> geen toegang</span>
       </div>
+      ${afwijkingen.length ? `<div style="margin-top:14px;border:1px solid #fecaca;background:#fef2f2;
+             border-radius:var(--radius);padding:10px 12px;font-size:.76rem;color:#991b1b;line-height:1.6;">
+        <strong>Let op — dit overzicht komt niet overeen met wat mensen zien.</strong><br>
+        ${afwijkingen.slice(0, 8).map(a => `${escHtml(a.naam)} · ${escHtml(a.label)}`).join('<br>')}
+        ${afwijkingen.length > 8 ? `<br>en nog ${afwijkingen.length - 8}` : ''}
+        <br><br>Het menu wordt hier per collega werkelijk opgebouwd en met de tabel
+        vergeleken. Staat hier iets, dan klopt de matrix niet met de zijbalk en is
+        dat een fout in het dashboard, niet in jouw instelling.
+      </div>` : `<div style="margin-top:14px;font-size:.74rem;color:var(--text-muted);line-height:1.6;">
+        Gecontroleerd: voor alle ${collegas.length} collega's is het menu opgebouwd
+        en vergeleken met deze tabel. Ze komen overeen.
+      </div>`}
       <div style="font-size:.74rem;color:var(--text-muted);line-height:1.6;margin-top:14px;">
-        Drie dingen volgen niet zomaar uit de rol. <strong>Beheer</strong> is aan
-        één naam gebonden. Wijzigen op <strong>Projecten</strong> en
-        <strong>Kandidaten</strong> hangt aan een vinkje dat je per collega zet
-        bij <strong>Collega's → Bewerken</strong>. En <strong>Projecten</strong>
-        mag backoffice altijd bijwerken, ook zonder dat vinkje — Kandidaten niet,
-        want dat bepaalt wat collega's van elkaar zien.
+        <strong>Beheer</strong> staat vast op één naam en is hier niet te wijzigen —
+        anders kun je jezelf buitensluiten. Een onderdeel dat bij
+        <strong>Onderdelen</strong> in het algemeen uit staat, is hier grijs: dat
+        kun je niet voor één persoon terugzetten.
         <br><br>
-        <strong>BUM-gesprek</strong> is geen pagina in het menu maar een tabblad
-        op de eigen medewerkerkaart. Een leeg vakje betekent hier dus niet "geen
-        toegang" maar "dit tabblad staat niet op zijn kaart". Als manager zie je
-        het bij alle drie.
+        Dit bepaalt wat er op het scherm staat, niet wat er in de database te
+        halen valt. Wie Financieel echt niet mag inzien, heeft ook een slot op de
+        omzettabellen nodig.
       </div>
     </div>
   </div>`;
+}
+
+// Eén cel wijzigen.
+async function zetRecht(naam, sleutel, stand) {
+  if (!isBeheerder()) return;
+  const melding = (tekst, kleur) => {
+    const el = document.getElementById('rr-melding');
+    if (el) el.innerHTML = `<span style="color:${kleur};">${tekst}</span>`;
+  };
+  if (!onderdeelAan(sleutel)) {
+    melding('Dit onderdeel staat in het algemeen uit. Zet het eerst aan bij Onderdelen.', '#dc2626');
+    return;
+  }
+  if (!supa) { melding('Geen verbinding met de database.', '#dc2626'); return; }
+  melding('Opslaan…', 'var(--text-muted)');
+
+  let userId = null;
+  try { const { data } = await supa.auth.getUser(); userId = data?.user?.id || null; } catch (_) {}
+
+  // .select() en de telling erachter: zonder schrijfrecht raakt Postgres nul
+  // rijen en meldt succes. Dan zou dit scherm bijwerken terwijl er niets staat.
+  const { data, error } = await supa.from('rechten')
+    .upsert({ naam, sleutel, stand, updated_by: userId, updated_at: new Date().toISOString() },
+            { onConflict: 'naam,sleutel' })
+    .select();
+
+  if (error) {
+    console.error('Recht opslaan mislukt:', error);
+    melding('Niet opgeslagen: ' + (error.message || 'onbekende fout'), '#dc2626');
+    return;
+  }
+  if (!data || data.length === 0) {
+    melding('Niet opgeslagen — geen schrijfrechten op de tabel rechten.', '#dc2626');
+    return;
+  }
+
+  RECHTEN_RIJEN = RECHTEN_RIJEN.filter(r => !(r.naam === naam && r.sleutel === sleutel)).concat(data[0]);
+  const label = (_matrixRijen().find(r => r.sleutel === sleutel) || {}).label || sleutel;
+  renderBeheerRechten();
+  renderTabs();
+  melding(`${escHtml(naam)} · ${escHtml(label)}: ${_RR_WOORD[stand]}. Zichtbaar na verversen.`, '#0e9f6e');
+}
+
+// Alles van één collega terug naar zijn rol.
+async function herstelRechten(naam) {
+  if (!isBeheerder()) return;
+  if (!confirm('Alle handmatig gezette rechten van ' + naam + ' weghalen?\n\nHij volgt daarna weer het sjabloon van zijn rol.')) return;
+  const melding = (tekst, kleur) => {
+    const el = document.getElementById('rr-melding');
+    if (el) el.innerHTML = `<span style="color:${kleur};">${tekst}</span>`;
+  };
+  if (!supa) { melding('Geen verbinding met de database.', '#dc2626'); return; }
+
+  // Ook hier .select(): een verwijdering zonder recht meldt net zo vrolijk succes.
+  const { data, error } = await supa.from('rechten').delete().eq('naam', naam).select();
+  if (error) {
+    console.error('Rechten herstellen mislukt:', error);
+    melding('Niet gelukt: ' + (error.message || 'onbekende fout'), '#dc2626');
+    return;
+  }
+  if (!data || data.length === 0) {
+    melding('Er is niets verwijderd — geen rechten op de tabel, of er stond al niets.', '#dc2626');
+    return;
+  }
+  RECHTEN_RIJEN = RECHTEN_RIJEN.filter(r => r.naam !== naam);
+  renderBeheerRechten();
+  renderTabs();
+  melding(naam + ' volgt weer het sjabloon van zijn rol.', '#0e9f6e');
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -5930,7 +6161,11 @@ async function beheerInviteVerstuur() {
 }
 
 function canEdit(bmNaam) {
-  return !!CURRENT_USER && (isManagerLevel() || CURRENT_USER.bm_naam === bmNaam);
+  if (!CURRENT_USER) return false;
+  // Andermans kaart bijwerken hangt aan het recht "alle kaarten"; je eigen kaart
+  // mag je zolang Medewerkers voor jou op wijzigen staat.
+  if (magWijzigen('medewerkers_allen')) return true;
+  return CURRENT_USER.bm_naam === bmNaam && magWijzigen('medewerkers');
 }
 // Backoffice mag alles bekijken (zelfde breedte als manager) maar nergens
 // invoeren/opslaan — canView() regelt dat laatste onderscheid voor schermen
@@ -5951,13 +6186,13 @@ function _heeftProjKandVink() {
 // Projecten bijwerken hoort bij het werk van backoffice, dus die rol mag het
 // altijd — ook zonder vinkje.
 function magProjectenWijzigen() {
-  return _heeftProjKandVink() || CURRENT_USER?.rol === 'backoffice';
+  return magWijzigen('projecten');
 }
 
 // Kandidaten uitsluiten blijft beperkt tot wie het vinkje heeft. Dat raakt wat
 // collega's van elkaar zien; daar hoort een kleinere kring bij.
 function magKandidatenWijzigen() {
-  return _heeftProjKandVink();
+  return magWijzigen('kandidaten');
 }
 
 // Oude naam, nog in gebruik waar het over Projecten gaat.
@@ -6054,7 +6289,7 @@ function selectTab(i) {
   // Een uitgezet onderdeel is niet meer te openen. Zonder deze regel kon je er
   // nog steeds komen via het onthouden tabblad of een knop elders in het scherm
   // die nooit door het menu loopt.
-  if (typeof i === 'string' && !onderdeelAan(i)) i = eersteZichtbaarTabblad();
+  if (typeof i === 'string' && i !== 'beheer' && !magZien(i)) i = eersteZichtbaarTabblad();
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
   _veiligLokaalOpslaan('bt_last_tab', i, 'laatste tabblad onthouden');
@@ -6816,7 +7051,7 @@ function render() {
   if (currentTab === 'accounts') { renderAccounts(); return; }
   if (currentTab === 'financieel') {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
-    if (!CURRENT_USER || (!isManagerLevel() && CURRENT_USER.rol !== 'backoffice')) { currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+    if (!magZien('financieel')) { currentTab = eersteZichtbaarTabblad(); renderTabs(); render(); return; }
     renderFinancieel();
     return;
   }
@@ -7219,9 +7454,13 @@ function planField(id, title, value, opts) {
 // bent, niet omdat je in deze lijst staat.
 const BUM_COLLEGAS = ['Luc Kools', 'Charlotte Gigase', 'Yoël Bronckers'];
 function heeftBumGesprek(naam) {
-  // Ook via de schakelaar bij Beheer uit te zetten. Staat hij uit, dan valt het
-  // tabblad bij alle drie weg; wat er is vastgelegd blijft gewoon staan.
-  return onderdeelAan('bum') && BUM_COLLEGAS.includes(naam);
+  // Twee schakelaars: de algemene bij Onderdelen en de persoonlijke in de
+  // matrix. Wat er is vastgelegd blijft in beide gevallen gewoon bestaan.
+  if (!onderdeelAan('bum')) return false;
+  const g = (BEHEER_PROFIELEN || []).find(p => (p.bm_naam || p.naam) === naam);
+  if (g) return rechtVoor({ naam: g.naam, bm_naam: g.bm_naam || g.naam, rol: g.rol,
+                            proj_kand_editor: g.proj_kand_editor }, 'bum') !== 'geen';
+  return BUM_COLLEGAS.includes(naam);
 }
 
 // De zes onderwerpen. Titel, veldnaam en de vraag die eronder staat.
@@ -8495,6 +8734,7 @@ async function loadAllData() {
   // onverwachte DB-fout), blijft de rest van de data gewoon laden.
   // Als eerste: bepaalt wat er verderop überhaupt getekend moet worden.
   await laadPoging('onderdelen', laadOnderdelen);
+  await laadPoging('rechten', laadRechten);
   laadStap('Medewerkers en doelen…');
   await laadPoging('medewerkers en doelen', loadBeheerData);
   await laadPoging('aanmeldformulier', loadAanmeldSaved);
@@ -19776,9 +20016,10 @@ function kandSetSearch(v) {
 // ── HRM/Backoffice helpers ────────────────────────────────────────────────────
 // Bepaalt wie contractvelden en evaluatie-checkboxen mag bewerken in HRM-context
 function isHrmEditor() {
-  // Manager-rol heeft volledige HRM-toegang (contractvelden, evaluatie-checkboxen).
-  // BM's zien HRM read-only; het aanmeldformulier is voor iedereen bewerkbaar.
-  return isManagerLevel();
+  // Wie HRM mag bijwerken staat nu per persoon in de rechtenmatrix. Zonder rij
+  // valt dat terug op het rolsjabloon, en dat geeft hetzelfde als voorheen:
+  // manager-niveau wijzigt, de rest kijkt mee.
+  return magWijzigen('hrm');
 }
 // State voor HRM sub-tab
 let HRM_SUBTAB = 'evaluatie'; // 'evaluatie' | 'aanmeldformulier' | 'opgeslagen'
