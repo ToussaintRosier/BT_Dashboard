@@ -1488,21 +1488,10 @@
   .bum-vorige { background:#f5f7fa; border-radius:7px; padding:9px 11px; margin-bottom:10px; }
   .bum-vorige .kop { font-size:.7rem; color:var(--text-muted); margin-bottom:4px; }
   .bum-vorige .tekst { font-size:.8rem; color:#4b5563; line-height:1.6; white-space:pre-wrap; }
-  /* Het logboek staat rechtstreeks op de donkere pagina, niet op een lichte
-     kaart. Hier de kleuren van een lichte achtergrond gebruiken levert
-     donkerblauwe tekst op donkerblauw op — onleesbaar. Daarom vaste, lichte
-     kleuren in plaats van de variabelen. */
-  .bum-log-kop { font-size:.72rem; font-weight:var(--w-nadruk); color:rgba(255,255,255,.5);
-                 text-transform:uppercase; letter-spacing:.03em; margin-bottom:7px; }
-  .bum-log-bar { display:flex; align-items:center; justify-content:space-between;
-                 background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
-                 border-radius:7px; padding:8px 13px; margin-bottom:5px;
-                 cursor:pointer; font-size:.83rem; color:#fff; user-select:none; }
-  .bum-log-bar:hover { background:rgba(255,255,255,.13); border-color:rgba(255,255,255,.25); }
-  .bum-log-bar .chev { font-size:.75rem; color:rgba(255,255,255,.45); }
-  /* De inhoud eronder wél op een lichte kaart: daar staat leestekst in. */
-  .bum-log-inhoud { border:1px solid var(--border); border-top:0; border-radius:0 0 7px 7px;
-                    padding:12px 14px; margin:-5px 0 9px; background:var(--card); }
+  /* Het logboek gebruikt de balken van het plan van aanpak (.pva-log-bar en
+     .pva-log-content). Een eigen variant leverde eerder donkerblauwe tekst op
+     een donkerblauwe pagina op — en dat gebeurt niet meer als beide schermen
+     dezelfde opmaak delen. */
 
   /* Collega toevoegen: alleen een teken, geen omhulsel. Het valt weg tegen de
      rij tot je het nodig hebt; het vlak eromheen blijft groot genoeg om op te
@@ -1842,7 +1831,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1204 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1215 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4464,7 +4453,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1204';
+const APP_VERSIE = '20260812-1215';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6829,19 +6818,15 @@ function _pvaGetal(k, v) {
 // Blok 1: wat stond er, wat werd het, en valt er een patroon op. De eigen
 // verwachting van vorige week komt erbij als die is ingevuld — dan gaat het
 // gesprek over wat jij dacht, niet alleen over de norm.
-function _pvaTerugblikHtml(bm, jaar, week, vorigePlan) {
-  const cijfers  = _pvaWeekCijfers(bm, jaar, week);
-  const verwacht = (vorigePlan && vorigePlan.verwachting_kpi) || {};
+function _pvaTerugblikHtml(bm, jaar, week) {
+  const cijfers = _pvaWeekCijfers(bm, jaar, week);
   const rijen = KPIS.filter(k => cijfers[k].norm > 0 || cijfers[k].realisatie > 0).map(k => {
     const c = cijfers[k];
     const gehaald = c.realisatie >= c.norm;
-    const eigen = verwacht[k];
     return `<tr>
       <td style="padding:2px 8px 2px 0;font-size:.8rem;color:var(--text);">${PVA_KPI_LABELS[k]}</td>
       <td style="padding:2px 0;font-size:.8rem;text-align:right;font-variant-numeric:tabular-nums;color:${gehaald ? '#15803d' : '#b45309'};font-weight:var(--w-nadruk);">${_pvaGetal(k, c.realisatie)}</td>
       <td style="padding:2px 0 2px 8px;font-size:.78rem;text-align:right;color:var(--text-muted);font-variant-numeric:tabular-nums;">van ${fmtNl(c.norm)}</td>
-      <td style="padding:2px 0 2px 14px;font-size:.75rem;color:var(--text-muted);">${
-        eigen != null && eigen !== '' ? `jij verwachtte ${escHtml(String(eigen))}` : ''}</td>
     </tr>`;
   }).join('');
 
@@ -6884,23 +6869,40 @@ function _pvaVerloopHtml(bm, jaar, week) {
   </div>`;
 }
 
-// Blok 4: de verwachte aantallen. Bewust optioneel — wie niets invult, houdt de
-// norm als vergelijking. Verplicht maken betekent dat mensen een getal gokken,
-// en dan vergelijk je volgende week met een gok.
-function _pvaVerwachtingHtml(bm, safeId, d, frozen) {
-  const verw = d.verwachting_kpi || {};
-  const norm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS,
-                             'week', activeNormFix(bm), bm.doelStartFraction);
-  const vakjes = KPIS.filter(k => (norm[k] || 0) > 0).map(k => `
-    <label>${PVA_KPI_LABELS[k]}
-      <input type="number" step="0.5" min="0" id="pva-verw-${k}-${safeId}"
-        value="${verw[k] != null ? escHtml(String(verw[k])) : ''}"
-        placeholder="${fmtNl(Math.round((norm[k]||0)*10)/10)}"
-        ${frozen ? 'disabled' : `oninput="pvaScheduleAutosave('${escApos(bm.naam)}')"`}>
-    </label>`).join('');
-  if (!vakjes) return '';
-  return `<div class="pva-verwacht">${vakjes}
-    <span>Optioneel — het grijze getal is de norm.</span></div>`;
+
+// ════════════════════════════════════════════════════════════════════════════
+// GEDEELDE OPMAAK VAN DE WEEKSCHERMEN
+//
+// Plan van aanpak en BUM-gesprek werken hetzelfde: invullen voor een week,
+// opslaan, daarna op slot met een knop Wijzigen, en een logboek met eerdere
+// weken. Ze zagen er alleen niet hetzelfde uit. Deze drie functies zorgen dat
+// de kop, de knoppenrij en het logboek van allebei uit dezelfde plek komen.
+// ════════════════════════════════════════════════════════════════════════════
+const WERK_BREEDTE = 900;   // maximale breedte van beide schermen
+
+// Het kopje boven de kaart. Klein, in hoofdletters, met de week erin.
+function werkKopHtml(titel, week, jaar) {
+  return `<div class="plan-col-label">${titel} — week ${week} · ${jaar}</div>`;
+}
+
+// De knoppenrij onderaan: opslaan of wijzigen, printen, en de melding dat de
+// week bevroren is. Altijd onderaan, nooit bovenaan: je klikt hem pas als je
+// klaar bent met lezen en invullen.
+function werkKnoppenHtml(actieBtn, printBtn, statusHtml, statusId) {
+  return `<div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;
+                      border-top:1px solid var(--border);padding-top:14px;">
+    ${actieBtn}${printBtn}${statusHtml}
+    <span id="${statusId}" style="font-size:.78rem;color:var(--muted);"></span>
+  </div>`;
+}
+
+// Het logboek in het lichtblauwe paneel. Ook dit bewust gedeeld: het BUM-gesprek
+// had een eigen donkere variant, en die werd op de donkere pagina onleesbaar.
+function werkLogboekHtml(titel, regelsHtml, leegTekst) {
+  return `<div class="plan-col afgesproken" style="margin-top:20px;">
+    <div class="plan-col-label">${titel}</div>
+    ${regelsHtml || `<div style="font-size:.82rem;color:var(--muted);">${leegTekst}</div>`}
+  </div>`;
 }
 
 function planField(id, title, value, opts) {
@@ -7055,16 +7057,14 @@ function renderBumGesprek(bm) {
       ? `<button onclick="saveBumGesprek('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Opslaan</button>`
       : `<button onclick="unlockBumGesprek('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Wijzigen</button>`;
 
-  return `<div style="max-width:900px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <div style="font-weight:var(--w-nadruk);font-size:.9rem;color:#fff;">Week ${week} · ${jaar}</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span id="bum-status-${safeId}" style="font-size:.78rem;color:rgba(255,255,255,.5);"></span>
-        ${knop}
-      </div>
-    </div>
+  const printBtn = `<button onclick="printBumGesprek('${escApos(bm.naam)}',${jaar},${week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Printen</button>`;
+  const statusHtml = vast
+    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">Bevroren &amp; opgeslagen voor deze week</span>`
+    : '';
 
-    <div class="chart-card" style="padding:16px 18px;">
+  return `<div style="max-width:${WERK_BREEDTE}px;">
+    ${werkKopHtml('BUM-gesprek', week, jaar)}
+    <div class="plan-col nieuw">
       ${vakken}
       <div style="border-top:1px solid var(--border);padding-top:14px;">
         <div class="bum-titel">Gezamenlijke acties &amp; voortgang</div>
@@ -7074,39 +7074,66 @@ function renderBumGesprek(bm) {
         ${_bumVeldHtml(bm, { veld:'nieuwe_acties', titel:'Nieuwe acties — wie, wat, wanneer', vraag:'' }, d.nieuwe_acties, vast || !magSchrijven)}
         <textarea id="bum-vorige_acties-${safeId}" data-bum-bm="${escHtml(bm.naam)}" style="display:none;">${escHtml(vorigeActies)}</textarea>
       </div>
+      ${werkKnoppenHtml(knop, printBtn, statusHtml, `bum-status-${safeId}`)}
     </div>
-
     ${renderBumLogboek(bm)}
   </div>`;
 }
 
 function renderBumLogboek(bm) {
   const alle = bumGesprekken(bm.naam).filter(r => !(r.jaar === CUR.year && r.week === CUR.week));
-  if (!alle.length) {
-    return `<div style="margin-top:20px;font-size:.8rem;color:rgba(255,255,255,.45);">Nog geen eerdere gesprekken vastgelegd.</div>`;
-  }
   const regels = alle.map(r => {
     const sleutel = `${bm.naam}|${r.jaar}|${r.week}`;
     const open = BUM_LOG_OPEN.has(sleutel);
-    const bar = `<div class="bum-log-bar" onclick="toggleBumLog('${escApos(bm.naam)}',${r.jaar},${r.week})">
+    const bar = `<div class="pva-log-bar" onclick="toggleBumLog('${escApos(bm.naam)}',${r.jaar},${r.week})">
       <span>Week ${r.week} · ${r.jaar}</span>
       <span class="chev">${open ? '▲ Sluiten' : '▼ Openen'}</span>
     </div>`;
     if (!open) return bar;
-    const blok = (titel, tekst) => `<div class="bum-vak">
-      <div class="bum-titel">${escHtml(titel)}</div>
-      <div style="font-size:.83rem;line-height:1.65;white-space:pre-wrap;color:var(--text);">${escHtml(tekst || '—')}</div>
-    </div>`;
-    return bar + `<div class="bum-log-inhoud">
+    const blok = (titel, tekst) => (tekst && String(tekst).trim())
+      ? `<div class="plan-field"><div class="plan-field-title">${titel}</div><textarea rows="2" data-pva-ta="1" disabled>${escHtml(tekst)}</textarea></div>`
+      : '';
+    return bar + `<div class="pva-log-content">
       ${BUM_ONDERWERPEN.map(o => blok(o.titel, r[o.veld])).join('')}
       ${blok('Wat is gerealiseerd', r.gerealiseerd)}
       ${blok('Afgesproken acties', r.nieuwe_acties)}
+      <div style="margin-top:8px">
+        <button onclick="printBumGesprek('${escApos(bm.naam)}',${r.jaar},${r.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">Printen</button>
+      </div>
     </div>`;
   }).join('');
-  return `<div style="margin-top:22px;">
-    <div class="bum-log-kop">Eerdere gesprekken (${alle.length})</div>
-    ${regels}
-  </div>`;
+  return werkLogboekHtml(`Eerdere gesprekken (${alle.length})`, regels,
+                         'Nog geen eerdere gesprekken vastgelegd.');
+}
+
+// Eén gesprek als losstaande pagina om af te drukken. Bewust opgebouwd uit de
+// opgeslagen gegevens en niet uit het scherm: wat er op papier komt hoort niet
+// af te hangen van wat er toevallig openstaat.
+function printBumGesprek(bmNaam, jaar, week) {
+  const r = getBumRij(bmNaam, jaar, week);
+  if (!r) { alert('Voor deze week is geen BUM-gesprek opgeslagen.'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen.'); return; }
+  const veld = (titel, tekst) => (tekst && String(tekst).trim())
+    ? `<div class="veld"><h2>${titel}</h2><p>${escHtml(tekst).replace(/\n/g, '<br>')}</p></div>` : '';
+  win.document.write(`<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
+  <title>BUM-gesprek – ${escHtml(bmNaam)} – week ${week}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:32px;max-width:860px;margin:0 auto;}
+    h1{font-size:1.3rem;margin:0 0 2px;}
+    .meta{color:#5b6478;font-size:.85rem;margin-bottom:20px;}
+    h2{font-size:.92rem;margin:18px 0 6px;border-bottom:2px solid #dde1e8;padding-bottom:4px;}
+    p{margin:0;line-height:1.65;font-size:.88rem;white-space:pre-wrap;}
+  </style></head><body>
+  <h1>BUM-gesprek — ${escHtml(bmNaam)}</h1>
+  <div class="meta">Week ${week} · ${jaar}</div>
+  ${BUM_ONDERWERPEN.map(o => veld(o.titel, r[o.veld])).join('')}
+  ${veld('Wat is gerealiseerd', r.gerealiseerd)}
+  ${veld('Afgesproken acties', r.nieuwe_acties)}
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
 }
 
 function buildBumPayload(bmNaam) {
@@ -7232,17 +7259,15 @@ function renderPlanVanAanpak(bm) {
   // Linkerkolom: logboek met de laatste weken — elke week is een inklapbare balk,
   // zodat oudere afspraken niet meer altijd standaard zichtbaar zijn maar wel
   // makkelijk terug op te zoeken zijn (incl. printknop per week).
-  const leftCol = `<div class="plan-col afgesproken">${renderPvaLogboek(bm, safeId)}</div>`;
+  const leftCol = renderPvaLogboek(bm, safeId);
 
   // Rechterkolom: deze week — terugblik + nieuwe afspraken (bewerkbaar, opslaan/wijzigen)
   const rightCol = `<div class="plan-col nieuw">
-    <div class="plan-col-label">Nieuwe afspraken — week ${NEXT.week} · ${NEXT.year}</div>
-
     ${!frozen ? _renderPvaRec(bm.naam, safeId) : ''}
 
     <div class="pva-blok" style="margin-top:0;">1&nbsp; Review vorige week</div>
     <div class="pva-blok-sub">De cijfers komen uit het dashboard; jij vult in wat erachter zat.</div>
-    ${_pvaTerugblikHtml(bm, CUR.year, CUR.week, prevRow)}
+    ${_pvaTerugblikHtml(bm, CUR.year, CUR.week)}
     <div class="plan-duo">
       ${planField(`pva-gewerkt-${safeId}`, 'Wat heeft gewerkt?', d.gewerkt, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'gewerkt'})}
       ${planField(`pva-geremd-${safeId}`, 'Wat heeft het resultaat geremd?', d.geremd, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'geremd'})}
@@ -7260,7 +7285,6 @@ function renderPlanVanAanpak(bm) {
     <div class="pva-blok">4&nbsp; Weekdoel &amp; resultaat</div>
     <div class="pva-blok-sub">De uitkomst: wat moet er eind de week staan?</div>
     ${planField(`pva-nieuw_weekdoel-${safeId}`, 'Wat wil je eind deze week concreet bereikt hebben? Wanneer is de week voor jou geslaagd?', d.nieuw_weekdoel, {disabled:frozen, rows:3, bmNaam:bm.naam, field:'nieuw_weekdoel'})}
-    ${_pvaVerwachtingHtml(bm, safeId, d, frozen)}
 
     <div class="pva-blok">5&nbsp; Acties</div>
     <div class="pva-blok-sub">De stappen ernaartoe.</div>
@@ -7281,14 +7305,14 @@ function renderPlanVanAanpak(bm) {
       <div id="pva-mgrnote-status-${safeId}"></div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
-      ${actionBtn}
-      ${printBtn}
-      <span id="pva-status-${safeId}">${statusText}</span>
-    </div>
+    ${werkKnoppenHtml(actionBtn, printBtn, statusText, `pva-status-${safeId}`)}
   </div>`;
 
-  return `<div class="plan-grid" style="grid-template-columns:1fr;">${rightCol}${leftCol}</div>`;
+  return `<div style="max-width:${WERK_BREEDTE}px;">
+    ${werkKopHtml('Nieuwe afspraken', NEXT.week, NEXT.year)}
+    ${rightCol}
+    ${leftCol}
+  </div>`;
 }
 
 // Logboek: toont de laatste PVA_LOG_WEEKS weken als inklapbare balken, ieder met
@@ -7337,7 +7361,9 @@ function renderPvaLogboek(bm, safeId) {
     }
     return bar + content;
   }).join('');
-  return `<div class="plan-col-label">Wat hebben we afgesproken — logboek (laatste ${PVA_LOG_WEEKS} weken)</div>${rows}`;
+  return werkLogboekHtml(
+    `Wat hebben we afgesproken — logboek (laatste ${PVA_LOG_WEEKS} weken)`,
+    rows, 'Nog geen eerdere weken vastgelegd.');
 }
 
 // Print het Plan van aanpak van een specifieke week (standaard de actuele week,
@@ -7432,14 +7458,6 @@ function unlockPlanVanAanpak(bmNaam) {
 function buildPvaPayload(bmNaam) {
   const safeId = bmNaam.replace(/\s+/g,'_');
   const val = (id) => document.getElementById(id)?.value?.trim() || '';
-  // De verwachte aantallen per KPI. Alleen wat werkelijk is ingevuld: een leeg
-  // vakje is geen nul maar "geen verwachting opgegeven", en dat verschil telt bij
-  // de terugblik van volgende week.
-  const verwachtingKpi = {};
-  for (const k of KPIS) {
-    const v = val(`pva-verw-${k}-${safeId}`);
-    if (v !== '') verwachtingKpi[k] = parseFloat(String(v).replace(',', '.'));
-  }
   const payload = {
     bm_naam: bmNaam, jaar: NEXT.year, week: NEXT.week,
     gewerkt:         val(`pva-gewerkt-${safeId}`),
@@ -7447,7 +7465,6 @@ function buildPvaPayload(bmNaam) {
     stand_van_zaken: val(`pva-stand_van_zaken-${safeId}`),
     vacature_focus:  val(`pva-vacature_focus-${safeId}`),
     nieuw_weekdoel:  val(`pva-nieuw_weekdoel-${safeId}`),
-    verwachting_kpi: Object.keys(verwachtingKpi).length ? verwachtingKpi : null,
     acties:          val(`pva-acties-${safeId}`),
     ontwikkeling:    val(`pva-ontwikkeling-${safeId}`),
     belemmering:     val(`pva-belemmering-${safeId}`),
