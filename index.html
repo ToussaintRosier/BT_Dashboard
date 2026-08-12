@@ -1533,6 +1533,13 @@
   .rr th .herstel:hover { color:var(--primary); }
   .rr tr.afwijking td { background:#fef2f2; }
 
+  /* Leesmodus: de balk bovenaan en het uiterlijk van wat op slot staat. */
+  .lees-balk { display:flex; align-items:center; gap:8px; margin:0 0 14px;
+               background:#eff6ff; border:1px solid #bfdbfe; border-radius:var(--radius);
+               padding:9px 13px; font-size:.8rem; color:#1e40af; line-height:1.5; }
+  .lees-uit { opacity:.45 !important; cursor:not-allowed !important;
+              pointer-events:none !important; }
+
   /* Onderdelen aan- en uitzetten: één regel per onderdeel, schakelaar rechts. */
   .ond-groep { font-size:.7rem; font-weight:var(--w-nadruk); letter-spacing:.06em;
                text-transform:uppercase; color:var(--text-muted); margin:20px 0 6px; }
@@ -1866,7 +1873,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1327 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1438 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -3701,6 +3708,7 @@ function _onePollHtml(p) {
 // Aanvinken en weer uitvinken. Meteen zichtbaar in het scherm, daarna pas naar
 // de server — anders voelt elke klik traag.
 async function onePollStem(postId, optieId) {
+  if (!eisWijzig('one')) return;
   if (!supa || !ONE_MIJN_ID) return;
   const bestaand = ONE_POLL_STEMMEN.find(st =>
     String(st.optie_id) === String(optieId) && st.user_id === ONE_MIJN_ID);
@@ -3798,6 +3806,7 @@ function _oneTakenHtml(p) {
 }
 
 async function oneTaakVink(postId, taakId) {
+  if (!eisWijzig('one')) return;
   if (!supa || !ONE_MIJN_ID) return;
   const bestaand = ONE_TAAK_VINKJES.find(v =>
     String(v.taak_id) === String(taakId) && v.user_id === ONE_MIJN_ID);
@@ -4235,6 +4244,7 @@ function _oneFotoFout(fout) {
 }
 
 async function onePlaats() {
+  if (!eisWijzig('one')) return;
   const status = document.getElementById('one-schrijf-status');
   if (!supa || !CURRENT_USER) { btZetStatus(status, '❌ Je bent niet ingelogd.'); return; }
   const onderwerp = (document.getElementById('one-onderwerp').value || '').trim();
@@ -4331,6 +4341,7 @@ async function onePlaats() {
 // het andersom zijn, dan voelt elke klik traag. Mislukt het, dan halen we de
 // echte stand terug op.
 async function oneDuim(doel, id, richting) {
+  if (!eisWijzig('one')) return;
   if (!supa || !ONE_MIJN_ID) return;
   const hoortBij = (k) => doel === 'post'
     ? (String(k.post_id) === String(id) && !k.reactie_id)
@@ -4399,6 +4410,7 @@ function oneTagInReactie(keuze, sleutel) {
 }
 
 async function oneVerstuurReactie(sleutel) {
+  if (!eisWijzig('one')) return;
   const status = document.getElementById('one-status-' + sleutel);
   const veld = document.querySelector('.one-reactie-invoer[data-sleutel="' + sleutel + '"]');
   const tekst = veld ? veld.value.trim() : '';
@@ -4447,6 +4459,7 @@ function _oneTagsUitTekst(tekst, ik) {
 // Weghalen is geen echte verwijdering: de rij blijft staan met een datum erbij.
 // Zo blijft navraag achteraf mogelijk zonder dat het bericht nog in beeld komt.
 async function oneVerwijderPost(id) {
+  if (!eisWijzig('one')) return;
   if (!confirm('Dit bericht weghalen uit de feed? De reacties eronder verdwijnen mee.')) return;
   try {
     const { error } = await supa.from('one_posts')
@@ -4457,6 +4470,7 @@ async function oneVerwijderPost(id) {
 }
 
 async function oneVerwijderReactie(id) {
+  if (!eisWijzig('one')) return;
   if (!confirm('Deze reactie weghalen?')) return;
   try {
     const { error } = await supa.from('one_reacties')
@@ -4467,6 +4481,7 @@ async function oneVerwijderReactie(id) {
 }
 
 async function oneVastzetten(id, aan) {
+  if (!eisWijzig('one')) return;
   try {
     const { error } = await supa.from('one_posts').update({ vastgezet: !!aan }).eq('id', id);
     if (error) throw error;
@@ -4488,7 +4503,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1327';
+const APP_VERSIE = '20260812-1438';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -4726,14 +4741,98 @@ function rechtSjabloon(g) {
 // een onderdeel dat in het algemeen uit staat kan niemand terugkrijgen.
 function rechtVoor(gebruiker, sleutel) {
   if (!gebruiker) return 'geen';
-  if (ONDERDELEN_VAST.includes(sleutel)) return 'wijzig';   // Beheer regelt zichzelf
-  if (!onderdeelAan(sleutel)) return 'geen';
+  // Volgorde is hier de hele logica.
+  //
+  // Eerst de algemene schakelaar. Een onderdeel dat bij Onderdelen uit staat is
+  // uit voor iedereen — ook voor de beheerder. Die schakelaar gaat over het
+  // dashboard, niet over personen; zou hij er zelf een uitzondering op zijn, dan
+  // ziet hij nooit wat hij de rest heeft aangedaan. Beheer staat niet in die
+  // lijst, dus hij kan altijd terug om het weer aan te zetten.
+  if (!ONDERDELEN_VAST.includes(sleutel) && !onderdeelAan(sleutel)) return 'geen';
+  // Dan de persoon. De beheerder heeft alles wat aan staat, altijd, en dat is
+  // niet af te vinken.
+  if (gebruiker.naam === BEHEERDER_NAAM) return 'wijzig';
+  // Beheer zelf hangt aan die ene naam en is voor niemand anders te krijgen.
+  if (ONDERDELEN_VAST.includes(sleutel)) return 'geen';
   const rij = RECHTEN_RIJEN.find(r => r.naam === gebruiker.naam && r.sleutel === sleutel);
   if (rij) return rij.stand;
   return rechtSjabloon(gebruiker)[sleutel] || 'geen';
 }
 
 function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen'; }
+
+// Het slot op elke schrijfactie.
+//
+// Het menu verbergen is niet genoeg: knoppen zitten ook in overzichten, in
+// vensters en achter sneltoetsen, en een pagina die je ooit open had staan
+// blijft werken tot je ververst. Daarom staat de controle bij de bron — vlak
+// voordat er naar de database wordt geschreven.
+//
+// stil = true voor tekst die tijdens het typen automatisch bewaard wordt. Daar
+// zou een melding elke paar seconden opnieuw in beeld springen.
+// Alles wat een gebruiker kan aanklikken en wat daarna iets verandert. Wordt
+// gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
+const SCHRIJFACTIES = ['onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pvaRecFill', 'pipeSetGoedkeuring', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
+
+// Welk onderdeel hoort bij het scherm waar je nu naar kijkt.
+function _huidigOnderdeel() {
+  if (typeof currentTab === 'number') return 'medewerkers';
+  return typeof currentTab === 'string' ? currentTab : null;
+}
+
+// Mag ik op dit scherm iets wijzigen? Voor een medewerkerkaart is dat niet de
+// pagina maar de persoon: je eigen kaart mag je bijwerken, die van een ander
+// alleen als je het recht op alle kaarten hebt.
+function _magHierWijzigen() {
+  if (typeof currentTab === 'number') {
+    const bm = BMS[currentTab];
+    return bm ? canEdit(bm.naam) : false;
+  }
+  const sleutel = _huidigOnderdeel();
+  if (!sleutel || sleutel === 'beheer') return true;   // Beheer bewaakt zichzelf
+  return magWijzigen(sleutel);
+}
+
+let _LEESMODUS_RE = null;
+function _leesmodusToepassen() {
+  const main = document.getElementById('main');
+  if (!main || _magHierWijzigen()) return;
+
+  if (!_LEESMODUS_RE) _LEESMODUS_RE = new RegExp('\\b(' + SCHRIJFACTIES.join('|') + ')\\s*\\(');
+
+  // De balk bovenaan. Zonder uitleg lijkt een grijze knop een storing.
+  if (!main.querySelector('.lees-balk')) {
+    const balk = document.createElement('div');
+    balk.className = 'lees-balk';
+    balk.innerHTML = 'Je kunt hier alleen kijken. Wijzigen staat voor jou uit — '
+      + 'vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het aan te zetten.';
+    main.insertBefore(balk, main.firstChild);
+  }
+
+  for (const el of main.querySelectorAll('button, input, select, textarea, [onclick]')) {
+    const handlers = (el.getAttribute('onclick') || '') + ';' + (el.getAttribute('onchange') || '')
+                   + ';' + (el.getAttribute('oninput') || '') + ';' + (el.getAttribute('onblur') || '');
+    // Velden die tijdens het typen zichzelf bewaren hangen aan een luisteraar in
+    // plaats van aan een handler in de opmaak; die herken je aan hun data-veld.
+    const autoBewaard = el.hasAttribute('data-pva-ta') || el.hasAttribute('data-pva-veld')
+                     || el.hasAttribute('data-bum-bm') || el.hasAttribute('data-bum-veld');
+    if (!_LEESMODUS_RE.test(handlers) && !autoBewaard) continue;
+    if ('disabled' in el) el.disabled = true;
+    if ('readOnly' in el) el.readOnly = true;
+    el.classList.add('lees-uit');
+    if (!el.title) el.title = 'Je kunt hier alleen kijken.';
+  }
+}
+
+function eisWijzig(sleutel, stil) {
+  if (magWijzigen(sleutel)) return true;
+  if (!stil) {
+    const naam = (ONDERDELEN.find(o => o.sleutel === sleutel) || {}).label || 'dit onderdeel';
+    alert('Je kunt hier alleen kijken.\n\n' + naam + ' staat voor jou op alleen-lezen. ' +
+          'Vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het op wijzigen te zetten.');
+  }
+  return false;
+}
 function magWijzigen(sleutel){ return rechtVoor(CURRENT_USER, sleutel) === 'wijzig'; }
 
 async function laadRechten() {
@@ -4993,8 +5092,13 @@ function goMedewerkersOverzicht() {
   renderTabs();
   render();
 }
+// Eén naam, met opzet in de code en niet in de matrix. Deze persoon moet er
+// altijd bij kunnen, ook als er iets misgaat met de rechtentabel of als iemand
+// zich per ongeluk buitensluit. Er is altijd één weg terug nodig.
+const BEHEERDER_NAAM = 'Toussaint Rosier';
+
 function isBeheerder() {
-  return !!CURRENT_USER && CURRENT_USER.naam === 'Toussaint Rosier';
+  return !!CURRENT_USER && CURRENT_USER.naam === BEHEERDER_NAAM;
 }
 // Collega's die volledige rechten hebben zonder dat hun rol dat zegt. Yoël
 // staat als 'kam' in de profielen en Annyck valt buiten de BM-funnel, maar
@@ -5140,6 +5244,7 @@ let MEMO_FORM_OPEN = false;
 function memoToggleForm() { MEMO_FORM_OPEN = !MEMO_FORM_OPEN; renderBeheer(); }
 
 async function memoVerstuur() {
+  if (!eisWijzig('beheer')) return;
   const titelEl = document.getElementById('memo-titel');
   const tekstEl = document.getElementById('memo-tekst');
   const msg     = document.getElementById('memo-msg');
@@ -5171,6 +5276,7 @@ async function memoVerstuur() {
 }
 
 async function memoIntrekken(id) {
+  if (!eisWijzig('beheer')) return;
   if (!confirm('Deze mededeling intrekken? Collega’s die hem nog niet gezien hebben, krijgen hem niet meer.')) return;
   try {
     const { error } = await supa.from('memos').update({ actief: false }).eq('id', id);
@@ -5334,6 +5440,11 @@ function renderBeheerRechten() {
     if (uitgezet) {
       return `<td class="cel vast" title="Dit onderdeel staat bij Onderdelen in het algemeen uit.">–</td>`;
     }
+    // De beheerder houdt alles. Klikbaar maken zou rijen opleveren die toch
+    // genegeerd worden — en de indruk wekken dat je het kunt afnemen.
+    if (c.gebruiker.naam === BEHEERDER_NAAM) {
+      return `<td class="cel vast" title="${escHtml(c.naam)} houdt altijd alles; dat is niet af te vinken."><span class="ja">✓</span></td>`;
+    }
     return `<td class="cel klik" title="${escHtml(c.naam)} · ${escHtml(r.label)}: ${_RR_WOORD[stand]}${eigen ? '' : ' (uit de rol)'}"
       onclick="zetRecht('${escApos(c.gebruiker.naam)}','${r.sleutel}','${volgende}')"
       ><span class="${_RR_KLASSE[stand]}">${_RR_TEKEN[stand]}</span>${eigen ? '' : '<span style="opacity:.35;">·</span>'}</td>`;
@@ -5411,6 +5522,11 @@ function renderBeheerRechten() {
         <strong>Onderdelen</strong> in het algemeen uit staat, is hier grijs: dat
         kun je niet voor één persoon terugzetten.
         <br><br>
+        <strong>${escHtml(BEHEERDER_NAAM)}</strong> houdt altijd alles — die kolom
+        staat vast, zodat er altijd iemand is die het terug kan draaien.
+        <br><br>
+        <strong>Alleen zien</strong> betekent werkelijk alleen zien: opslaan,
+        toevoegen en verwijderen zijn dan geblokkeerd, en de knoppen staan grijs.
         Dit bepaalt wat er op het scherm staat, niet wat er in de database te
         halen valt. Wie Financieel echt niet mag inzien, heeft ook een slot op de
         omzettabellen nodig.
@@ -6033,6 +6149,7 @@ function beheerAnnuleerEdit() {
 }
 
 async function beheerSaveProfiel(profielId) {
+  if (!eisWijzig('beheer')) return;
   const msg = document.getElementById('beh-edit-msg');
   if (msg) btZetStatus(msg, '⏳ Opslaan…');
   try {
@@ -7038,7 +7155,15 @@ function _startMobielTabelWaarnemer() {
 }
 window.addEventListener('resize', () => { clearTimeout(_mobLabelTimer); _mobLabelTimer = setTimeout(mobielTabelLabels, 150); });
 
+// Om render() heen: na élke hertekening kijken of dit scherm op alleen-lezen
+// staat. Binnen render() zou dat niet werken — die functie springt er per pagina
+// vroeg uit, op tientallen plekken.
 function render() {
+  _renderKern();
+  try { _leesmodusToepassen(); } catch (e) { console.error('Leesmodus mislukt:', e); }
+}
+
+function _renderKern() {
   refreshWeekConstants();
   vulKopGebruiker();
   snapshotPvaInputs();
@@ -7215,6 +7340,7 @@ function unlockWeeklyEntry(bmNaam, week, year) {
 
 // Sla pipeline-aantallen direct op vanuit het pipeline-bord (geen invoervelden nodig).
 async function saveWeeklyEntryDirect(bmNaam, week, year) {
+  if (!eisWijzig('medewerkers')) return;
   if (!supa || !CURRENT_USER) return;
   const pipeCounts = getPipeCountsForWeek(bmNaam, week, year);
   const payload = { bm_naam: bmNaam, jaar: year, week: week, ...pipeCounts, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
@@ -7227,6 +7353,7 @@ async function saveWeeklyEntryDirect(bmNaam, week, year) {
 }
 
 async function saveWeeklyEntry(bmNaam, week, year) {
+  if (!eisWijzig('medewerkers')) return;
   if (!supa || !CURRENT_USER) return;
   const safeId   = bmNaam.replace(/\s+/g,'_') + '_' + year + '_' + week;
   const statusEl = document.getElementById(`inv-status-${safeId}`);
@@ -7671,6 +7798,7 @@ function buildBumPayload(bmNaam) {
 // laatste is belangrijk: een herrender midden in een zin verplaatst je cursor
 // en dan raak je vertrouwen in het veld kwijt.
 async function bumAutosave(bmNaam) {
+  if (!eisWijzig('bum', true)) return;
   if (!supa || !CURRENT_USER) return;
   const lockKey = `bum|${bmNaam}|${CUR.year}|${CUR.week}`;
   const already = !!getBumRij(bmNaam, CUR.year, CUR.week);
@@ -7697,6 +7825,7 @@ function bumPlanAutosave(bmNaam) {
 }
 
 async function saveBumGesprek(bmNaam) {
+  if (!eisWijzig('bum')) return;
   if (!supa || !CURRENT_USER) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`bum-status-${safeId}`);
@@ -7999,6 +8128,7 @@ function buildPvaPayload(bmNaam) {
 // week te vergrendelen en zonder render() aan te roepen — zo blijft de cursor/focus
 // behouden en kan getypte tekst nooit meer "verdwijnen" door een tussentijdse herrender.
 async function pvaAutosave(bmNaam) {
+  if (!eisWijzig('medewerkers', true)) return;
   if (!supa || !CURRENT_USER) return;
   const safeId    = bmNaam.replace(/\s+/g,'_');
   const lockKey   = `plan|${bmNaam}|${NEXT.year}|${NEXT.week}`;
@@ -8022,6 +8152,7 @@ function pvaScheduleAutosave(bmNaam) {
 // de notitie + sleutelvelden weg, zodat de eigen ingevoerde gegevens van de
 // medewerker nooit per ongeluk overschreven worden.
 async function pvaAutosaveManagerNotitie(bmNaam) {
+  if (!eisWijzig('medewerkers_allen', true)) return;
   if (!supa || !CURRENT_USER || !isManagerLevel()) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
@@ -8055,6 +8186,7 @@ function pvaScheduleAutosaveManagerNotitie(bmNaam) {
 // medewerker: opslaan vergrendelt het veld voor deze week, wijzigen ontgrendelt
 // het weer — alleen bruikbaar door de manager.
 async function saveManagerNotitie(bmNaam) {
+  if (!eisWijzig('medewerkers_allen')) return;
   if (!supa || !CURRENT_USER || !isManagerLevel()) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
@@ -8085,6 +8217,7 @@ function unlockManagerNotitie(bmNaam) {
 }
 
 async function savePlanVanAanpak(bmNaam) {
+  if (!eisWijzig('medewerkers')) return;
   if (!supa || !CURRENT_USER) return;
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-status-${safeId}`);
@@ -8311,6 +8444,7 @@ async function loadEcDocumenten() {
 }
 
 async function ecDocumentenUpload(file) {
+  if (!magWijzigen('hrm')) return { ok:false, msg:'Je kunt hier alleen kijken.' };
   if (!supa) return { ok: false, msg: 'Geen verbinding' };
   if (file.size > 15 * 1024 * 1024) return { ok: false, msg: 'Bestand is groter dan 15 MB' };
   return new Promise(resolve => {
@@ -8349,6 +8483,7 @@ async function ecDocumentenOpen(id) {
 }
 
 async function ecDocumentenVerwijder(id, naam) {
+  if (!eisWijzig('hrm')) return;
   if (!confirm(`Wil je "${naam}" definitief verwijderen?`)) return;
   if (!supa) return;
   const { error } = await supa.from('ec_documenten').delete().eq('id', id);
@@ -8454,6 +8589,7 @@ function renderDocumentatieEC() {
 }
 
 async function comrapSlaOp(week, jaar, kpiSnapshot, analyseTekst) {
+  if (!eisWijzig('comrap')) return;
   if (!supa) return { ok: false, msg: 'Geen verbinding' };
   const { error } = await supa.from('comrap_analyses').insert({
     week, jaar,
@@ -10199,6 +10335,7 @@ function _afsprQrDownload() {
 }
 
 async function afsprakenPubliceer() {
+  if (!eisWijzig('gesprek')) return;
   const modal = document.getElementById('afspraken-modal');
   if (!modal || !supa) return;
   const id  = modal.dataset.recId;
@@ -10266,6 +10403,7 @@ async function afsprakenPubliceer() {
 }
 
 async function afsprakenIntrekken() {
+  if (!eisWijzig('gesprek')) return;
   const modal = document.getElementById('afspraken-modal');
   if (!modal || !supa) return;
   if (!confirm('Link intrekken?\n\nDe kandidaat kan de afspraken daarna niet meer openen. Je kunt later opnieuw publiceren.')) return;
@@ -10953,6 +11091,7 @@ function projCollegaLoad(src, id) {
   try { return JSON.parse(localStorage.getItem(projCollegaKey(src,id))||'[]'); } catch(_){ return []; }
 }
 function projCollegaSave(src, id, arr) {
+  if (!eisWijzig('projecten')) return;
   // localStorage als directe fallback (ook offline beschikbaar)
   _veiligLokaalOpslaan(projCollegaKey(src,id), arr, 'collega-initialen project');
   if (!supa) return;
@@ -11050,6 +11189,7 @@ function projDefEindLoad(src, id) {
   return localStorage.getItem(projDefEindKey(src, id)) || '';
 }
 function projDefEindSave(src, id, val) {
+  if (!eisWijzig('projecten')) return;
   // localStorage als directe fallback
   try { val ? localStorage.setItem(projDefEindKey(src,id), val) : localStorage.removeItem(projDefEindKey(src,id)); } catch(_) {}
   if (!supa) return;
@@ -11080,6 +11220,7 @@ function projPrognoseLoad(src, id) {
   try { return localStorage.getItem(`bt_proj_prog_${src}_${id}`) || ''; } catch(_) { return ''; }
 }
 function projPrognoseSave(src, id, val) {
+  if (!eisWijzig('projecten')) return;
   try { val ? localStorage.setItem(`bt_proj_prog_${src}_${id}`, val) : localStorage.removeItem(`bt_proj_prog_${src}_${id}`); } catch(_) {}
   if (!supa || src !== 'excel') return;
   const isoVal = val || null;
@@ -11099,6 +11240,7 @@ function projEvalLoad(src, id) {
   try { return JSON.parse(localStorage.getItem(projEvalKey(src,id))||'[]'); } catch(_){ return []; }
 }
 function projEvalSave(src, id, arr) {
+  if (!eisWijzig('projecten')) return;
   // Update cache direct zodat UI meteen klopt
   const cacheKey = `${src}_${id}`;
   PROJ_EVAL_CACHE[cacheKey] = arr;
@@ -11522,6 +11664,7 @@ function getPrognoseStopperLijnPerWeek(year) {
 // • Uitgebreid (Salaris 2026 / Eindejaarsuitkering aanwezig): schrijft contractdata
 //   naar localStorage (gematcht op projectnr → project-UUID)
 async function importProjectenExcel(inputEl) {
+  if (!eisWijzig('projecten')) return;
   const statusEl = document.getElementById('projecten-import-status');
   const file = inputEl.files?.[0];
   if (!file) return;
@@ -11635,6 +11778,7 @@ async function importProjectenExcel(inputEl) {
 // ── Excel-import van de Begroting (sheet "Begroting omzetten": Jaar/Maand/Omzet/
 // Declarabiliteit en sheet "Projectenstand": Jaar/Weeknummer/Begrote lijn) ──────
 async function importBegrotingExcel(inputEl) {
+  if (!eisWijzig('financieel')) return;
   const statusEl = document.getElementById('begroting-import-status');
   const file = inputEl.files?.[0];
   if (!file) return;
@@ -11747,6 +11891,7 @@ function getGedeeldPairs(cards) {
 // projectenlijn blijven het meetellen; vanaf nu/toekomst niet meer, en het
 // verdwijnt uit het "Projecten overzicht".
 async function deleteProjectRange(source, id, bmNaam) {
+  if (!eisWijzig('projecten')) return;
   if (!confirm('Dit project verwijderen uit de lijst?\n\nHistorische weken in de projectenlijn blijven behouden — vanaf nu telt dit project niet meer mee.')) return;
   if (!supa) return;
   const vandaag = toISODate(new Date());
@@ -11770,6 +11915,7 @@ async function deleteProjectRange(source, id, bmNaam) {
 // daar nog aan te passen. Niet akkoord: kaart wordt definitief en blijvend verwijderd
 // (geen historie te bewaren, want hij heeft nooit meegeteld als actief project).
 async function pipeSetGoedkeuring(bmNaam, cardId, status) {
+  if (!eisWijzig('medewerkers')) return;
   if (status === 'akkoord') {
     if (projCollegaLoad('pipeline', cardId).length === 0) {
       alert('Selecteer eerst de initialen van de betrokken collega(\'s) voordat je akkoord geeft.');
@@ -11865,6 +12011,7 @@ function contractModalCancel() {
   if (modal) modal.style.display = 'none';
 }
 async function _pipeGoedkeuringAkkoordProceed(bmNaam, cardId) {
+  if (!eisWijzig('medewerkers')) return;
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
   const startDatum = card?.start_datum || toISODate(new Date());
@@ -11900,6 +12047,7 @@ async function pipeSetGedeeldAkkoord(bmNaam1, id1, bmNaam2, id2) {
 }
 
 async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
+  if (!eisWijzig('medewerkers')) return;
   if (!confirm('Beide plaatsingen afwijzen?\n\nBeide kaarten verdwijnen definitief uit de goedkeuringslijst.')) return;
   // Lokale verwijdering (String-vergelijking om type-mismatch te voorkomen)
   pipeSave(bmNaam1, (PIPE_CACHE[bmNaam1]||[]).filter(c => String(c.id) !== String(id1)));
@@ -11916,6 +12064,7 @@ async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
 }
 
 async function _pipeGedeeldAkkoordProceed(bmNaam1, id1, bmNaam2, id2) {
+  if (!eisWijzig('medewerkers')) return;
   const startDatum = toISODate(new Date());
   for (const [bmNaam, cardId] of [[bmNaam1, id1],[bmNaam2, id2]]) {
     if (supa) {
@@ -11936,6 +12085,7 @@ async function _pipeGedeeldAkkoordProceed(bmNaam1, id1, bmNaam2, id2) {
 // ── Projecten overzicht: begin-/einddatum aanpassen (zodat projecten ook
 // kunnen 'eindigen' in de projectenlijn zonder het Excel-bestand opnieuw te importeren) ──
 async function saveProjectRangeDates(source, id, bmNaam) {
+  if (!eisWijzig('projecten')) return;
   const safeId = String(id).replace(/[^a-zA-Z0-9]/g, '');
   const start  = document.getElementById(`pr-start-${safeId}`)?.value || null;
   const eind   = document.getElementById(`pr-eind-${safeId}`)?.value || null;
@@ -12720,6 +12870,7 @@ function renderComrapOpgeslagenHtml(w, y) {
 }
 
 async function comrapVerwijder(id) {
+  if (!eisWijzig('comrap')) return;
   if (!supa) { alert('Geen verbinding met de server.'); return; }
   // .select() erachter: dan krijgen we de verwijderde regels terug. Zonder dat
   // is "geen foutmelding" niet hetzelfde als "verwijderd" — bij ontbrekende
@@ -14227,6 +14378,7 @@ function renderKandidaten() {
 // de kaart zelf blijft gewoon bestaan, niets wordt verwijderd. Alleen zichtbaar
 // voor Yoël/Toussaint (zie canExclude / isProjKandEditor hierboven).
 async function kandidaatExcludeToggle(bmNaam, cardId, exclude) {
+  if (!eisWijzig('kandidaten')) return;
   if (!isProjKandEditor()) return;
   const cards = pipeLoad(bmNaam);
   const idx = cards.findIndex(c => String(c.id) === String(cardId));
@@ -14243,6 +14395,7 @@ async function kandidaatExcludeToggle(bmNaam, cardId, exclude) {
 // Sla kleurstatus op voor een kandidaat-kaart (alleen manager).
 // status = 'groen' | 'geel' | 'oranje' | null (reset)
 async function kandidaatSetStatus(bmNaam, cardId, status) {
+  if (!eisWijzig('kandidaten')) return;
   if (!CURRENT_USER || !isManagerLevel()) return;
   const cards = pipeLoad(bmNaam);
   const idx = cards.findIndex(c => String(c.id) === String(cardId));
@@ -14428,6 +14581,7 @@ function accountsCancelEdit(id) { ACC_EDIT_UNLOCKED.delete(String(id)); renderAc
 // "Opslaan" — tot die tijd staan de gegevens bevroren en telt de oude waarde
 // nog mee voor de rangschikking).
 async function accountsSaveRow(id) {
+  if (!eisWijzig('accounts')) return;
   const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
   const getVal = (suffix) => { const el = document.getElementById(`acc-${suffix}-${safeId}`); return el ? el.value : ''; };
   const clampScore = (raw) => raw === '' ? null : Math.max(1, Math.min(5, parseInt(raw, 10) || 1));
@@ -14457,6 +14611,7 @@ async function accountsSaveRow(id) {
 }
 
 async function accountsAddRow() {
+  if (!eisWijzig('accounts')) return;
   let newRow;
   if (supa) {
     const { data, error } = await supa.from('accounts').insert({ naam: 'Nieuwe klant' }).select().single();
@@ -14503,6 +14658,7 @@ function accountsCloseNewModal() {
 }
 
 async function accountsConfirmNew() {
+  if (!eisWijzig('accounts')) return;
   const naam = (document.getElementById('acc-modal-naam').value || '').trim();
   if (!naam) { alert('Vul een naam in voor de klant.'); return; }
   const clampScore = (raw) => raw === '' ? null : Math.max(1, Math.min(5, parseInt(raw, 10) || 1));
@@ -14536,6 +14692,7 @@ async function accountsConfirmNew() {
 }
 
 async function accountsDeleteRow(id) {
+  if (!eisWijzig('accounts')) return;
   if (!confirm('Deze klant verwijderen uit de lijst?')) return;
   if (supa && !String(id).startsWith('local-')) {
     const { error } = await supa.from('accounts').delete().eq('id', id);
@@ -14606,6 +14763,7 @@ function apFieldChange(id, field, value) {
 }
 
 async function apSaveToSupa(id) {
+  if (!eisWijzig('accounts')) return;
   if (!supa) return;
   const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
@@ -14623,6 +14781,7 @@ async function apSaveToSupa(id) {
 }
 
 async function apNew() {
+  if (!eisWijzig('accounts')) return;
   const naam = prompt('Naam opdrachtgever / bedrijf:');
   if (!naam || !naam.trim()) return;
   const now = new Date().toISOString();
@@ -14653,6 +14812,7 @@ async function apNew() {
 }
 
 async function apDelete(id) {
+  if (!eisWijzig('accounts')) return;
   if (!confirm('Weet je zeker dat je dit accountplan wilt verwijderen?')) return;
   const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
   if (rec?.overeenkomst_path && supa) {
@@ -15062,6 +15222,7 @@ function renderAccountplannenHtml(subTabBtns) {
 
 
 async function kamMaakAccountplan(naam) {
+  if (!eisWijzig('accounts')) return;
   // Controleer of er al een accountplan bestaat voor deze klant
   const existing = ACCOUNTPLAN_RECORDS.find(r => (r.opdrachtgever||'').toLowerCase() === (naam||'').toLowerCase());
   if (existing) {
@@ -15254,6 +15415,7 @@ function slStartEdit(id) { SL_EDIT_UNLOCKED.add(String(id)); renderAccounts(); }
 function slCancelEdit(id) { SL_EDIT_UNLOCKED.delete(String(id)); renderAccounts(); }
 
 async function slSaveRow(id) {
+  if (!eisWijzig('accounts')) return;
   const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
   const getVal = (suffix) => { const el = document.getElementById(`sl-${suffix}-${safeId}`); return el ? el.value : ''; };
   const getChecked = (suffix) => { const el = document.getElementById(`sl-${suffix}-${safeId}`); return el ? el.checked : false; };
@@ -15303,6 +15465,7 @@ function slCloseNewModal() {
 }
 
 async function slConfirmNew() {
+  if (!eisWijzig('accounts')) return;
   const naam = (document.getElementById('sl-modal-naam').value || '').trim();
   if (!naam) { alert('Vul een naam in voor de klant.'); return; }
   const textOrNull = (raw) => String(raw).trim() === '' ? null : String(raw).trim();
@@ -15336,6 +15499,7 @@ async function slConfirmNew() {
 }
 
 async function slDeleteRow(id) {
+  if (!eisWijzig('accounts')) return;
   if (!confirm('Deze lead verwijderen uit de lijst?')) return;
   if (supa && !String(id).startsWith('local-')) {
     const { error } = await supa.from('sales_leads').delete().eq('id', id);
@@ -17188,6 +17352,7 @@ async function _ensureProfilesCache() {
   } catch(e) { _meldStil('profielen ophalen', e); }
 }
 async function _saveVerslagToSupa(type, meta, result, transcript, stil) {
+  if (!magWijzigen('gesprek') && !magWijzigen('bezoek')) { eisWijzig('gesprek'); return null; }
   if (!supa) return null;
   // Dit is de enige plek waar een opname naar de gedeelde server gaat. Mislukt
   // dat, dan blijft het verslag lokaal staan met het label "alleen op dit
@@ -17456,6 +17621,7 @@ function addGesprekRecord() {
 }
 
 async function _updateGesprekVerslagInSupa(localId, result, transcript) {
+  if (!eisWijzig('gesprek')) return;
   if (!supa) return;
   try {
     // Een UUID komt uit de database; een getal is een record dat alleen nog
@@ -17497,6 +17663,7 @@ function addBezoekRecord() {
 }
 
 async function _updateBezoekVerslagInSupa(localId, result, transcript) {
+  if (!eisWijzig('bezoek')) return;
   if (!supa) return;
   try {
     // localId kan een UUID zijn (uit DB) of een timestamp-getal (lokaal).
@@ -17514,6 +17681,7 @@ function toggleGesprekTranscript(id){ if(GESPREK_SHOW_TR.has(id))GESPREK_SHOW_TR
 // gelukt is, anders de foutmelding. Bewust géén stille catch: als dit misgaat
 // zien collega's een andere naam dan jij, en dat wil je meteen weten.
 async function _recorderNaarServer(id, naam) {
+  if (!magWijzigen('gesprek') && !magWijzigen('bezoek')) return 'Je kunt hier alleen kijken.';
   if (!supa) return 'geen verbinding met de server';
   if (!(typeof id === 'string' && id.includes('-'))) return null; // lokaal record, nog niet op de server
   try {
@@ -17588,6 +17756,7 @@ async function gesprekRecordToewijzen(id, naam) {
   renderGesprek();
 }
 function gesprekRecordVerwijder(id) {
+  if (!eisWijzig('gesprek')) return;
   GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>String(r.id)!==String(id));
   GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
   _saveGesprekRec();
@@ -17597,6 +17766,7 @@ function gesprekRecordVerwijder(id) {
   renderGesprek();
 }
 function gesprekRecordWisAlles() {
+  if (!eisWijzig('gesprek')) return;
   if(!confirm('Weet je zeker dat je alle gespreksverslagen wilt wissen? (Verwijdert ook van de gedeelde server)'))return;
   const ids = GESPREK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
   GESPREK_RECORDS=[]; GESPREK_OPEN.clear(); GESPREK_SHOW_TR.clear(); _saveGesprekRec();
@@ -17607,6 +17777,7 @@ function gesprekRecordWisAlles() {
 // Samenvoeg-functie: combineert meerdere records met dezelfde naam+functie+datum tot 1
 let _samenvoegBusy = false;
 async function gesprekSamenvoegGroep(groepKey, silent) {
+  if (!eisWijzig('gesprek')) return;
   if (_samenvoegBusy) return;
   const groep = GESPREK_RECORDS.filter(r => _gspKey(r) === groepKey);
   if (groep.length < 2) return;
@@ -17723,6 +17894,7 @@ async function bezoekRecordToewijzen(id, naam) {
   renderBezoekRecorder();
 }
 function bezoekRecordVerwijder(id) {
+  if (!eisWijzig('bezoek')) return;
   BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>String(r.id)!==String(id));
   BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id);
   _saveBezoekRec();
@@ -17732,6 +17904,7 @@ function bezoekRecordVerwijder(id) {
   renderBezoekRecorder();
 }
 function bezoekRecordWisAlles() {
+  if (!eisWijzig('bezoek')) return;
   if(!confirm('Weet je zeker dat je alle bezoekverslagen wilt wissen? (Verwijdert ook van de gedeelde server)'))return;
   const ids = BEZOEK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
   BEZOEK_RECORDS=[]; BEZOEK_OPEN.clear(); BEZOEK_SHOW_TR.clear(); _saveBezoekRec();
@@ -17782,6 +17955,7 @@ function gesprekRecordKopieer(id) {
 // silent=true: geen pop-ups bij fouten. Gebruikt door het samenvoegen, dat de
 // heranalyse op de achtergrond draait terwijl de gebruiker doorwerkt.
 async function gesprekRecordHeranalyse(id, silent) {
+  if (!eisWijzig('gesprek')) return;
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
   if (!rec.transcript || rec.transcript.trim().length < 20) {
@@ -17827,6 +18001,7 @@ async function gesprekRecordHeranalyse(id, silent) {
 }
 
 async function bezoekRecordHeranalyse(id) {
+  if (!eisWijzig('bezoek')) return;
   const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
   if (!rec.transcript || rec.transcript.trim().length < 20) {
@@ -18471,6 +18646,7 @@ async function pvaRecAnalyse(bmNaam) {
 }
 
 function pvaRecFill(bmNaam, fields) {
+  if (!eisWijzig('medewerkers')) return;
   const safeId = bmNaam.replace(/\s+/g,'_');
   // Komt er nog een antwoord binnen met de oude veldnamen, dan schuiven we die
   // naar de nieuwe in plaats van de tekst te laten verdwijnen. Twee oude velden
@@ -19659,6 +19835,7 @@ function bouwUrenKpiRijen(acc) {
 }
 
 async function onUrenFileSelected(event) {
+  if (!eisWijzig('financieel')) return;
   const file = event.target.files && event.target.files[0];
   event.target.value = ''; // zodat hetzelfde bestand later opnieuw gekozen kan worden
   if (!file || !supa) return;
@@ -20074,6 +20251,7 @@ async function standaardSupabaseSync() {
   } catch(e) { _meldStil('standaarden synchroniseren', e); }
 }
 async function standaardSupabaseSave(naam, data) {
+  if (!eisWijzig('hrm')) return;
   if (!supa) return;
   try {
     await supa.from('aanmeld_standaarden')
@@ -20081,6 +20259,7 @@ async function standaardSupabaseSave(naam, data) {
   } catch(e) { _meldStil('standaard opslaan op de server', e); }
 }
 async function standaardSupabaseDelete(naam) {
+  if (!eisWijzig('hrm')) return;
   if (!supa) return;
   try {
     await supa.from('aanmeld_standaarden').delete().eq('naam', naam);
@@ -20439,6 +20618,7 @@ function renderStandaardTab() {
 }
 
 async function aanmeldSaveForm() {
+  if (!eisWijzig('hrm')) return;
   const d = aanmeldLoad();
   const naam = String(d.naam_achternaam || '').trim();
   const opdr = String(d.opdrachtgever_naam || '').trim();
@@ -20467,6 +20647,7 @@ function aanmeldLoadSaved() {
   return AANMELD_SAVED;
 }
 async function aanmeldDeleteSaved(id) {
+  if (!eisWijzig('hrm')) return;
   if (!confirm('Weet je zeker dat je dit formulier wilt verwijderen?')) return;
   if (supa) {
     try {
@@ -20490,6 +20671,7 @@ function aanmeldToggleOpgesl(id) {
   render();
 }
 async function aanmeldMigreerLokaal() {
+  if (!eisWijzig('hrm')) return;
   let lokaal = [];
   try { lokaal = JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]'); } catch(_) {}
   if (!lokaal.length) { alert('Geen lokale formulieren gevonden op dit apparaat.'); return; }
@@ -20659,6 +20841,7 @@ const CONTRACT_FIELDS = [
 // Loopt door alle PROJECTEN, herrekent kostprijs/marge/marge_pw incl. WTTA en
 // stuurt de nieuwe waarden direct naar Supabase. Vereist beheerder-rol.
 async function projContractRecalcAll() {
+  if (!eisWijzig('projecten')) return;
   if (!supa) { alert('Database niet gekoppeld.'); return; }
   const btn = [...document.querySelectorAll('button')].find(b => b.textContent.includes('Herbereken alles'));
   const origTxt = btn ? btn.textContent : '';
@@ -20794,6 +20977,7 @@ function projContractLoad(src, id) {
 //   src='excel'    → Supabase UPDATE (fire-and-forget) + lokale cache bijwerken; bonus in localStorage
 //   src='pipeline' → Supabase UPDATE op pipeline_cards + PIPE_CACHE bijwerken; bonus in localStorage
 function projContractSave(src, id, obj) {
+  if (!eisWijzig('projecten')) return;
   if (src === 'excel') {
     // Bonus is niet in DB — bewaar apart in localStorage
     try {
@@ -21504,6 +21688,7 @@ function pipeDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
 function pipeDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
 function pipeDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
 function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
+  if (!eisWijzig('medewerkers')) return;
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
   if (!canEdit(bmNaam)) return;
@@ -21586,6 +21771,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
 }
 function pipeCloseModal() { document.getElementById('pipe-modal').classList.remove('open'); }
 async function pipeConfirmAdd() {
+  if (!eisWijzig('medewerkers')) return;
   const naam = document.getElementById('pipe-modal-naam').value.trim();
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
   const notitie = document.getElementById('pipe-modal-notitie').value.trim();
@@ -21710,6 +21896,7 @@ document.addEventListener('keydown', e => {
 
 // ── Update aanbieden count ────────────────────────────────────────────────────
 function pipeUpdateAanb(bmNaam, cardId, value) {
+  if (!eisWijzig('medewerkers')) return;
   if (!canEdit(bmNaam)) return;
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
@@ -21735,6 +21922,7 @@ function pipeStapAanb(bmNaam, cardId, richting) {
 
 // ── Update gesprek-ronde (1e/2e/3e) ────────────────────────────────────────────
 function pipeUpdateGesprek(bmNaam, cardId, value) {
+  if (!eisWijzig('medewerkers')) return;
   if (!canEdit(bmNaam)) return;
   const cards = pipeLoad(bmNaam);
   const card  = cards.find(c => c.id === cardId);
@@ -21749,6 +21937,7 @@ function pipeUpdateGesprek(bmNaam, cardId, value) {
 
 // ── Delete card ───────────────────────────────────────────────────────────────
 function pipeDelete(bmNaam, cardId) {
+  if (!eisWijzig('medewerkers')) return;
   if (!canEdit(bmNaam)) return;
   pipeSave(bmNaam, pipeLoad(bmNaam).filter(c => c.id !== cardId));
   render();
