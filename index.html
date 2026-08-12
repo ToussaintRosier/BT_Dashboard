@@ -1890,7 +1890,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1509 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260812-1808 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4520,7 +4520,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1509';
+const APP_VERSIE = '20260812-1808';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10122,14 +10122,31 @@ async function afsprakenDelen(id) {
   _afsprakenToonAkkoord(bestaand);
 }
 
+// Het antwoord van de kandidaat, zoals hij het gegeven heeft.
+//
+// Dit blok keek alleen of er geantwoord wás (akkoord_op) en zette daar
+// onvoorwaardelijk "Gelezen en akkoord bevestigd" in het groen bij. Wie niet
+// akkoord ging, kreeg in dit venster dus te lezen dat hij akkoord was — terwijl
+// het overzicht ernaast "niet akkoord" toonde. Van die twee is deze de
+// gevaarlijkste: hier lees je dat er overeenstemming is die er niet is.
+//
+// De keuze zit in akkoord_keuze, net als op de pagina die de kandidaat zelf
+// ziet. En de toelichting hoort erbij: juist als iemand het ergens niet mee
+// eens is, wil je weten waarom.
 function _afsprakenToonAkkoord(rij) {
   const el = document.getElementById('afspr-akkoord-blok');
   if (!el) return;
   if (!rij || !rij.akkoord_op) { el.innerHTML = ''; return; }
   const dt = new Date(rij.akkoord_op).toLocaleString('nl-NL', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  el.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:.83rem;line-height:1.6;">
-    <strong style="color:#15803d;">Gelezen en akkoord bevestigd</strong><br>
-    <span style="color:#166534;">Op ${escHtml(dt)}${rij.akkoord_naam ? ' door ' + escHtml(rij.akkoord_naam) : ''}</span>
+  const nietAkkoord = rij.akkoord_keuze === 'niet_akkoord';
+  const kleur = nietAkkoord
+    ? { vlak:'#fef2f2', rand:'#fecaca', kop:'#b91c1c', tekst:'#991b1b' }
+    : { vlak:'#f0fdf4', rand:'#86efac', kop:'#15803d', tekst:'#166534' };
+  const kop = nietAkkoord ? 'Gelezen — niet akkoord' : 'Gelezen en akkoord bevestigd';
+  el.innerHTML = `<div style="background:${kleur.vlak};border:1px solid ${kleur.rand};border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:.83rem;line-height:1.6;">
+    <strong style="color:${kleur.kop};">${kop}</strong><br>
+    <span style="color:${kleur.tekst};">Op ${escHtml(dt)}${rij.akkoord_naam ? ' door ' + escHtml(rij.akkoord_naam) : ''}</span>
+    ${rij.akkoord_toelichting ? `<div style="color:${kleur.tekst};margin-top:7px;padding-top:7px;border-top:1px solid ${kleur.rand};white-space:pre-wrap;">${escHtml(rij.akkoord_toelichting)}</div>` : ''}
   </div>`;
 }
 
