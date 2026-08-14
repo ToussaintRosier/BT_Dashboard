@@ -1993,7 +1993,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-1141 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-1700 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2612,7 +2612,11 @@ function toggleKpiDataset(el) {
 
 // ── Ratios (laatste 26 weken) ─────────────────────────────────────────────────
 function computeRatios(naam) {
-  const src = RAW.filter(d => (naam ? d.naam === naam : !EXCL.has(d.naam)) && inLast26(d));
+  // Backoffice (special) telt nooit mee in het teamgedrag: één ooit per
+  // ongeluk ingevoerde week zou anders de ratio's van het hele team kleuren.
+  const spec = new Set((typeof BMS !== 'undefined' ? BMS : []).filter(b => b.special).map(b => b.naam));
+  const src = RAW.filter(d => (naam ? d.naam === naam
+                                    : !EXCL.has(d.naam) && !spec.has(d.naam)) && inLast26(d));
   const tot = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
   for (const d of src) for (const k of KPIS) tot[k] += (d[k] || 0);
   const s = tot.starters || 1;
@@ -2714,6 +2718,44 @@ function ytdTotals(rows) {
   const t = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
   for (const d of rows) for (const k of KPIS) t[k] += (d[k] || 0);
   return t;
+}
+
+// Jaarrealisatie volgens de afgesproken regel (14-08): een opgeslagen week
+// geldt; een week die alleen nog in de pipeline staat telt alvast mee, tot en
+// met de huidige week. Zonder die tweede helft miste de ranglijst precies de
+// lopende week — de weektabel toonde hem wel, het jaartotaal erboven niet.
+function jaarTotalen(naam, jaar) {
+  const rows = filterData(naam, jaar);
+  const t = ytdTotals(rows);
+  const opgeslagen = new Set(rows.map(d => d.week));
+  const cards = (typeof pipeLoad === 'function') ? pipeLoad(naam) : [];
+  const losseWeken = new Set(cards
+    .filter(c => c.jaar === jaar && c.week && !opgeslagen.has(c.week)
+                 && (jaar < CUR.year || c.week <= CUR.week))
+    .map(c => c.week));
+  for (const w of losseWeken) {
+    const p = getPipeCountsForWeek(naam, w, jaar);
+    for (const k of KPIS) t[k] += p[k] || 0;
+  }
+  return t;
+}
+
+// De teamnorm is de som van de individuele normen — niet meer één berekening
+// op het totale doel. Alleen de som rekent de KAM-correcties (vast 4 bezoeken,
+// geen norm op de rest) en late startdatums mee: op de proefdata gaf de oude
+// weg een bezoekennorm van 6,6 waar de som 14,2 is. Vertrokken collega's
+// vallen buiten bmsMetResultaat; hun jaardoel blijft bewust wél in TEAM_DOEL
+// staan (besluit 14-08: het teamdoel krimpt niet mee met een vertrek).
+function teamNormPerPeriod(period) {
+  const som = {};
+  for (const k of KPIS) som[k] = 0;
+  for (const bm of bmsMetResultaat()) {
+    const n = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, period,
+                            activeNormFix(bm), bm.doelStartFraction);
+    for (const k of KPIS) som[k] += n[k] || 0;
+  }
+  for (const k of KPIS) som[k] = +som[k].toFixed(2);
+  return som;
 }
 
 function periodsPassedInYear(year, period) {
@@ -4749,7 +4791,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-1141';
+const APP_VERSIE = '20260814-1700';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6977,7 +7019,7 @@ function renderBM(bm) {
   const norm   = normPerPeriod(bm.doel, ratios, view, activeNormFix(bm), bm.doelStartFraction);
   const rows   = filterData(bm.naam, year);
   const agg    = aggregateByPeriod(rows, view);
-  const ytd    = ytdTotals(rows);
+  const ytd    = jaarTotalen(bm.naam, year);
   const pLabel = view==='week' ? 'week' : 'maand';
   const passed = periodsPassedInYear(year, view);
   // Effectieve gewerkte periodes: voor nieuwe BMs (< 26 wkn data) vanaf eerste datarij,
@@ -7192,7 +7234,7 @@ function renderMedewerkersOverzicht() {
 
   const ranking = bmsMetResultaat().map(bm => {
     const rows      = filterData(bm.naam, year);
-    const ytd       = ytdTotals(rows);
+    const ytd       = jaarTotalen(bm.naam, year);
     const ytdTarget = cumDoel(bm, passed, 52);
     const p         = pct(ytd.starters, ytdTarget || 1);
     return { bm, starters: ytd.starters, ytdTarget, p };
@@ -7244,11 +7286,9 @@ function renderMedewerkersOverzicht() {
       const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
       const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
       if (saved) {
-        for (const k of KPIS) {
-          t[k] += k === 'starters'
-            ? Math.max(saved[k] || 0, pipe[k] || 0)
-            : saved[k] || 0;
-        }
+        // Opgeslagen wint (besluit 14-08). De oude max-regel kon een week
+        // stilletjes ophogen nadat iemand hem bewust lager had opgeslagen.
+        for (const k of KPIS) t[k] += saved[k] || 0;
       } else {
         for (const k of KPIS) t[k] += pipe[k] || 0;
       }
@@ -7276,7 +7316,7 @@ function renderMedewerkersOverzicht() {
   const renderOpenWeek = (jaar, week) => {
     const isCurOrNext = (jaar === CUR.year && week === CUR.week) || (jaar === NEXT.year && week === NEXT.week);
     const totals = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
-    const teamNorm = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'week');
+    const teamNorm = teamNormPerPeriod('week');
     let anyLive = false;
 
     // Uit dienst: alleen tonen in de weken waarin hij nog in dienst was.
@@ -7601,7 +7641,7 @@ function renderTeam() {
     // 1. Activiteiten staafdiagram per maand — incl. aanbiedingen en % t.o.v. teamnorm (tooltip)
     const maandLabels = aggM.map(a => 'M'+a.period);
     const weekLabels  = aggW.map(a => 'W'+a.period);
-    const teamNormMonth = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'maand');
+    const teamNormMonth = teamNormPerPeriod('maand');
     // Per KPI een eigen grafiek met eigen schaal, plus een gestippelde normlijn
     // zodat je in één blik ziet waar de lat ligt.
     for (const k of ['intakes','bezoeken','aanbiedingen','matchgesprekken']) {
@@ -7623,7 +7663,7 @@ function renderTeam() {
     }
 
     // 4. Overige KPI's per week, alle medewerkers — gesommeerde lijnen + teamnorm per KPI
-    const teamNorm = normPerPeriod(TEAM_DOEL, TEAM_RATIOS, 'week');
+    const teamNorm = teamNormPerPeriod('week');
     const tkDatasets = [];
     for (const k of KPIS) {
       const col = kpiColor(k);
@@ -7971,7 +8011,7 @@ function _pvaWeekCijfers(bm, jaar, week) {
   for (const k of KPIS) {
     const basis = saved ? (saved[k] || 0) : (pipe[k] || 0);
     uit[k] = {
-      realisatie: (k === 'starters') ? Math.max(basis, pipe[k] || 0) : basis,
+      realisatie: basis,
       norm: Math.round((norm[k] || 0) * 10) / 10,
       opgeslagen: !!saved,
     };
@@ -9782,7 +9822,7 @@ function _dagstartTeamBoodschap() {
   const lijst = bmsMetResultaat();
   let behaald = 0, verwacht = 0;
   for (const bm of lijst) {
-    behaald  += ytdTotals(filterData(bm.naam, jaar)).starters;
+    behaald  += jaarTotalen(bm.naam, jaar).starters;
     verwacht += cumDoel(bm, CUR.week, 52);
   }
   behaald  = +behaald.toFixed(1);
@@ -9886,7 +9926,7 @@ async function _dagstartTeamAiTekst() {
   if (!lijst.length) return null;
 
   const perBm = lijst.map(bm => {
-    const behaald  = +ytdTotals(filterData(bm.naam, jaar)).starters.toFixed(1);
+    const behaald  = +jaarTotalen(bm.naam, jaar).starters.toFixed(1);
     const verwacht = +cumDoel(bm, CUR.week, 52).toFixed(1);
     return { naam: bm.naam, doel: bm.doel, starters: behaald, verwacht, gat: +(behaald - verwacht).toFixed(1) };
   }).sort((a, b) => a.gat - b.gat);   // grootste achterstand eerst
@@ -10202,7 +10242,7 @@ function computeCoachingData(bm) {
     const isKAM = bm.rol === 'Key Accountmanager';
     const r26   = INDIVIDUAL_RATIOS[bm.naam];
     const rowsYTD = filterData(bm.naam, year);
-    const ytd   = ytdTotals(rowsYTD);
+    const ytd   = jaarTotalen(bm.naam, year);
 
     // Last 4 weeks in current year
     const rows4 = RAW.filter(d => d.naam===bm.naam && d.jaar===CUR.year && d.week >= (CUR.week-3) && d.week <= CUR.week);
@@ -22302,7 +22342,13 @@ function renderPipeline(bm) {
       const isAanb    = stage === 'Aanbieden';
       const isMatch   = stage === 'Matchgesprekken';
       const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
-      const cellCount = isAanb ? cellCards.reduce((s,c) => s + (+c.aanb || 0), 0) : cellCards.length;
+      // Zelfde telregels als getPipeCountsForWeek: gedeeld = 0,5 bij
+      // starters en contractvoorstellen, aanbiedingen = som van 'aanb'.
+      // De kop en de weekcijfers eronder mogen elkaar niet tegenspreken.
+      const isDeel    = stage === 'Starter' || stage === 'Contractvoorstel';
+      const cellCount = isAanb  ? cellCards.reduce((s,c) => s + (+c.aanb || 0), 0)
+                      : isDeel  ? cellCards.reduce((s,c) => s + (c.gedeeld ? 0.5 : 1), 0)
+                      : cellCards.length;
 
       const cardsHtml = cellCards.map(c => {
         const aanbGetal = +c.aanb || 0;
