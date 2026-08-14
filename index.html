@@ -1596,6 +1596,12 @@
   .st-kaart { background:rgba(255,255,255,.05); border-radius:9px; padding:10px 12px;
               min-width:0; }
   .st-kop   { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  /* De persoonskleur stond als volle streep van 3px over de hele kaarthoogte.
+     Dat concurreerde met de voortgangsbalk eronder, terwijl de kleur alleen
+     hoeft te zeggen wie het is. Nu een korte streep náást de naam: even hoog
+     als de naamregel, dus hij hoort bij de persoon en niet bij de kaart. */
+  .st-wie   { display:flex; align-items:center; gap:8px; min-width:0; }
+  .st-streep{ width:3px; height:14px; border-radius:2px; flex-shrink:0; }
   .st-naam  { color:#fff; font-size:var(--t-md); overflow:hidden;
               text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .st-getal { color:#fff; font-size:1.05rem; font-variant-numeric:tabular-nums;
@@ -1971,7 +1977,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-0934 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-0956 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4727,7 +4733,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-0934';
+const APP_VERSIE = '20260814-0956';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7000,9 +7006,12 @@ function renderMedewerkersOverzicht() {
     const doel  = r.bm.doel || 0;
     const vul   = doel > 0 ? Math.max(0, Math.min(100, r.starters  / doel * 100)) : 0;
     const tik   = doel > 0 ? Math.max(0, Math.min(100, r.ytdTarget / doel * 100)) : 0;
-    return `<div class="st-kaart" style="box-shadow:inset 3px 0 0 ${r.bm.kleur};">
+    return `<div class="st-kaart">
       <div class="st-kop">
-        <span class="st-naam" title="${escHtml(r.bm.naam)}">${escHtml(r.bm.naam)}</span>
+        <span class="st-wie">
+          <span class="st-streep" style="background:${r.bm.kleur};"></span>
+          <span class="st-naam" title="${escHtml(r.bm.naam)}">${escHtml(r.bm.naam)}</span>
+        </span>
         <span class="st-getal">${fmt(r.starters, 1)}</span>
       </div>
       <div class="st-balkrij">
