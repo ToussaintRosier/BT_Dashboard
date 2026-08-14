@@ -1474,9 +1474,21 @@
                    border-bottom:1px solid rgba(255,255,255,.14); border-radius:0; }
   .pipe-cell-hdr-name { color:#fff !important; text-transform:none; letter-spacing:.01em;
                         font-size:.7rem; font-weight:var(--w-nadruk); }
-  .pipe-cell-hdr-cnt  { background:rgba(255,255,255,.12) !important; color:rgba(255,255,255,.7) !important; }
-  /* Een lege kolom hoort minder hard te roepen dan een gevulde. */
-  .pipe-cell.leeg .pipe-cell-hdr { opacity:.5; }
+  /* 6 pixels was te klein om nog kleur in te herkennen; 8 leest als een stip
+     in plaats van als vuiltje op het scherm. */
+  .pipe-fase-stip { width:8px; height:8px; border-radius:50%; flex-shrink:0;
+                    display:inline-block; }
+  /* Het getal moet leesbaar zijn — dat is het hele punt van een telling.
+     Vol wit op een vlak van 22%: ruim boven de 70%-op-12% die er stond. */
+  .pipe-cell-hdr-cnt  { background:rgba(255,255,255,.22) !important; color:#fff !important; }
+  /* Een lege kolom hoort minder hard te roepen dan een gevulde — maar de
+     demping zat op de héle kop, dus bovenop het toch al zwakke getal. Die
+     stapeling is eruit: alleen het nul-rondje zelf is zachter, en de naam
+     ernaast blijft gewoon leesbaar. */
+  .pipe-cell.leeg .pipe-cell-hdr-name { color:rgba(255,255,255,.62) !important; }
+  .pipe-cell.leeg .pipe-cell-hdr-cnt  { background:rgba(255,255,255,.08) !important;
+                                        color:rgba(255,255,255,.5) !important; }
+  .pipe-cell.leeg .pipe-fase-stip     { opacity:.55; }
 
   /* Kaartjes: lichte panelen met het faseblokje links. */
   .pipe-card { background:rgba(255,255,255,.09); border:none; border-radius:7px;
@@ -1690,7 +1702,14 @@
   .pipe-add-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-light); }
   .pipe-cell-hdr { display:flex; align-items:center; justify-content:space-between; padding:4px 7px; margin:-6px -6px 6px; border-radius:7px 7px 0 0; border-bottom:1px solid rgba(0,0,0,.06); }
   .pipe-cell-hdr-name { font-size:.65rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
-  .pipe-cell-hdr-cnt { font-size:.68rem; font-weight:600; color:var(--primary); background:var(--primary-light); border-radius:99px; padding:1px 6px; min-width:18px; text-align:center; }
+  /* Een telling is een rondje, geen pil. Vaste hoogte én breedte, en de
+     breedte groeit alleen mee bij twee of meer cijfers — dan wordt het een
+     nette afgeronde vorm in plaats van een uitgerekte ovaal. */
+  .pipe-cell-hdr-cnt { font-size:.68rem; font-weight:600; color:var(--primary);
+                       background:var(--primary-light); border-radius:99px;
+                       min-width:20px; height:20px; padding:0 5px; flex-shrink:0;
+                       display:inline-flex; align-items:center; justify-content:center;
+                       line-height:1; box-sizing:border-box; }
   .pipe-wk-total { font-size:.64rem; font-weight:600; color:var(--primary); background:var(--primary-light); border-radius:99px; padding:1px 5px; margin-top:3px; }
   /* modal */
   .pipe-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:2000; align-items:center; justify-content:center; }
@@ -1914,7 +1933,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-0902 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-0928 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2575,13 +2594,17 @@ const PIPE_STAGES = ['Intake', 'Bezoeken', 'Aanbieden', 'Matchgesprekken', 'Cont
 // bg/text zijn de oude tinten voor een witte ondergrond; punt is de lichte
 // tegenhanger die op het donkere bord wordt gebruikt (bolletje bij de fasenaam
 // en het streepje links op elke kaart).
+// De 'punt'-kleuren zijn ooit gekozen voor een lichte achtergrond. Op het
+// donkerblauwe pipelinevlak vallen blauw en paars daardoor weg; vandaar
+// 'stip': dezelfde kleur, maar helder genoeg om op donker te lezen. De andere
+// vier zijn op beide achtergronden goed en blijven ongemoeid.
 const PIPE_STAGE_COLORS = [
-  { bg:'#dbeafe', text:'#1e40af', punt:'#5b9bf0' },
-  { bg:'#fef3c7', text:'#92400e', punt:'#fbbf24' },
-  { bg:'#dcfce7', text:'#166534', punt:'#34d399' },
-  { bg:'#ede9fe', text:'#5b21b6', punt:'#a78bfa' },
-  { bg:'#fce7f3', text:'#9d174d', punt:'#f472b6' },
-  { bg:'#fef9c3', text:'#854d0e', punt:'#fcd34d' },
+  { bg:'#dbeafe', text:'#1e40af', punt:'#5b9bf0', stip:'#7db4ff' },
+  { bg:'#fef3c7', text:'#92400e', punt:'#fbbf24', stip:'#fbbf24' },
+  { bg:'#dcfce7', text:'#166534', punt:'#34d399', stip:'#34d399' },
+  { bg:'#ede9fe', text:'#5b21b6', punt:'#a78bfa', stip:'#c4b5fd' },
+  { bg:'#fce7f3', text:'#9d174d', punt:'#f472b6', stip:'#f472b6' },
+  { bg:'#fef9c3', text:'#854d0e', punt:'#fcd34d', stip:'#fcd34d' },
 ];
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -4666,7 +4689,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-0902';
+const APP_VERSIE = '20260814-0928';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22075,7 +22098,7 @@ function renderPipeline(bm) {
         ondrop="${weekEditable ? `pipeDrop(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year})` : ''}">
         <div class="pipe-cell-hdr">
           <span style="display:flex;align-items:center;gap:6px;min-width:0;">
-            <span style="width:6px;height:6px;border-radius:50%;background:${col.punt};flex-shrink:0;"></span>
+            <span class="pipe-fase-stip" style="background:${col.stip || col.punt};"></span>
             <span class="pipe-cell-hdr-name">${stage}</span>
           </span>
           <span class="pipe-cell-hdr-cnt">${cellCount}</span>
