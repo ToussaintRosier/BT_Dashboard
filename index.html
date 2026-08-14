@@ -1914,7 +1914,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260812-1843 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-0836 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4612,7 +4612,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260812-1843';
+const APP_VERSIE = '20260814-0836';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5411,7 +5411,7 @@ async function memoIntrekken(id) {
 // dashboard het menu bouwen zoals die collega het ziet, en kijken wat erin
 // staat. Verandert er iets aan de rechten, dan verandert dit overzicht mee.
 // ════════════════════════════════════════════════════════════════════════════
-let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten' | 'onderdelen'
+let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten' | 'onderdelen' | 'fouten'
 
 // Wie mag er op een pagina niet alleen kijken maar ook wijzigen. Deze regels
 // roepen de bestaande functies aan in plaats van ze over te schrijven; wat hier
@@ -5500,7 +5500,7 @@ function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
   return `<div class="bm-subtabs" style="display:flex;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('fouten', 'Fouten')}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -5854,9 +5854,118 @@ async function zetOnderdeel(sleutel, aan) {
           '. Collega\'s zien dit zodra ze de pagina verversen.', '#5ee2b0');
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// BEHEER → FOUTEN
+//
+// Wat het dashboard zelf heeft gemeld via het foutenvangnet. Gegroepeerd op
+// melding: één regel per soort fout, met hoe vaak, bij wie en sinds welke
+// versie. Vijftig keer dezelfde fout is één probleem, geen vijftig.
+// ════════════════════════════════════════════════════════════════════════════
+let FOUTEN_RIJEN = null;   // null = nog niet opgehaald
+
+async function laadFouten() {
+  if (!supa) { FOUTEN_RIJEN = []; return; }
+  // De laatste 500 is ruim genoeg voor het beeld; het gaat om patronen, niet
+  // om volledigheid tot in de eeuwigheid.
+  const { data, error } = await supa.from('fouten')
+    .select('*').order('ontstaan_op', { ascending: false }).limit(500);
+  if (error) { console.error('Fouten laden mislukt:', error); FOUTEN_RIJEN = []; return; }
+  FOUTEN_RIJEN = data || [];
+}
+
+async function beheerFoutenVerversen() {
+  FOUTEN_RIJEN = null;
+  renderBeheerFouten();
+  await laadFouten();
+  renderBeheerFouten();
+}
+
+async function beheerFoutenOpruimen() {
+  if (!isBeheerder()) return;
+  if (!confirm('Alle gemelde fouten verwijderen?\n\nJe begint dan met een schoon logboek.')) return;
+  const { error } = await supa.from('fouten').delete().gte('id', 0);
+  if (error) { alert('Opruimen mislukt: ' + error.message); return; }
+  FOUTEN_RIJEN = [];
+  renderBeheerFouten();
+}
+
+function renderBeheerFouten() {
+  if (FOUTEN_RIJEN === null) {
+    laadFouten().then(renderBeheerFouten);
+    document.getElementById('main').innerHTML = `<div>
+      <div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>
+      ${_rechtenSubtabs()}
+      <div class="op-pagina-zwak" style="padding:20px;font-size:.85rem;">Fouten ophalen…</div></div>`;
+    return;
+  }
+
+  // Groeperen op melding+plek. De rest (wie, wanneer, welke versie) wordt per
+  // groep samengevat.
+  const groepen = new Map();
+  for (const r of FOUTEN_RIJEN) {
+    const sleutel = (r.melding || '') + '|' + (r.plek || '');
+    let g = groepen.get(sleutel);
+    if (!g) { g = { melding: r.melding, plek: r.plek, detail: r.detail,
+                    aantal: 0, namen: new Set(), versies: new Set(), laatste: r.ontstaan_op };
+              groepen.set(sleutel, g); }
+    g.aantal++;
+    if (r.naam) g.namen.add(r.naam);
+    if (r.versie) g.versies.add(r.versie);
+    if (r.ontstaan_op > g.laatste) g.laatste = r.ontstaan_op;
+  }
+  const lijst = [...groepen.values()].sort((a, b) => b.laatste.localeCompare(a.laatste));
+
+  const tijd = (iso) => new Date(iso).toLocaleString('nl-NL',
+    { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+
+  const regels = lijst.map((g, i) => `
+    <div class="ond-regel" style="align-items:flex-start;cursor:pointer;" onclick="
+        const d=document.getElementById('fout-det-${i}'); if(d) d.style.display=d.style.display==='none'?'':'none';">
+      <div class="ond-tekst">
+        <div class="ond-naam" style="font-family:ui-monospace,monospace;font-size:.78rem;word-break:break-word;">
+          ${escHtml(g.melding || 'onbekende fout')}</div>
+        <div class="ond-sub">${escHtml(g.plek || '')} · laatst ${tijd(g.laatste)}
+          · ${[...g.versies].sort().join(', ')}
+          ${g.namen.size ? ' · ' + [...g.namen].join(', ') : ''}</div>
+        ${g.detail ? `<pre id="fout-det-${i}" style="display:none;font-size:.68rem;color:var(--text-muted);
+            white-space:pre-wrap;word-break:break-word;margin:8px 0 0;max-height:180px;overflow:auto;">${escHtml(g.detail)}</pre>` : ''}
+      </div>
+      <span style="flex:0 0 auto;background:${g.aantal >= 10 ? '#fef2f2;color:#b91c1c;border:1px solid #fecaca' : 'var(--card-alt);color:var(--muted);border:1px solid var(--border)'};
+                   border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700;">${g.aantal}×</span>
+    </div>`).join('');
+
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">Beheer${btUitlegKnop('beheer')}</div>
+      <div class="person-meta"><span class="meta-pill">${
+        lijst.length === 0 ? 'geen fouten gemeld' : lijst.length + ' soort' + (lijst.length === 1 ? '' : 'en') + ' · ' + FOUTEN_RIJEN.length + ' meldingen'}</span></div>
+    </div>
+    ${_rechtenSubtabs()}
+    <div style="padding:14px 20px 30px;max-width:860px;">
+      <div class="op-pagina-zwak" style="font-size:.78rem;line-height:1.6;margin-bottom:10px;">
+        Wat het dashboard zelf heeft gemeld: onverwachte fouten, met wie ze had,
+        in welke versie, en hoe vaak. Klik een regel voor de technische details.
+        Eén regel per soort fout — vijftig keer dezelfde melding is één probleem.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button onclick="beheerFoutenVerversen()" style="font-size:.8rem;padding:5px 14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.28);border-radius:6px;cursor:pointer;color:var(--op-pagina);">Vernieuwen</button>
+        ${FOUTEN_RIJEN.length ? `<button onclick="beheerFoutenOpruimen()" style="font-size:.8rem;padding:5px 14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,143,143,.5);border-radius:6px;cursor:pointer;color:#ff8f8f;">Alles opruimen</button>` : ''}
+      </div>
+      ${lijst.length === 0
+        ? `<div class="ond-paneel"><div class="ond-regel"><div class="ond-tekst">
+             <div class="ond-naam">Geen fouten gemeld</div>
+             <div class="ond-sub">Sinds de laatste opruiming heeft het dashboard bij niemand een
+               onverwachte fout gezien. Dit vult zich vanzelf zodra er ergens iets misgaat.</div>
+           </div></div></div>`
+        : `<div class="ond-paneel">${regels}</div>`}
+    </div>
+  </div>`;
+}
+
 function renderBeheer() {
   if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
   if (BEHEER_SUBVIEW === 'onderdelen') { renderBeheerOnderdelen(); return; }
+  if (BEHEER_SUBVIEW === 'fouten')     { renderBeheerFouten(); return; }
   const huidigJaar = new Date().getFullYear();
 
   // Bouw doelen-map: naam → jaardoel voor huidig jaar
@@ -8881,12 +8990,72 @@ let LAAD_MISLUKT = [];
 
 // Voert één laadstap uit. Gaat hij mis, dan gaat het opstarten gewoon door en
 // onthouden we wát er misging — in plaats van halverwege blijven staan.
+// ════════════════════════════════════════════════════════════════════════════
+// FOUTENVANGNET
+//
+// Elke onverwachte fout gaat naar de tabel `fouten`, zodat een kapotte versie
+// binnen een uur opvalt in plaats van wanneer iemand belt. Drie bronnen:
+// window.onerror (fouten in gewone code), unhandledrejection (fouten in
+// async-code zonder catch), en laadPoging (onderdelen die niet laden).
+//
+// TWEE HARDE REGELS
+//   1. Het vangnet mag zelf nooit iets breken. Elke stap zit in zijn eigen
+//      try/catch, en als het melden mislukt gebeurt er niets — de fout stond
+//      toch al in de console.
+//   2. Het vangnet mag niet stormen. Eén kapotte hertekening kan tientallen
+//      keren per minuut dezelfde fout geven; die zou de tabel én de verbinding
+//      volspoelen. Daarom: per unieke melding maximaal één keer per sessie,
+//      en in totaal maximaal 20 meldingen per sessie.
+// ════════════════════════════════════════════════════════════════════════════
+const _FOUT_GEMELD = new Set();
+let _FOUT_TELLER = 0;
+
+function meldFout(melding, plek, detail) {
+  try {
+    if (!supa || !navigator.onLine) return;
+    const kort = String(melding || 'onbekende fout').slice(0, 500);
+    // Demping: dezelfde fout niet blijven herhalen, en nooit meer dan 20 per
+    // sessie. De sleutel is melding+plek: dezelfde fout op twee plekken zijn
+    // twee gescheiden meldingen, want dat verschil wil je juist zien.
+    const sleutel = kort + '|' + (plek || '');
+    if (_FOUT_GEMELD.has(sleutel) || _FOUT_TELLER >= 20) return;
+    _FOUT_GEMELD.add(sleutel);
+    _FOUT_TELLER++;
+    // Bewust zonder await en zonder .select(): het melden mag nergens op
+    // wachten en een mislukking hier is geen nieuwe fout waard.
+    supa.from('fouten').insert({
+      melding:   kort,
+      plek:      String(plek || 'onbekend').slice(0, 200),
+      detail:    detail ? String(detail).slice(0, 1500) : null,
+      naam:      CURRENT_USER?.naam || null,
+      versie:    APP_VERSIE,
+      useragent: (navigator.userAgent || '').slice(0, 200),
+    }).then(() => {}, () => {});
+  } catch (_) { /* zie regel 1: het vangnet breekt nooit iets */ }
+}
+
+// Bron 1: fouten in gewone code die nergens gevangen worden.
+window.onerror = function (melding, bron, regel, kolom, e) {
+  meldFout(melding, 'window.onerror @ regel ' + regel, e && e.stack);
+  return false;   // de fout blijft ook gewoon in de console verschijnen
+};
+
+// Bron 2: async-fouten zonder catch — de grootste groep in dit dashboard,
+// want vrijwel elke gegevensactie is async.
+window.addEventListener('unhandledrejection', function (ev) {
+  const r = ev && ev.reason;
+  meldFout(r && (r.message || r), 'onafgevangen promise', r && r.stack);
+});
+
 async function laadPoging(naam, fn) {
   try {
     await fn();
   } catch (e) {
     console.error('Laden mislukt: ' + naam, e);
     LAAD_MISLUKT.push(naam);
+    // Ook melden: een onderdeel dat bij iemand niet laadt is precies het soort
+    // fout dat anders pas opvalt als diegene het meldt.
+    meldFout(e && (e.message || e), 'laden: ' + naam, e && e.stack);
   }
 }
 
