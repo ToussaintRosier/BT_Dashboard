@@ -1586,6 +1586,44 @@
   .rr th .herstel:hover { color:var(--primary); }
   .rr tr.afwijking td { background:#fef2f2; }
 
+  /* ── Starters dit jaar: zes kaarten in plaats van zes brede regels ──────
+     Een regel van 1700 pixels met de naam links en het getal rechts dwingt je
+     oog elke keer die hele afstand af. Drie kaarten naast elkaar houden naam,
+     getal en voortgang bij elkaar, en halveren de hoogte van het blok. */
+  .st-rooster { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  @media (max-width: 900px) { .st-rooster { grid-template-columns:repeat(2, 1fr); } }
+  @media (max-width: 560px) { .st-rooster { grid-template-columns:1fr; } }
+  .st-kaart { background:rgba(255,255,255,.05); border-radius:9px; padding:10px 12px;
+              min-width:0; }
+  .st-kop   { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .st-naam  { color:#fff; font-size:var(--t-md); overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .st-getal { color:#fff; font-size:1.05rem; font-variant-numeric:tabular-nums;
+              flex-shrink:0; line-height:1.2; }
+  .st-balkrij { display:flex; align-items:center; gap:8px; margin-top:7px; }
+  /* De baan is de weg naar het jaardoel; de vulling is waar je staat. */
+  .st-baan  { flex:1; height:7px; background:rgba(255,255,255,.10);
+              border-radius:4px; position:relative; min-width:40px; }
+  .st-vul   { position:absolute; left:0; top:0; bottom:0; border-radius:4px; }
+  /* Het streepje: waar je deze week hoort te staan. Steekt bewust boven en
+     onder de baan uit, anders verdwijnt hij in de vulling. */
+  .st-tik   { position:absolute; top:-3px; bottom:-3px; width:2px;
+              background:rgba(255,255,255,.8); border-radius:1px; }
+  .st-pct   { font-size:var(--t-xs); font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .st-sub   { font-size:var(--t-xs); color:rgba(255,255,255,.5); margin-top:5px;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ── Toolgebruik: één strook met haarlijnen ertussen ──────────────────── */
+  .tg-strook { display:flex; flex-wrap:wrap; }
+  .tg-vak    { flex:1; min-width:150px; padding:2px 14px;
+               border-left:1px solid rgba(255,255,255,.10); }
+  .tg-vak:first-child { border-left:none; padding-left:2px; }
+  .tg-label  { font-size:var(--t-xs); color:rgba(255,255,255,.5); letter-spacing:.03em; }
+  .tg-regel  { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .tg-getal  { font-size:var(--t-cijfer); font-weight:var(--w-nadruk); color:#fff; line-height:1.25; }
+  .tg-week   { font-size:var(--t-xs); color:#5ee2b0; }
+  .tg-stil   { font-size:var(--t-xs); color:rgba(255,255,255,.4); }
+
   /* Leesmodus: de balk bovenaan en het uiterlijk van wat op slot staat. */
   .lees-balk { display:flex; align-items:center; gap:8px; margin:0 0 14px;
                background:#eff6ff; border:1px solid #bfdbfe; border-radius:var(--radius);
@@ -1933,7 +1971,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-0928 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-0934 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4689,7 +4727,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-0928';
+const APP_VERSIE = '20260814-0934';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6913,21 +6951,24 @@ function renderGebruikBalk(jaar, week) {
   const g = toolgebruikTotalen(jaar, week);
   // Groot getal is het totaal van iedereen bij elkaar; eronder klein wat er
   // deze week bij kwam, zodat je ziet of het nog leeft.
+  // Getal en weekgroei op één regel: dat scheelt twee regels hoogte per vak,
+  // en "deze week" is het enige dat je hier echt volgt. Wanneer de tool voor
+  // het laatst gebruikt is, staat in de tooltip — het stond vier keer onder
+  // elkaar en zei telkens ongeveer hetzelfde.
   const tegel = (totaal, dezeWeek, laatst, label, extra) => `
-    <div style="flex:1;min-width:140px;">
-      <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);letter-spacing:.03em;">${label}</div>
-      <div style="font-size:var(--t-cijfer);font-weight:var(--w-nadruk);color:#fff;line-height:1.2;">${totaal}</div>
-      <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:1px;">
-        ${dezeWeek ? `+${dezeWeek} deze week` : 'niets deze week'}${extra ? ` · ${extra}` : ''}
-      </div>
-      <div style="font-size:var(--t-xs);color:rgba(255,255,255,.38);margin-top:1px;">
-        laatst: ${_laatstGebruikt(laatst)}
+    <div class="tg-vak" title="Laatst gebruikt: ${_laatstGebruikt(laatst)}">
+      <div class="tg-label">${label}</div>
+      <div class="tg-regel">
+        <span class="tg-getal">${totaal}</span>
+        ${dezeWeek ? `<span class="tg-week">+${dezeWeek} deze week</span>`
+                   : `<span class="tg-stil">niets deze week</span>`}
+        ${extra ? `<span class="tg-stil">${extra}</span>` : ''}
       </div>
     </div>`;
 
   return `<div style="margin-top:26px;">
     <div class="section-title"><span style="color:#fff;">Toolgebruik — totaal, alle collega's</span></div>
-    <div class="bt-venster" style="display:flex;gap:10px;flex-wrap:wrap;">
+    <div class="bt-venster tg-strook">
       ${tegel(g.itk,        g.itkWeek,   g.itkLaatst,   'ITK-opnames')}
       ${tegel(g.bzk,        g.bzkWeek,   g.bzkLaatst,   'BZK-opnames')}
       ${tegel(g.matchmaker, g.mmWeek,    g.mmLaatst,    'Matchmaker', g.vacatures ? `${g.vacatures} vacatures` : '')}
@@ -6952,26 +6993,28 @@ function renderMedewerkersOverzicht() {
   // (behaald, verwacht, percentage) is een raster met zeven kolommen meer
   // omhulsel dan inhoud. Naam links, cijfer rechts, context eronder — en de
   // getallen met gelijke breedte zodat ze echt onder elkaar staan.
-  const rankRows = ranking.map((r, i) => {
-    const laatste = i === ranking.length - 1;
-    const kleur   = barColorWide(r.p);
-    // Streep links in plaats van een bolletje voor de naam: dezelfde kleur,
-    // maar hij markeert de hele regel in plaats van één teken.
-    return `<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:11px 2px 11px 13px;border-radius:8px 0 0 8px;box-shadow:inset 3px 0 0 ${r.bm.kleur};${laatste ? '' : 'border-bottom:1px solid rgba(255,255,255,.09);'}">
-      <div style="min-width:0;">
-        <div style="font-size:var(--t-md);color:#fff;display:flex;align-items:center;gap:7px;">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.bm.naam)}</span>
-        </div>
-        <div style="font-size:var(--t-xs);color:rgba(255,255,255,.5);margin-top:2px;">
-          verwacht ${fmt(r.ytdTarget, 1)} · jaardoel ${r.bm.doel}${r.bm.doelOnbekend
-            ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>`
-            : ''}
-        </div>
+  const rankRows = ranking.map((r) => {
+    const kleur = barColorWide(r.p);
+    // De balk gaat over de weg naar het jaardoel, niet over het percentage:
+    // 165% van je weekverwachting kan nog steeds halverwege je jaar zijn.
+    const doel  = r.bm.doel || 0;
+    const vul   = doel > 0 ? Math.max(0, Math.min(100, r.starters  / doel * 100)) : 0;
+    const tik   = doel > 0 ? Math.max(0, Math.min(100, r.ytdTarget / doel * 100)) : 0;
+    return `<div class="st-kaart" style="box-shadow:inset 3px 0 0 ${r.bm.kleur};">
+      <div class="st-kop">
+        <span class="st-naam" title="${escHtml(r.bm.naam)}">${escHtml(r.bm.naam)}</span>
+        <span class="st-getal">${fmt(r.starters, 1)}</span>
       </div>
-      <div style="text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0;">
-        <div style="font-size:1.05rem;color:#fff;line-height:1.25;">${fmt(r.starters, 1)}</div>
-        <div style="font-size:var(--t-xs);color:${kleur};margin-top:1px;">${r.p}%</div>
+      <div class="st-balkrij">
+        <span class="st-baan" title="${fmt(r.starters, 1)} van ${doel} — het streepje is waar je deze week hoort te staan (${fmt(r.ytdTarget, 1)})">
+          <span class="st-vul" style="width:${vul.toFixed(1)}%;background:${kleur};"></span>
+          ${doel > 0 ? `<span class="st-tik" style="left:${tik.toFixed(1)}%;"></span>` : ''}
+        </span>
+        <span class="st-pct" style="color:${kleur};">${r.p}%</span>
       </div>
+      <div class="st-sub">verwacht ${fmt(r.ytdTarget, 1)} · jaardoel ${doel}${r.bm.doelOnbekend
+        ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>`
+        : ''}</div>
     </div>`;
   }).join('');
 
@@ -7187,7 +7230,7 @@ function renderMedewerkersOverzicht() {
     '</div>' +
     dataWaarschuwingHtml() +
     '<div style="font-size:var(--t-xs);color:rgba(255,255,255,.45);letter-spacing:.04em;margin:6px 0 6px 2px;">STARTERS DIT JAAR</div>' +
-    '<div class="bt-venster">' + rankRows + '</div>' +
+    '<div class="bt-venster"><div class="st-rooster">' + rankRows + '</div></div>' +
     renderGebruikBalk(CUR.year, CUR.week) +
     '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">KPI\'s per week — teamtotaal</span></div>' +
     weekHtml +
