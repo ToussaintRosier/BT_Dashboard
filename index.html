@@ -1914,7 +1914,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-0841 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-0851 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4666,7 +4666,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-0841';
+const APP_VERSIE = '20260814-0851';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9773,6 +9773,76 @@ async function toonDagstart() {
 function logout() { if (supa) supa.auth.signOut().then(() => location.reload()); }
 
 // ── Live updates: manager-/teamscherm volgt invoer van anderen automatisch ────
+// ════════════════════════════════════════════════════════════════════════════
+// STIL VERVERSEN
+//
+// Realtime (hieronder) dekt zes veelbewegende tabellen. Dit is de rest én het
+// vangnet: wie het dashboard de hele dag open heeft staan, kijkt zonder dit
+// naar de stand van vanochtend.
+//
+// DRIE REGELS
+//   1. Nooit storen. Er wordt niet ververst — en vooral niet hertekend — terwijl
+//      iemand typt, opneemt of een analyse draait. Een hertekening midden in
+//      een zin verplaatst je cursor; dat hebben we één keer geleerd.
+//   2. Zuinig. Alleen als het tabblad zichtbaar is en er verbinding is; een
+//      beperkte lijst tabellen, niet de volledige opstart-lading. Het project
+//      zit al tegen de gebruikslimieten van Supabase aan.
+//   3. Stil. Gaat het mis, dan staat de oude stand er gewoon nog; geen melding,
+//      wel een regel in het foutenlogboek via laadPoging.
+// ════════════════════════════════════════════════════════════════════════════
+let _VERVERS_BEZIG = false;
+let _VERVERS_LAATST = Date.now();
+
+function _magNuVerversen() {
+  if (!supa || !CURRENT_USER) return false;
+  if (!navigator.onLine || document.hidden) return false;
+  // Niet onder iemands handen door verversen.
+  const el = document.activeElement;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return false;
+  if (typeof GESPREK !== 'undefined' && (GESPREK.recording || GESPREK.paused || GESPREK.analyzing)) return false;
+  if (typeof BEZOEK  !== 'undefined' && (BEZOEK.recording  || BEZOEK.analyzing)) return false;
+  // Een openstaand venster (uitleg, ladder, contract) niet onder iemand weg tekenen.
+  if (document.querySelector('.uitleg-laag')) return false;
+  return true;
+}
+
+async function stilVerversen() {
+  if (_VERVERS_BEZIG || !_magNuVerversen()) return;
+  _VERVERS_BEZIG = true;
+  try {
+    // De onderdelen die niet door realtime gedekt worden. Weekcijfers en
+    // pipeline zitten wél in realtime, maar gaan hier bewust mee: als de
+    // realtime-verbinding onderweg is weggevallen, is dit de enige weg terug.
+    await Promise.allSettled([
+      laadPoging('onderdelen (verversen)', laadOnderdelen),
+      laadPoging('rechten (verversen)', laadRechten),
+      laadPoging('weekcijfers (verversen)', loadKpiWeekly),
+      laadPoging('pipeline (verversen)', pipeFetchAll),
+      laadPoging('plannen (verversen)', loadPlanVanAanpak),
+      laadPoging('BUM (verversen)', loadBumGesprekken),
+      laadPoging('memos (verversen)', loadMemos),
+    ]);
+    recomputeRatios();
+    _VERVERS_LAATST = Date.now();
+    // Tussen het laden en nu kan iemand begonnen zijn met typen; dan de
+    // gegevens wel binnen, maar het scherm met rust laten. De eerstvolgende
+    // gewone hertekening toont ze alsnog.
+    if (_magNuVerversen()) { renderTabs(); render(); }
+  } finally {
+    _VERVERS_BEZIG = false;
+  }
+}
+
+// De klok: elke 10 minuten, en de gemiste beurten worden niet ingehaald —
+// wie een uur weg was krijgt één verversing, geen zes.
+setInterval(stilVerversen, 10 * 60 * 1000);
+
+// De terugkeer: wie het tabblad na meer dan 5 minuten weer opent, krijgt
+// meteen de actuele stand in plaats van te wachten op de klok.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Date.now() - _VERVERS_LAATST > 5 * 60 * 1000) stilVerversen();
+});
+
 function subscribeRealtime() {
   if (!supa) return;
   supa.channel('kpi-dashboard-live')
