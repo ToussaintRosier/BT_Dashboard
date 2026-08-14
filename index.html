@@ -804,6 +804,22 @@
                       font-weight:var(--w-nadruk); cursor:pointer; }
   .memo-voet button:disabled { background:#e6e8ee; color:var(--muted); cursor:default; }
   .memo-teller { font-size:var(--t-xs); color:var(--muted); text-align:center; margin-top:8px; }
+  /* ── Het filmpje in een memo ────────────────────────────────────────────
+     De speler krijgt geen tijdbalk waarop je kunt slepen: vooruitspoelen zou
+     de kijkplicht zinloos maken. Terugspoelen en pauzeren mag wel — dat is
+     precies wat je doet als je iets niet goed hoorde. */
+  .memo-video { display:block; width:100%; max-height:46vh; background:#16213d;
+                border-radius:9px; margin:14px 24px 0; width:calc(100% - 48px); }
+  .memo-video::-webkit-media-controls-timeline { display:none; }
+  .memo-video::-webkit-media-controls-seek-back-button,
+  .memo-video::-webkit-media-controls-fullscreen-button { display:none; }
+  .memo-videofout { margin:14px 24px 0; background:#fef2f2; border:1px solid #fecaca;
+                    border-radius:9px; padding:12px 14px; font-size:var(--t-sm);
+                    color:#991b1b; line-height:1.6; }
+  .memo-later { width:100%; padding:9px; border:0; background:none; color:var(--muted);
+                font-size:var(--t-xs); margin-top:6px; cursor:pointer;
+                text-decoration:underline; }
+  .memo-later:hover { color:var(--text); }
 
 
   /* ── Verslagen: label boven, tekst eronder ──────────────────────────────
@@ -1977,7 +1993,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-0956 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-1141 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4733,7 +4749,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-0956';
+const APP_VERSIE = '20260814-1141';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5402,9 +5418,16 @@ function _memoGepubliceerd(m) {
   return !isNaN(vanaf) && vanaf <= vandaag;
 }
 
+// Wie "nu even niet" kiest, is die memo voor déze sessie kwijt. Bij de
+// volgende keer dat hij het dashboard opent staat hij er weer, en dat blijft
+// zo tot hij het filmpje heeft bekeken. Bewust alleen in het geheugen: zou het
+// uitstel bewaard blijven, dan wordt "even niet" stilletjes "nooit".
+const MEMO_UITGESTELD = new Set();
+
 function _openstaandeMemos(mijnUserId) {
   const bevestigd = new Set(
     MEMO_BEVESTIGINGEN.filter(b => b.user_id === mijnUserId).map(b => String(b.memo_id)));
+  for (const id of MEMO_UITGESTELD) bevestigd.add(id);
   // Nog niet gepubliceerd? Dan blijft hij staan tot de datum bereikt is; wie op
   // die dag niet inlogt krijgt hem daarna alsnog, want bevestigen is wat telt.
   return MEMOS.filter(m => _memoVoorMij(m) && _memoGepubliceerd(m) && !bevestigd.has(String(m.id)));
@@ -5433,34 +5456,134 @@ async function toonMemos() {
           <h3>${escHtml(m.titel)}</h3>
         </div>
         <div class="memo-body">${escHtml(m.bericht)}</div>
+        ${m.video_pad ? `<video id="memo-video-speler" class="memo-video" controls
+              controlslist="nodownload noplaybackrate" disablepictureinpicture playsinline></video>` : ''}
         <div class="memo-afzender">
           Van ${escHtml(m.aangemaakt_door || 'het management')} ·
           ${new Date(m.created_at).toLocaleDateString('nl-NL', { day:'numeric', month:'long' })}
         </div>
         <div class="memo-voet">
-          <button id="memo-knop">Gelezen en begrepen</button>
+          <button id="memo-knop"${m.video_pad ? ' disabled' : ''}>${
+            m.video_pad ? 'Bekijk eerst het filmpje' : 'Gelezen en begrepen'}</button>
+          ${m.video_pad ? `<button class="memo-later" id="memo-later">Nu even niet</button>` : ''}
           ${wachtrij.length > 1 ? `<div class="memo-teller">${i + 1} van ${wachtrij.length}</div>` : ''}
         </div>
       </div>`;
     document.body.appendChild(laag);
 
-    laag.querySelector('#memo-knop').onclick = async (e) => {
+    const knopEl  = laag.querySelector('#memo-knop');
+    const laterEl = laag.querySelector('#memo-later');
+    let hoe = 'gelezen';
+
+    // ── Het filmpje ─────────────────────────────────────────────────────────
+    if (m.video_pad) {
+      const speler = laag.querySelector('#memo-video-speler');
+      const mm = (sec) => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
+
+      // Als er iets misgaat — bestand weg, geen bereik, formaat dat deze
+      // browser niet kent — dan mag niemand vastlopen. Het memoscherm blokkeert
+      // het hele dashboard; zonder deze uitweg kan zo iemand niets meer.
+      const noodklep = (reden) => {
+        hoe = 'niet_afgespeeld';
+        if (speler) speler.remove();
+        if (laterEl) laterEl.remove();
+        const vak = document.createElement('div');
+        vak.className = 'memo-videofout';
+        vak.textContent = 'Het filmpje kan hier niet worden afgespeeld. Je kunt doorgaan; '
+          + (BEHEERDER_NAAM.split(' ')[0]) + ' ziet dat je het niet hebt kunnen bekijken.';
+        laag.querySelector('.memo-body').after(vak);
+        knopEl.disabled = false;
+        knopEl.textContent = 'Doorgaan zonder het filmpje';
+        meldFout('memo-video: ' + reden, 'toonMemos');
+      };
+
+      // Rechtstreeks uit de memo-bucket. Bewust niet via haalBestand(): die
+      // kijkt in 'bestanden' én onthoudt wat hij ophaalt — bij een filmpje van
+      // tientallen megabytes wil je dat juist niet in het geheugen houden.
+      (async () => {
+        let blob = null;
+        try {
+          const { data, error } = await supa.storage.from('memo-video').download(m.video_pad);
+          if (!error) blob = data;
+        } catch (_) { /* blob blijft leeg */ }
+        if (!blob) { noodklep('bestand niet op te halen'); return; }
+        speler.src = URL.createObjectURL(blob);
+      })();
+
+      speler.onerror = () => noodklep('afspelen mislukt');
+
+      // Vooruitspoelen blokkeren: terug mag, verder dan je gekeken hebt niet.
+      // Zonder dit is de kijkplicht één sleepbeweging waard.
+      let verst = 0;
+      speler.ontimeupdate = () => {
+        if (speler.currentTime > verst + 1.5) { speler.currentTime = verst; return; }
+        if (speler.currentTime > verst) verst = speler.currentTime;
+        const rest = Math.max(0, (speler.duration || m.video_duur || 0) - speler.currentTime);
+        if (rest > 1) knopEl.textContent = 'Nog ' + mm(rest) + ' te gaan';
+      };
+      speler.onended = () => {
+        hoe = 'uitgekeken';
+        knopEl.disabled = false;
+        knopEl.textContent = 'Gelezen en begrepen';
+        if (laterEl) laterEl.remove();   // uitgekeken: nog maar één weg vooruit
+      };
+    }
+
+    if (laterEl) laterEl.onclick = () => {
+      MEMO_UITGESTELD.add(String(m.id));
+      laag.remove();
+      toonVolgende(i + 1);
+    };
+
+    knopEl.onclick = async (e) => {
       const knop = e.currentTarget;
       knop.disabled = true;
       knop.textContent = 'Bevestigen…';
-      const gelukt = await _memoBevestig(m.id, mijnId);
+      const gelukt = await _memoBevestig(m.id, mijnId, hoe);
       laag.remove();
       if (!gelukt) return;   // niet gelukt: volgende keer opnieuw tonen
+      // Iedereen klaar? Dan mag het filmpje uit de opslag.
+      if (m.video_pad) { _memoVideoOpruimen(m).catch(() => {}); }
       toonVolgende(i + 1);
     };
   };
   toonVolgende(0);
 }
 
-async function _memoBevestig(memoId, userId) {
+// ── Opruimen ────────────────────────────────────────────────────────────────
+// Video is groot en verandert nooit meer: zodra iedereen die het moest zien
+// bevestigd heeft, is het bestand alleen nog ballast. De memo blijft staan,
+// inclusief wie hem wanneer bevestigd heeft.
+async function _memoVideoOpruimen(m) {
+  if (!supa || !m.video_pad) return;
+  // Wie moest het zien? Leeg betekent iedereen die commercieel actief is.
+  const moesten = (Array.isArray(m.ontvangers) && m.ontvangers.length)
+    ? m.ontvangers
+    : (BEHEER_PROFIELEN || []).filter(p => !p.einddatum || new Date(p.einddatum) >= new Date())
+                              .map(p => p.naam);
+  if (!moesten.length) return;
+  // Vers ophalen: MEMO_BEVESTIGINGEN kan verouderd zijn als een collega net
+  // vóór jou bevestigde. Te vroeg opruimen zou iemand een leeg scherm geven.
+  const { data, error } = await supa.from('memo_bevestigingen')
+    .select('gebruiker').eq('memo_id', m.id);
+  if (error) return;
+  const klaar = new Set((data || []).map(b => b.gebruiker));
+  if (!moesten.every(n => klaar.has(n))) return;
+
+  const { error: wegFout } = await supa.storage.from('memo-video').remove([m.video_pad]);
+  if (wegFout) { meldFout(wegFout.message, 'memo-video opruimen'); return; }
+  await supa.rpc('memo_video_opgeruimd', { p_memo: m.id });
+  m.video_pad = null;
+}
+
+async function _memoBevestig(memoId, userId, hoe) {
   try {
     const rij = { memo_id: memoId, user_id: userId,
-                  gebruiker: CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '' };
+                  gebruiker: CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '',
+                  // Niet alleen dát, maar ook hóe: uitgekeken of doorgegaan
+                  // omdat het filmpje niet wilde afspelen. Dat verschil moet
+                  // je weten voordat je aanneemt dat de boodschap geland is.
+                  gezien_hoe: hoe || 'gelezen' };
     const { error } = await supa.from('memo_bevestigingen').insert(rij);
     // Dubbele bevestiging (23505) is geen fout: dan stond hij er al.
     if (error && error.code !== '23505') { _meldStil('memo bevestigen', error); return false; }
@@ -5473,6 +5596,39 @@ async function _memoBevestig(memoId, userId) {
 let MEMO_FORM_OPEN = false;
 
 function memoToggleForm() { MEMO_FORM_OPEN = !MEMO_FORM_OPEN; renderBeheer(); }
+
+// Grootte en lengte controleren zodra er een bestand gekozen is, niet pas bij
+// het versturen: dan sta je niet eerst een minuut te wachten om te horen dat
+// het te groot was.
+const MEMO_VIDEO_MAX = 50 * 1024 * 1024;   // 50 MB
+let MEMO_VIDEO_DUUR = null;                // seconden, uit het bestand gelezen
+
+function memoVideoGekozen(el) {
+  const info = document.getElementById('memo-video-info');
+  const f = el && el.files && el.files[0];
+  MEMO_VIDEO_DUUR = null;
+  if (!f) { if (info) info.textContent = 'Geen filmpje gekozen.'; return; }
+  if (f.size > MEMO_VIDEO_MAX) {
+    el.value = '';
+    if (info) info.innerHTML = `<span style="color:#b91c1c;">Dit bestand is ${(f.size/1048576).toFixed(0)} MB en dat is te groot (max 50 MB).
+      Neem opnieuw op in 720p, of knip het korter.</span>`;
+    return;
+  }
+  if (info) info.textContent = `${f.name} — ${(f.size/1048576).toFixed(1)} MB. Lengte bepalen…`;
+  // De lengte uit het bestand lezen, zodat het memoscherm straks kan aftellen.
+  try {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => {
+      MEMO_VIDEO_DUUR = Math.round(v.duration) || null;
+      URL.revokeObjectURL(v.src);
+      if (info) info.textContent = `${f.name} — ${(f.size/1048576).toFixed(1)} MB`
+        + (MEMO_VIDEO_DUUR ? `, ${Math.floor(MEMO_VIDEO_DUUR/60)}:${String(MEMO_VIDEO_DUUR%60).padStart(2,'0')}` : '');
+    };
+    v.onerror = () => { if (info) info.textContent = `${f.name} — ${(f.size/1048576).toFixed(1)} MB`; };
+    v.src = URL.createObjectURL(f);
+  } catch (_) { /* lengte is prettig maar niet nodig */ }
+}
 
 async function memoVerstuur() {
   if (!eisWijzig('beheer')) return;
@@ -5490,14 +5646,41 @@ async function memoVerstuur() {
   try {
     const { data: { user } = { user: null } } = await supa.auth.getUser();
     const datum = (document.getElementById('memo-datum')?.value || '').trim();
+
+    // Eerst het filmpje, dan pas de memo. Andersom zou er bij een mislukte
+    // upload een memo in de lucht hangen die naar een bestand wijst dat er
+    // niet is — en die staat dan wél al bij iedereen op het scherm.
+    let videoPad = null;
+    const vBestand = document.getElementById('memo-video')?.files?.[0] || null;
+    if (vBestand) {
+      if (vBestand.size > MEMO_VIDEO_MAX) {
+        btZetStatus(msg, '⚠️ Het filmpje is te groot (max 50 MB).'); return;
+      }
+      btZetStatus(msg, `⏳ Filmpje uploaden (${(vBestand.size/1048576).toFixed(1)} MB)…`);
+      const naam = Date.now() + '-' + vBestand.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const { error: upFout } = await supa.storage.from('memo-video')
+        .upload(naam, vBestand, { contentType: vBestand.type || 'video/mp4' });
+      if (upFout) { btZetStatus(msg, '❌ Filmpje uploaden mislukt: ' + upFout.message); return; }
+      videoPad = naam;
+      btZetStatus(msg, '⏳ Versturen…');
+    }
+
     const { error } = await supa.from('memos').insert({
       titel, bericht: tekst,
       publiceren_vanaf: datum || null,
       ontvangers: allen ? null : gekozen,
       aangemaakt_door: CURRENT_USER?.naam || '',
       created_by: user ? user.id : null,
+      video_pad: videoPad,
+      video_duur: videoPad ? MEMO_VIDEO_DUUR : null,
     });
-    if (error) { btZetStatus(msg, '❌ Versturen mislukt: ' + error.message); return; }
+    if (error) {
+      // De memo is niet aangemaakt: het zojuist geüploade filmpje weer weghalen,
+      // anders blijft er een bestand achter waar niets meer naar wijst.
+      if (videoPad) { try { await supa.storage.from('memo-video').remove([videoPad]); } catch (_) {} }
+      btZetStatus(msg, '❌ Versturen mislukt: ' + error.message); return;
+    }
+    MEMO_VIDEO_DUUR = null;
     await loadMemos();
     MEMO_FORM_OPEN = false;
     renderBeheer();
@@ -6284,6 +6467,10 @@ function renderBeheer() {
         const bev = MEMO_BEVESTIGINGEN.filter(b => String(b.memo_id) === String(m.id));
         const gelezen = bev.map(b => b.gebruiker).filter(Boolean);
         const open    = doelgroep.filter(n => !gelezen.includes(n));
+        // Wie op de noodklep drukte omdat het filmpje niet wilde afspelen. Dat
+        // verschil telt: bevestigd is niet hetzelfde als gezien.
+        const nietGezien = bev.filter(b => b.gezien_hoe === 'niet_afgespeeld')
+                              .map(b => b.gebruiker).filter(Boolean);
         const gepland = !_memoGepubliceerd(m);
 
         // In de titelregel staat alleen wat je nodig hebt om te kiezen welke je
@@ -6308,6 +6495,14 @@ function renderBeheer() {
           </summary>
           <div class="memo-inhoud">
             <div class="memo-tekst">${escHtml(m.bericht)}</div>
+            ${(m.video_pad || m.video_weg_op) ? `<div class="memo-onderregel" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;">
+              <span style="color:var(--text-muted);">
+                ${m.video_pad ? 'Met filmpje — wordt opgeruimd zodra iedereen bevestigd heeft.'
+                              : 'Filmpje is opgeruimd; de mededeling blijft staan.'}
+              </span>
+              ${nietGezien.length ? `<span style="color:#8a5a08;margin-left:auto;">
+                Niet kunnen afspelen bij: ${escHtml(nietGezien.join(', '))}</span>` : ''}
+            </div>` : ''}
             <div class="memo-onderregel">
               ${gepland
                 ? `<span style="color:var(--text-muted);">Staat klaar, nog niet verstuurd.</span>`
@@ -6331,6 +6526,14 @@ function renderBeheer() {
       <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Bericht</label>
       <textarea id="memo-tekst" rows="5" placeholder="Kort en concreet. Wat is er veranderd, en wat betekent dat voor jou?" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);line-height:1.6;resize:vertical;"></textarea>
       <div style="margin-top:12px;">
+        <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Filmpje (optioneel)</label>
+        <input id="memo-video" type="file" accept="video/*" onchange="memoVideoGekozen(this)"
+               style="font-size:.82rem;">
+        <div id="memo-video-info" style="font-size:.76rem;color:var(--text-muted);margin:5px 0 12px;">
+          Maximaal 50 MB — dat is ongeveer drie minuten in 720p. Wie een filmpje krijgt,
+          moet het uitkijken voordat hij kan bevestigen. Zodra iedereen bevestigd heeft,
+          wordt het bestand automatisch opgeruimd.
+        </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:.84rem;cursor:pointer;margin-bottom:8px;">
           <input type="checkbox" id="memo-allen" checked onchange="document.getElementById('memo-selectie').style.display=this.checked?'none':'flex'">
           Naar iedereen
