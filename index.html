@@ -1914,7 +1914,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-0851 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260814-0902 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4666,7 +4666,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-0851';
+const APP_VERSIE = '20260814-0902';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9843,28 +9843,62 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && Date.now() - _VERVERS_LAATST > 5 * 60 * 1000) stilVerversen();
 });
 
+// Hertekenen na een live-wijziging — maar nooit onder iemands handen door.
+// Wie op dat moment typt of opneemt, houdt zijn scherm; de gegevens zijn dan
+// al wel binnen en de eerstvolgende gewone hertekening toont ze. Zonder deze
+// rem springt je cursor weg zodra een collega iets opslaat.
+function stilRender() {
+  if (_magNuVerversen()) { render(); }
+}
+
+let _REALTIME_HERSTART = null;
+
 function subscribeRealtime() {
   if (!supa) return;
   supa.channel('kpi-dashboard-live')
+    // De cijfers: stonden er al.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kpi_weekly' }, async () => {
-      await loadKpiWeekly(); recomputeRatios(); render();
+      await loadKpiWeekly(); recomputeRatios(); stilRender();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pipeline_cards' }, async () => {
-      await pipeFetchAll(); render();
+      await pipeFetchAll(); stilRender();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'projecten' }, async () => {
-      await loadProjecten(); render();
+      await loadProjecten(); stilRender();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, async () => {
-      await accountsFetchAll(); render();
+      await accountsFetchAll(); stilRender();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_leads' }, async () => {
-      await salesLeadsFetchAll(); render();
+      await salesLeadsFetchAll(); stilRender();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'financieel_omzet' }, async () => {
-      await loadFinancieelOmzet(); render();
+      await loadFinancieelOmzet(); stilRender();
     })
-    .subscribe();
+    // De weekschema's: vult een collega zijn plan of BUM-gesprek in, dan staat
+    // het bij de manager binnen seconden op het scherm — en andersom de
+    // managernotitie bij de collega.
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_van_aanpak' }, async () => {
+      await loadPlanVanAanpak(); stilRender();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'bum_gesprek' }, async () => {
+      await loadBumGesprekken(); stilRender();
+    })
+    .subscribe((status) => {
+      // De bewaking. Een weggevallen kanaal is onzichtbaar: alles lijkt te
+      // werken, er komt alleen niets meer binnen. Daarom: melden in het
+      // foutenlogboek en na een halve minuut opnieuw aansluiten. In de
+      // tussentijd vangt het stille verversen (elke 10 minuten) het gat op.
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        meldFout('realtime-kanaal: ' + status, 'subscribeRealtime');
+        if (_REALTIME_HERSTART) return;
+        _REALTIME_HERSTART = setTimeout(() => {
+          _REALTIME_HERSTART = null;
+          try { supa.removeChannel && supa.removeAllChannels && supa.removeAllChannels(); } catch (_) {}
+          subscribeRealtime();
+        }, 30 * 1000);
+      }
+    });
 }
 
 // ── Opstarten ───────────────────────────────────────────────────────────────────
