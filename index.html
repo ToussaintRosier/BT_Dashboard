@@ -1993,7 +1993,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260814-1700 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260817-0846 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2502,7 +2502,11 @@ function inLast26(d) {
 // route binnen) — wel een vaste norm van 4 bezoeken/week en een doel van 8
 // starters/jaar per persoon. normFix-waarden zijn per week gedefinieerd en
 // worden door normPerPeriod() automatisch geschaald naar de gekozen view.
-const KAM_NORM_FIX = { intakes: 0, bezoeken: 4, aanbiedingen: 0, matchgesprekken: 0, contractvoorstellen: 0 };
+// Key Accountmanager: vaste weeknorm van 4 bezoeken, geen norm op de
+// aanwas-fasen. Contractvoorstellen staat hier bewust NIET in: die norm volgt
+// voor iedereen uit de startersnorm (zie CONTRACTVOORSTEL_RATIO_NORM). Stond
+// hij hier op 0, dan had een KAM wel een startersdoel maar geen weg ernaartoe.
+const KAM_NORM_FIX = { intakes: 0, bezoeken: 4, aanbiedingen: 0, matchgesprekken: 0 };
 // BMS wordt bij het laden vanuit de database opgebouwd (zie loadBeheerData).
 // De hardcoded waarden hieronder dienen als fallback totdat de DB is geladen.
 let BMS = [
@@ -2635,6 +2639,10 @@ function computeRatios(naam) {
 // Vaste norm: 1.25 contractvoorstellen per starter.
 // Data is nog te nieuw voor een betrouwbare historische ratio;
 // na ±26 weken data kan dit worden vervangen door de historische waarde.
+// Ongeveer 80% van de contractvoorstellen wordt een starter. Voor één starter
+// heb je er dus 1 / 0,8 = 1,25 nodig. Deze norm wordt daarom niet uit de
+// historie gerekend maar vastgezet: hij hoort altijd bóven de startersnorm te
+// liggen, ook bij een collega die toevallig een goede reeks had.
 const CONTRACTVOORSTEL_RATIO_NORM = 1.25;
 
 let INDIVIDUAL_RATIOS = {};
@@ -4791,7 +4799,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260814-1700';
+const APP_VERSIE = '20260817-0846';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8012,7 +8020,7 @@ function _pvaWeekCijfers(bm, jaar, week) {
     const basis = saved ? (saved[k] || 0) : (pipe[k] || 0);
     uit[k] = {
       realisatie: basis,
-      norm: Math.round((norm[k] || 0) * 10) / 10,
+      norm: normAfgerond(norm[k]),
       opgeslagen: !!saved,
     };
   }
@@ -8985,7 +8993,12 @@ async function loadUrenrapportage() {
 
 // Normen worden op één decimaal getoond; dus wordt er ook op één decimaal
 // gerekend. Anders klopt het percentage niet met de twee getallen ernaast.
-function normAfgerond(x) { return Math.round((+x || 0) * 10) / 10; }
+function normAfgerond(x) {
+  const n = +x || 0;
+  // Onder de 1 is één decimaal te grof: 0,27 en 0,34 worden dan allebei 0,3
+  // en dan lijkt de contractvoorstellen-norm gelijk aan die van starters.
+  return n > 0 && n < 1 ? Math.round(n * 100) / 100 : Math.round(n * 10) / 10;
+}
 
 // ── COMRAP-analyses: laden + opslaan als benchmark ───────────────────────────
 async function loadComrapAnalyses() {
@@ -13731,6 +13744,157 @@ function _weekErna(jaar, week) {
 // Alles wat er in de pijplijn zit: per fase, per persoon, plus wat er voor de
 // week erna gepland staat. Zonder dit kan de analyse niets zinnigs zeggen over
 // wat eraan komt — en dat was precies de klacht.
+// ── Beldata ─────────────────────────────────────────────────────────────────
+// Elke week wordt er een schermafdruk van de belrapportage bij de comrap
+// geüpload. Die werd uitgelezen, één keer genoemd, en daarna was hij weg.
+// Nu bewaren we de cijfers, zodat de vraag beantwoordbaar wordt waar het om
+// gaat: wat levert een uur bellen op, en loopt dat op of terug?
+async function _beldataOphalen(week, jaar, aantalWeken) {
+  if (!supa) return [];
+  const vanaf = _weekVerschoven(jaar, week, -(aantalWeken || 8));
+  try {
+    const { data, error } = await supa.from('beldata')
+      .select('naam,jaar,week,gesprekken,belminuten,sms,li_bekeken,li_inmails,li_geaccept')
+      .or(`jaar.gt.${vanaf.year},and(jaar.eq.${vanaf.year},week.gte.${vanaf.week})`)
+      .order('jaar').order('week');
+    if (error) { meldFout(error.message, 'beldata ophalen'); return []; }
+    // Alleen wat vóór de gevraagde week ligt: de week zelf komt uit de
+    // schermafdruk die nu wordt meegestuurd.
+    return (data || []).filter(r => r.jaar < jaar || (r.jaar === jaar && r.week < week));
+  } catch (e) { meldFout(String(e && e.message || e), 'beldata ophalen'); return []; }
+}
+
+// Wat de analyse uit de schermafdruk gelezen heeft, wegschrijven. Bewust
+// stil: mislukt dit, dan is de rapportage zelf er nog steeds. Alleen de
+// vergelijking van volgende week mist dan een punt, en dat meldt het
+// foutenlogboek.
+async function _beldataBewaren(rijen, week, jaar) {
+  // Stille achtervang: de melding staat al bij de handeling (comrapAnalyse
+  // eist 'comrap'). Hier alleen nog de deur op slot, zonder tweede melding.
+  if (!magWijzigen('comrap')) return 0;
+  if (!supa || !Array.isArray(rijen) || !rijen.length) return 0;
+  const namen = new Set(BMS.map(b => b.naam));
+  const schoon = [];
+  for (const r of rijen) {
+    if (!r || !r.naam) continue;
+    // Alleen namen die we kennen. Een verkeerd gelezen naam zou anders een
+    // eigen reeks beginnen die nooit meer aansluit.
+    if (!namen.has(r.naam)) { meldFout('onbekende naam in beldata: ' + r.naam, 'beldata bewaren'); continue; }
+    const getal = v => (v == null || v === '' || isNaN(+v)) ? null : Math.round(+v);
+    schoon.push({
+      naam: r.naam, jaar, week,
+      gesprekken: getal(r.gesprekken), belminuten: getal(r.belminuten), sms: getal(r.sms),
+      li_bekeken: getal(r.li_bekeken), li_inmails: getal(r.li_inmails), li_geaccept: getal(r.li_geaccept),
+      bron: 'schermafdruk', bijgewerkt: new Date().toISOString(),
+    });
+  }
+  if (!schoon.length) return 0;
+  try {
+    const { error } = await supa.from('beldata').upsert(schoon, { onConflict: 'naam,jaar,week' });
+    if (error) { meldFout(error.message, 'beldata bewaren'); return 0; }
+    return schoon.length;
+  } catch (e) { meldFout(String(e && e.message || e), 'beldata bewaren'); return 0; }
+}
+
+// Een week terug of vooruit, met de jaarwisseling erin verwerkt.
+function _weekVerschoven(jaar, week, stappen) {
+  const maandag = new Date(Date.UTC(jaar, 0, 4));
+  maandag.setUTCDate(maandag.getUTCDate() - ((maandag.getUTCDay() + 6) % 7) + (week - 1) * 7 + stappen * 7);
+  return isoWeek(maandag);
+}
+
+// De acht weken vóór deze, met de echte cijfers erbij.
+//
+// Hiervoor kreeg de analyse alleen de tékst van eerdere rapportages mee en
+// schreef hij de oude cijfers daaruit over — met overnamefouten tot gevolg.
+// Belangrijker nog: zonder reeks kun je niets zeggen over nawerking. De input
+// van deze week landt pas een week later in de matchgesprekken en weer een week
+// later in de starters; om dat te zien moet je de weken naast elkaar hebben.
+function _comrapWeekreeks(week, jaar, aantal) {
+  const reeks = [];
+  for (let i = aantal; i >= 1; i--) {
+    const w = _weekVerschoven(jaar, week, -i);
+    const team = {}; for (const k of KPIS) team[k] = 0;
+    const perPersoon = [];
+    for (const bm of bmsMetResultaat()) {
+      if (!teltMeeInWeek(bm, w.year, w.week)) continue;
+      const saved = RAW.find(d => d.naam === bm.naam && d.jaar === w.year && d.week === w.week);
+      const bron  = saved || getPipeCountsForWeek(bm.naam, w.week, w.year);
+      const mijn  = { naam: bm.naam };
+      let iets = false;
+      for (const k of KPIS) {
+        const v = +bron[k] || 0;
+        mijn[k] = v; team[k] += v;
+        if (v) iets = true;
+      }
+      if (iets) perPersoon.push(mijn);
+    }
+    reeks.push({ week: w.week, jaar: w.year, opgeslagen: RAW.some(d => d.jaar === w.year && d.week === w.week),
+                 team, per_persoon: perPersoon });
+  }
+  return reeks;
+}
+
+// Matchgesprekken en contractvoorstellen bij naam — geen selectie, alles.
+// Zonder namen blijft het gesprek bij "negen matchgesprekken"; met namen kun
+// je er maandag daadwerkelijk doorheen lopen.
+function _comrapDossiers(week, jaar) {
+  const vanDeWeek = [], openstaand = [];
+  const omschrijf = (c, bmNaam) => ({
+    kandidaat: c.naam || '(naam ontbreekt)',
+    opdrachtgever: c.opdrachtgever || null,
+    functie: c.functie || null,
+    ronde: c.stage === 'Matchgesprekken'
+      ? (c.gesprek === 1 ? '1e gesprek' : c.gesprek === 2 ? '2e gesprek'
+         : c.gesprek === 3 ? '3e gesprek' : 'ronde onbekend')
+      : null,
+    gedeeld: !!c.gedeeld,
+    week: c.week || null, jaar: c.jaar || null,
+    collega: bmNaam,
+  });
+  for (const bm of bmsMetResultaat()) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.verwijderd_op) continue;
+      if (c.stage !== 'Matchgesprekken' && c.stage !== 'Contractvoorstel') continue;
+      const rij = omschrijf(c, bm.naam);
+      rij.fase = c.stage;
+      if (c.week === week && c.jaar === jaar) vanDeWeek.push(rij);
+      else openstaand.push(rij);
+    }
+  }
+  return { van_de_week: vanDeWeek, openstaand };
+}
+
+// Kandidaten waar te weinig mee gedaan is. Dezelfde telling als het tabblad
+// Kandidaten: alle Aanbieden-kaartjes van iedereen bij elkaar opgeteld per
+// naam, ongeacht in welke week de aanbieding viel. Onder de tien is de
+// afspraak: een kernprofiel kan bij ongeveer twintig bedrijven langs.
+function _comrapKandidaten(grens) {
+  const norm = n => (n || '').trim().toLowerCase();
+  const aanbPerNaam = {};
+  for (const bm of bmsMetCijfers()) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.verwijderd_op || c.stage !== 'Aanbieden') continue;
+      const key = norm(c.naam); if (!key) continue;
+      aanbPerNaam[key] = (aanbPerNaam[key] || 0) + (+c.aanb || 0);
+    }
+  }
+  const uit = [];
+  for (const bm of bmsMetCijfers()) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.verwijderd_op || c.stage !== 'Intake' || c.kandidaten_uitgesloten) continue;
+      const n = aanbPerNaam[norm(c.naam)] || 0;
+      if (n < grens) {
+        uit.push({ kandidaat: c.naam || '(naam ontbreekt)', functie: c.functie || null,
+                   regio: c.regio || null, aanbiedingen: n, collega: bm.naam,
+                   intake_week: c.week || null, intake_jaar: c.jaar || null });
+      }
+    }
+  }
+  uit.sort((a, b) => a.aanbiedingen - b.aanbiedingen);
+  return { grens, aantal: uit.length, lijst: uit };
+}
+
 function _comrapPipeline(week, jaar) {
   const na = _weekErna(jaar, week);
   const perFase = {}, naFase = {};
@@ -13781,7 +13945,9 @@ async function comrapAnalyse() {
   const w = st.week; const y = st.jaar;
   const kpiKeys = ['intakes','bezoeken','aanbiedingen','matchgesprekken','contractvoorstellen','starters'];
 
-  // Bouw structured data — MAX(opgeslagen, pipeline), zelfde als teamtotaal-view.
+  // Opgeslagen wint, anders telt de pipeline (besluit 14-08). Zelfde regel als
+  // de weektabel en de ranglijst; de oude max-regel gaf hier een hoger cijfer
+  // dan het dashboard zelf liet zien.
   const bmData = bmsMetResultaat().map(bm => {
     const raw    = RAW.find(r => r.naam === bm.naam && r.jaar === y && r.week === w) || {};
     const pipe   = getPipeCountsForWeek(bm.naam, w, y);
@@ -13789,7 +13955,7 @@ async function comrapAnalyse() {
     const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
     const kpis   = {};
     for (const k of kpiKeys) {
-      const realisatie = Math.max(parseFloat(raw[k]) || 0, pipe[k] || 0);
+      const realisatie = raw[k] != null ? (parseFloat(raw[k]) || 0) : (pipe[k] || 0);
       const n = normAfgerond(norm[k]);
       kpis[k] = {
         realisatie, norm: n,
@@ -13804,6 +13970,13 @@ async function comrapAnalyse() {
   // De volledige pijplijn, niet één getal.
   const pipeline = _comrapPipeline(w, y);
   const kanban = pipeline.totaal_actief;
+
+  // De acht weken ervóór met echte cijfers, de dossiers bij naam, en de
+  // kandidaten waar te weinig mee gedaan is.
+  const weekreeks  = _comrapWeekreeks(w, y, 8);
+  const dossiers   = _comrapDossiers(w, y);
+  const kandidaten = _comrapKandidaten(10);
+  const beldata_historie = await _beldataOphalen(w, y, 8);
 
   // Afbeeldingen als content-blokken
   const imageBlokken = st.imports.filter(f => f.type && f.type.startsWith('image/')).map(f => ({
@@ -13836,13 +14009,19 @@ async function comrapAnalyse() {
       headers: { 'Content-Type': 'application/json', ...(authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {}) },
       body: JSON.stringify({
         week: w, jaar: y, bm_data: bmData,
-        kanban, pipeline, notities: st.notities + tekstImports, images: imageBlokken,
+        kanban, pipeline, weekreeks, dossiers, kandidaten, beldata_historie,
+        notities: st.notities + tekstImports, images: imageBlokken,
         historische_analyses,
       }),
     });
     const json = await resp.json();
     if (json.error) throw new Error(json.error);
     st.resultaat = json.analyse || json.content || '(Geen resultaat ontvangen)';
+    // De cijfers die uit de schermafdruk zijn gelezen, bewaren voor de
+    // vergelijking van volgende week.
+    if (Array.isArray(json.beldata) && json.beldata.length) {
+      st.beldataBewaard = await _beldataBewaren(json.beldata, w, y);
+    }
     // Meteen bewaren. Een analyse die je moet onthouden op te slaan, is een
     // analyse die de volgende keer niet meetelt als vergelijking — en juist die
     // vergelijking is waar de trends uit komen.
