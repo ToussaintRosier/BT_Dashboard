@@ -1993,7 +1993,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260817-1112 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260817-1129 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4799,7 +4799,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260817-1112';
+const APP_VERSIE = '20260817-1129';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13622,8 +13622,16 @@ function renderComrapOpgeslagenHtml(w, y) {
             <span class="comrap-chevron" style="color:var(--muted);font-size:.75rem;min-width:14px;">▶</span>
             <strong style="font-size:.92rem;color:var(--primary);">Week ${a.week} / ${a.jaar}</strong>
             ${datum ? `<span style="font-size:.78rem;color:var(--muted);">${datum}</span>` : ''}
+            <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+            <button onclick="event.stopPropagation();comrapKopieerOpgeslagen(${i}, this);"
+              title="De volledige tekst naar het klembord"
+              style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">Kopieer tekst</button>
+            <button onclick="event.stopPropagation();comrapPdfOpgeslagen(${i});"
+              title="Openen als afdrukpagina — kies daar Opslaan als PDF"
+              style="background:#253151;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">Printen / PDF</button>
             <button onclick="event.stopPropagation();if(confirm('Analyse week ${a.week}/${a.jaar} verwijderen?'))comrapVerwijder(${JSON.stringify(a.id)});"
-              style="margin-left:auto;background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">${btActie('prullenbak')}</button>
+              style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">${btActie('prullenbak')}</button>
+            </span>
           </div>
           <div id="${id}" style="display:none;padding:0 18px 16px;border-top:1px solid var(--border);line-height:1.7;font-size:.88rem;">
             ${simpleMarkdown(a.analyse_tekst)}
@@ -13712,9 +13720,20 @@ function comrapKopieer() {
 function comrapPdf() {
   const st = window._comrapState;
   if (!st.resultaat) return;
-  const w = st.week; const y = st.jaar;
-  const html = simpleMarkdown(st.resultaat);
+  _comrapAfdruk(st.resultaat, st.week, st.jaar);
+}
+
+// Eén afdrukpagina voor beide plekken: de verse analyse en elke bewaarde week.
+// Stond dit alleen in comrapPdf, dan zou een opgeslagen rapportage er anders
+// uitzien zodra hier iets aan verandert — en dat merk je pas als je hem al
+// hebt rondgestuurd.
+function _comrapAfdruk(tekst, w, y, bewaardOp) {
+  if (!tekst) return;
+  const html = simpleMarkdown(tekst);
   const win = window.open('', '_blank');
+  // Pop-ups worden vaker geblokkeerd dan mensen denken, en een knop die
+  // niets doet laat je zoeken bij de verkeerde oorzaak.
+  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe voor dit adres om te kunnen printen of opslaan als PDF.'); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Commerciële Rapportage — Week ${w}/${y}</title>
   <style>
@@ -13735,11 +13754,32 @@ function comrapPdf() {
   </style>
   </head><body>
   <h1>Commerciële Rapportage</h1>
-  <div class="meta">Week ${w} / ${y} &nbsp;·&nbsp; Brightech</div>
+  <div class="meta">Week ${w} / ${y} &nbsp;·&nbsp; Brightech${
+    bewaardOp ? ` &nbsp;·&nbsp; opgesteld op ${bewaardOp}` : ''}</div>
   ${html}
   <script>window.onload = function() { window.print(); }<\/script>
   </body></html>`);
   win.document.close();
+}
+
+// Printen en kopiëren vanuit het overzicht met bewaarde rapportages. Ze staan
+// in COMRAP_ANALYSES op volgorde van opslaan; de kaart geeft zijn eigen plek
+// door, zodat er geen tweede zoektocht op id nodig is.
+function comrapPdfOpgeslagen(i) {
+  const a = COMRAP_ANALYSES[i];
+  if (!a) { alert('Deze rapportage is niet meer beschikbaar. Ververs de pagina.'); return; }
+  const datum = a.created_at
+    ? new Date(a.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  _comrapAfdruk(a.analyse_tekst, a.week, a.jaar, datum);
+}
+
+function comrapKopieerOpgeslagen(i, knop) {
+  const a = COMRAP_ANALYSES[i];
+  if (!a || !navigator.clipboard) return;
+  navigator.clipboard.writeText(a.analyse_tekst || '').then(() => {
+    if (knop) { btZetStatus(knop, '✅ Gekopieerd'); setTimeout(() => { knop.textContent = 'Kopieer tekst'; }, 2000); }
+  });
 }
 
 // De week erna, met een correcte jaarwisseling: we rekenen via de maandag van
