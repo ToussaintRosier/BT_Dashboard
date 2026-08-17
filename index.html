@@ -1993,7 +1993,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260817-0846 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260817-1112 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4799,7 +4799,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260817-0846';
+const APP_VERSIE = '20260817-1112';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8571,7 +8571,10 @@ function renderPvaLogboek(bm, safeId) {
     </div>`;
     let content = '';
     if (open) {
-      if (!row) {
+      // De voorwaarde stond omgekeerd (!row): een week mét een plan gaf geen
+      // inhoud, en een week zonder plan liep stuk op row.gewerkt. Het logboek
+      // klapte dus wel open, maar bleef leeg.
+      if (row) {
         // Oud en nieuw door elkaar: weken van vóór de herziening hebben andere
         // velden. We tonen per week alleen wat er in die week is ingevuld, zodat
         // een oud plan leesbaar blijft zoals het is opgeschreven.
@@ -8596,6 +8599,12 @@ function renderPvaLogboek(bm, safeId) {
           ${veld('Review manager', row.manager_notitie)}
           <div style="margin-top:8px">
             <button onclick="printPlanVanAanpak('${escApos(bm.naam)}',${w.year},${w.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">Afdrukken</button>
+          </div>
+        </div>`;
+      } else {
+        content = `<div class="pva-log-content">
+          <div style="font-size:.82rem;color:var(--op-pagina-zwak, var(--muted));">
+            Voor deze week is geen plan van aanpak vastgelegd.
           </div>
         </div>`;
       }
