@@ -1607,6 +1607,50 @@
   /* Een gewijzigde of onbekende collega: rood kader, tekst blijft leesbaar. */
   select.bonus-veld.nieuw  { border-color:#ff8f8f; box-shadow:0 0 0 1px #ff8f8f inset; }
 
+  /* De datumfilters boven de bonustabel. Het uitklapmenu was wit met tekst
+     zonder eigen kleur; die erft dan het wit van de pagina en je zag alleen
+     de vinkjes. Nu donker, in dezelfde stijl als de keuzevakjes hierboven,
+     en elke tekstregel krijgt zijn kleur expliciet mee. */
+  .bonus-filt > summary {
+    font-size:.61rem; padding:2px 7px; border:1px solid rgba(255,255,255,.35);
+    border-radius:4px; background:rgba(255,255,255,.12); color:#fff;
+    cursor:pointer; list-style:none; white-space:nowrap;
+  }
+  .bonus-filt > summary::-webkit-details-marker { display:none; }
+  .bonus-filt > summary:hover { background:rgba(255,255,255,.2); }
+  /* Actief filter: opvallend, maar niet schreeuwerig. */
+  .bonus-filt.actief > summary { background:#5ee2b0; border-color:#5ee2b0; color:#0b3a2c; font-weight:600; }
+  .bonus-filt-menu {
+    padding:4px; border:1px solid rgba(255,255,255,.35); border-radius:4px;
+    background:#3a4770; margin-top:2px; min-width:96px;
+  }
+  .bonus-filt-menu label { display:block; padding:2px 3px; font-size:.61rem;
+                           white-space:nowrap; cursor:pointer; color:#fff; }
+  .bonus-filt-menu label:hover { background:rgba(255,255,255,.12); border-radius:3px; }
+  .bonus-filt-leeg { font-size:.6rem; color:rgba(255,255,255,.6); padding:2px; }
+  .bonus-filt-wis  { font-size:.58rem; color:rgba(255,255,255,.6); text-decoration:underline;
+                     cursor:pointer; padding:3px 3px 1px; margin-top:3px;
+                     border-top:1px solid rgba(255,255,255,.2); }
+  .bonus-filt-wis:hover { color:#fff; }
+
+  /* ── Vangnet: donkere letter op een vast licht vlak ──────────────────────
+     Een wit of crèmekleurig vakje op de donkere pagina kreeg steeds tekst
+     zonder eigen kleur. Die erft dan het wit van de pagina en verdwijnt —
+     vijf keer gemeld, vijf keer per geval gerepareerd. Deze regel vangt het
+     af aan de bron: staat er een vaste lichte achtergrond, dan is de tekst
+     donker. Zet je in dezelfde style-regel zelf een kleur, dan wint die.
+
+     Alleen vaste kleurcodes. --card en --bg wisselen mee met hun omgeving;
+     die hier opnemen zou donkere letters forceren op vlakken die elders
+     juist donker zijn. */
+  [style*="background:#fff"],  [style*="background: #fff"],
+  [style*="background:#FFF"],  [style*="background:#f9fafb"],
+  [style*="background:#f3f4f6"],[style*="background:#f5f7fb"],
+  [style*="background:#fffbeb"],[style*="background:#fef3c7"],
+  [style*="background:#fef2f2"],[style*="background:#e8edf2"] {
+    color:#16142e;
+  }
+
   /* Voor uitleg en bijschriften buiten een paneel. */
   .op-pagina      { color:var(--op-pagina); }
   .op-pagina-zwak { color:var(--op-pagina-zwak); }
@@ -2012,7 +2056,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260818-0940 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260818-0947 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4818,7 +4862,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260818-0940';
+const APP_VERSIE = '20260818-0947';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13081,8 +13125,6 @@ function bonusFiltApply() {
     const sel = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
     const count = sel.length;
     const sumLabel = count > 0 ? `Periode&nbsp;(${count})` : `Periode&nbsp;▾`;
-    const sumBg    = count > 0 ? 'var(--primary-light)' : 'var(--bg)';
-    const sumColor = count > 0 ? 'var(--primary)' : '#16142e';
     // Sorteer op jaar desc, maand desc
     const sorted = [...allJM[colKey].entries()].sort((a, b) => {
       const [ay, am] = a[0].split('-').map(Number);
@@ -13091,17 +13133,16 @@ function bonusFiltApply() {
     });
     const items = sorted.map(([v, lbl]) => {
       const chk = sel.includes(v) ? 'checked' : '';
-      return `<label style="display:block;padding:1px 3px;font-size:.61rem;white-space:nowrap;cursor:pointer;">` +
+      return `<label>` +
         `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
         `onchange="bonusDfToggleJM('${colKey}','${v}')">&nbsp;${lbl}</label>`;
     }).join('');
     const wis = count > 0
-      ? `<div onclick="bonusDfClearJM('${colKey}')" style="font-size:.58rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:2px 3px;border-top:1px solid var(--border);margin-top:2px;">wis</div>` : '';
-    return `<details style="display:inline-block;margin-right:2px;vertical-align:top;">` +
-      `<summary style="font-size:.61rem;padding:1px 5px;border:1px solid var(--border);border-radius:3px;` +
-      `background:${sumBg};color:${sumColor};cursor:pointer;list-style:none;white-space:nowrap;">${sumLabel}</summary>` +
-      `<div style="padding:2px;border:1px solid var(--border);border-radius:3px;background:#fff;margin-top:1px;min-width:80px;">` +
-      `${items || '<span style="font-size:.6rem;color:var(--muted);padding:2px;">—</span>'}${wis}` +
+      ? `<div class="bonus-filt-wis" onclick="bonusDfClearJM('${colKey}')">wis</div>` : '';
+    return `<details class="bonus-filt${count > 0 ? ' actief' : ''}" style="display:inline-block;margin-right:2px;vertical-align:top;">` +
+      `<summary>${sumLabel}</summary>` +
+      `<div class="bonus-filt-menu">` +
+      `${items || '<span class="bonus-filt-leeg">Geen datums</span>'}${wis}` +
       `</div></details>`;
   }
   function mkWeek(colKey) {
@@ -13109,22 +13150,19 @@ function bonusFiltApply() {
     const sel = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
     const count = sel.length;
     const sumLabel = count > 0 ? `Week&nbsp;(${count})` : `Week&nbsp;▾`;
-    const sumBg    = count > 0 ? 'var(--primary-light)' : 'var(--bg)';
-    const sumColor = count > 0 ? 'var(--primary)' : '#16142e';
     const vals = [...allW[colKey]].sort((a,b) => a-b);
     const items = vals.map(v => {
       const chk = sel.includes(String(v)) ? 'checked' : '';
-      return `<label style="display:block;padding:1px 3px;font-size:.61rem;white-space:nowrap;cursor:pointer;">` +
+      return `<label>` +
         `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
         `onchange="bonusDfToggle('${colKey}','week','${v}')">&nbsp;Wk&nbsp;${v}</label>`;
     }).join('');
     const wis = count > 0
-      ? `<div onclick="bonusDfClear('${colKey}','week')" style="font-size:.58rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:2px 3px;border-top:1px solid var(--border);margin-top:2px;">wis</div>` : '';
-    return `<details style="display:inline-block;margin-right:2px;vertical-align:top;">` +
-      `<summary style="font-size:.61rem;padding:1px 5px;border:1px solid var(--border);border-radius:3px;` +
-      `background:${sumBg};color:${sumColor};cursor:pointer;list-style:none;white-space:nowrap;">${sumLabel}</summary>` +
-      `<div style="padding:2px;border:1px solid var(--border);border-radius:3px;background:#fff;margin-top:1px;min-width:60px;">` +
-      `${items || '<span style="font-size:.6rem;color:var(--muted);padding:2px;">—</span>'}${wis}` +
+      ? `<div class="bonus-filt-wis" onclick="bonusDfClear('${colKey}','week')">wis</div>` : '';
+    return `<details class="bonus-filt${count > 0 ? ' actief' : ''}" style="display:inline-block;margin-right:2px;vertical-align:top;">` +
+      `<summary>${sumLabel}</summary>` +
+      `<div class="bonus-filt-menu">` +
+      `${items || '<span class="bonus-filt-leeg">Geen weken</span>'}${wis}` +
       `</div></details>`;
   }
   function dateFiltRow(colKey) {
