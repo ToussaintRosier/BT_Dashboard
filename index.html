@@ -1588,6 +1588,25 @@
   .rr-legenda { display:flex; flex-wrap:wrap; gap:16px; margin-top:12px;
                 font-size:.74rem; color:var(--op-pagina-zwak); align-items:center; }
 
+  /* De keuzevakjes in de bonustabel. Die tabel ligt rechtstreeks op de
+     donkere pagina, dus hier hoort geen lichte vulling met witte letters —
+     dat is precies wat er eerder onleesbaar was. Deze regel staat bewust ná
+     de algemene select-regel hierboven en heeft een hogere voorrang, zodat
+     losse kleuren per vakje niet meer nodig zijn. */
+  select.bonus-veld {
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.35);
+    color:#fff; padding:2px 6px; border-radius:4px; font-size:.72rem;
+    min-width:62px; cursor:pointer;
+  }
+  select.bonus-veld:hover  { background:rgba(255,255,255,.2); }
+  select.bonus-veld:focus  { outline:2px solid rgba(255,255,255,.55); outline-offset:1px; }
+  /* Nog niets gekozen: gedempt, zodat je in één oogopslag ziet waar nog werk
+     ligt. Het uitklapmenu zelf blijft donkere letters op wit houden. */
+  select.bonus-veld.leeg   { color:rgba(255,255,255,.5); }
+  select.bonus-veld option { color:#111; background:#fff; }
+  /* Een gewijzigde of onbekende collega: rood kader, tekst blijft leesbaar. */
+  select.bonus-veld.nieuw  { border-color:#ff8f8f; box-shadow:0 0 0 1px #ff8f8f inset; }
+
   /* Voor uitleg en bijschriften buiten een paneel. */
   .op-pagina      { color:var(--op-pagina); }
   .op-pagina-zwak { color:var(--op-pagina-zwak); }
@@ -1993,7 +2012,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260818-0919 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260818-0940 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4799,7 +4818,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260818-0919';
+const APP_VERSIE = '20260818-0940';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13132,12 +13151,11 @@ function bonusFiltApply() {
 
   // ── Rijen opbouwen ─────────────────────────────────────────────────────────
   const TD = (t, st='') => `<td style="padding:5px 8px;font-size:.78rem;text-align:left;${st}">${t}</td>`;
-  // Vaste kleuren, geen paneelvariabelen. Deze tabel staat op de donkere
-  // pagina; daar wordt --text wit en verdwijnt de tekst in het lichte vakje.
-  const VELD_BG   = '#ffffff';
-  const VELD_TXT  = '#16142e';
+  // De vormgeving van de keuzevakjes zit in de klasse .bonus-veld (zie de
+  // stijlen bovenin). Hier alleen nog welke variant: leeg of ingevuld.
   const VELD_GRIJS = '#6b7280';
-  const SEL_ST = `font-size:.72rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:${VELD_BG};color:${VELD_TXT};`;
+  const veldKlasse = (waarde, isNieuw) =>
+    'bonus-veld' + (String(waarde || '') === '' ? ' leeg' : '') + (isNieuw ? ' nieuw' : '');
   const BONUS_EXCL = ['GS','MK','BB','OS'];
   const rowsHtml = filtered.map(r => {
     const vb = parseFloat(r.verdeling_bonus) || 0;
@@ -13155,16 +13173,16 @@ function bonusFiltApply() {
         const lockSt = `font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;background:#f3f4f6;color:#9ca3af;display:inline-block;cursor:not-allowed;min-width:42px;`;
         return `<div style="display:inline-block;margin-right:6px;"><div>${lbl}</div><span style="${lockSt}" title="Vast op 0%">0%</span></div>`;
       }
-      const selSt = s.isNew
-        ? SEL_ST + 'border-color:#ef4444;outline:1px solid #ef4444;'
-        : SEL_ST;
+      const selKl = veldKlasse(vp, s.isNew);
       const lbl = s.isNew
         ? `<span style="font-size:.58rem;color:#ef4444;font-weight:700;">${escHtml(s.label || '—')} ⚠</span>`
         : `<span style="font-size:.58rem;color:var(--muted);">${escHtml(s.label || '—')}</span>`;
       return `<div style="display:inline-block;margin-right:6px;">` +
         `<div>${lbl}</div>` +
-        `<select onchange="bonusVerdelingSave('${r.src}','${r.id}','${slotField}',this.value)" style="${selSt}">` +
-        `<option value="">—</option>` +
+        `<select class="${selKl}" onchange="bonusVerdelingSave('${r.src}','${r.id}','${slotField}',this.value)">` +
+        // "Kies…" in plaats van een streepje: bij een streepje is niet te zien
+        // of er niets gekozen is of dat de tekst wegvalt.
+        `<option value="">Kies…</option>` +
         `<option value="0"${vp==='0'?' selected':''}>0%</option>` +
         `<option value="2.5"${vp==='2.5'?' selected':''}>2,5%</option>` +
         `<option value="5"${vp==='5'?' selected':''}>5%</option>` +
@@ -13200,8 +13218,8 @@ function bonusFiltApply() {
         `</div>`;
     }).join('');
     // ── Verdeling select (per project) — bij 2+ actieve collega's max 0,5 ───
-    const selVb = `<select onchange="bonusVerdelingSave('${r.src}','${r.id}','vb',this.value)" style="${SEL_ST}">` +
-      `<option value="">—</option>` +
+    const selVb = `<select class="${veldKlasse(r.verdeling_bonus, false)}" onchange="bonusVerdelingSave('${r.src}','${r.id}','vb',this.value)">` +
+      `<option value="">Kies…</option>` +
       `<option value="0.5"${r.verdeling_bonus==='0.5'?' selected':''}>0,5</option>` +
       (!multiActive ? `<option value="1"${r.verdeling_bonus==='1'?' selected':''}>1</option>` : '') +
       `</select>`;
