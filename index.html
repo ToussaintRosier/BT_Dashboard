@@ -1628,9 +1628,14 @@
                            white-space:nowrap; cursor:pointer; color:#fff; }
   .bonus-filt-menu label:hover { background:rgba(255,255,255,.12); border-radius:3px; }
   .bonus-filt-leeg { font-size:.6rem; color:rgba(255,255,255,.6); padding:2px; }
-  .bonus-filt-wis  { font-size:.58rem; color:rgba(255,255,255,.6); text-decoration:underline;
-                     cursor:pointer; padding:3px 3px 1px; margin-top:3px;
+  /* Geen verdeling gekozen: dit project doet niet mee in de berekening. Dat
+     moet je kunnen zien, anders lijkt een leeg vakje op iets wat vergeten is. */
+  .bonus-buiten { font-size:.56rem; color:rgba(255,255,255,.45); margin-top:2px; white-space:nowrap; }
+  /* Onderin het menu: alles aanzetten of alles wissen, naast elkaar. */
+  .bonus-filt-voet { display:flex; gap:10px; padding:3px 3px 1px; margin-top:3px;
                      border-top:1px solid rgba(255,255,255,.2); }
+  .bonus-filt-wis  { font-size:.58rem; color:rgba(255,255,255,.6); text-decoration:underline;
+                     cursor:pointer; }
   .bonus-filt-wis:hover { color:#fff; }
 
   /* ── Vangnet: donkere letter op een vast licht vlak ──────────────────────
@@ -2056,7 +2061,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260818-0947 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260818-1047 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4862,7 +4867,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260818-0947';
+const APP_VERSIE = '20260818-1047';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13043,6 +13048,29 @@ function bonusSlotAck(src, id, label) {
   if (r) { const s = r.bonusSlots.find(s2 => (s2.label || 'default') === label); if (s) s.isNew = false; }
   bonusFiltApply();
 }
+// Welke filtermenu's openstaan. Zonder dit klapt het menu dicht bij elke
+// klik: de tabelkop wordt opnieuw opgebouwd en een vers <details> begint
+// gesloten. Je kon dus maar één vinkje per keer zetten.
+window._bonussenFiltOpen = window._bonussenFiltOpen || new Set();
+function bonusFiltOpen(colKey, type, open) {
+  const sleutel = colKey + '|' + type;
+  if (open) window._bonussenFiltOpen.add(sleutel);
+  else      window._bonussenFiltOpen.delete(sleutel);
+}
+function _bonusFiltStaatOpen(colKey, type) {
+  return window._bonussenFiltOpen.has(colKey + '|' + type);
+}
+
+// Alles aanvinken. De beschikbare waarden worden bij het opbouwen van de kop
+// bewaard, zodat deze functie niet opnieuw door alle rijen hoeft te lopen.
+function bonusDfAll(colKey, type) {
+  const opties = ((window._bonussenFiltOpties || {})[colKey] || {})[type] || [];
+  if (!window._bonussenDateFilters) window._bonussenDateFilters = {};
+  if (!window._bonussenDateFilters[colKey]) window._bonussenDateFilters[colKey] = {};
+  window._bonussenDateFilters[colKey][type] = opties.map(String);
+  bonusFiltApply();
+}
+
 function bonusDfToggle(colKey, type, val) {
   if (!window._bonussenDateFilters) window._bonussenDateFilters = {};
   if (!window._bonussenDateFilters[colKey]) window._bonussenDateFilters[colKey] = {};
@@ -13119,6 +13147,16 @@ function bonusFiltApply() {
       allW[k].add(getISOWeek(d));
     }
   }
+  // De beschikbare waarden bewaren, zodat "Alles" ze kan aanzetten zonder
+  // opnieuw door alle projecten te hoeven lopen.
+  window._bonussenFiltOpties = {};
+  for (const k of ['start','eind','defn']) {
+    window._bonussenFiltOpties[k] = {
+      jaarmaand: [...allJM[k].keys()],
+      week:      [...allW[k]].map(String),
+    };
+  }
+
   // Gecombineerde jaar-maand dropdown
   function mkJaarMaand(colKey) {
     const raw = (df[colKey] || {}).jaarmaand;
@@ -13137,12 +13175,19 @@ function bonusFiltApply() {
         `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
         `onchange="bonusDfToggleJM('${colKey}','${v}')">&nbsp;${lbl}</label>`;
     }).join('');
-    const wis = count > 0
-      ? `<div class="bonus-filt-wis" onclick="bonusDfClearJM('${colKey}')">wis</div>` : '';
-    return `<details class="bonus-filt${count > 0 ? ' actief' : ''}" style="display:inline-block;margin-right:2px;vertical-align:top;">` +
+    const voet = sorted.length
+      ? `<div class="bonus-filt-voet">` +
+        `<span class="bonus-filt-wis" onclick="bonusDfAll('${colKey}','jaarmaand')">alles</span>` +
+        `<span class="bonus-filt-wis" onclick="bonusDfClearJM('${colKey}')">wissen</span>` +
+        `</div>` : '';
+    // ontoggle + open: het menu blijft staan terwijl je meerdere maanden
+    // aanvinkt, ook al wordt de kop na elke klik opnieuw opgebouwd.
+    return `<details class="bonus-filt${count > 0 ? ' actief' : ''}"${_bonusFiltStaatOpen(colKey,'jaarmaand') ? ' open' : ''}` +
+      ` ontoggle="bonusFiltOpen('${colKey}','jaarmaand',this.open)"` +
+      ` style="display:inline-block;margin-right:2px;vertical-align:top;">` +
       `<summary>${sumLabel}</summary>` +
       `<div class="bonus-filt-menu">` +
-      `${items || '<span class="bonus-filt-leeg">Geen datums</span>'}${wis}` +
+      `${items || '<span class="bonus-filt-leeg">Geen datums</span>'}${voet}` +
       `</div></details>`;
   }
   function mkWeek(colKey) {
@@ -13157,12 +13202,17 @@ function bonusFiltApply() {
         `<input type="checkbox" ${chk} style="margin:0 2px 0 0;vertical-align:middle;" ` +
         `onchange="bonusDfToggle('${colKey}','week','${v}')">&nbsp;Wk&nbsp;${v}</label>`;
     }).join('');
-    const wis = count > 0
-      ? `<div class="bonus-filt-wis" onclick="bonusDfClear('${colKey}','week')">wis</div>` : '';
-    return `<details class="bonus-filt${count > 0 ? ' actief' : ''}" style="display:inline-block;margin-right:2px;vertical-align:top;">` +
+    const voet = vals.length
+      ? `<div class="bonus-filt-voet">` +
+        `<span class="bonus-filt-wis" onclick="bonusDfAll('${colKey}','week')">alles</span>` +
+        `<span class="bonus-filt-wis" onclick="bonusDfClear('${colKey}','week')">wissen</span>` +
+        `</div>` : '';
+    return `<details class="bonus-filt${count > 0 ? ' actief' : ''}"${_bonusFiltStaatOpen(colKey,'week') ? ' open' : ''}` +
+      ` ontoggle="bonusFiltOpen('${colKey}','week',this.open)"` +
+      ` style="display:inline-block;margin-right:2px;vertical-align:top;">` +
       `<summary>${sumLabel}</summary>` +
       `<div class="bonus-filt-menu">` +
-      `${items || '<span class="bonus-filt-leeg">Geen weken</span>'}${wis}` +
+      `${items || '<span class="bonus-filt-leeg">Geen weken</span>'}${voet}` +
       `</div></details>`;
   }
   function dateFiltRow(colKey) {
@@ -13260,7 +13310,10 @@ function bonusFiltApply() {
       `<option value="">Kies…</option>` +
       `<option value="0.5"${r.verdeling_bonus==='0.5'?' selected':''}>0,5</option>` +
       (!multiActive ? `<option value="1"${r.verdeling_bonus==='1'?' selected':''}>1</option>` : '') +
-      `</select>`;
+      `</select>` +
+      // Leeg laten is een keuze: het project valt dan overal buiten de
+      // bonusberekening, ook bij Luc en Annyck.
+      (vb ? '' : `<div class="bonus-buiten" title="Kies een verdeling om dit project mee te laten tellen">telt niet mee</div>`);
     function fmtNL(s) {
       if (!s || s === '—') return '—';
       const d = new Date(s); if (isNaN(d)) return s;
@@ -13345,9 +13398,16 @@ function _bonussenUpdateTotals(filtered, q) {
   // ── LK en AN: vaste formule over projecten ZONDER definitieve einddatum ─────
   // LK = som van (marge_pw / 4.333 × 1%) per project zonder defn
   // AN = helft van LK-totaal
+  //
+  // Geen verdeling gekozen betekent: dit project doet niet mee in de
+  // bonusberekening. Bij de collega's gebeurde dat al vanzelf (zonder
+  // verdeling is hun bedrag nul), maar Luc en Annyck rekenden gewoon door.
+  // Daardoor kon je een project niet uitsluiten zonder het weg te halen.
+  // Nu is een lege verdeling de schakelaar: leeg laten = eruit.
   let lkTotal = 0;
   for (const r of filtered) {
     if (r.defn) continue;  // Projecten met definitieve einddatum tellen niet mee
+    if (!parseFloat(r.verdeling_bonus)) continue;  // geen verdeling = niet meedoen
     const mp = parseFloat(r.marge_pw) || 0;
     if (mp) lkTotal += mp / 4.333 * 0.10;
   }
