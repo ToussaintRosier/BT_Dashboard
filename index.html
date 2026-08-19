@@ -1882,6 +1882,39 @@
   .act-plus:hover { color:var(--primary); border-color:var(--primary); }
   .act-status { font-size:.76rem; color:var(--muted); }
 
+  /* ── De vervolgstap ────────────────────────────────────────────────────
+     Eén regel over de volle breedte van het paneel, niet binnen de
+     actiekolom: zo passen er ruim honderdzeventig tekens in zonder dat de
+     rij van vorm verandert. Bewust een input en geen textarea — een tekstvak
+     nodigt uit tot een verslag, en dan wordt de actielijst een tweede
+     notulen. */
+  .act-vervolg-rij > td { padding:2px 8px 10px 30px; }
+  .act-vervolg-label { font-size:.68rem; letter-spacing:.4px; color:var(--muted);
+                       margin-bottom:4px; }
+  .act-vervolg { width:100%; box-sizing:border-box; height:28px;
+                 border:1px solid var(--border); border-radius:6px;
+                 background:#fff; color:var(--text);
+                 font-size:.8rem; font-family:inherit; padding:0 10px; outline:none; }
+  .act-vervolg:focus { border-color:var(--primary); }
+  .act-vervolg:disabled { background:#f3f4f6; color:#4b5563; }
+  /* Ontbreekt hij nog, dan is dat geen fout maar een openstaande voorwaarde:
+     oranje, niet rood. Vastzetten kan pas als hij is ingevuld. */
+  .act-vervolg.ontbreekt { border-color:#f0a020; }
+  .act-vervolg-eis { font-size:.68rem; color:#92400e; margin-top:5px; }
+  .act-pijl { background:none; border:none; cursor:pointer; padding:0 2px 0 0;
+              color:var(--muted); font-size:.6rem; line-height:1; }
+  .act-pijl.gevuld { color:var(--primary); }
+  /* Op het donkere venster van MT-acties. */
+  .mt-donker .act-vervolg { background:rgba(255,255,255,.06); color:#fff;
+                            border-color:rgba(255,255,255,.20); }
+  .mt-donker .act-vervolg::placeholder { color:rgba(255,255,255,.40); }
+  .mt-donker .act-vervolg:disabled { background:rgba(255,255,255,.04);
+                                     color:rgba(255,255,255,.75); }
+  .mt-donker .act-vervolg-label { color:rgba(255,255,255,.55); }
+  .mt-donker .act-vervolg-eis   { color:#fcd34d; }
+  .mt-donker .act-pijl          { color:rgba(255,255,255,.45); }
+  .mt-donker .act-pijl.gevuld   { color:#fff; }
+
   /* ── Formaat A: de werkonderdelen op een donker venster ───────────────── */
   .mt-donker .pva-blok      { color:#fff; }
   .mt-donker .pva-blok-sub  { color:rgba(255,255,255,.60); }
@@ -2378,7 +2411,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-2217 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-2226 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5247,7 +5280,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-2217';
+const APP_VERSIE = '20260819-2226';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8812,6 +8845,16 @@ function _mtWieCel(a, mag) {
 
 // De actietabel, gedeeld door beide schermen. Twee losse kopieën zouden na
 // een half jaar uit elkaar lopen.
+// Welke acties staan opengeklapt. In het venster en niet in de database: het
+// is een kijkstand, geen gegeven — en na verversen begin je weer dichtgeklapt.
+window._mtActieOpen = window._mtActieOpen || new Set();
+function mtActieUitklap(id) {
+  const k = String(id);
+  if (window._mtActieOpen.has(k)) window._mtActieOpen.delete(k);
+  else window._mtActieOpen.add(k);
+  render();
+}
+
 function actieTabelHtml(soort, bmNaam) {
   const rijen = _mtActiesVoor(soort, bmNaam);
   const sleutel = soort === 'coaching' ? 'mtcoaching' : 'mtacties';
@@ -8827,20 +8870,37 @@ function actieTabelHtml(soort, bmNaam) {
     const slotIkoon = !mag ? '' : a.bevroren
       ? `<button class="act-ikoon" title="Wijzigen" onclick="mtActieBevries(${a.id}, false)">${btActie('potlood')}</button>`
       : `<button class="act-ikoon" title="Vastzetten" onclick="mtActieBevries(${a.id}, true)">${btActie('slot')}</button>`;
+    // Het pijltje kleurt mee: gevuld als er een vervolgstap staat. Zo zie je
+    // zonder uitklappen welke acties nog een vervolgstap missen.
+    const open   = window._mtActieOpen.has(String(a.id));
+    const heeft  = !!String(a.vervolgstap || '').trim();
+    const pijl   = `<button class="act-pijl${heeft ? ' gevuld' : ''}"
+            title="${open ? 'Vervolgstap verbergen' : 'Vervolgstap tonen'}"
+            onclick="mtActieUitklap(${a.id})">${open ? '▾' : '▸'}</button>`;
+    const vervolgRij = open ? `<tr class="act-vervolg-rij${a.klaar ? ' klaar' : ''}">
+      <td colspan="5">
+        <div class="act-vervolg-label">VERVOLGSTAP${heeft ? '' : ' *'}</div>
+        <input class="act-vervolg${heeft ? '' : ' ontbreekt'}" value="${escHtml(a.vervolgstap || '')}"
+          ${dicht ? 'disabled' : ''} placeholder="Wat is de eerstvolgende stap?"
+          onchange="mtActieZet(${a.id}, 'vervolgstap', this.value)">
+        ${heeft || dicht ? '' : '<div class="act-vervolg-eis">Zonder vervolgstap kun je de actie niet vastzetten.</div>'}
+      </td>
+    </tr>` : '';
     return `<tr class="${a.klaar ? 'klaar' : ''}">
       <td><button class="act-vink${a.klaar ? ' aan' : ''}" ${mag ? '' : 'disabled'}
             title="${a.klaar ? 'Weer openzetten' : 'Afvinken'}"
             onclick="mtActieVink(${a.id}, ${a.klaar ? 'false' : 'true'})">✓</button></td>
-      <td><input class="act-tekst" value="${escHtml(a.tekst || '')}" ${dicht ? 'disabled' : ''}
+      <td>${pijl}<input class="act-tekst" value="${escHtml(a.tekst || '')}" ${dicht ? 'disabled' : ''}
             placeholder="Wat gaat er gebeuren?"
-            onchange="mtActieZet(${a.id}, 'tekst', this.value)"></td>
+            onchange="mtActieZet(${a.id}, 'tekst', this.value)"
+            style="width:calc(100% - 16px);">
       <td class="kol-deadline"><input class="act-datum${laat ? ' laat' : ''}" type="date" value="${a.deadline || ''}"
             ${dicht ? 'disabled' : ''} title="${laat ? 'Deadline verstreken' : 'Deadline'}"
             onchange="mtActieZet(${a.id}, 'deadline', this.value || null)"></td>
       <td class="kol-wie">${_mtWieCel(a, mag && !a.bevroren)}</td>
       <td style="white-space:nowrap;text-align:right;">${slotIkoon}${mag
         ? `<button class="act-ikoon weg" title="Verwijderen" onclick="mtActieWeg(${a.id})">${btActie('prullenbak')}</button>` : ''}</td>
-    </tr>`;
+    </tr>${vervolgRij}`;
   }).join('');
 
   const open = rijen.filter(a => !a.klaar).length;
@@ -8864,6 +8924,9 @@ async function mtActieToevoegen(soort, bmNaam) {
   const { data, error } = await supa.from('mt_acties').insert(rij).select();
   if (error) { alert('Toevoegen mislukt: ' + error.message); meldFout(error.message, 'mtActieToevoegen'); return; }
   MT_ACTIES = MT_ACTIES.concat(data || []);
+  // Meteen opengeklapt: de vervolgstap is verplicht, dus je hoort hem te zien
+  // op het moment dat je de actie schrijft — niet pas als je hem vastzet.
+  (data || []).forEach(rij => window._mtActieOpen.add(String(rij.id)));
   render();
   setTimeout(() => {
     const velden = document.querySelectorAll('.act-tekst:not(:disabled)');
@@ -8899,6 +8962,15 @@ async function mtActieIniToggle(id, ini) {
 async function mtActieBevries(id, vast) {
   const a = MT_ACTIES.find(x => x.id === id);
   if (!eisWijzig(_mtSleutel(a))) return;
+  // Verplicht, maar niet blokkerend: typen mag altijd, vastzetten pas als de
+  // vervolgstap er staat. Zo raak je nooit kwijt wat je net hebt getypt, en
+  // staat er geen half ingevulde actie definitief vast.
+  if (vast && a && !String(a.vervolgstap || '').trim()) {
+    window._mtActieOpen.add(String(id));
+    render();
+    alert('Vul eerst de vervolgstap in.\n\nZonder eerstvolgende stap is een vastgezette actie een voornemen zonder eigenaar.');
+    return;
+  }
   if (a) a.bevroren = vast;
   window._mtIniEdit.delete(id);
   render();
@@ -8986,6 +9058,8 @@ function _mtAfdruk(titel, kop, meta, inhoud, direct) {
     tr.klaar td{color:#8a93a5;text-decoration:line-through;}
     tr.klaar td:first-child{text-decoration:none;color:#0e7a4a;}
     td.laat{color:#c02626;font-weight:bold;}
+    tr.vervolg td{border-bottom:1px solid #e5e9f0;padding-top:0;font-size:.8rem;
+                  color:#5b6478;font-style:italic;}
     .hint{background:#eef4ff;border:1px solid #cfe0ff;border-radius:6px;padding:10px 14px;
           font-size:.82rem;color:#1e3a8a;margin-bottom:18px;}
     @media print { @page { margin:16mm; } .hint{display:none;} }
@@ -9145,7 +9219,7 @@ function printMtActielijst(direct) {
       <td>${escHtml(a.tekst || '')}</td>
       <td class="${laat ? 'laat' : ''}">${dat(a.deadline)}</td>
       <td>${escHtml(_mtIniLijst(a).join(', ') || '—')}</td>
-    </tr>`;
+    </tr>${a.vervolgstap ? `<tr class="vervolg"><td></td><td colspan="3">${escHtml(a.vervolgstap)}</td></tr>` : ''}`;
   }).join('');
   const open = acties.filter(a => !a.klaar).length;
   _mtAfdruk(
@@ -9173,7 +9247,7 @@ function printMtCoachActies(bmNaam, direct) {
       <td>${escHtml(a.tekst || '')}</td>
       <td class="${laat ? 'laat' : ''}">${dat(a.deadline)}</td>
       <td>${escHtml(_mtIniLijst(a).join(', ') || '—')}</td>
-    </tr>`;
+    </tr>${a.vervolgstap ? `<tr class="vervolg"><td></td><td colspan="3">${escHtml(a.vervolgstap)}</td></tr>` : ''}`;
   }).join('');
   const open = acties.filter(a => !a.klaar).length;
   _mtAfdruk(
