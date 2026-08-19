@@ -1351,6 +1351,13 @@
   .bm-subtab-btn { background:none; border:none; padding:10px 18px; font-size:.9rem; font-weight:700; color:#94a3b8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
   .bm-subtab-btn:hover { color:var(--accent); }
   .bm-subtab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  /* De breedte van de werkschermen: MT-acties, MT-coaching, plan van aanpak,
+     BUM-gesprek, Commerciële rapportage en HRM/Backoffice. Ze groeien mee met
+     het venster, net als de Coaching-tab (afspraak 19-08). Wil je op zeer
+     brede schermen toch een bovengrens, dan is dat hier één regel — niet zes
+     losse getallen verspreid door het bestand. */
+  .werk-blad { width:100%; }
+
   .plan-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:10px; }
   .plan-col-label { font-size:.78rem; font-weight:700; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.02em; }
   .plan-col.afgesproken { background:#f8faff; border:1px solid #dbeafe; border-radius:var(--radius); padding:12px 14px; }
@@ -2238,7 +2245,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-1931 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-1950 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5075,7 +5082,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-1931';
+const APP_VERSIE = '20260819-1950';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8443,7 +8450,8 @@ function _pvaVerloopHtml(bm, jaar, week) {
 // weken. Ze zagen er alleen niet hetzelfde uit. Deze drie functies zorgen dat
 // de kop, de knoppenrij en het logboek van allebei uit dezelfde plek komen.
 // ════════════════════════════════════════════════════════════════════════════
-const WERK_BREEDTE = 900;   // maximale breedte van beide schermen
+// De breedte zat hier als getal; die staat nu in .werk-blad, zodat het plan
+// van aanpak, het BUM-gesprek en de MT-schermen niet uit elkaar kunnen lopen.
 
 // Het kopje boven de kaart. Klein, in hoofdletters, met de week erin.
 function werkKopHtml(titel, week, jaar) {
@@ -8992,7 +9000,7 @@ function printMtCoach(id) {
 // ── De twee schermen ────────────────────────────────────────────────────────
 function renderMtCoachingTab(bm) {
   const open = _mtActiesVoor('coaching', bm.naam).filter(a => !a.klaar).length;
-  return `<div style="max-width:${WERK_BREEDTE}px;">
+  return `<div class="werk-blad">
     <div class="plan-col nieuw">
       <div class="plan-col-label">MT-coaching — ${escHtml(bm.naam)}</div>
       <div class="pva-blok" style="margin-top:0;">1&nbsp; Afspraken</div>
@@ -9028,7 +9036,7 @@ function renderMtActies() {
         <span class="meta-pill">${acties.length - open} afgerond</span>
       </div>
     </div>
-    <div class="bt-venster" style="max-width:${WERK_BREEDTE}px;">
+    <div class="bt-venster werk-blad">
       <div class="pva-blok" style="margin-top:0;">1&nbsp; Openstaande acties</div>
       <div class="pva-blok-sub">Wat het managementteam heeft afgesproken, en wie het oppakt.</div>
       ${actieTabelHtml('mt', null)}
@@ -9040,10 +9048,10 @@ function renderMtActies() {
           Exporteer PDF</button>
       </div>` : ''}
     </div>
-    <div class="bt-venster" style="max-width:${WERK_BREEDTE}px;">
+    <div class="bt-venster werk-blad">
       ${mtNotuleHuidigHtml()}
     </div>
-    <div style="max-width:${WERK_BREEDTE}px;">${mtNotuleLogboekHtml()}</div>
+    <div class="werk-blad">${mtNotuleLogboekHtml()}</div>
   </div>`;
   setTimeout(pvaTaResizeAll, 0);
 }
@@ -9277,7 +9285,7 @@ function renderBumGesprek(bm) {
     ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">Bevroren &amp; opgeslagen voor deze week</span>`
     : '';
 
-  return `<div style="max-width:${WERK_BREEDTE}px;">
+  return `<div class="werk-blad">
     ${werkKopHtml('BUM-gesprek', week, jaar)}
     <div class="plan-col nieuw">
       ${vakken}
@@ -9523,7 +9531,7 @@ function renderPlanVanAanpak(bm) {
     ${werkKnoppenHtml(actionBtn, printBtn, statusText, `pva-status-${safeId}`)}
   </div>`;
 
-  return `<div style="max-width:${WERK_BREEDTE}px;">
+  return `<div class="werk-blad">
     ${werkKopHtml('Nieuwe afspraken', NEXT.week, NEXT.year)}
     ${rightCol}
     ${leftCol}
@@ -14552,7 +14560,7 @@ function renderComrap() {
         </span>
       </div>
     </div>
-  <div style="max-width:1100px;">
+  <div class="werk-blad">
 
     <!-- SUB-TAB BALK -->
     <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
@@ -14688,17 +14696,21 @@ function renderComrapOpgeslagenHtml(w, y) {
       }).join('');
 
   return `
-  <div style="max-width:1100px;">
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
-      <h2 style="margin:0;font-size:1.35rem;font-weight:600;color:var(--primary);">Commerciële Rapportage</h2>
+  <div>
+    <div class="person-header">
+      <div class="person-name">Commerciële rapportage</div>
+      <div class="person-meta">
+        <span class="meta-pill">${COMRAP_ANALYSES.length} bewaard</span>
+      </div>
     </div>
+  <div class="werk-blad">
     <!-- SUB-TAB BALK -->
     <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
       <button class="bm-subtab-btn" onclick="window._comrapState.subtab='analyse';renderComrap();" style="border-radius:6px 6px 0 0;">Analyse</button>
       <button class="bm-subtab-btn active" onclick="window._comrapState.subtab='opgeslagen';renderComrap();" style="border-radius:6px 6px 0 0;">Opgeslagen${badge(COMRAP_ANALYSES.length)}</button>
     </div>
     ${kaarten}
-  </div>`;
+  </div></div>`;
 }
 
 async function comrapVerwijder(id) {
@@ -15261,7 +15273,7 @@ function renderHrmBackoffice() {
         <span class="meta-pill">${CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '—'}</span>
       </div>
     </div>
-    <div style="padding:18px 20px;max-width:1100px;">
+    <div class="werk-blad" style="padding:18px 20px;">
       ${subTabBar}
       ${body}
     </div>
