@@ -2269,7 +2269,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-2011 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-2014 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5114,7 +5114,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-2011';
+const APP_VERSIE = '20260819-2014';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8774,6 +8774,22 @@ function mtNotuleToggle(id, open) {
   if (open) window._mtNotuleOpen.add(String(id)); else window._mtNotuleOpen.delete(String(id));
 }
 
+// "Could not find the 'jaar' column ... in the schema cache" zegt niets tegen
+// wie het scherm gebruikt. Het betekent één van twee dingen: het SQL-bestand
+// is niet gedraaid, of de API van Supabase hangt nog op zijn oude kopie van de
+// tabelindeling. Beide zijn op te lossen, en dat hoort in de melding te staan
+// in plaats van in het hoofd van degene die het gebouwd heeft.
+function _mtFoutTekst(wat, error) {
+  const m = String(error && error.message || error || '');
+  if (/schema cache|column .* does not exist/i.test(m)) {
+    return wat + ' mislukt: de database mist nog een kolom.\n\n' +
+           'Draai supabase/mt_acties.sql opnieuw in de SQL-editor van Supabase. ' +
+           'Is dat al gebeurd, wacht dan een minuut — de API van Supabase ververst ' +
+           'zijn kopie van de tabelindeling niet altijd meteen.\n\n(' + m + ')';
+  }
+  return wat + ' mislukt: ' + m;
+}
+
 function _mtWeekLabel(r) {
   if (r && r.week != null && r.jaar != null) return `Week ${r.week} · ${r.jaar}`;
   const d = r && (r.bijgewerkt || r.created_at);
@@ -9094,7 +9110,7 @@ async function mtCoachOpslaan(bmNaam) {
     bm_naam: bmNaam, jaar: nu.year, week: nu.week, tekst,
     bijgewerkt: tijd, bijgewerkt_door: CURRENT_USER?.naam || '',
   }, { onConflict: 'bm_naam,jaar,week' }).select();
-  if (error) { alert('Opslaan mislukt: ' + error.message); meldFout(error.message, 'mtCoachOpslaan'); return; }
+  if (error) { alert(_mtFoutTekst('Opslaan', error)); meldFout(error.message, 'mtCoachOpslaan'); return; }
   MT_COACH_NOTITIES = MT_COACH_NOTITIES
     .filter(r => !(r.bm_naam === bmNaam && r.jaar === nu.year && r.week === nu.week))
     .concat(data || []);
