@@ -787,6 +787,9 @@
                 white-space:pre-wrap; }
   .memo-onderregel { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
                      margin-top:10px; font-size:var(--t-xs); }
+  /* Gelezen boven, nog niet gelezen eronder. Naast elkaar op één regel wordt
+     het bij acht namen een brei waarin je de scheiding kwijtraakt. */
+  .memo-namen { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }
 
   .memo-laag { position:fixed; inset:0; z-index:9998; background:rgba(37,49,81,.72);
                backdrop-filter:blur(3px); display:flex; align-items:center;
@@ -2065,7 +2068,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260818-1118 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-1032 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4871,7 +4874,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260818-1118';
+const APP_VERSIE = '20260819-1032';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5529,7 +5532,7 @@ async function loadMemos() {
   try {
     const [{ data: memos }, { data: bev }] = await Promise.all([
       supa.from('memos').select('*').eq('actief', true).order('created_at', { ascending: false }),
-      supa.from('memo_bevestigingen').select('memo_id, gebruiker, bevestigd_op, user_id'),
+      supa.from('memo_bevestigingen').select('memo_id, gebruiker, bevestigd_op, user_id, gezien_hoe'),
     ]);
     MEMOS = memos || [];
     MEMO_BEVESTIGINGEN = bev || [];
@@ -6593,6 +6596,19 @@ function renderBeheer() {
         const bev = MEMO_BEVESTIGINGEN.filter(b => String(b.memo_id) === String(m.id));
         const gelezen = bev.map(b => b.gebruiker).filter(Boolean);
         const open    = doelgroep.filter(n => !gelezen.includes(n));
+        // Op alfabet, net als de openstaande namen: dan lees je beide rijtjes
+        // op dezelfde manier en kun je ze naast elkaar leggen.
+        const gelezenGesorteerd = [...gelezen].sort((a, b) => a.localeCompare(b, 'nl'));
+        // Wanneer iemand bevestigde, als tekst bij het zweven. Niet in beeld:
+        // meestal wil je alleen weten óf het gelezen is, en acht datums op een
+        // rij maakt de regel onleesbaar.
+        const wanneer = (naam) => {
+          const r = bev.find(b => b.gebruiker === naam);
+          if (!r || !r.bevestigd_op) return naam;
+          const d = new Date(r.bevestigd_op);
+          return naam + ' (' + d.toLocaleDateString('nl-NL', { day:'numeric', month:'short' }) +
+                 ' ' + d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' }) + ')';
+        };
         // Wie op de noodklep drukte omdat het filmpje niet wilde afspelen. Dat
         // verschil telt: bevestigd is niet hetzelfde als gezien.
         const nietGezien = bev.filter(b => b.gezien_hoe === 'niet_afgespeeld')
@@ -6632,9 +6648,14 @@ function renderBeheer() {
             <div class="memo-onderregel">
               ${gepland
                 ? `<span style="color:var(--text-muted);">Staat klaar, nog niet verstuurd.</span>`
-                : open.length
-                  ? `<span style="color:#8a5a08;">Nog niet gelezen: ${escHtml(open.join(', '))}</span>`
-                  : `<span style="color:#0a6b4a;">Iedereen heeft dit gelezen.</span>`}
+                : `<span class="memo-namen">
+                     ${gelezenGesorteerd.length
+                       ? `<span style="color:#0a6b4a;" title="${escHtml(gelezenGesorteerd.map(wanneer).join('\n'))}">Gelezen: ${escHtml(gelezenGesorteerd.join(', '))}</span>`
+                       : `<span style="color:var(--text-muted);">Nog door niemand gelezen.</span>`}
+                     ${open.length
+                       ? `<span style="color:#8a5a08;">Nog niet gelezen: ${escHtml(open.join(', '))}</span>`
+                       : `<span style="color:#0a6b4a;">Iedereen heeft dit gelezen.</span>`}
+                   </span>`}
               <button class="btn-secondary" style="margin-left:auto;font-size:.74rem;padding:3px 10px;"
                       onclick="memoIntrekken('${m.id}')">Intrekken</button>
             </div>
