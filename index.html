@@ -1280,6 +1280,20 @@
                   color:rgba(255,255,255,.85); border-radius:6px; padding:5px 12px;
                   font-size:.76rem; font-weight:var(--w-nadruk); cursor:pointer; }
   .goedkeur-btn:hover { background:rgba(255,255,255,.12); color:#fff; }
+  /* Binnen de starters-goedkeuring liggen deze knoppen op een licht paneel
+     (.chart-card), niet op de donkere pagina. Witte letters vallen daar weg.
+     Deze regel staat ná de algemene, zodat hij daar wint. */
+  .starters-blok .goedkeur-btn { border-color:var(--border); color:var(--text); }
+  .starters-blok .goedkeur-btn:hover { background:var(--hover); color:var(--text); }
+  /* Hetzelfde voor de initialen-chips: die worden per stuk opgebouwd met
+     doorschijnend wit, en dat is op een lichte kaart niet te zien. */
+  .starters-blok [onclick^="projCollegaToggle"] {
+    border-color:var(--border) !important; color:var(--text) !important;
+  }
+  .starters-blok [onclick^="projCollegaToggle"][style*="rgba(255,255,255,.18)"] {
+    background:var(--primary-light) !important; border-color:var(--primary) !important;
+    color:var(--primary) !important; font-weight:700;
+  }
   .goedkeur-btn.akkoord { border-color:#0e9f6e; background:#0e9f6e; color:#fff; }
   .goedkeur-btn.niet-akkoord { border-color:#e02424; background:#e02424; color:#fff; }
   .btn-secondary { display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:7px 14px; font-size:.82rem; font-weight:700; cursor:pointer; }
@@ -2143,7 +2157,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-1723 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-1736 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -4952,7 +4966,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-1723';
+const APP_VERSIE = '20260819-1736';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5179,10 +5193,14 @@ function rechtSjabloon(g) {
     financieel:   (zwaar || rol === 'backoffice') ? 'zien' : 'geen',
     comrap:       'wijzig',
     records:      'wijzig',
-    // MT-acties: de gezamenlijke actielijst van het managementteam. Iedereen
-    // in het MT mag toevoegen en afvinken (besluit 19-08); wie er niet bij
-    // hoort, ziet de pagina niet.
-    mtacties:     zwaar ? 'wijzig' : 'geen',
+    // MT-acties en MT-coaching: standaard dicht voor iedereen, ook voor een
+    // manager (besluit 19-08). Anders dan de rest van de sleutels hangt dit
+    // dus niet aan de rol maar uitsluitend aan wat er in de matrix staat
+    // aangevinkt. Reden: hier staan afspraken uit coachingsgesprekken in, en
+    // wie daarbij mag horen een keuze te zijn en geen bijvangst van een rol.
+    // De beheerder komt er altijd in; die regel staat in rechtVoor().
+    mtacties:     'geen',
+    mtcoaching:   'geen',
     hrm:          w(zwaar),
     accounts:     w(rol !== 'backoffice'),
     kandidaten:   w(vinkje),
@@ -5446,7 +5464,7 @@ function renderTabs() {
           ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
-          ${isMtLid() ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
+          ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
           ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
         </div>
       </div>`)}
@@ -5504,7 +5522,7 @@ function renderTabs() {
         ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
         ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
         ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
-        ${isMtLid() ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
+        ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
         ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
       </div>
     </div>`)}
@@ -7268,7 +7286,7 @@ function renderBM(bm) {
       <button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">Plan van aanpak</button>
       ${heeftBumGesprek(bm.naam) ? `<button class="bm-subtab-btn ${bmSubTab==='bum'?'active':''}" onclick="selectBmSubTab('bum')">BUM-gesprek</button>` : ''}
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">Coaching</button>
-      ${(isMtLid() && onderdeelAan('mtcoaching')) ? `<button class="bm-subtab-btn ${bmSubTab==='mtcoaching'?'active':''}" onclick="selectBmSubTab('mtcoaching')">MT-coaching</button>` : ''}
+      ${(heeftMtCoaching(bm.naam) && magZien('mtcoaching')) ? `<button class="bm-subtab-btn ${bmSubTab==='mtcoaching'?'active':''}" onclick="selectBmSubTab('mtcoaching')">MT-coaching</button>` : ''}
       <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">Performance-Analyse</button>
     </div>
     <div id="bm-subtab-content"></div>
@@ -7290,7 +7308,7 @@ function renderBM(bm) {
   if (bmSubTab === 'mtcoaching') {
     // Niet in het MT of het onderdeel staat uit: terug naar de KPI's in
     // plaats van een leeg scherm.
-    if (!isMtLid() || !onderdeelAan('mtcoaching')) { bmSubTab = 'kpis'; render(); return; }
+    if (!heeftMtCoaching(bm.naam) || !magZien('mtcoaching')) { bmSubTab = 'kpis'; render(); return; }
     document.getElementById('bm-subtab-content').innerHTML = renderMtCoachingTab(bm);
     return;
   }
@@ -8356,19 +8374,16 @@ function werkLogboekHtml(titel, regelsHtml, leegTekst) {
 let MT_ACTIES  = [];
 let MT_NOTULEN = [];
 
-// Wie tot het MT gerekend wordt. Dezelfde uitzondering als elders: Yoël staat
-// als KAM in de profielen en Annyck valt buiten de BM-funnel, maar allebei
-// doen ze het werk van een manager. De database kent dezelfde regel
-// (is_mt_lid), zodat het scherm en het slot niet uit elkaar kunnen lopen.
-function isMtLid() {
-  if (!CURRENT_USER) return false;
-  if (CURRENT_USER.naam === BEHEERDER_NAAM) return true;
-  if ((VOLLEDIG_BEVOEGD || []).includes(CURRENT_USER.naam)) return true;
-  return CURRENT_USER.rol === 'manager';
-}
-
+// Wie hier bij mag, staat in de rechtenmatrix onder Beheer — niet in dit
+// bestand. Eerdere versie had een lijstje namen; dat betekende dat je mij
+// nodig had om iemand toegang te geven. Nu vink je het aan.
+//
+// De database leest dezelfde tabel (zie mag_mt in mt_acties.sql), zodat het
+// scherm en het slot niet uit elkaar kunnen lopen.
 async function laadMtActies() {
-  if (!supa || !isMtLid()) return;
+  // Niets van beide mogen zien: dan ook niets ophalen. Scheelt twee
+  // zoekopdrachten bij elke keer opstarten voor wie het niet gebruikt.
+  if (!supa || (!magZien('mtacties') && !magZien('mtcoaching'))) return;
   try {
     const [a, n] = await Promise.all([
       supa.from('mt_acties').select('*').order('klaar').order('deadline', { nullsFirst: false }).order('id'),
@@ -8410,7 +8425,7 @@ function _mtActiesVoor(soort, bmNaam) {
 // Eén lijst voor beide schermen.
 function actieLijstHtml(soort, bmNaam) {
   const rijen = _mtActiesVoor(soort, bmNaam);
-  const mag   = magWijzigen(soort === 'coaching' ? 'medewerkers' : 'mtacties');
+  const mag   = magWijzigen(soort === 'coaching' ? 'mtcoaching' : 'mtacties');
   const vandaag = new Date().toISOString().slice(0, 10);
   const inis  = _mtInitialenLijst();
 
@@ -8444,7 +8459,7 @@ function actieLijstHtml(soort, bmNaam) {
 }
 
 async function mtActieToevoegen(soort, bmNaam) {
-  if (!eisWijzig(soort === 'coaching' ? 'medewerkers' : 'mtacties')) return;
+  if (!eisWijzig(soort === 'coaching' ? 'mtcoaching' : 'mtacties')) return;
   if (!supa) { alert('Geen verbinding met de server.'); return; }
   const rij = { soort, bm_naam: soort === 'coaching' ? bmNaam : null, tekst: '',
                 aangemaakt_door: CURRENT_USER?.naam || '' };
@@ -8462,7 +8477,7 @@ async function mtActieToevoegen(soort, bmNaam) {
 
 async function mtActieZet(id, veld, waarde) {
   const a = MT_ACTIES.find(x => x.id === id);
-  if (!eisWijzig(a && a.soort === 'coaching' ? 'medewerkers' : 'mtacties')) return;
+  if (!eisWijzig(a && a.soort === 'coaching' ? 'mtcoaching' : 'mtacties')) return;
   if (a) a[veld] = waarde;
   const { error } = await supa.from('mt_acties')
     .update({ [veld]: waarde, bijgewerkt: new Date().toISOString() }).eq('id', id);
@@ -8471,7 +8486,7 @@ async function mtActieZet(id, veld, waarde) {
 
 async function mtActieVink(id, klaar) {
   const a = MT_ACTIES.find(x => x.id === id);
-  if (!eisWijzig(a && a.soort === 'coaching' ? 'medewerkers' : 'mtacties')) return;
+  if (!eisWijzig(a && a.soort === 'coaching' ? 'mtcoaching' : 'mtacties')) return;
   const nu = new Date().toISOString();
   if (a) { a.klaar = klaar; a.klaar_op = klaar ? nu : null; a.klaar_door = klaar ? (CURRENT_USER?.naam || '') : null; }
   render();
@@ -8484,7 +8499,7 @@ async function mtActieVink(id, klaar) {
 
 async function mtActieWeg(id) {
   const a = MT_ACTIES.find(x => x.id === id);
-  if (!eisWijzig(a && a.soort === 'coaching' ? 'medewerkers' : 'mtacties')) return;
+  if (!eisWijzig(a && a.soort === 'coaching' ? 'mtcoaching' : 'mtacties')) return;
   const wat = (a && a.tekst || '').trim();
   if (!confirm('Actie verwijderen?' + (wat ? '\n\n' + wat : ''))) return;
   const { error } = await supa.from('mt_acties').delete().eq('id', id);
@@ -8567,7 +8582,11 @@ function renderMtActies() {
   if (currentTab !== 'mtacties') return;
   const el = document.getElementById('main');
   if (!el) return;
-  if (!isMtLid()) { el.innerHTML = '<div class="act-leeg">Deze pagina is voor het managementteam.</div>'; return; }
+  if (!magZien('mtacties')) {
+    el.innerHTML = '<div class="act-leeg">Je hebt geen toegang tot MT-acties. ' +
+                   'Toegang wordt gegeven onder Beheer → Rechten.</div>';
+    return;
+  }
   el.innerHTML = `<div style="max-width:${WERK_BREEDTE}px;">
     <h2 style="margin:0 0 2px;font-size:1.35rem;font-weight:600;color:var(--op-pagina);">MT-acties</h2>
     <div class="op-pagina-zwak" style="font-size:.85rem;margin-bottom:16px;">
@@ -8677,6 +8696,20 @@ function heeftBumGesprek(naam) {
   if (g) return rechtVoor({ naam: g.naam, bm_naam: g.bm_naam || g.naam, rol: g.rol,
                             proj_kand_editor: g.proj_kand_editor }, 'bum') !== 'geen';
   return BUM_COLLEGAS.includes(naam);
+}
+
+// MT-coaching staat op dezelfde kaarten als het BUM-gesprek: bij Luc,
+// Charlotte en Yoël. Het is een gesprek dat met hén gevoerd wordt, niet met
+// het hele team — bij de rest hoort er dus geen tabblad te staan.
+//
+// Twee vragen dus, en die worden makkelijk door elkaar gehaald:
+//   heeftMtCoaching(naam)   — staat het tabblad op de kaart van díe collega?
+//   magZien('mtcoaching')   — mag ík het openen?
+// Beide moeten waar zijn.
+const MT_COACHING_COLLEGAS = ['Luc Kools', 'Charlotte Gigase', 'Yoël Bronckers'];
+function heeftMtCoaching(naam) {
+  if (!onderdeelAan('mtcoaching')) return false;
+  return MT_COACHING_COLLEGAS.includes(naam);
 }
 
 // De zes onderwerpen. Titel, veldnaam en de vraag die eronder staat.
@@ -15570,15 +15603,15 @@ function renderPrognose() {
 
     <!-- Starters goedkeuring -->
     <div class="section-title">Starters-goedkeuring (fase Starter)</div>
-    <div class="chart-card" style="padding:10px 14px;">
+    <div class="chart-card starters-blok" style="padding:10px 14px;">
       <div class="sub" style="margin-bottom:8px;font-size:.75rem;">Akkoord = opnemen in Projecten overzicht (start vandaag, datums aan te passen) &nbsp;·&nbsp; Niet akkoord = definitief verwijderen &nbsp;·&nbsp; <span style="color:var(--danger);font-weight:600;">Collega's zijn verplicht voor akkoord.</span></div>
       ${starterCards.length === 0 ? '<div class="sub">Geen kandidaten in fase Starter.</div>' : (() => {
         const { pairs, singles, halfPlaatsingen } = getGedeeldPairs(starterCards);
-        // Deze kaarten liggen op de donkere pagina, en de knoppen en chips
-        // erin zijn daarvoor gemaakt (witte letters). Een lichte kaart maakte
-        // die onleesbaar. Doorschijnend wit dus, net als elders op de pagina.
-        const cs = `border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:10px 14px;` +
-                   `margin-bottom:8px;background:rgba(255,255,255,.07);color:var(--op-pagina);`;
+        // Deze kaarten liggen in een .chart-card, en die is licht. De knoppen
+        // en de initialen-chips erin zijn ooit voor de donkere pagina gemaakt
+        // (witte letters); daarvoor staat hieronder een lichte variant.
+        const cs = `border:1px solid var(--border);border-radius:8px;padding:10px 14px;` +
+                   `margin-bottom:8px;background:var(--card);`;
         const pairCards = pairs.map(([c1, c2]) => {
           const cid1 = `gc-collega-${String(c1.id).replace(/[^a-zA-Z0-9]/g,'')}`;
           const cid2 = `gc-collega-${String(c2.id).replace(/[^a-zA-Z0-9]/g,'')}`;
@@ -15591,17 +15624,17 @@ function renderPrognose() {
             : '<span class="sub">Alleen-lezen</span>';
           return `<div style="${cs}border-left:4px solid #0e9f6e;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-              <strong style="color:#fff;">${escHtml(c1.naam)}</strong>
+              <strong>${escHtml(c1.naam)}</strong>
               <span style="background:#dcfce7;color:#166534;font-size:.65rem;padding:1px 8px;border-radius:10px;font-weight:600;">Gedeeld 2× 0,5</span>
-              <span style="font-size:.75rem;color:var(--op-pagina-zwak);">${c1.opdrachtgever?escHtml(c1.opdrachtgever):'—'}</span>
+              <span style="font-size:.75rem;color:var(--muted);">${c1.opdrachtgever?escHtml(c1.opdrachtgever):'—'}</span>
             </div>
             <div style="display:flex;gap:24px;margin-bottom:10px;flex-wrap:wrap;">
               <div>
-                <div style="font-size:.68rem;color:var(--op-pagina-zwak);margin-bottom:3px;">${escHtml(c1.bmNaam)} <span style="font-weight:700;color:#fff;">(${ini1})</span></div>
+                <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px;">${escHtml(c1.bmNaam)} <span style="font-weight:700;color:var(--text);">(${ini1})</span></div>
                 <div id="${cid1}">${chips1}</div>
               </div>
               <div>
-                <div style="font-size:.68rem;color:var(--op-pagina-zwak);margin-bottom:3px;">${escHtml(c2.bmNaam)} <span style="font-weight:700;color:#fff;">(${ini2})</span></div>
+                <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px;">${escHtml(c2.bmNaam)} <span style="font-weight:700;color:var(--text);">(${ini2})</span></div>
                 <div id="${cid2}">${chips2}</div>
               </div>
             </div>
@@ -15617,8 +15650,8 @@ function renderPrognose() {
             : '<span class="sub">Alleen-lezen</span>';
           return `<div style="${cs}">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <strong style="color:#fff;">${escHtml(c.naam)}</strong>
-              <span style="font-size:.75rem;color:var(--op-pagina-zwak);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span style="background:#fee2e2;color:#991b1b;font-size:.65rem;padding:1px 6px;border-radius:10px;">gedeeld 0,5</span>':''}</span>
+              <strong>${escHtml(c.naam)}</strong>
+              <span style="font-size:.75rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span style="background:#fee2e2;color:#991b1b;font-size:.65rem;padding:1px 6px;border-radius:10px;">gedeeld 0,5</span>':''}</span>
               <div id="${cid}" style="flex:1;min-width:100px;">${chips}</div>
               <div style="white-space:nowrap;">${btns}</div>
             </div>
@@ -15634,20 +15667,20 @@ function renderPrognose() {
           const wegBtn = canEditProj
             ? `<button title="Deze halve plaatsing verwijderen"
                  onclick="pipeVerwijderHalve('${escApos(c.bmNaam)}','${c.id}','${escApos(c.naam)}')"
-                 style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.3);
-                        color:var(--op-pagina);border-radius:6px;padding:2px 9px;font-size:.85rem;
+                 style="margin-left:auto;background:transparent;border:1px solid var(--border);
+                        color:var(--muted);border-radius:6px;padding:2px 9px;font-size:.85rem;
                         line-height:1.2;cursor:pointer;">✕</button>`
             : '';
-          return `<div style="${cs}border-left:4px solid #f59e0b;">
+          return `<div style="${cs}border-left:4px solid #f59e0b;background:#fffbeb;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-              <strong style="color:#fff;">${escHtml(c.naam)}</strong>
+              <strong>${escHtml(c.naam)}</strong>
               <span style="background:#fef3c7;color:#92400e;font-size:.65rem;padding:1px 8px;border-radius:10px;font-weight:600;">½ plaatsing · wacht op 2e 0,5</span>
-              <span style="font-size:.75rem;color:var(--op-pagina-zwak);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}</span>
-              <span style="font-size:.72rem;color:var(--op-pagina-zwak);">BM: ${escHtml(c.bmNaam)}</span>
+              <span style="font-size:.75rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}</span>
+              <span style="font-size:.72rem;color:var(--muted);">BM: ${escHtml(c.bmNaam)}</span>
               ${wegBtn}
             </div>
             <div id="${cid}" style="margin-bottom:6px;">${chips}</div>
-            <div style="font-size:.72rem;color:#fbbf24;font-style:italic;">Akkoord is pas mogelijk zodra een tweede BM een 0,5 plaatsing met identieke naam aanmaakt.</div>
+            <div style="font-size:.72rem;color:#92400e;font-style:italic;">Akkoord is pas mogelijk zodra een tweede BM een 0,5 plaatsing met identieke naam aanmaakt.</div>
           </div>`;
         });
         return [...pairCards, ...singleCards, ...halfCards].join('');
