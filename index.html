@@ -1186,6 +1186,11 @@
                      transform-origin:12px 12px; }
   .bt-actie-icoon { width:13px; height:13px; stroke:currentColor; fill:none;
                     stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  /* Zet icoon en tekst naast elkaar. Alleen op knoppen die er via
+     btKnopIconen() een hebben gekregen, zodat de rest onaangeroerd blijft. */
+  button[data-bt-icoon]:not([data-bt-icoon="eigen"]) {
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  }
   /* Tekstknop in plaats van een vergrootglas: "website" leest sneller dan een
      teken dat je moet herkennen. Even hoog als de knopjes ernaast, zodat de
      hele actiekolom op één lijn blijft staan. */
@@ -1759,7 +1764,9 @@
                   cursor:pointer; background:#fff; }
   .act-ini-plus:hover { color:var(--primary); border-color:var(--primary); }
   /* Vastzetten en wijzigen: subtiele icoontjes, geen knoppen met tekst. */
+  .act-ikoon svg { width:15px; height:15px; display:block; }
   .act-ikoon { background:none; border:none; cursor:pointer; font-size:.85rem;
+               display:inline-flex; align-items:center; justify-content:center;
                color:var(--muted); padding:0 3px; line-height:1; }
   .act-ikoon:hover { color:var(--primary); }
   .act-ikoon.weg:hover { color:#e02424; }
@@ -2262,7 +2269,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-2005 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-2011 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -3206,6 +3213,14 @@ const BT_ACTIE_ICONEN = {
   prullenbak:'<path d="M4 7h16M10 4h4M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/>',
   opslaan:   '<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v5h7M8 21v-6h8v6"/>',
   annuleren: '<path d="M6 6l12 12M18 6L6 18"/>',
+  // Exporteren: een pijl uit een bak. Bewust niet het letterteken "PDF" —
+  // dat wordt onleesbaar op 13 pixels.
+  pdf:       '<path d="M12 3v10m0 0-3.5-3.5M12 13l3.5-3.5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  printer:   '<path d="M7 9V3h10v6"/><path d="M5 9h14a2 2 0 0 1 2 2v5h-4M5 16H3v-5a2 2 0 0 1 2-2"/><path d="M7 14h10v7H7z"/>',
+  kopie:     '<path d="M9 9h10v11H9z"/><path d="M15 9V4H5v11h4"/>',
+  word:      '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="m9 12 1.3 5L12 13l1.7 4L15 12"/>',
+  vernieuwen:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>',
+  slot:      '<path d="M6 11h12v9H6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>',
   plan:      '<path d="M8 4h8a1 1 0 0 1 1 1v1H7V5a1 1 0 0 1 1-1z"/><path d="M7 6H5.5A1.5 1.5 0 0 0 4 7.5v12A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-12A1.5 1.5 0 0 0 18.5 6H17"/><path d="M8.5 11h7M8.5 15h4"/>',
 };
 function btActie(naam) {
@@ -5099,7 +5114,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-2005';
+const APP_VERSIE = '20260819-2011';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8088,17 +8103,65 @@ function mobielTabelLabels() {
 }
 
 let _mobLabelTimer = null;
+// ── Iconen op de actieknoppen ───────────────────────────────────────────────
+// De sleutel is het knoplabel in kleine letters. Staat een label hier niet in,
+// dan krijgt de knop geen icoon — dat is de bedoeling: een icoon zonder vaste
+// betekenis maakt het scherm drukker zonder iets te verduidelijken.
+//
+// Let op de paren die op elkaar lijken: Exporteer PDF krijgt een pijl uit een
+// bak, Printen een printer. Juist die twee staan naast elkaar, dus mogen ze
+// niet op hetzelfde teken uitkomen.
+const BT_KNOP_ICOON = {
+  'opslaan': 'opslaan', 'bijwerken': 'opslaan', 'nogmaals opslaan': 'opslaan',
+  'opslaan als benchmark': 'opslaan',
+  'wijzigen': 'potlood', 'bewerken': 'potlood',
+  'exporteer pdf': 'pdf', 'pdf': 'pdf', 'printen/pdf': 'pdf', 'download pdf': 'pdf',
+  'printen': 'printer',
+  'kopieer': 'kopie', 'kopieer tekst': 'kopie', 'kopieer naar klembord': 'kopie',
+  'word': 'word', 'download word': 'word',
+  'verwijderen': 'prullenbak', 'wis resultaat': 'prullenbak', 'weggooien': 'prullenbak',
+  'annuleren': 'annuleren', 'sluiten': 'annuleren',
+  'vernieuwen': 'vernieuwen', 'herlaad': 'vernieuwen', 'opnieuw proberen': 'vernieuwen',
+};
+
+function btKnopIconen(root) {
+  (root || document).querySelectorAll('button').forEach(knop => {
+    // Al langs geweest, of de knop heeft zelf al een tekening: afblijven.
+    // Zonder deze twee zou elke hertekening er een icoon bij plakken.
+    if (knop.dataset.btIcoon) return;
+    if (knop.querySelector('svg')) { knop.dataset.btIcoon = 'eigen'; return; }
+    const sleutel = BT_KNOP_ICOON[knop.textContent.trim().toLowerCase()];
+    if (!sleutel) return;
+    knop.insertAdjacentHTML('afterbegin', btActie(sleutel));
+    knop.dataset.btIcoon = sleutel;
+  });
+}
+
 function _startMobielTabelWaarnemer() {
   const doel = document.getElementById('main');
   if (!doel || typeof MutationObserver === 'undefined') return;
   const waarnemer = new MutationObserver(() => {
     // Even wachten: bij één hertekening komen er tientallen wijzigingen binnen.
     clearTimeout(_mobLabelTimer);
-    _mobLabelTimer = setTimeout(mobielTabelLabels, 60);
+    _mobLabelTimer = setTimeout(() => { mobielTabelLabels(); btKnopIconen(); }, 60);
   });
   waarnemer.observe(doel, { childList: true, subtree: true });
+
+  // Pop-ups en vensters worden niet in #main gehangen maar rechtstreeks in de
+  // pagina. Zonder deze tweede waarnemer zou de Opslaan-knop in een pop-up als
+  // enige zonder icoon staan. Alleen childList op body: dat vuurt bij het
+  // openen en sluiten van zo'n venster en verder nergens voor.
+  if (document.body) {
+    new MutationObserver(() => {
+      clearTimeout(_btIcoonTimer);
+      _btIcoonTimer = setTimeout(btKnopIconen, 60);
+    }).observe(document.body, { childList: true });
+  }
+
   mobielTabelLabels();
+  btKnopIconen();
 }
+let _btIcoonTimer = null;
 window.addEventListener('resize', () => { clearTimeout(_mobLabelTimer); _mobLabelTimer = setTimeout(mobielTabelLabels, 150); });
 
 // Om render() heen: na élke hertekening kijken of dit scherm op alleen-lezen
@@ -8596,8 +8659,8 @@ function actieTabelHtml(soort, bmNaam) {
     // Afvinken kan altijd, ook op een vastgezette regel — een afspraak
     // nakomen is geen wijziging van de afspraak.
     const slotIkoon = !mag ? '' : a.bevroren
-      ? `<button class="act-ikoon" title="Wijzigen" onclick="mtActieBevries(${a.id}, false)">✎</button>`
-      : `<button class="act-ikoon" title="Vastzetten" onclick="mtActieBevries(${a.id}, true)">✓</button>`;
+      ? `<button class="act-ikoon" title="Wijzigen" onclick="mtActieBevries(${a.id}, false)">${btActie('potlood')}</button>`
+      : `<button class="act-ikoon" title="Vastzetten" onclick="mtActieBevries(${a.id}, true)">${btActie('slot')}</button>`;
     return `<tr class="${a.klaar ? 'klaar' : ''}">
       <td><button class="act-vink${a.klaar ? ' aan' : ''}" ${mag ? '' : 'disabled'}
             title="${a.klaar ? 'Weer openzetten' : 'Afvinken'}"
@@ -8610,7 +8673,7 @@ function actieTabelHtml(soort, bmNaam) {
             onchange="mtActieZet(${a.id}, 'deadline', this.value || null)"></td>
       <td class="kol-wie">${_mtWieCel(a, mag && !a.bevroren)}</td>
       <td style="white-space:nowrap;text-align:right;">${slotIkoon}${mag
-        ? `<button class="act-ikoon weg" title="Verwijderen" onclick="mtActieWeg(${a.id})">✕</button>` : ''}</td>
+        ? `<button class="act-ikoon weg" title="Verwijderen" onclick="mtActieWeg(${a.id})">${btActie('prullenbak')}</button>` : ''}</td>
     </tr>`;
   }).join('');
 
