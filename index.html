@@ -1543,17 +1543,15 @@
   .pipe-grid > .pipe-row > .pipe-cell:first-child { border-left:none; }
   .pipe-cell.drag-over { background:rgba(255,255,255,.09) !important;
                          border:1px dashed rgba(255,255,255,.45) !important; border-radius:8px; }
-  .pipe-cell-hdr { background:transparent !important; margin:0 0 9px; padding:0 0 7px;
-                   border-bottom:1px solid rgba(255,255,255,.14); border-radius:0; }
-  .pipe-cell-hdr-name { color:#fff !important; text-transform:none; letter-spacing:.01em;
-                        font-size:.7rem; font-weight:var(--w-nadruk); }
+  /* De kop van een kolom staat verderop in het bestand, in één blok. Hij
+     stond hier ook, en werd daar overschreven door het blok dat later kwam —
+     het rondje viel daardoor buiten de cel. Zoek op .pipe-cell-hdr. */
   /* 6 pixels was te klein om nog kleur in te herkennen; 8 leest als een stip
      in plaats van als vuiltje op het scherm. */
   .pipe-fase-stip { width:8px; height:8px; border-radius:50%; flex-shrink:0;
                     display:inline-block; }
   /* Het getal moet leesbaar zijn — dat is het hele punt van een telling.
      Vol wit op een vlak van 22%: ruim boven de 70%-op-12% die er stond. */
-  .pipe-cell-hdr-cnt  { background:rgba(255,255,255,.22) !important; color:#fff !important; }
   /* Een lege kolom hoort minder hard te roepen dan een gevulde — maar de
      demping zat op de héle kop, dus bovenop het toch al zwakke getal. Die
      stapeling is eruit: alleen het nul-rondje zelf is zachter, en de naam
@@ -2012,14 +2010,33 @@
   .pipe-card select.card-aanb-input option { background:#253151; color:#fff; }
   .pipe-add-btn { background:none; border:1px dashed #d1d5db; border-radius:5px; padding:3px 6px; font-size:.72rem; color:var(--muted); cursor:pointer; text-align:center; transition:all .13s; margin-top:auto; width:100%; }
   .pipe-add-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-light); }
-  .pipe-cell-hdr { display:flex; align-items:center; justify-content:space-between; padding:4px 7px; margin:-6px -6px 6px; border-radius:7px 7px 0 0; border-bottom:1px solid rgba(0,0,0,.06); }
-  .pipe-cell-hdr-name { font-size:.65rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+  /* ── De kop van een kolom in de pipeline ───────────────────────────────
+     Dit is het enige blok voor deze drie klassen. Er stonden er twee — een
+     reparatie eerder in het bestand en deze algemene versie — en bij gelijke
+     specificiteit won steeds degene die het laatst stond. De reparatie deed
+     dus niets, en het telrondje liep over de bovenrand van de cel.
+
+     De cel eromheen heeft padding 0 11px: geen ruimte boven. De kop mag
+     daarom geen negatieve bovenmarge hebben, en houdt zijn eigen 6px. */
+  .pipe-cell-hdr { display:flex; align-items:center; justify-content:space-between;
+                   margin:0 0 9px; padding:6px 0 7px; border-radius:0;
+                   background:transparent;
+                   border-bottom:1px solid rgba(255,255,255,.14); }
+  /* Bij zes kolommen naast elkaar past "Matchgesprekken" niet naast het
+     rondje. De naam loopt af met puntjes; de volledige naam staat in de
+     tooltip. De namen zelf inkorten kan niet — PIPE_STAGES stuurt ook de
+     tellingen en het slepen aan. */
+  .pipe-cell-hdr-name { font-size:.65rem; font-weight:700; color:#fff;
+                        text-transform:uppercase; letter-spacing:.4px;
+                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* Een telling is een rondje, geen pil. Vaste hoogte én breedte, en de
      breedte groeit alleen mee bij twee of meer cijfers — dan wordt het een
-     nette afgeronde vorm in plaats van een uitgerekte ovaal. */
-  .pipe-cell-hdr-cnt { font-size:.68rem; font-weight:600; color:var(--primary);
-                       background:var(--primary-light); border-radius:99px;
-                       min-width:20px; height:20px; padding:0 5px; flex-shrink:0;
+     nette afgeronde vorm in plaats van een uitgerekte ovaal.
+     18 in plaats van 20 pixels: naast tekst van 10 pixels leest dat rustiger,
+     en het past binnen de hoogte van de kop. */
+  .pipe-cell-hdr-cnt { font-size:.68rem; font-weight:600; color:#fff;
+                       background:rgba(255,255,255,.22); border-radius:99px;
+                       min-width:18px; height:18px; padding:0 5px; flex-shrink:0;
                        display:inline-flex; align-items:center; justify-content:center;
                        line-height:1; box-sizing:border-box; }
   .pipe-wk-total { font-size:.64rem; font-weight:600; color:var(--primary); background:var(--primary-light); border-radius:99px; padding:1px 5px; margin-top:3px; }
@@ -2245,7 +2262,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-1950 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260819-2005 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5082,7 +5099,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-1950';
+const APP_VERSIE = '20260819-2005';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8701,6 +8718,56 @@ function _mtWeekLabel(r) {
   return 'Week onbekend';
 }
 
+// De afdrukpagina. Vier lijsten gebruikten hetzelfde opmaakblok, elk met een
+// eigen kopie; bij een wijziging moest je ze alle vier langs. Nu één plek.
+//
+// direct = true  → het printvenster gaat meteen open (knop Printen)
+// direct = false → de pagina blijft staan om na te lezen (knop Exporteer PDF),
+//                  met bovenaan hoe je hem als PDF bewaart. Die balk wordt bij
+//                  het afdrukken zelf niet meegenomen.
+function _mtAfdruk(titel, kop, meta, inhoud, direct) {
+  const win = window.open('', '_blank');
+  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen of exporteren.'); return; }
+  win.document.write(`<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8"><title>${titel}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:32px;max-width:860px;margin:0 auto;}
+    h1{font-size:1.3rem;margin:0 0 2px;}
+    .meta{color:#5b6478;font-size:.85rem;margin-bottom:18px;}
+    .tekst{font-size:.92rem;line-height:1.65;white-space:pre-wrap;border:1px solid #dde1e8;border-radius:6px;padding:14px 16px;}
+    table{width:100%;border-collapse:collapse;font-size:.88rem;}
+    th{text-align:left;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;
+       color:#5b6478;border-bottom:1px solid #c8cfdd;padding:6px 8px;}
+    td{padding:7px 8px;border-bottom:1px solid #e5e9f0;vertical-align:top;}
+    tr.klaar td{color:#8a93a5;text-decoration:line-through;}
+    tr.klaar td:first-child{text-decoration:none;color:#0e7a4a;}
+    td.laat{color:#c02626;font-weight:bold;}
+    .hint{background:#eef4ff;border:1px solid #cfe0ff;border-radius:6px;padding:10px 14px;
+          font-size:.82rem;color:#1e3a8a;margin-bottom:18px;}
+    @media print { @page { margin:16mm; } .hint{display:none;} }
+  </style></head><body>
+    ${direct ? '' : `<div class="hint">Bewaren als PDF: druk op ${navigator.platform.indexOf('Mac') === 0 ? 'Cmd' : 'Ctrl'} + P en kies bij Bestemming voor <strong>Bewaar als PDF</strong>.</div>`}
+    <h1>${kop}</h1>
+    <div class="meta">${meta}</div>
+    ${inhoud}
+    ${direct ? '<script>window.onload = function() { window.print(); }<\/script>' : ''}
+  </body></html>`);
+  win.document.close();
+}
+
+// De twee knoppen. Overal dezelfde vorm en volgorde, zodat je ze niet per
+// scherm opnieuw hoeft te zoeken. `roep` levert de aanroep op voor de stand
+// van direct: bijvoorbeeld roep => `printMtNotule(12, ${roep})`.
+function _mtExportKnoppen(maakAanroep) {
+  const stijl = `background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;` +
+                `padding:8px 16px;font-size:.82rem;cursor:pointer;`;
+  return `<button class="mt-knop-tweede" style="${stijl}"
+            title="Opent de pagina om na te lezen; daar bewaar je hem als PDF"
+            onclick="${maakAanroep('false')}">Exporteer PDF</button>
+    <button class="mt-knop-tweede" style="${stijl}"
+            title="Opent de pagina en start meteen het printvenster"
+            onclick="${maakAanroep('true')}">Printen</button>`;
+}
+
 // De groene pil die elders "Bevroren & opgeslagen" aangeeft.
 function _mtBevrorenPil(tekst) {
   return `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:600;">✓ ${tekst}</span>`;
@@ -8725,9 +8792,7 @@ function mtNotuleHuidigHtml() {
   const actieBtn = !mag ? '' : bevroren
     ? `<button class="mt-knop-eerste" onclick="mtNotuleWijzig()" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Wijzigen</button>`
     : `<button class="mt-knop-eerste" onclick="mtNotuleOpslaanKnop()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Opslaan</button>`;
-  const printBtn = heeftTekst
-    ? `<button class="mt-knop-tweede" onclick="printMtNotule(${rij.id})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-size:.82rem;cursor:pointer;">Exporteer PDF</button>`
-    : '';
+  const printBtn = _mtExportKnoppen(d => `printMtNotule(${rij ? rij.id : 0}, ${d})`);
   const status = bevroren ? _mtBevrorenPil('Bevroren & opgeslagen voor deze week') : '';
 
   return `
@@ -8794,8 +8859,8 @@ function mtNotuleLogboekHtml() {
         <div class="plan-field-title">Wat is er besproken en afgesproken?</div>
         <textarea rows="3" data-pva-ta="1" disabled>${escHtml(n.tekst || '')}</textarea>
       </div>
-      <div style="margin-top:8px;">
-        <button class="mt-knop-tweede" onclick="printMtNotule(${n.id})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 12px;font-size:.74rem;cursor:pointer;">Exporteer PDF</button>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        ${_mtExportKnoppen(d => `printMtNotule(${n.id}, ${d})`)}
       </div>
     </div>`;
   }).join('');
@@ -8804,26 +8869,16 @@ function mtNotuleLogboekHtml() {
 
 // Eén notule als losstaande pagina om af te drukken of als PDF te bewaren.
 // Opgebouwd uit de opgeslagen gegevens, niet uit het scherm.
-function printMtNotule(id) {
+function printMtNotule(id, direct) {
   const n = MT_NOTULEN.find(x => x.id === id);
-  if (!n) { alert('Deze notule is niet meer beschikbaar. Ververs de pagina.'); return; }
-  const win = window.open('', '_blank');
-  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen.'); return; }
+  if (!n) { alert('Er is voor deze week nog geen notule opgeslagen.'); return; }
   const wie = n.bijgewerkt_door || n.aangemaakt_door || '';
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>MT-notule — week ${n.week} · ${n.jaar}</title>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:32px;max-width:860px;margin:0 auto;}
-    h1{font-size:1.3rem;margin:0 0 2px;}
-    .meta{color:#5b6478;font-size:.85rem;margin-bottom:18px;}
-    .tekst{font-size:.92rem;line-height:1.65;white-space:pre-wrap;border:1px solid #dde1e8;border-radius:6px;padding:14px 16px;}
-    @media print { @page { margin:16mm; } }
-  </style></head><body>
-    <h1>MT-notule — week ${n.week} · ${n.jaar}</h1>
-    <div class="meta">Brightech${wie ? ' · vastgelegd door ' + wie : ''} · geprint op ${new Date().toLocaleDateString('nl-NL')}</div>
-    <div class="tekst">${escHtml(n.tekst || '')}</div>
-    <script>window.onload = function() { window.print(); }<\/script>
-  </body></html>`);
-  win.document.close();
+  _mtAfdruk(
+    `MT-notule — week ${n.week} · ${n.jaar}`,
+    `MT-notule — week ${n.week} · ${n.jaar}`,
+    `Brightech${wie ? ' · vastgelegd door ' + escHtml(wie) : ''} · ${new Date().toLocaleDateString('nl-NL')}`,
+    `<div class="tekst">${escHtml(n.tekst || '')}</div>`,
+    direct);
 }
 
 // De hele actielijst als losstaande pagina. Bij de notule print je één week;
@@ -8832,11 +8887,9 @@ function printMtNotule(id) {
 // ligt én wat er af is. Opgebouwd uit de opgeslagen gegevens, niet uit het
 // scherm: wat nog niet is opgeslagen hoort niet op een afdruk te staan alsof
 // het vastligt.
-function printMtActielijst() {
+function printMtActielijst(direct) {
   const acties = _mtActiesVoor('mt', null);
   if (!acties.length) { alert('Er staan nog geen acties in de lijst.'); return; }
-  const win = window.open('', '_blank');
-  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen.'); return; }
   const nu = isoWeek(new Date());
   const vandaag = new Date().toISOString().slice(0, 10);
   const dat = (d) => d ? d.split('-').reverse().join('-') : '—';
@@ -8850,29 +8903,43 @@ function printMtActielijst() {
     </tr>`;
   }).join('');
   const open = acties.filter(a => !a.klaar).length;
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>MT-acties — week ${nu.week} · ${nu.year}</title>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:32px;max-width:860px;margin:0 auto;}
-    h1{font-size:1.3rem;margin:0 0 2px;}
-    .meta{color:#5b6478;font-size:.85rem;margin-bottom:18px;}
-    table{width:100%;border-collapse:collapse;font-size:.88rem;}
-    th{text-align:left;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;
-       color:#5b6478;border-bottom:1px solid #c8cfdd;padding:6px 8px;}
-    td{padding:7px 8px;border-bottom:1px solid #e5e9f0;vertical-align:top;}
-    tr.klaar td{color:#8a93a5;text-decoration:line-through;}
-    tr.klaar td:first-child{text-decoration:none;color:#0e7a4a;}
-    td.laat{color:#c02626;font-weight:bold;}
-    @media print { @page { margin:16mm; } }
-  </style></head><body>
-    <h1>MT-acties</h1>
-    <div class="meta">Brightech · stand week ${nu.week} · ${nu.year} · ${open} open, ${acties.length - open} afgerond · geprint op ${new Date().toLocaleDateString('nl-NL')}</div>
-    <table>
+  _mtAfdruk(
+    `MT-acties — week ${nu.week} · ${nu.year}`,
+    'MT-acties',
+    `Brightech · stand week ${nu.week} · ${nu.year} · ${open} open, ${acties.length - open} afgerond · ${new Date().toLocaleDateString('nl-NL')}`,
+    `<table>
       <tr><th style="width:22px;"></th><th>Actie</th><th style="width:110px;">Deadline</th><th style="width:120px;">Wie</th></tr>
       ${rijen}
-    </table>
-    <script>window.onload = function() { window.print(); }<\/script>
-  </body></html>`);
-  win.document.close();
+    </table>`,
+    direct);
+}
+
+// De afsprakenlijst van één collega. Los van de aantekening: afspraken lopen
+// door over de weken heen, dus dit is een stand van zaken en geen verslag.
+function printMtCoachActies(bmNaam, direct) {
+  const acties = _mtActiesVoor('coaching', bmNaam);
+  if (!acties.length) { alert('Er staan nog geen afspraken voor ' + bmNaam + '.'); return; }
+  const vandaag = new Date().toISOString().slice(0, 10);
+  const dat = (d) => d ? d.split('-').reverse().join('-') : '—';
+  const rijen = acties.map(a => {
+    const laat = !a.klaar && a.deadline && a.deadline < vandaag;
+    return `<tr class="${a.klaar ? 'klaar' : ''}">
+      <td>${a.klaar ? '✓' : ''}</td>
+      <td>${escHtml(a.tekst || '')}</td>
+      <td class="${laat ? 'laat' : ''}">${dat(a.deadline)}</td>
+      <td>${escHtml(_mtIniLijst(a).join(', ') || '—')}</td>
+    </tr>`;
+  }).join('');
+  const open = acties.filter(a => !a.klaar).length;
+  _mtAfdruk(
+    `MT-coaching afspraken — ${bmNaam}`,
+    `MT-coaching — afspraken met ${escHtml(bmNaam)}`,
+    `Brightech · ${open} open, ${acties.length - open} afgerond · ${new Date().toLocaleDateString('nl-NL')}`,
+    `<table>
+      <tr><th style="width:22px;"></th><th>Afspraak</th><th style="width:110px;">Deadline</th><th style="width:120px;">Wie</th></tr>
+      ${rijen}
+    </table>`,
+    direct);
 }
 
 // ── De coaching-aantekening ─────────────────────────────────────────────────
@@ -8902,21 +8969,26 @@ function mtCoachNotitieHtml(bmNaam) {
   const actieBtn = !mag ? '' : bevroren
     ? `<button onclick="mtCoachWijzig('${escApos(bmNaam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Wijzigen</button>`
     : `<button onclick="mtCoachOpslaan('${escApos(bmNaam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Opslaan</button>`;
-  const pdfBtn = heeftTekst
-    ? `<button onclick="printMtCoach(${rij.id})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-size:.82rem;cursor:pointer;">Exporteer PDF</button>`
-    : '';
+  // De knoppen staan er ook als er nog niets is opgeslagen; ze melden dat dan
+  // zelf. Verschijnen ze pas ná de eerste keer opslaan, dan weet iemand die
+  // het scherm voor het eerst opent niet dat ze bestaan.
+  const exportKnoppen = _mtExportKnoppen(d => `printMtCoach(${rij ? rij.id : 0}, ${d})`);
   const status = bevroren ? _mtBevrorenPil('Bevroren & opgeslagen voor deze week') : '';
 
-  return `
-    <div class="pva-blok">2&nbsp; Aantekening week ${nu.week}</div>
-    <div class="pva-blok-sub">Opslaan bevriest de aantekening; met Wijzigen kun je er weer bij.</div>
+  return `<div class="plan-col nieuw" style="margin-top:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <div class="plan-col-label" style="margin-bottom:0;">Aantekening — week ${nu.week} · ${nu.year}</div>
+      <span class="meta-pill">${escHtml(bmNaam)}</span>
+    </div>
+    <div class="pva-blok-sub" style="margin-top:4px;">Opslaan bevriest de aantekening; met Wijzigen kun je er weer bij.</div>
     <div class="plan-field">
       <div class="plan-field-title">Verslag van het gesprek${stempelKnop}</div>
       <textarea id="mt-coach-veld" rows="5" data-pva-ta="1" ${(!mag || bevroren) ? 'disabled' : ''}>${escHtml(rij ? rij.tekst || '' : '')}</textarea>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;">
-      ${actieBtn}${pdfBtn}${status}
-    </div>`;
+    <div style="display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;">
+      ${actieBtn}${exportKnoppen}${status}
+    </div>
+  </div>`;
 }
 
 // Eerdere aantekeningen, inklapbaar — zelfde logboek als bij het plan van
@@ -8939,8 +9011,8 @@ function mtCoachLogboekHtml(bmNaam) {
         <div class="plan-field-title">Verslag van het gesprek</div>
         <textarea rows="3" data-pva-ta="1" disabled>${escHtml(r.tekst || '')}</textarea>
       </div>
-      <div style="margin-top:8px;">
-        <button onclick="printMtCoach(${r.id})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 12px;font-size:.74rem;cursor:pointer;">Exporteer PDF</button>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        ${_mtExportKnoppen(d => `printMtCoach(${r.id}, ${d})`)}
       </div>
     </div>`;
   }).join('');
@@ -8976,38 +9048,42 @@ function mtCoachWijzig(bmNaam) {
 
 // Eén aantekening als losstaande pagina, om af te drukken of als PDF te
 // bewaren. Opgebouwd uit de opgeslagen gegevens, niet uit het scherm.
-function printMtCoach(id) {
+function printMtCoach(id, direct) {
   const r = MT_COACH_NOTITIES.find(x => x.id === id);
-  if (!r) { alert('Deze aantekening is niet meer beschikbaar. Ververs de pagina.'); return; }
-  const win = window.open('', '_blank');
-  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe om te kunnen printen.'); return; }
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>MT-coaching — ${escHtml(r.bm_naam)} — week ${r.week}</title>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;color:#16142e;padding:32px;max-width:860px;margin:0 auto;}
-    h1{font-size:1.3rem;margin:0 0 2px;}
-    .meta{color:#5b6478;font-size:.85rem;margin-bottom:18px;}
-    .tekst{font-size:.92rem;line-height:1.65;white-space:pre-wrap;border:1px solid #dde1e8;border-radius:6px;padding:14px 16px;}
-    @media print { @page { margin:16mm; } }
-  </style></head><body>
-    <h1>MT-coaching — ${escHtml(r.bm_naam)}</h1>
-    <div class="meta">Week ${r.week} · ${r.jaar} · Brightech${r.bijgewerkt_door ? ' · vastgelegd door ' + escHtml(r.bijgewerkt_door) : ''}</div>
-    <div class="tekst">${escHtml(r.tekst || '')}</div>
-    <script>window.onload = function() { window.print(); }<\/script>
-  </body></html>`);
-  win.document.close();
+  if (!r) { alert('Er is voor deze week nog geen aantekening opgeslagen.'); return; }
+  _mtAfdruk(
+    `MT-coaching — ${r.bm_naam} — week ${r.week}`,
+    `MT-coaching — ${escHtml(r.bm_naam)}`,
+    `${_mtWeekLabel(r)} · Brightech${r.bijgewerkt_door ? ' · vastgelegd door ' + escHtml(r.bijgewerkt_door) : ''}`,
+    `<div class="tekst">${escHtml(r.tekst || '')}</div>`,
+    direct);
 }
 
 // ── De twee schermen ────────────────────────────────────────────────────────
 function renderMtCoachingTab(bm) {
-  const open = _mtActiesVoor('coaching', bm.naam).filter(a => !a.klaar).length;
+  // Twee schema's, geen twee blokken in één paneel (afspraak 19-08). Een
+  // afspraak loopt door over de weken heen; een aantekening hoort bij precies
+  // één gesprek. In één paneel leest het weeknummer alsof het over allebei
+  // gaat, en dan lijkt een openstaande afspraak van vorige maand bij het
+  // gesprek van deze week te horen.
+  const acties = _mtActiesVoor('coaching', bm.naam);
+  const open   = acties.filter(a => !a.klaar).length;
+  const totaal = acties.length;
   return `<div class="werk-blad">
     <div class="plan-col nieuw">
-      <div class="plan-col-label">MT-coaching — ${escHtml(bm.naam)}</div>
-      <div class="pva-blok" style="margin-top:0;">1&nbsp; Afspraken</div>
-      <div class="pva-blok-sub">Lopen door over de weken heen; blijven staan tot ze zijn afgevinkt.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div class="plan-col-label" style="margin-bottom:0;">Afspraken — ${escHtml(bm.naam)}</div>
+        <span class="meta-pill">${open} open</span>
+      </div>
+      <div class="pva-blok-sub" style="margin-top:4px;">Lopen door over de weken heen; blijven staan tot ze zijn afgevinkt.</div>
       ${actieTabelHtml('coaching', bm.naam)}
-      ${mtCoachNotitieHtml(bm.naam)}
+      <div style="display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap;
+                  border-top:1px solid var(--border);padding-top:12px;">
+        ${_mtExportKnoppen(d => `printMtCoachActies('${escApos(bm.naam)}', ${d})`)}
+        ${totaal ? `<span class="act-status">${open} open · ${totaal - open} afgerond</span>` : ''}
+      </div>
     </div>
+    ${mtCoachNotitieHtml(bm.naam)}
     ${mtCoachLogboekHtml(bm.naam)}
   </div>`;
 }
@@ -9040,13 +9116,10 @@ function renderMtActies() {
       <div class="pva-blok" style="margin-top:0;">1&nbsp; Openstaande acties</div>
       <div class="pva-blok-sub">Wat het managementteam heeft afgesproken, en wie het oppakt.</div>
       ${actieTabelHtml('mt', null)}
-      ${acties.length ? `<div class="mt-knoprij" style="display:flex;margin-top:14px;
+      <div class="mt-knoprij" style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;
               border-top:1px solid var(--border);padding-top:12px;">
-        <button class="mt-knop-tweede" onclick="printMtActielijst()"
-                style="background:#fff;color:var(--muted);border:1px solid var(--border);
-                       border-radius:6px;padding:7px 16px;font-size:.82rem;cursor:pointer;">
-          Exporteer PDF</button>
-      </div>` : ''}
+        ${_mtExportKnoppen(d => `printMtActielijst(${d})`)}
+      </div>
     </div>
     <div class="bt-venster werk-blad">
       ${mtNotuleHuidigHtml()}
@@ -23481,7 +23554,7 @@ function renderPipeline(bm) {
         <div class="pipe-cell-hdr">
           <span style="display:flex;align-items:center;gap:6px;min-width:0;">
             <span class="pipe-fase-stip" style="background:${col.stip || col.punt};"></span>
-            <span class="pipe-cell-hdr-name">${stage}</span>
+            <span class="pipe-cell-hdr-name" title="${escHtml(stage)}">${stage}</span>
           </span>
           <span class="pipe-cell-hdr-cnt">${cellCount}</span>
         </div>
