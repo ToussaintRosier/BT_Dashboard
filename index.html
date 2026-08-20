@@ -2650,7 +2650,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1143 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-1147 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5529,7 +5529,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1143';
+const APP_VERSIE = '20260820-1147';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5920,7 +5920,7 @@ const ONDERDELEN = [
     uitleg:'De hele categorie, inclusief de kaarten van individuele collega’s.' },
   { sleutel:'accounts',    label:'Accountmanagement',       groep:'Hoofdmenu' },
   { sleutel:'kandidaten',  label:'Kandidaten',              groep:'Hoofdmenu' },
-  { sleutel:'team',        label:'Team Resultaten',         groep:'Management' },
+  { sleutel:'team',        label:'Team Resultaten',         groep:'Medewerkers' },
   { sleutel:'projecten',   label:'Projecten',               groep:'Management' },
   { sleutel:'financieel',  label:'Financieel',              groep:'Management' },
   { sleutel:'comrap',      label:'Commerciële Rapportage',  groep:'Management' },
@@ -6003,7 +6003,10 @@ function renderTabs() {
   // mi() uit de rechten, niet deze splitsing.
   if (CURRENT_USER && !magZien('medewerkers_allen')) {
     const _bmIdx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
-    const _bmInMed = currentTab === 'medewerkers' || currentTab === _bmIdx;
+    // Team Resultaten hoort sinds 20-08 bij Medewerkers: het is dezelfde
+    // vraag ("hoe staan we ervoor") maar dan opgeteld, en zo vind je het naast
+    // de mensen zelf in plaats van drie categorieën verderop.
+    const _bmInMed = currentTab === 'medewerkers' || currentTab === _bmIdx || currentTab === 'team';
     document.getElementById('sidebar').innerHTML = `
       ${mi('one', `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='one'?'active-cat':''}" onclick="selectTab('one')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('one')}Brightech ONE</span>${oneMeldingBadge()}</button>
@@ -6015,12 +6018,13 @@ function renderTabs() {
         </div>
         <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">
           ${mi('medewerkers', `<button class="sidebar-item ${currentTab==='medewerkers'?'active':''}" onclick="goMedewerkersOverzicht()">${btIcon('overzicht')}Overzicht</button>`)}
+          ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
           ${_bmIdx >= 0 ? `<button class="sidebar-item ${currentTab===_bmIdx?'active':''}" onclick="selectTab(${_bmIdx})">${escHtml(CURRENT_USER.bm_naam)}</button>` : ''}
         </div>
       </div>`)}
       <!-- Submenu's alfabetisch op naam (afspraak 19-08); hoofdthema's houden hun vaste volgorde. -->
-      ${miGroep(['team','projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+      ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
+        <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
@@ -6030,7 +6034,6 @@ function renderTabs() {
           ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
           ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
-          ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
           ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
                sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -6062,7 +6065,7 @@ function renderTabs() {
 
   const teamIdx     = BMS.length;
   const prognoseIdx = BMS.length + 1;
-  const inMedewerkers = currentTab === 'medewerkers' || currentTab < BMS.length;
+  const inMedewerkers = currentTab === 'medewerkers' || currentTab === 'team' || currentTab < BMS.length;
 
   const medewerkersItems = BMS.map((b,i) => (b.special || b.inactief) ? '' :
     `<button class="sidebar-item ${i===currentTab?'active':''}" onclick="selectTab(${i})">${escHtml(b.naam)}</button>`
@@ -6077,10 +6080,12 @@ function renderTabs() {
         <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="goMedewerkersOverzicht(); event.stopPropagation();">${btIcon('medewerkers')}Medewerkers</span>
         <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
-      <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">${medewerkersItems}</div>
+      <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">
+        ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
+        ${medewerkersItems}</div>
     </div>`)}
-    ${miGroep(['team','projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab==='team'||currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+    ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
+      <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         ${btCatLabel('management','Management')}
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
@@ -6090,7 +6095,6 @@ function renderTabs() {
         ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
         ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
         ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
-        ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
         ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
              sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
         ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -7778,8 +7782,8 @@ function selectTab(i) {
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
   _veiligLokaalOpslaan('bt_last_tab', i, 'laatste tabblad onthouden');
-  if (typeof i === 'number' && i < BMS.length) medewerkersOpen = true;
-  if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || i === 'team' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
+  if ((typeof i === 'number' && i < BMS.length) || i === 'team') medewerkersOpen = true;
+  if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   if (i === 'records') managementOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
@@ -11413,7 +11417,7 @@ async function loadProfileAndStart() {
           // offset t.o.v. hardcoded BMS.length: +0 = Team, +1 of meer = Projecten.
           // Beide tabs hebben nu string-keys zodat dit niet meer mis kan gaan.
           currentTab = (saved === BMS.length) ? 'team' : 'projecten';
-          managementOpen = true;
+          if (currentTab === 'team') medewerkersOpen = true; else managementOpen = true;
         }
       }
     } catch(_) { /* bewust stil: kapotte opgeslagen tabkeuze → gewoon de standaardtab */ }
