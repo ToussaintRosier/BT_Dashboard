@@ -2519,7 +2519,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0924 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0926 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5398,7 +5398,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0924';
+const APP_VERSIE = '20260820-0926';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8959,13 +8959,10 @@ function _mtInitialenLijst() {
 function _mtActiesVoor(soort, bmNaam) {
   return MT_ACTIES
     .filter(a => a.soort === soort && (soort === 'mt' || a.bm_naam === bmNaam))
-    // Open bovenaan, daarbinnen op deadline: een agenda, geen archief.
-    .sort((a, b) => {
-      if (!!a.klaar !== !!b.klaar) return a.klaar ? 1 : -1;
-      const da = (a.ongoing ? '9999-06-30' : a.deadline) || '9999-12-31',
-            db = (b.ongoing ? '9999-06-30' : b.deadline) || '9999-12-31';
-      return da === db ? (a.id - b.id) : (da < db ? -1 : 1);
-    });
+    // In volgorde van aanmaak, niets anders (afspraak 20-08). Sorteren op
+    // deadline liet de rijen verspringen zodra iemand een datum aanpaste, en
+    // dan raak je kwijt waar je net keek. Het oplopende id ís de aanmaakvolgorde.
+    .sort((a, b) => a.id - b.id);
 }
 
 function _mtSleutel(a) { return a && a.soort === 'coaching' ? 'mtcoaching' : 'mtacties'; }
