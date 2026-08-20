@@ -2727,7 +2727,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1531 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-1538 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5606,7 +5606,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1531';
+const APP_VERSIE = '20260820-1538';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -23299,14 +23299,35 @@ function finSnelkeuze(sleutel) {
   renderFinancieel();
 }
 
+// Welke ISO-weken horen bij een maand? Een week telt bij de maand waarin zijn
+// donderdag valt — dezelfde regel die de begroting per week al gebruikt, dus
+// de twee spreken elkaar niet tegen.
+function finWekenVanMaand(jaar, maand) {
+  const weken = [];
+  for (let w = 1; w <= 53; w++) {
+    const donderdag = new Date(+isoWeekStartDate(jaar, w) + 3 * 86400000);
+    if (donderdag.getFullYear() === jaar && donderdag.getMonth() + 1 === maand) {
+      weken.push({ jaar, nr:w });
+    }
+  }
+  return weken;
+}
+
 // De grafiek onder de tegels. Hij volgt de fijnheid van het filter: bij een
 // jaar of kwartaal zie je maanden, bij losse maanden of weken precies die
 // perioden naast elkaar. Zo staat er nooit één eenzame balk, en duikt er ook
 // nooit een lijn naar nul omdat het jaar nog niet vol is — wat er niet is,
 // wordt niet getekend.
 function finTekenGrafiek() {
-  const per = finPerioden();
   const onderwerp = FIN_FILT.onderwerp;
+  const bron = (FIN_ONDERWERPEN.find(o => o.sleutel === onderwerp) || {}).bron;
+  // Eén maand gekozen? Dan is één balk geen grafiek. We zakken een niveau
+  // dieper naar de weken van die maand — mits die cijfers er zijn.
+  let per = finPerioden();
+  if (per.soort === 'maand' && per.lijst.length === 1 && finWeekBeschikbaar(bron)) {
+    const weken = finWekenVanMaand(per.lijst[0].jaar, per.lijst[0].nr);
+    if (weken.length > 1) per = { soort:'week', lijst:weken };
+  }
   const vergelijken = FIN_FILT.vergelijk === 'vorig';
   const labels = per.lijst.map(p => per.soort === 'week' ? 'W' + p.nr : FIN_MND[p.nr - 1]);
   const eenPeriode = (p) => ({ soort:per.soort, lijst:[p] });
@@ -23336,6 +23357,16 @@ function finTekenGrafiek() {
           borderColor:'rgba(255,255,255,.45)', borderDash:[5,4], pointRadius:0, borderWidth:1.5, fill:false }
       : { type:'bar', label:naam + ' ' + (FIN_FILT.jaar - 1), data:reeks(vorig.lijst),
           backgroundColor:'rgba(255,255,255,.18)', borderColor:'rgba(255,255,255,.35)', borderWidth:1 });
+  }
+  // De begroting stond wél in de tegel ("45% van begroting") maar niet in de
+  // grafiek — precies de vraag van 20-08. Nu als oranje stippellijn, dezelfde
+  // tekening als de oude begrotingstab. Alleen bij omzet: voor declarabiliteit,
+  // ziekte, marge en overuren bestaat er geen begroting, en dan zegt de tegel
+  // dat ook.
+  if (FIN_FILT.vergelijk === 'begroting' && onderwerp === 'omzet') {
+    sets.push({ type:'line', label:'Begroot', borderColor:'#E87400', borderDash:[5,4],
+                pointRadius:0, borderWidth:2, fill:false,
+                data:per.lijst.map(p => finBegroot({ soort:per.soort, lijst:[p] })) });
   }
   const euro = onderwerp === 'omzet';
   setTimeout(() => {
