@@ -217,9 +217,20 @@
                         border-radius:7px; padding:4px 12px; color:#16142e;
                         font-family:inherit; font-size:var(--t-xs);
                         font-weight:var(--w-nadruk); cursor:pointer; }
-  .toggle-group { display:flex; background:rgba(255,255,255,.15); border-radius:8px; overflow:hidden; }
-  .toggle-group button { border:none; background:transparent; color:#fff; padding:7px 16px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .2s; }
-  .toggle-group button.active { background:rgba(255,255,255,.3); }
+  /* De schakelaar hoort bij dezelfde familie: dezelfde hoogte en hetzelfde
+     gele streepje als de rest van de bediening (keuze N3, 20-08). Hij was met
+     32 pixels het grootste element op de koplijn, terwijl hij dat niet
+     verdient — de titel hoort daar het zwaarst te wegen. */
+  .toggle-group { display:inline-flex; align-items:center; gap:2px; height:26px;
+                  background:none; border-radius:0; overflow:visible; flex-shrink:0; }
+  .toggle-group button { border:none; border-bottom:2px solid transparent;
+                         background:none; height:26px; padding:0 9px;
+                         font-size:.75rem; font-weight:600; font-family:inherit;
+                         line-height:1; white-space:nowrap;
+                         color:rgba(255,255,255,.6); cursor:pointer; }
+  .toggle-group button:hover  { color:#fff; }
+  .toggle-group button.active { background:none; color:#fff;
+                                border-bottom-color:var(--accent-gold, #F4CB3C); }
   select { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:7px 12px; border-radius:8px; font-size:.85rem; cursor:pointer; }
   select option { color:#111; background:#fff; }
   .app-layout { display:flex; align-items:flex-start; }
@@ -1352,27 +1363,44 @@
   /* Weeknavigatie: twee pijlen met de stapgrootte ertussen, als één geheel.
      Sta je op een andere week, dan wordt dat middenstuk de knop terug naar
      vandaag — zo is er nooit een derde knopje nodig. */
-  .week-nav { display:inline-flex; align-items:stretch; height:18px;
-              border:1px solid rgba(255,255,255,.18); border-radius:4px;
-              overflow:hidden; vertical-align:middle; }
-  .week-nav button { background:none; border:0; cursor:pointer; font-family:inherit;
-                     font-size:.66rem; line-height:1; padding:0 7px;
-                     color:rgba(255,255,255,.65); display:inline-flex;
-                     align-items:center; }
-  .week-nav button:hover { background:rgba(255,255,255,.1); color:#fff; }
-  .week-nav svg { width:10px; height:8px; display:block; fill:none;
-                  stroke:rgba(255,255,255,.85); stroke-width:2.2;
-                  stroke-linecap:round; stroke-linejoin:round; }
-  .week-nav button:hover svg { stroke:#fff; }
-  .week-nav .midden { display:inline-flex; align-items:center; line-height:1;
-                      padding:0 6px; font-size:.58rem; letter-spacing:.02em;
-                      color:rgba(255,255,255,.38);
-                      border-left:1px solid rgba(255,255,255,.14);
-                      border-right:1px solid rgba(255,255,255,.14); }
-  .week-nav .midden.terug { color:var(--accent-gold); }
-  .week-nav .midden.terug:hover { background:rgba(244,203,60,.14); color:var(--accent-gold); }
-  .week-nav .midden:not(.terug) { cursor:default; }
-  .week-nav .midden:not(.terug):hover { background:none; color:rgba(255,255,255,.45); }
+  /* ── Bediening naast een kop: één familie (keuze N3, 20-08) ───────────
+     Er waren vier hoogtes (18, 21, 26 en 32 pixels), drie soorten pijlen en
+     vier knopkleuren die geen van alle een vaste betekenis hadden. Nu één
+     vorm: geen vlakken, geen randen, alleen tekst op 26 pixels hoogte. Wat
+     aan staat krijgt een geel streepje eronder — dezelfde taal als de
+     tabbladen. Twee uitvoeringen: donker voor op de pagina, .licht voor in
+     de gele balk, zodat de weeknavigatie daar hetzelfde ding is. */
+  .bt-nav { display:inline-flex; align-items:center; gap:2px; height:26px;
+            flex-shrink:0; }
+  .bt-nav > * { display:inline-flex; align-items:center; height:26px;
+                padding:0 9px; font-size:.75rem; font-weight:600;
+                font-family:inherit; line-height:1; white-space:nowrap;
+                background:none; border:none; border-bottom:2px solid transparent;
+                color:rgba(255,255,255,.6); cursor:pointer; }
+  .bt-nav > *:hover { color:#fff; }
+  .bt-nav > .aan { color:#fff; border-bottom-color:var(--accent-gold, #F4CB3C); }
+  .bt-nav > .pijl { padding:0 6px; color:rgba(255,255,255,.5); font-size:.8rem; }
+  .bt-nav > .pijl:hover { color:#fff; }
+  .bt-nav > .pijl svg { width:11px; height:9px; display:block; fill:none;
+                        stroke:currentColor; stroke-width:2.2;
+                        stroke-linecap:round; stroke-linejoin:round; }
+  .bt-nav > .stil { padding:0 4px; font-size:.7rem; font-weight:400;
+                    color:rgba(255,255,255,.42); cursor:default; }
+  .bt-nav > .stil:hover { color:rgba(255,255,255,.42); }
+  .bt-nav > .terug { color:var(--accent-gold, #F4CB3C); font-size:.7rem;
+                     font-weight:400; padding:0 4px; }
+  /* Lichte uitvoering: in de gele paginabalk. */
+  .bt-nav.licht > *       { color:rgba(37,49,81,.62); }
+  .bt-nav.licht > *:hover { color:#253151; }
+  .bt-nav.licht > .aan    { color:#253151; border-bottom-color:#253151; }
+  .bt-nav.licht > .pijl   { color:rgba(37,49,81,.55); }
+  /* Op een licht paneel (bedienbalken) leest dezelfde vorm ook. */
+  .bt-paneel .bt-nav > *, .plan-col .bt-nav > * { color:var(--muted); }
+  .bt-paneel .bt-nav > .aan, .plan-col .bt-nav > .aan { color:var(--primary);
+                                                        border-bottom-color:var(--primary); }
+
+  /* .week-nav is opgegaan in .bt-nav (20-08). De klasse blijft hier als
+     korte notitie staan zodat een volgend scherm hem niet opnieuw uitvindt. */
 
   .goedkeur-btn { border:1px solid rgba(255,255,255,.25); background:transparent;
                   color:rgba(255,255,255,.85); border-radius:6px; padding:5px 12px;
@@ -1971,6 +1999,12 @@
      — dat is één stap specifieker dan `.bm-paneel td` en won dus van de labels,
      precies de kolom die donker bleef. Daarom staat de eerste cel er nu
      apart bij, met dezelfde specificiteit. */
+  /* Derde ronde (20-08). De twee eerdere pogingen verloren van regels die
+     verderop in het bestand staan en even specifiek zijn — bij gelijkspel wint
+     de laatste. Een eigen naam voor de labelcel maakt daar een eind aan; het
+     uitroepteken staat er zodat geen enkele nieuwe regel er nog overheen kan.
+     Alleen deze cel, dus de cijfers ernaast houden hun eigen kleur. */
+  .bm-paneel td.bm-kpi { color:#fff !important; }
   .bm-paneel td,
   .bm-paneel tbody td:first-child { padding:7px;
                   border-bottom:1px solid rgba(255,255,255,.09);
@@ -2597,7 +2631,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1108 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-1121 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5476,7 +5510,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1108';
+const APP_VERSIE = '20260820-1121';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7875,7 +7909,7 @@ function renderBM(bm) {
     const ok = n > 0 ? w >= n : w > 0;
     return `<tr>
       <td style="width:20px;">${ok ? '<span style="color:#34d399;">✓</span>' : '<span style="color:rgba(255,255,255,.35);">○</span>'}</td>
-      <td>${KPI_LABELS[k]}</td>
+      <td class="bm-kpi">${KPI_LABELS[k]}</td>
       <td style="text-align:right;color:#fff;font-weight:var(--w-nadruk);">${fmt(w, w % 1 ? 1 : 0)}</td>
       <td style="text-align:right;color:rgba(255,255,255,.45);">norm ${nfmt(n)}</td>
     </tr>`;
@@ -7895,7 +7929,7 @@ function renderBM(bm) {
   const ditJaarRijen = KPIS.map(k => {
     const p = pJaar(k);
     return `<tr>
-      <td>${KPI_LABELS[k]}</td>
+      <td class="bm-kpi">${KPI_LABELS[k]}</td>
       <td style="width:132px;"><span class="bm-balk"><i style="width:${Math.min(100, p / 2)}%;background:${kleurJaar(p)};"></i><u></u></span></td>
       <td style="text-align:right;font-weight:var(--w-nadruk);color:#fff;">${p}%</td>
     </tr>`;
@@ -15341,12 +15375,12 @@ function renderComrap() {
     <div class="person-header">
       <div class="person-name">Commerciële rapportage</div>
       <div class="person-meta">
-        <span class="meta-pill" style="display:inline-flex;align-items:center;gap:4px;padding:1px 4px;">
-          <button onclick="comrapNavWeek(-1)" title="Week terug"
-                  style="background:none;border:none;color:inherit;cursor:pointer;font-size:.85rem;padding:2px 5px;line-height:1;">◀</button>
-          <span>Week ${w} · ${y}</span>
-          <button onclick="comrapNavWeek(1)" title="Week vooruit"
-                  style="background:none;border:none;color:inherit;cursor:pointer;font-size:.85rem;padding:2px 5px;line-height:1;">▶</button>
+        <span class="bt-nav licht">
+          <button class="pijl" onclick="comrapNavWeek(-1)" title="Week terug" aria-label="Week terug">
+            <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M13 6H2M6 1 1 6l5 5"/></svg></button>
+          <span class="aan">Week ${w} · ${y}</span>
+          <button class="pijl" onclick="comrapNavWeek(1)" title="Week vooruit" aria-label="Week vooruit">
+            <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
         </span>
       </div>
     </div>
@@ -16991,13 +17025,13 @@ function renderPrognose() {
     <!-- Projecten overzicht: bewerkbaar -->
     <div class="section-title" style="padding-right:2px;">
       <span style="color:#ffffff;">Projecten overzicht</span>
-      <span style="font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
-      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
-        ${isHrmEditor() ? `<button onclick="projFreezeAll()" style="font-size:.7rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">Alles opslaan</button>` : ''}
-        ${isBeheerder() ? `<button onclick="projContractRecalcAll()" style="font-size:.7rem;padding:3px 10px;background:#d97706;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">Herbereken alles</button>` : ''}
-        <button onclick="(async()=>{const b=this;b.disabled=true;btZetStatus(b, 'Laden…');await loadProjecten();render();b.disabled=false;b.textContent='Vernieuwen';})()" style="font-size:.7rem;padding:3px 10px;background:#0369a1;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">Vernieuwen</button>
-        <button onclick="projExportExcel()" style="font-size:.7rem;padding:3px 10px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">Exporteer Excel</button>
-        <button onclick="projSluitAlle()" style="font-size:.7rem;padding:3px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:600;">✕ Alles sluiten</button>
+      <span style="font-size:.73rem;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:0;white-space:nowrap;">${overzichtRanges.length} project${overzichtRanges.length!==1?'en':''}</span>
+      <span class="bt-nav" style="margin-left:auto;">
+        ${isHrmEditor() ? `<button onclick="projFreezeAll()" title="Alle open rijen vastzetten">Alles opslaan</button>` : ''}
+        ${isBeheerder() ? `<button onclick="projContractRecalcAll()" title="Alle contractwaarden opnieuw berekenen">Herbereken alles</button>` : ''}
+        <button onclick="(async()=>{const b=this;b.disabled=true;btZetStatus(b, 'Laden…');await loadProjecten();render();b.disabled=false;b.textContent='Vernieuwen';})()" title="Opnieuw ophalen uit de database">Vernieuwen</button>
+        <button onclick="projExportExcel()" title="De lijst als Excel-bestand">Exporteer Excel</button>
+        <button class="terug" onclick="projSluitAlle()" title="Alle geopende rijen dichtklappen">✕ Alles sluiten</button>
       </span>
     </div>
     <div class="filter-toolbar">
@@ -24387,13 +24421,13 @@ function renderPipeline(bm) {
   // hele regel hoogte.
   return `<div class="section-title" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
     <span>Kandidaten pipeline</span>
-    <span class="week-nav">
-      <button onclick="pipeNavWeek(-1)" title="4 weken terug" aria-label="4 weken terug">
+    <span class="bt-nav">
+      <button class="pijl" onclick="pipeNavWeek(-1)" title="4 weken terug" aria-label="4 weken terug">
         <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M13 6H2M6 1 1 6l5 5"/></svg></button>
       ${pipeWeekOffset !== 0
-        ? `<button class="midden terug" onclick="pipeNavWeekReset()" title="Terug naar deze week">vandaag</button>`
-        : `<span class="midden">4 wkn</span>`}
-      <button onclick="pipeNavWeek(1)" title="4 weken vooruit" aria-label="4 weken vooruit">
+        ? `<button class="terug" onclick="pipeNavWeekReset()" title="Terug naar deze week">vandaag</button>`
+        : `<span class="stil">4 wkn</span>`}
+      <button class="pijl" onclick="pipeNavWeek(1)" title="4 weken vooruit" aria-label="4 weken vooruit">
         <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
     </span>
   </div>
