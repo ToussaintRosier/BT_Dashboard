@@ -1943,7 +1943,10 @@
                           font-weight:var(--w-normaal); margin-left:6px; }
   .bm-paneel table { width:100%; border-collapse:collapse; font-size:.8rem;
                      color:rgba(255,255,255,.85); }
-  .bm-paneel td { padding:7px; border-bottom:1px solid rgba(255,255,255,.09); }
+  /* De kleur staat op de cel zelf (aanwijzing 20-08): zo kan geen enkele
+     algemene tabelregel elders in het bestand de labels nog donker maken. */
+  .bm-paneel td { padding:7px; border-bottom:1px solid rgba(255,255,255,.09);
+                  color:rgba(255,255,255,.85); }
   .bm-paneel tr:last-child td { border-bottom:none; }
   .bm-paneel .voet { font-size:.74rem; color:rgba(255,255,255,.45);
                      margin-top:auto; padding-top:9px;
@@ -2519,7 +2522,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0926 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0931 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5398,7 +5401,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0926';
+const APP_VERSIE = '20260820-0931';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7784,9 +7787,12 @@ function renderBM(bm) {
   // bij een oplopende doelcurve wordt er begin van het jaar minder verwacht,
   // en dat hoort hier hetzelfde te tellen als op het collectieve blad.
   const targetW = cumDoel(bm, passedW, 52);
+  // normWeek[k] / normWeek.starters is de ratio per starter, inclusief de
+  // KAM-uitzonderingen; keer de verwachte starters tot nu is dat de lat die
+  // met de doelcurve meebeweegt — dezelfde lat als de starters zelf.
   const pJaar = (k) => k === 'starters'
     ? pct(ytd.starters, targetW || 1)
-    : pct(ytd[k], (normWeek[k] * gewerkteW) || 1);
+    : pct(ytd[k], ((normWeek[k] / (normWeek.starters || 1)) * targetW) || 1);
   const nfmt = (n) => fmt(n, n >= 1 ? 1 : 2);
   const opNorm = KPIS.filter(k => (normWeek[k] || 0) > 0 ? weekNu[k] >= normWeek[k] : weekNu[k] > 0).length;
   const dezeWeekRijen = KPIS.map(k => {
