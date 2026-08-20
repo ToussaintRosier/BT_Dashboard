@@ -2519,7 +2519,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0921 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0924 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5398,7 +5398,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0921';
+const APP_VERSIE = '20260820-0924';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7799,17 +7799,24 @@ function renderBM(bm) {
       <td style="text-align:right;color:rgba(255,255,255,.45);">norm ${nfmt(n)}</td>
     </tr>`;
   }).join('');
+  // Boven de 100% is de balk altijd groen, en hoe verder erboven, hoe
+  // voller het groen (aanwijzing 20-08). De kleur zegt daarmee in één blik
+  // niet alleen dát iemand boven norm zit, maar ook hoe ruim. Het percentage
+  // zelf staat in het wit: de kleur zit al in de balk, twee keer dezelfde
+  // boodschap kleuren maakt het bonter zonder iets toe te voegen.
+  const kleurJaar = (p) => {
+    if (p >= 100) {
+      const t = Math.min(1, (p - 100) / 100);   // 100% → 0, 200%+ → 1
+      return `hsl(155, ${Math.round(58 + 37 * t)}%, ${Math.round(52 - 9 * t)}%)`;
+    }
+    return p >= 60 ? '#f0a020' : '#e02424';
+  };
   const ditJaarRijen = KPIS.map(k => {
     const p = pJaar(k);
-    // Starters op norm krijgt het huisstijl-geel: dat is het cijfer waar het
-    // uiteindelijk om gaat.
-    const kleur = p >= 100 ? (k === 'starters' ? '#F4CB3C' : '#34d399')
-                : p >= 60  ? '#f0a020' : '#e02424';
-    const tekst = p >= 100 ? kleur : (p >= 60 ? '#f0a020' : '#ff8080');
     return `<tr>
       <td>${KPI_LABELS[k]}</td>
-      <td style="width:132px;"><span class="bm-balk"><i style="width:${Math.min(100, p / 2)}%;background:${kleur};"></i><u></u></span></td>
-      <td style="text-align:right;font-weight:var(--w-nadruk);color:${tekst};">${p}%</td>
+      <td style="width:132px;"><span class="bm-balk"><i style="width:${Math.min(100, p / 2)}%;background:${kleurJaar(p)};"></i><u></u></span></td>
+      <td style="text-align:right;font-weight:var(--w-nadruk);color:#fff;">${p}%</td>
     </tr>`;
   }).join('');
   const schemaDiff  = +(ytd.starters - targetW).toFixed(1);
