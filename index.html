@@ -1935,14 +1935,24 @@
      De weken delen één omlijsting; alleen een dunne lijn ertussen. De
      geopende week krijgt een iets lichter vlak zodat je zonder zoeken ziet
      welke openstaat. */
-  .pipe-accordeon { background:#3E4B6E; border:1px solid rgba(255,255,255,.09);
+  /* Keuze P3 (20-08): de accordeon stond op #3E4B6E en was daarmee lichter
+     dan elk ander venster, terwijl de geopende week juist het lichtst hoort te
+     zijn. Nu de vensterkleur, en de open week iets lichter dan eerst (6% in
+     plaats van 4%) plus een lijn boven en onder — zodat je hem ook bij acht
+     weken onder elkaar in één blik terugvindt. */
+  .pipe-accordeon { background:#364160; border:1px solid rgba(255,255,255,.09);
                     border-radius:var(--radius-groot); overflow:hidden; }
   .pipe-accordeon .pipe-week-block { background:transparent; border:none;
                     border-radius:0; margin:0; padding:4px 10px; }
   .pipe-accordeon .pipe-week-block + .pipe-week-block {
                     border-top:1px solid rgba(255,255,255,.10); }
-  .pipe-accordeon .pipe-week-block.open { background:rgba(255,255,255,.04);
-                    padding-bottom:10px; }
+  .pipe-accordeon .pipe-week-block.open { background:rgba(255,255,255,.06);
+                    padding-bottom:10px;
+                    border-top:1px solid rgba(255,255,255,.24);
+                    border-bottom:1px solid rgba(255,255,255,.24); }
+  /* De scheidingslijn tussen twee weken vervalt waar de open week zijn eigen
+     lijn al meebrengt; anders staan er twee tegen elkaar. */
+  .pipe-accordeon .pipe-week-block.open + .pipe-week-block { border-top:none; }
   /* De samenvatting in de balk: alleen fasen waar iets in zit, als stipje
      met getal — dezelfde stippen als de kolommen, dus geen legenda nodig. */
   .pipe-fp { display:inline-flex; align-items:center; gap:4px;
@@ -1950,6 +1960,10 @@
              font-variant-numeric:tabular-nums; }
   .pipe-fp .d { width:7px; height:7px; border-radius:50%; display:inline-block;
                 flex-shrink:0; }
+  /* Een nul telt mee maar vraagt geen aandacht: het cijfer dempt, de stip
+     houdt zijn kleur zodat de reeks als maatlat blijft lezen. */
+  .pipe-fp.nul { color:rgba(255,255,255,.42); }
+  .pipe-fp.nul .d { opacity:.55; }
   .pipe-leeg-tekst { color:rgba(255,255,255,.4); font-size:.76rem; }
   /* De weekknop: donker uitgevoerd, zoals de rest van de balk (aanwijzing
      20-08 met schermafbeelding). De witte knop van eerst sprong eruit als de
@@ -2631,7 +2645,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1121 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-1131 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5510,7 +5524,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1121';
+const APP_VERSIE = '20260820-1131';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -24268,15 +24282,20 @@ function renderPipeline(bm) {
       const cc = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
       return isAanb ? cc.reduce((s,c) => s + (+c.aanb || 0), 0) : cc.length;
     });
-    // Nullen blijven weg (20-08): "Int: 0 · Bez: 0" was zes keer per week de
-    // mededeling dat er niets is. De korte naam staat in de tooltip.
+    // Alle zes de fasen staan in de balk, ook als er nul in zit (aanwijzing
+    // 20-08). Eerder bleven de nullen weg omdat "Int: 0 · Bez: 0" zes keer per
+    // week de mededeling was dat er niets is — maar met stipjes in plaats van
+    // afkortingen leest de reeks als een vaste maatlat: je ziet in één blik
+    // wélke fase leeg is, en niet alleen dát er iets ontbreekt. Een nul wordt
+    // gedempt getoond, de stip houdt zijn kleur.
     const isLeeg = stageCounts.every(n => !n);
     const summaryText = isLeeg
       ? '<span class="pipe-leeg-tekst">nog leeg</span>'
-      : stageCounts.map((n, i) => n > 0
-          ? `<span class="pipe-fp" title="${KPI_LABELS_SHORT[i]}"${i === 5 ? ' style="color:#F4CB3C;"' : ''}>` +
-            `<span class="d" style="background:${PIPE_STAGE_COLORS[i].stip || PIPE_STAGE_COLORS[i].punt};"></span>${n}</span>`
-          : '').join(' ');
+      : stageCounts.map((n, i) => {
+          const kleur = i === 5 && n > 0 ? ' style="color:#F4CB3C;"' : '';
+          return `<span class="pipe-fp${n ? '' : ' nul'}" title="${KPI_LABELS_SHORT[i]}"${kleur}>` +
+                 `<span class="d" style="background:${PIPE_STAGE_COLORS[i].stip || PIPE_STAGE_COLORS[i].punt};"></span>${n}</span>`;
+        }).join(' ');
 
     // Opslaan / Wijzigen knop in de balk
     let weekBtnHtml  = '';
