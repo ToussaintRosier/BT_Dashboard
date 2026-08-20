@@ -1917,19 +1917,15 @@
                 padding:0; }
   .pipe-ikoon:hover { background:rgba(255,255,255,.12); color:#fff; }
   .pipe-ikoon svg { width:13px; height:13px; }
-  /* Lege kolommen worden smal en gedempt; de ruimte gaat naar kolommen waar
-     iets in zit. Hangt er een kaart boven, dan klapt de strook open — de
-     bestaande drag-over-klasse doet dat werk. */
+  /* Alle zes kolommen altijd even breed (keuze 20-08): een lege kolom is
+     gedempt via .pipe-cell.leeg, niet smaller. */
   /* Het basisraster is een grid van zes vaste kolommen; daarbinnen werd de
      nieuwe flexrij één grid-vak en zat alles samengeperst in het eerste
      zesde van de breedte (fout 20-08). In de accordeon is het raster daarom
      een gewoon blok en verdeelt de flexrij zelf de ruimte. */
   .pipe-accordeon .pipe-grid { display:block; min-width:0; }
   .pipe-accordeon .pipe-row { display:flex; }
-  .pipe-accordeon .pipe-row > .pipe-cell { flex:3; min-width:0; }
-  .pipe-accordeon .pipe-row > .pipe-cell.pipe-smal { flex:0 0 34px; opacity:.45;
-                    transition:flex-basis .15s ease, opacity .15s ease; }
-  .pipe-accordeon .pipe-row > .pipe-cell.pipe-smal.drag-over { flex:3; opacity:1; }
+  .pipe-accordeon .pipe-row > .pipe-cell { flex:1; min-width:0; }
 
   /* ── De twee panelen op de medewerkerkaart (ontwerp 3, 20-08) ──────────
      Gelijk hoog door stretch: de rij rekt beide panelen tot de hoogste, en
@@ -2523,7 +2519,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0917 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0921 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5402,7 +5398,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0917';
+const APP_VERSIE = '20260820-0921';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -24249,20 +24245,6 @@ function renderPipeline(bm) {
         </div>`;
       }).join('');
 
-      // Een lege kolom wordt een smalle gedempte strook met alleen de stip
-      // (20-08): vier van de zes kolommen waren vaak leeg en kregen evenveel
-      // ruimte als de gevulde. Slepen blijft werken — de bestaande
-      // drag-over-klasse klapt de strook open zodra er een kaart boven hangt.
-      if (!cellCards.length && !cellCount) {
-        return `<div class="pipe-cell pipe-smal leeg" title="${stage} — leeg"
-          ondragover="${weekEditable ? 'pipeDragOver(event)' : ''}"
-          ondragleave="${weekEditable ? 'pipeDragLeave(event)' : ''}"
-          ondrop="${weekEditable ? `pipeDrop(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year})` : ''}">
-          <div class="pipe-cell-hdr" style="justify-content:center;">
-            <span class="pipe-fase-stip" style="background:${col.stip || col.punt};"></span>
-          </div>
-        </div>`;
-      }
       return `<div class="pipe-cell${isCur?' pipe-cell-now':isPast?' pipe-cell-past':''}${cellCount ? '' : ' leeg'}"
         ondragover="${weekEditable ? 'pipeDragOver(event)' : ''}"
         ondragleave="${weekEditable ? 'pipeDragLeave(event)' : ''}"
