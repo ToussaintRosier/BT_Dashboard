@@ -2474,7 +2474,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0856 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0902 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5343,7 +5343,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0856';
+const APP_VERSIE = '20260820-0902';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8929,9 +8929,19 @@ function _mtWieCel(a, mag) {
 window._mtActieOpen = window._mtActieOpen || new Set();
 function mtActieUitklap(id) {
   const k = String(id);
-  if (window._mtActieOpen.has(k)) window._mtActieOpen.delete(k);
-  else window._mtActieOpen.add(k);
-  render();
+  const open = !window._mtActieOpen.has(k);
+  if (open) window._mtActieOpen.add(k); else window._mtActieOpen.delete(k);
+  // Rechtstreeks omklappen, zonder render(): een hertekening zou het element
+  // onder de muis vervangen, en dan kan een dubbelklik (bewerken van de
+  // actietekst) nooit aankomen.
+  const rij  = document.getElementById('act-verv-' + k);
+  const pijl = document.getElementById('act-pijl-' + k);
+  if (!rij) { render(); return; }
+  rij.style.display = open ? '' : 'none';
+  if (pijl) {
+    pijl.textContent = open ? '▾' : '▸';
+    pijl.title = open ? 'Vervolgstap verbergen' : 'Vervolgstap tonen';
+  }
 }
 
 function actieTabelHtml(soort, bmNaam) {
@@ -8953,10 +8963,11 @@ function actieTabelHtml(soort, bmNaam) {
     // zonder uitklappen welke acties nog een vervolgstap missen.
     const open   = window._mtActieOpen.has(String(a.id));
     const heeft  = !!String(a.vervolgstap || '').trim();
-    const pijl   = `<button type="button" class="act-pijl${heeft ? ' gevuld' : ''}"
+    const pijl   = `<button type="button" id="act-pijl-${a.id}" class="act-pijl${heeft ? ' gevuld' : ''}"
             title="${open ? 'Vervolgstap verbergen' : 'Vervolgstap tonen'}"
             onclick="mtActieUitklap(${a.id})">${open ? '▾' : '▸'}</button>`;
-    const vervolgRij = open ? `<tr class="act-vervolg-rij${a.klaar ? ' klaar' : ''}" style="cursor:pointer;"
+    const vervolgRij = `<tr class="act-vervolg-rij${a.klaar ? ' klaar' : ''}" id="act-verv-${a.id}"
+        style="cursor:pointer;${open ? '' : 'display:none;'}"
         onclick="if (!event.target.closest('button,input,select,details,a,label')) mtActieUitklap(${a.id})">
       <td colspan="5">
         <div class="act-vervolg-label">VERVOLGSTAP${heeft ? '' : ' *'}</div>
@@ -8965,14 +8976,18 @@ function actieTabelHtml(soort, bmNaam) {
           onchange="mtActieZet(${a.id}, 'vervolgstap', this.value)">
         ${heeft || dicht ? '' : '<div class="act-vervolg-eis">Zonder vervolgstap kun je de actie niet vastzetten.</div>'}
       </td>
-    </tr>` : '';
+    </tr>`;
     return `<tr class="${a.klaar ? 'klaar' : ''}" style="cursor:pointer;"
-        onclick="if (!event.target.closest('button,input,select,details,a,label')) mtActieUitklap(${a.id})">
+        onclick="if (!event.target.closest('button,select,details,a,label,.act-tekst,.kol-wie')) mtActieUitklap(${a.id})">
       <td><button class="act-vink${a.klaar ? ' aan' : ''}" ${mag ? '' : 'disabled'}
             title="${a.klaar ? 'Weer openzetten' : 'Afvinken'}"
             onclick="mtActieVink(${a.id}, ${a.klaar ? 'false' : 'true'})">✓</button></td>
       <td>${pijl}<input class="act-tekst" value="${escHtml(a.tekst || '')}" ${dicht ? 'disabled' : ''}
             placeholder="Wat gaat er gebeuren?"
+            title="Klik om de vervolgstap te tonen · dubbelklik om de tekst te bewerken"
+            onmousedown="if (document.activeElement !== this) event.preventDefault();"
+            onclick="if (document.activeElement !== this) mtActieUitklap(${a.id})"
+            ondblclick="this.focus()"
             onchange="mtActieZet(${a.id}, 'tekst', this.value)"
             style="width:calc(100% - 16px);">
       <td class="kol-deadline">${(() => {
