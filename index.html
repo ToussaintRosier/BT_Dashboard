@@ -2411,7 +2411,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260819-2226 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0753 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5280,7 +5280,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260819-2226';
+const APP_VERSIE = '20260820-0753';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10116,6 +10116,11 @@ async function pvaAutosaveManagerNotitie(bmNaam) {
   const safeId   = bmNaam.replace(/\s+/g,'_');
   const statusEl = document.getElementById(`pva-mgrnote-status-${safeId}`);
   const val      = document.getElementById(`pva-manager_notitie-${safeId}`)?.value?.trim() || '';
+  // Deze regel ontbrak: `existing` werd gebruikt maar nergens opgehaald, en
+  // daardoor liep élke poging om een managernotitie op te slaan stuk op
+  // "existing is not defined". In het logboek stond dat maar één keer, omdat
+  // de demping na de eerste melding dichtgaat.
+  const existing = getPlanRow(bmNaam, NEXT.year, NEXT.week);
   // id eruit halen: dat is de door de database toegekende identity-kolom en
   // mag nooit zelf worden meegestuurd in een insert/upsert (anders: "cannot
   // insert a non-DEFAULT value into column \"id\"").
@@ -11568,6 +11573,9 @@ function stilRender() {
 }
 
 let _REALTIME_HERSTART = null;
+// Hoe vaak het kanaal achter elkaar is weggevallen. Gaat terug op nul zodra
+// er weer verbinding is; alleen een reeks mislukkingen is het melden waard.
+let _REALTIME_POGINGEN = 0;
 
 function subscribeRealtime() {
   if (!supa) return;
@@ -11602,12 +11610,30 @@ function subscribeRealtime() {
     })
     .subscribe((status) => {
       // De bewaking. Een weggevallen kanaal is onzichtbaar: alles lijkt te
-      // werken, er komt alleen niets meer binnen. Daarom: melden in het
-      // foutenlogboek en na een halve minuut opnieuw aansluiten. In de
-      // tussentijd vangt het stille verversen (elke 10 minuten) het gat op.
+      // werken, er komt alleen niets meer binnen. Daarom na een halve minuut
+      // opnieuw aansluiten; in de tussentijd vangt het stille verversen (elke
+      // 10 minuten) het gat op.
+      //
+      // Wat NIET meer gemeld wordt (19-08): elk van deze standen op zichzelf.
+      // Het logboek liep vol — 111 van de meldingen gingen hierover, waarvan
+      // 53 keer CLOSED. En CLOSED is geen storing: dat is wat er gebeurt als
+      // je een tabblad sluit of wegnavigeert. Zo belandde een échte fout op
+      // plek vier onder honderd regels ruis. Een logboek dat alles meldt,
+      // meldt niets.
+      //
+      // Wat WEL gemeld wordt: als het opnieuw aansluiten óók niet lukt. Dan is
+      // er werkelijk iets aan de hand, en dat is precies wat deze bewaking
+      // moest opvangen.
+      if (status === 'SUBSCRIBED') { _REALTIME_POGINGEN = 0; return; }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        meldFout('realtime-kanaal: ' + status, 'subscribeRealtime');
         if (_REALTIME_HERSTART) return;
+        _REALTIME_POGINGEN++;
+        // Drie mislukte pogingen achter elkaar: dan pas het logboek in, met
+        // het aantal erbij zodat je ziet hoe hardnekkig het is.
+        if (_REALTIME_POGINGEN >= 3) {
+          meldFout('realtime-kanaal blijft wegvallen (' + _REALTIME_POGINGEN + 'e poging, laatst: ' + status + ')',
+                   'subscribeRealtime');
+        }
         _REALTIME_HERSTART = setTimeout(() => {
           _REALTIME_HERSTART = null;
           try { supa.removeChannel && supa.removeAllChannels && supa.removeAllChannels(); } catch (_) {}
@@ -15305,12 +15331,17 @@ async function _beldataBewaren(rijen, week, jaar) {
   if (!magWijzigen('comrap')) return 0;
   if (!supa || !Array.isArray(rijen) || !rijen.length) return 0;
   const namen = new Set(BMS.map(b => b.naam));
+  const _beldataOvergeslagen = [];
   const schoon = [];
   for (const r of rijen) {
     if (!r || !r.naam) continue;
     // Alleen namen die we kennen. Een verkeerd gelezen naam zou anders een
     // eigen reeks beginnen die nooit meer aansluit.
-    if (!namen.has(r.naam)) { meldFout('onbekende naam in beldata: ' + r.naam, 'beldata bewaren'); continue; }
+    // Overslaan is hier het juiste gedrag, geen storing: "Stage Recruitment"
+    // is geen BM en hoort dus geen eigen reeks te beginnen. Het foutenlogboek
+    // is voor dingen die stuk zijn; dit hoort in de console en in de melding
+    // op het scherm hieronder.
+    if (!namen.has(r.naam)) { _beldataOvergeslagen.push(r.naam); continue; }
     const getal = v => (v == null || v === '' || isNaN(+v)) ? null : Math.round(+v);
     schoon.push({
       naam: r.naam, jaar, week,
@@ -15319,12 +15350,18 @@ async function _beldataBewaren(rijen, week, jaar) {
       bron: 'schermafdruk', bijgewerkt: new Date().toISOString(),
     });
   }
-  if (!schoon.length) return 0;
+  // De overgeslagen namen gaan mee terug in plaats van naar het foutenlogboek:
+  // het is informatie voor wie de schermafdruk aanlevert, niet iets wat stuk is.
+  const over = [...new Set(_beldataOvergeslagen)];
+  if (!schoon.length) return { aantal: 0, overgeslagen: over };
   try {
     const { error } = await supa.from('beldata').upsert(schoon, { onConflict: 'naam,jaar,week' });
-    if (error) { meldFout(error.message, 'beldata bewaren'); return 0; }
-    return schoon.length;
-  } catch (e) { meldFout(String(e && e.message || e), 'beldata bewaren'); return 0; }
+    if (error) { meldFout(error.message, 'beldata bewaren'); return { aantal: 0, overgeslagen: over }; }
+    return { aantal: schoon.length, overgeslagen: over };
+  } catch (e) {
+    meldFout(String(e && e.message || e), 'beldata bewaren');
+    return { aantal: 0, overgeslagen: over };
+  }
 }
 
 // Een week terug of vooruit, met de jaarwisseling erin verwerkt.
@@ -15560,6 +15597,15 @@ async function comrapAnalyse() {
     st.bewaardMelding = bewaard.ok
       ? 'Automatisch opgeslagen bij Opgeslagen.'
       : 'Let op: opslaan mislukte (' + bewaard.msg + '). Gebruik de knop hieronder.';
+    // Namen uit de schermafdruk die geen BM zijn, worden overgeslagen — anders
+    // begint een verkeerd gelezen naam een eigen reeks die nooit meer aansluit.
+    // Dat hoort de aanleveraar te weten, dus staat het hier en niet in het
+    // foutenlogboek.
+    const over = (st.beldataBewaard && st.beldataBewaard.overgeslagen) || [];
+    if (over.length) {
+      st.bewaardMelding += ' Beldata overgeslagen voor: ' + over.join(', ') +
+                           ' — geen bekende BM.';
+    }
   } catch(e) {
     st.resultaat = '❌ Fout bij analyse: ' + e.message;
     st.bewaardMelding = '';
