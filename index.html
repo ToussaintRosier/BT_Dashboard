@@ -639,12 +639,20 @@
      Zeventien contractvelden stonden op één regel die buiten beeld doorliep.
      Nu drie blokken onder elkaar, alles op dezelfde letterhoogte als de
      evaluatiechips: alleen de kleur verschilt. */
-  .proj-blokkop { font-size:.72rem; color:rgba(255,255,255,.5); letter-spacing:.4px;
-                  margin-bottom:7px; }
+  .proj-blokkop { font-size:.72rem; color:rgba(255,255,255,.62); letter-spacing:.4px;
+                  margin-bottom:8px; }
   .proj-raster { display:grid; grid-template-columns:repeat(4, minmax(0,1fr));
-                 gap:9px 16px; margin-bottom:14px; }
-  .proj-raster .lab { font-size:.72rem; color:rgba(255,255,255,.45); }
+                 gap:11px 18px; margin-bottom:15px; }
+  /* Het label stond op 45% wit en was daarmee zwakker dan de waarde eronder
+     nodig had; op 65% lees je het zonder dat het met de waarde concurreert. */
+  .proj-raster .lab { font-size:.72rem; color:rgba(255,255,255,.65);
+                      margin-bottom:3px; }
   .proj-raster .wrd { font-size:.72rem; color:#fff; }
+  /* Elk veld vult zijn vak; de vaste breedtes per veld komen uit de tijd dat
+     alle zeventien op één regel stonden. */
+  .proj-raster .wrd > input,
+  .proj-raster .wrd > select,
+  .proj-raster .wrd > span { width:100% !important; }
   @media (max-width:900px) { .proj-raster { grid-template-columns:repeat(2, minmax(0,1fr)); } }
   .proj-save-btn { background:var(--primary); color:#fff; border:none; border-radius:6px; padding:5px 12px; font-size:.78rem; font-weight:700; cursor:pointer; }
   .proj-save-btn:hover { background:var(--primary-dark); }
@@ -2650,7 +2658,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1147 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-1159 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5529,7 +5537,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1147';
+const APP_VERSIE = '20260820-1159';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6018,8 +6026,9 @@ function renderTabs() {
         </div>
         <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">
           ${mi('medewerkers', `<button class="sidebar-item ${currentTab==='medewerkers'?'active':''}" onclick="goMedewerkersOverzicht()">${btIcon('overzicht')}Overzicht</button>`)}
-          ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
           ${_bmIdx >= 0 ? `<button class="sidebar-item ${currentTab===_bmIdx?'active':''}" onclick="selectTab(${_bmIdx})">${escHtml(CURRENT_USER.bm_naam)}</button>` : ''}
+          ${/* Onderaan (aanwijzing 20-08): eerst de mensen, dan de optelsom. */''}
+          ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
         </div>
       </div>`)}
       <!-- Submenu's alfabetisch op naam (afspraak 19-08); hoofdthema's houden hun vaste volgorde. -->
@@ -6081,8 +6090,9 @@ function renderTabs() {
         <span class="sidebar-caret ${medewerkersOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${medewerkersOpen?'flex':'none'};">
-        ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
-        ${medewerkersItems}</div>
+        ${medewerkersItems}
+        ${/* Onderaan (aanwijzing 20-08): eerst de mensen, dan de optelsom. */''}
+        ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}</div>
     </div>`)}
     ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
       <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
@@ -14062,7 +14072,14 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
   const cells = baseFields.map(f => {
     const val   = String(data[f.key] ?? '').trim();
     const bgCol = editable ? '#fff' : (frozen ? '#e8edf2' : '#f9fafb');
-    const stIn  = `font-size:.6rem;padding:1px 2px;width:${f.w};box-sizing:border-box;border:1px solid var(--border);border-radius:3px;background:${bgCol};${frozen?'color:#555;':''}`;
+    // De velden stonden op .6rem in een doosje van twee pixels breed, met een
+    // vaste breedte per veld uit een tijd dat ze allemaal op één regel pasten.
+    // Sinds ze in een raster van vier kolommen staan is die breedte niet meer
+    // nodig — en die ruimte gebruiken we nu (aanwijzing 20-08). De maat is
+    // .72rem: gelijk aan de labels en de blokkoppen hier, en niet groter.
+    const stIn  = `font-size:.72rem;line-height:1.35;padding:4px 8px;width:100%;`
+                + `box-sizing:border-box;border:1px solid var(--border);border-radius:5px;`
+                + `background:${bgCol};color:${frozen ? '#33415c' : 'var(--text)'};`;
 
     // Projectnr: voor excel-projecten altijd read-only (het is de DB-sleutel)
     if (f.key === 'projectnr' && src === 'excel') {
