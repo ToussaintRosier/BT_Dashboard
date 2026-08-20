@@ -1882,6 +1882,36 @@
   .act-plus:hover { color:var(--primary); border-color:var(--primary); }
   .act-status { font-size:.76rem; color:var(--muted); }
 
+  /* ── De deadline-keuze ─────────────────────────────────────────────────
+     Een kaal datumveld kan geen "on-going" aanbieden — de kalender van de
+     browser is niet uit te breiden. Vandaar een eigen menu: bovenin de
+     on-going-keuze (oranje, afspraak 20-08), daaronder het datumveld.
+     Verlopen kleurt rood; dat is een feit, geen oordeel. */
+  .act-dl { position:relative; display:inline-block; }
+  .act-dl > summary { list-style:none; cursor:pointer; font-size:.78rem;
+                      padding:3px 8px; border-radius:5px; border:1px solid transparent;
+                      color:var(--muted); white-space:nowrap; }
+  .act-dl > summary::-webkit-details-marker { display:none; }
+  .act-dl > summary:hover { border-color:var(--border); }
+  .act-dl[open] > summary { border-color:var(--primary); }
+  .act-dl-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:60;
+                  background:#fff; border:1px solid var(--border); border-radius:8px;
+                  box-shadow:0 6px 16px rgba(0,0,0,.18); padding:6px; min-width:170px; }
+  .act-dl-ongoing { display:block; width:100%; text-align:left; background:none;
+                    border:none; cursor:pointer; font-size:.8rem; font-weight:600;
+                    color:#E87400; padding:6px 8px; border-radius:5px; }
+  .act-dl-ongoing:hover { background:#fdf1e3; }
+  .act-dl-panel input[type="date"] { width:100%; box-sizing:border-box; margin-top:4px;
+                    border:1px solid var(--border); border-radius:5px; padding:4px 7px;
+                    font-size:.78rem; font-family:inherit; }
+  .act-ongoing { color:#E87400; font-weight:600; }
+  .act-dl-laat { color:#e02424; font-weight:600; }
+  /* Op het donkere venster van MT-acties: fellere tinten, anders vallen ze weg. */
+  .mt-donker .act-dl > summary { color:rgba(255,255,255,.75); }
+  .mt-donker .act-dl > summary:hover { border-color:rgba(255,255,255,.3); }
+  .mt-donker .act-ongoing { color:#f59e0b; }
+  .mt-donker .act-dl-laat { color:#ff8080; }
+
   /* ── De vervolgstap ────────────────────────────────────────────────────
      Eén regel over de volle breedte van het paneel, niet binnen de
      actiekolom: zo passen er ruim honderdzeventig tekens in zonder dat de
@@ -2411,7 +2441,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0753 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0843 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5280,7 +5310,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0753';
+const APP_VERSIE = '20260820-0843';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5563,7 +5593,7 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen
 // gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
 const SCHRIJFACTIES = ['onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
   'mtActieToevoegen', 'mtActieZet', 'mtActieVink', 'mtActieWeg',
-  'mtActieIniToggle', 'mtActieBevries',
+  'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
   'mtNotuleOpslaanKnop', 'mtNotuleWijzig', 'mtCoachOpslaan', 'mtCoachWijzig',
   'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
 
@@ -5776,13 +5806,15 @@ function renderTabs() {
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
-          ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
           ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
           ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
           ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
           ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
           ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
+          ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
+               sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
+          ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
         </div>
       </div>`)}
       ${mi('accounts', `<div class="sidebar-cat">
@@ -5834,13 +5866,15 @@ function renderTabs() {
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
-        ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
         ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
         ${mi('hrm', `<button class="sidebar-item ${currentTab==='hrm'?'active':''}" onclick="selectTab('hrm')">${btIcon('hrm')}HRM/Backoffice</button>`)}
         ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-acties</button>`) : ''}
         ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
         ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
         ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}
+        ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
+             sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
+        ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
       </div>
     </div>`)}
     ${mi('accounts', `<div class="sidebar-cat">
@@ -7601,7 +7635,10 @@ function renderBM(bm) {
     <div class="bm-subtabs">
       <button class="bm-subtab-btn ${bmSubTab==='kpis'?'active':''}" onclick="selectBmSubTab('kpis')">KPI's</button>
       ${(heeftMtCoaching(bm.naam) && magZien('mtcoaching')) ? `<button class="bm-subtab-btn ${bmSubTab==='mtcoaching'?'active':''}" onclick="selectBmSubTab('mtcoaching')">MT-coaching</button>` : ''}
-      <button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">Plan van aanpak</button>
+      ${/* Luc, Charlotte en Yoël hebben MT-coaching in plaats van het plan
+           van aanpak (afspraak 20-08): twee sturingsvormen naast elkaar op
+           één kaart is dubbel bijhouden. */''}
+      ${heeftMtCoaching(bm.naam) ? '' : `<button class="bm-subtab-btn ${bmSubTab==='plan'?'active':''}" onclick="selectBmSubTab('plan')">Plan van aanpak</button>`}
       ${heeftBumGesprek(bm.naam) ? `<button class="bm-subtab-btn ${bmSubTab==='bum'?'active':''}" onclick="selectBmSubTab('bum')">BUM-gesprek</button>` : ''}
       <button class="bm-subtab-btn ${bmSubTab==='coaching'?'active':''}" onclick="selectBmSubTab('coaching')">Coaching</button>
       <button class="bm-subtab-btn ${bmSubTab==='agenda'?'active':''}" onclick="selectBmSubTab('agenda')">Performance-Analyse</button>
@@ -7610,6 +7647,9 @@ function renderBM(bm) {
   </div>`;
 
   if (bmSubTab === 'plan') {
+    // Stond het tabblad open en wissel je naar een kaart die het niet heeft,
+    // dan val je terug op de KPI's in plaats van een leeg scherm.
+    if (heeftMtCoaching(bm.naam)) { bmSubTab = 'kpis'; render(); return; }
     document.getElementById('bm-subtab-content').innerHTML = renderPlanVanAanpak(bm);
     setTimeout(pvaTaResizeAll, 0);
     return;
@@ -8750,9 +8790,11 @@ function werkKnoppenHtml(actieBtn, printBtn, statusHtml, statusId) {
 
 // Het logboek in het lichtblauwe paneel. Ook dit bewust gedeeld: het BUM-gesprek
 // had een eigen donkere variant, en die werd op de donkere pagina onleesbaar.
-function werkLogboekHtml(titel, regelsHtml, leegTekst) {
+function werkLogboekHtml(titel, regelsHtml, leegTekst, extraKop) {
   return `<div class="plan-col afgesproken" style="margin-top:20px;">
-    <div class="plan-col-label">${titel}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div class="plan-col-label">${titel}</div>${extraKop || ''}
+    </div>
     ${regelsHtml || `<div style="font-size:.82rem;color:var(--muted);">${leegTekst}</div>`}
   </div>`;
 }
@@ -8813,7 +8855,8 @@ function _mtActiesVoor(soort, bmNaam) {
     // Open bovenaan, daarbinnen op deadline: een agenda, geen archief.
     .sort((a, b) => {
       if (!!a.klaar !== !!b.klaar) return a.klaar ? 1 : -1;
-      const da = a.deadline || '9999-12-31', db = b.deadline || '9999-12-31';
+      const da = (a.ongoing ? '9999-06-30' : a.deadline) || '9999-12-31',
+            db = (b.ongoing ? '9999-06-30' : b.deadline) || '9999-12-31';
       return da === db ? (a.id - b.id) : (da < db ? -1 : 1);
     });
 }
@@ -8874,10 +8917,11 @@ function actieTabelHtml(soort, bmNaam) {
     // zonder uitklappen welke acties nog een vervolgstap missen.
     const open   = window._mtActieOpen.has(String(a.id));
     const heeft  = !!String(a.vervolgstap || '').trim();
-    const pijl   = `<button class="act-pijl${heeft ? ' gevuld' : ''}"
+    const pijl   = `<button type="button" class="act-pijl${heeft ? ' gevuld' : ''}"
             title="${open ? 'Vervolgstap verbergen' : 'Vervolgstap tonen'}"
             onclick="mtActieUitklap(${a.id})">${open ? '▾' : '▸'}</button>`;
-    const vervolgRij = open ? `<tr class="act-vervolg-rij${a.klaar ? ' klaar' : ''}">
+    const vervolgRij = open ? `<tr class="act-vervolg-rij${a.klaar ? ' klaar' : ''}" style="cursor:pointer;"
+        onclick="if (!event.target.closest('button,input,select,details,a,label')) mtActieUitklap(${a.id})">
       <td colspan="5">
         <div class="act-vervolg-label">VERVOLGSTAP${heeft ? '' : ' *'}</div>
         <input class="act-vervolg${heeft ? '' : ' ontbreekt'}" value="${escHtml(a.vervolgstap || '')}"
@@ -8886,7 +8930,8 @@ function actieTabelHtml(soort, bmNaam) {
         ${heeft || dicht ? '' : '<div class="act-vervolg-eis">Zonder vervolgstap kun je de actie niet vastzetten.</div>'}
       </td>
     </tr>` : '';
-    return `<tr class="${a.klaar ? 'klaar' : ''}">
+    return `<tr class="${a.klaar ? 'klaar' : ''}" style="cursor:pointer;"
+        onclick="if (!event.target.closest('button,input,select,details,a,label')) mtActieUitklap(${a.id})">
       <td><button class="act-vink${a.klaar ? ' aan' : ''}" ${mag ? '' : 'disabled'}
             title="${a.klaar ? 'Weer openzetten' : 'Afvinken'}"
             onclick="mtActieVink(${a.id}, ${a.klaar ? 'false' : 'true'})">✓</button></td>
@@ -8894,9 +8939,21 @@ function actieTabelHtml(soort, bmNaam) {
             placeholder="Wat gaat er gebeuren?"
             onchange="mtActieZet(${a.id}, 'tekst', this.value)"
             style="width:calc(100% - 16px);">
-      <td class="kol-deadline"><input class="act-datum${laat ? ' laat' : ''}" type="date" value="${a.deadline || ''}"
-            ${dicht ? 'disabled' : ''} title="${laat ? 'Deadline verstreken' : 'Deadline'}"
-            onchange="mtActieZet(${a.id}, 'deadline', this.value || null)"></td>
+      <td class="kol-deadline">${(() => {
+        const dat = a.deadline ? a.deadline.split('-').reverse().join('-') : '';
+        const label = a.ongoing
+          ? '<span class="act-ongoing">on-going</span>'
+          : (a.deadline
+              ? `<span class="${laat ? 'act-dl-laat' : ''}" title="${laat ? 'Deadline verstreken' : 'Deadline'}">${dat}</span>`
+              : '<span style="color:var(--text-muted);">— kies —</span>');
+        if (dicht) return `<span style="font-size:.78rem;">${label}</span>`;
+        return `<details class="act-dl"><summary>${label}</summary>
+          <div class="act-dl-panel">
+            <button type="button" class="act-dl-ongoing" onclick="mtActieOngoing(${a.id})">⟳ On-going</button>
+            <input type="date" value="${a.deadline || ''}" onchange="mtActieDeadline(${a.id}, this.value)">
+          </div>
+        </details>`;
+      })()}</td>
       <td class="kol-wie">${_mtWieCel(a, mag && !a.bevroren)}</td>
       <td style="white-space:nowrap;text-align:right;">${slotIkoon}${mag
         ? `<button class="act-ikoon weg" title="Verwijderen" onclick="mtActieWeg(${a.id})">${btActie('prullenbak')}</button>` : ''}</td>
@@ -8942,6 +8999,29 @@ async function mtActieZet(id, veld, waarde) {
   const { error } = await supa.from('mt_acties')
     .update({ [veld]: waarde, bijgewerkt: new Date().toISOString() }).eq('id', id);
   if (error) { alert('Opslaan mislukt: ' + error.message); meldFout(error.message, 'mtActieZet'); }
+}
+
+// On-going of een datum — nooit allebei. On-going kiezen wist de datum, een
+// datum kiezen zet on-going uit; anders staat er straks "on-going tot 1 maart"
+// en betekent het niets meer.
+async function mtActieOngoing(id) {
+  const a = MT_ACTIES.find(x => x.id === id);
+  if (!a || !eisWijzig(_mtSleutel(a))) return;
+  a.ongoing = true; a.deadline = null;
+  render();
+  const { error } = await supa.from('mt_acties')
+    .update({ ongoing: true, deadline: null, bijgewerkt: new Date().toISOString() }).eq('id', id);
+  if (error) { alert('Opslaan mislukt: ' + error.message); meldFout(error.message, 'mtActieOngoing'); }
+}
+
+async function mtActieDeadline(id, waarde) {
+  const a = MT_ACTIES.find(x => x.id === id);
+  if (!a || !eisWijzig(_mtSleutel(a))) return;
+  a.ongoing = false; a.deadline = waarde || null;
+  render();
+  const { error } = await supa.from('mt_acties')
+    .update({ ongoing: false, deadline: waarde || null, bijgewerkt: new Date().toISOString() }).eq('id', id);
+  if (error) { alert('Opslaan mislukt: ' + error.message); meldFout(error.message, 'mtActieDeadline'); }
 }
 
 async function mtActieIniToggle(id, ini) {
@@ -9183,7 +9263,56 @@ function mtNotuleLogboekHtml() {
       </div>
     </div>`;
   }).join('');
-  return werkLogboekHtml('Eerdere notulen — logboek', regels, 'Nog geen eerdere notulen vastgelegd.');
+  // Het plusje (afspraak 20-08): een overleg van vóór dit scherm bestond kan
+  // alsnog worden vastgelegd. De keuzelijst toont alleen weken zonder notule —
+  // dubbel vastleggen kan dus niet.
+  const open = !!window._mtNotuleNieuwOpen;
+  const plus = magWijzigen('mtacties')
+    ? `<button class="act-ini-plus" title="Notule van een eerdere week toevoegen"
+         onclick="window._mtNotuleNieuwOpen=${open ? 'false' : 'true'};render()">${open ? '✕' : '+'}</button>`
+    : '';
+  let formulier = '';
+  if (open) {
+    const opties = [];
+    let wk = isoWeek(new Date());
+    for (let i = 1; i <= 26; i++) {
+      wk = _weekVerschoven(wk.year, wk.week, -1);
+      if (!MT_NOTULEN.some(n => n.jaar === wk.year && n.week === wk.week)) {
+        opties.push(`<option value="${wk.year}-${wk.week}">Week ${wk.week} · ${wk.year}</option>`);
+      }
+    }
+    formulier = `<div class="pva-log-content" style="margin-bottom:10px;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-size:.78rem;color:var(--muted);">Notule van</span>
+        <select id="mt-notule-oud-week" style="border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.8rem;background:#fff;color:var(--text);">${opties.join('')}</select>
+      </div>
+      <div class="plan-field" style="margin-bottom:8px;">
+        <textarea id="mt-notule-oud-tekst" rows="4" data-pva-ta="1" placeholder="Wat is er die week besproken en afgesproken?"></textarea>
+      </div>
+      <button class="mt-knop-eerste" onclick="mtNotuleOudeOpslaan()"
+        style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-weight:700;font-size:.8rem;cursor:pointer;">Opslaan</button>
+    </div>`;
+  }
+  return werkLogboekHtml('Eerdere notulen — logboek', formulier + regels,
+                         open ? '' : 'Nog geen eerdere notulen vastgelegd.', plus);
+}
+
+async function mtNotuleOudeOpslaan() {
+  if (!eisWijzig('mtacties')) return;
+  const keuze = document.getElementById('mt-notule-oud-week');
+  const veld  = document.getElementById('mt-notule-oud-tekst');
+  const tekst = (veld && veld.value || '').trim();
+  if (!keuze || !keuze.value) { alert('Kies eerst een week.'); return; }
+  if (!tekst) { alert('Schrijf eerst de notule; een lege week vastleggen heeft geen zin.'); return; }
+  const [jaar, week] = keuze.value.split('-').map(Number);
+  const { data, error } = await supa.from('mt_notulen').insert({
+    jaar, week, tekst,
+    aangemaakt_door: CURRENT_USER?.naam || '', bijgewerkt_door: CURRENT_USER?.naam || '',
+  }).select();
+  if (error) { alert(_mtFoutTekst('Opslaan', error)); meldFout(error.message, 'mtNotuleOudeOpslaan'); return; }
+  MT_NOTULEN = (data || []).concat(MT_NOTULEN);
+  window._mtNotuleNieuwOpen = false;
+  render();
 }
 
 // Eén notule als losstaande pagina om af te drukken of als PDF te bewaren.
@@ -9217,7 +9346,7 @@ function printMtActielijst(direct) {
     return `<tr class="${a.klaar ? 'klaar' : ''}">
       <td>${a.klaar ? '✓' : ''}</td>
       <td>${escHtml(a.tekst || '')}</td>
-      <td class="${laat ? 'laat' : ''}">${dat(a.deadline)}</td>
+      <td class="${laat ? 'laat' : ''}">${a.ongoing ? '<em>on-going</em>' : dat(a.deadline)}</td>
       <td>${escHtml(_mtIniLijst(a).join(', ') || '—')}</td>
     </tr>${a.vervolgstap ? `<tr class="vervolg"><td></td><td colspan="3">${escHtml(a.vervolgstap)}</td></tr>` : ''}`;
   }).join('');
@@ -9245,7 +9374,7 @@ function printMtCoachActies(bmNaam, direct) {
     return `<tr class="${a.klaar ? 'klaar' : ''}">
       <td>${a.klaar ? '✓' : ''}</td>
       <td>${escHtml(a.tekst || '')}</td>
-      <td class="${laat ? 'laat' : ''}">${dat(a.deadline)}</td>
+      <td class="${laat ? 'laat' : ''}">${a.ongoing ? '<em>on-going</em>' : dat(a.deadline)}</td>
       <td>${escHtml(_mtIniLijst(a).join(', ') || '—')}</td>
     </tr>${a.vervolgstap ? `<tr class="vervolg"><td></td><td colspan="3">${escHtml(a.vervolgstap)}</td></tr>` : ''}`;
   }).join('');
