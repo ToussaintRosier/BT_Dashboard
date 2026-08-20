@@ -2658,7 +2658,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1454 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-1502 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5537,7 +5537,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1454';
+const APP_VERSIE = '20260820-1502';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8843,17 +8843,38 @@ function unlockWeeklyEntry(bmNaam, week, year) {
 }
 
 // Sla pipeline-aantallen direct op vanuit het pipeline-bord (geen invoervelden nodig).
-async function saveWeeklyEntryDirect(bmNaam, week, year) {
+//
+// De knop meldt zelf dat hij bezig is (20-08). Opslaan duurt een seconde of
+// twee — schrijven, opnieuw ophalen, hertekenen — en zonder teken van leven
+// leek er niets te gebeuren. Dan klikte iemand nog eens, en die tweede klik
+// kwam middenin de eerste: twee keer wegschrijven, twee keer hertekenen.
+async function saveWeeklyEntryDirect(bmNaam, week, year, knop) {
   if (!eisWijzig('medewerkers')) return;
   if (!supa || !CURRENT_USER) return;
-  const pipeCounts = getPipeCountsForWeek(bmNaam, week, year);
-  const payload = { bm_naam: bmNaam, jaar: year, week: week, ...pipeCounts, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
-  const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
-  if (error) { alert('❌ Fout bij opslaan: ' + error.message); return; }
-  WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${year}|${week}`);
-  await loadKpiWeekly();
-  recomputeRatios();
-  render();
+  if (knop && knop.disabled) return;
+  if (knop) { knop.disabled = true; knop.textContent = 'Opslaan…'; }
+  try {
+    const pipeCounts = getPipeCountsForWeek(bmNaam, week, year);
+    const payload = { bm_naam: bmNaam, jaar: year, week: week, ...pipeCounts, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
+    const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+    if (error) {
+      if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
+      alert('❌ Fout bij opslaan: ' + error.message);
+      return;
+    }
+    WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${year}|${week}`);
+    await loadKpiWeekly();
+    recomputeRatios();
+    // De hertekening zet de knop zelf terug op "Wijzigen"; de wachtrij van
+    // live-berichten wordt geleegd zodat je eigen wijziging niet nog een keer
+    // een hertekening uitlokt.
+    _RT_WACHTRIJ.delete('kpi_weekly');
+    render();
+  } catch (e) {
+    if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
+    meldFout(e && (e.message || e), 'saveWeeklyEntryDirect', e && e.stack);
+    alert('❌ Opslaan mislukt: ' + (e && e.message ? e.message : e));
+  }
 }
 
 async function saveWeeklyEntry(bmNaam, week, year) {
@@ -11985,38 +12006,51 @@ let _REALTIME_HERSTART = null;
 // Hoe vaak het kanaal achter elkaar is weggevallen. Gaat terug op nul zodra
 // er weer verbinding is; alleen een reeks mislukkingen is het melden waard.
 let _REALTIME_POGINGEN = 0;
+// Weggevallen terwijl niemand keek: dan wachten we op de terugkeer.
+let _REALTIME_WACHT_OP_TERUG = false;
+
+// Wat er per tabel opnieuw opgehaald moet worden als een collega iets wijzigt.
+const _RT_TAKEN = {
+  kpi_weekly:       async () => { await loadKpiWeekly(); recomputeRatios(); },
+  pipeline_cards:   async () => { await pipeFetchAll(); },
+  projecten:        async () => { await loadProjecten(); },
+  accounts:         async () => { await accountsFetchAll(); },
+  sales_leads:      async () => { await salesLeadsFetchAll(); },
+  financieel_omzet: async () => { await loadFinancieelOmzet(); },
+  plan_van_aanpak:  async () => { await loadPlanVanAanpak(); },
+  bum_gesprek:      async () => { await loadBumGesprekken(); },
+};
+
+// Eén wijziging levert vaak meerdere berichten op — een opgeslagen week raakt
+// zowel kpi_weekly als pipeline_cards — en elk bericht tekende het hele scherm
+// opnieuw. Bij het opslaan in de pipeline zag je dat als haperen: eerst je
+// eigen hertekening, daarna nog twee die er meteen achteraan kwamen. Nu wordt
+// alles binnen een halve seconde verzameld en volgt er één hertekening.
+let _RT_WACHTRIJ = new Set();
+let _RT_TIMER    = null;
+function _rtVerzamel(tabel) {
+  _RT_WACHTRIJ.add(tabel);
+  if (_RT_TIMER) return;
+  _RT_TIMER = setTimeout(async () => {
+    _RT_TIMER = null;
+    const tabellen = [..._RT_WACHTRIJ];
+    _RT_WACHTRIJ.clear();
+    for (const t of tabellen) {
+      try { await _RT_TAKEN[t](); }
+      catch (e) { _meldStil('realtime bijwerken: ' + t, e); }
+    }
+    stilRender();
+  }, 500);
+}
 
 function subscribeRealtime() {
   if (!supa) return;
-  supa.channel('kpi-dashboard-live')
-    // De cijfers: stonden er al.
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'kpi_weekly' }, async () => {
-      await loadKpiWeekly(); recomputeRatios(); stilRender();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pipeline_cards' }, async () => {
-      await pipeFetchAll(); stilRender();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'projecten' }, async () => {
-      await loadProjecten(); stilRender();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, async () => {
-      await accountsFetchAll(); stilRender();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_leads' }, async () => {
-      await salesLeadsFetchAll(); stilRender();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'financieel_omzet' }, async () => {
-      await loadFinancieelOmzet(); stilRender();
-    })
-    // De weekschema's: vult een collega zijn plan of BUM-gesprek in, dan staat
-    // het bij de manager binnen seconden op het scherm — en andersom de
-    // managernotitie bij de collega.
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_van_aanpak' }, async () => {
-      await loadPlanVanAanpak(); stilRender();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'bum_gesprek' }, async () => {
-      await loadBumGesprekken(); stilRender();
-    })
+  const kanaal = supa.channel('kpi-dashboard-live');
+  for (const tabel of Object.keys(_RT_TAKEN)) {
+    kanaal.on('postgres_changes', { event: '*', schema: 'public', table: tabel },
+              () => _rtVerzamel(tabel));
+  }
+  kanaal
     .subscribe((status) => {
       // De bewaking. Een weggevallen kanaal is onzichtbaar: alles lijkt te
       // werken, er komt alleen niets meer binnen. Daarom na een halve minuut
@@ -12036,21 +12070,45 @@ function subscribeRealtime() {
       if (status === 'SUBSCRIBED') { _REALTIME_POGINGEN = 0; return; }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         if (_REALTIME_HERSTART) return;
+        // Staat het tabblad op de achtergrond, dan heeft opnieuw proberen geen
+        // zin (20-08). De verbinding houdt zichzelf in leven met een hartslag
+        // op een klokje, en browsers knijpen zulke klokjes in een achtergrond-
+        // tabblad af tot ongeveer één tik per minuut. De server hoort dan niets
+        // meer en verbreekt — en onze poging om opnieuw aan te sluiten wordt
+        // net zo hard afgeknepen. Zo bleef het dashboard in een vergeten
+        // tabblad uren proberen en liep het logboek vol met tientallen regels
+        // die niemand ooit gemerkt heeft. Nu wachten we tot het tabblad terug
+        // in beeld is; het stille verversen haalt dan alsnog alles op.
+        if (document.hidden) { _REALTIME_WACHT_OP_TERUG = true; return; }
         _REALTIME_POGINGEN++;
-        // Drie mislukte pogingen achter elkaar: dan pas het logboek in, met
-        // het aantal erbij zodat je ziet hoe hardnekkig het is.
-        if (_REALTIME_POGINGEN >= 3) {
-          meldFout('realtime-kanaal blijft wegvallen (' + _REALTIME_POGINGEN + 'e poging, laatst: ' + status + ')',
-                   'subscribeRealtime');
+        // Eén melding per sessie, zonder pogingnummer in de tekst: met het
+        // nummer erin was elke poging een nieuwe regel in het logboek, en dan
+        // krijg je 22 meldingen over één storing.
+        if (_REALTIME_POGINGEN === 3) {
+          meldFout('realtime-kanaal blijft wegvallen', 'subscribeRealtime',
+                   'laatste status: ' + status);
         }
-        _REALTIME_HERSTART = setTimeout(() => {
-          _REALTIME_HERSTART = null;
-          try { supa.removeChannel && supa.removeAllChannels && supa.removeAllChannels(); } catch (_) {}
-          subscribeRealtime();
-        }, 30 * 1000);
+        // Oplopend wachten: 5, 10, 20, 40 seconden, daarna elke minuut.
+        const wacht = Math.min(60000, 5000 * Math.pow(2, _REALTIME_POGINGEN - 1));
+        _REALTIME_HERSTART = setTimeout(_realtimeOpnieuw, wacht);
       }
     });
 }
+
+// Opnieuw aansluiten. Het oude kanaal moet eerst weg: anders houdt de vorige
+// verbinding dezelfde naam bezet en sluit de nieuwe meteen weer.
+function _realtimeOpnieuw() {
+  if (_REALTIME_HERSTART) { clearTimeout(_REALTIME_HERSTART); _REALTIME_HERSTART = null; }
+  _REALTIME_WACHT_OP_TERUG = false;
+  try { supa.removeChannel && supa.removeAllChannels && supa.removeAllChannels(); } catch (_) {}
+  subscribeRealtime();
+}
+
+// Terug in beeld: meteen opnieuw aansluiten in plaats van wachten op de
+// volgende poging.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _REALTIME_WACHT_OP_TERUG) _realtimeOpnieuw();
+});
 
 // ── Opstarten ───────────────────────────────────────────────────────────────────
 async function initApp() {
@@ -24348,7 +24406,7 @@ function renderPipeline(bm) {
           onclick="event.stopPropagation();unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})">Wijzigen</button>`;
       } else {
         weekBtnHtml = `<button class="pipe-wkknop" title="Deze week staat open — klik om vast te leggen"
-          onclick="event.stopPropagation();saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year})">Opslaan</button>`;
+          onclick="event.stopPropagation();saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year},this)">Opslaan</button>`;
       }
     }
 
