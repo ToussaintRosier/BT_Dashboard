@@ -1882,6 +1882,43 @@
   .act-plus:hover { color:var(--primary); border-color:var(--primary); }
   .act-status { font-size:.76rem; color:var(--muted); }
 
+  /* ── De pipeline als accordeon (20-08) ─────────────────────────────────
+     De weken delen één omlijsting; alleen een dunne lijn ertussen. De
+     geopende week krijgt een iets lichter vlak zodat je zonder zoeken ziet
+     welke openstaat. */
+  .pipe-accordeon { background:#3E4B6E; border:1px solid rgba(255,255,255,.09);
+                    border-radius:var(--radius-groot); overflow:hidden; }
+  .pipe-accordeon .pipe-week-block { background:transparent; border:none;
+                    border-radius:0; margin:0; padding:4px 10px; }
+  .pipe-accordeon .pipe-week-block + .pipe-week-block {
+                    border-top:1px solid rgba(255,255,255,.10); }
+  .pipe-accordeon .pipe-week-block.open { background:rgba(255,255,255,.04);
+                    padding-bottom:10px; }
+  /* De samenvatting in de balk: alleen fasen waar iets in zit, als stipje
+     met getal — dezelfde stippen als de kolommen, dus geen legenda nodig. */
+  .pipe-fp { display:inline-flex; align-items:center; gap:4px;
+             font-size:.74rem; color:rgba(255,255,255,.82);
+             font-variant-numeric:tabular-nums; }
+  .pipe-fp .d { width:7px; height:7px; border-radius:50%; display:inline-block;
+                flex-shrink:0; }
+  .pipe-leeg-tekst { color:rgba(255,255,255,.4); font-size:.76rem; }
+  .pipe-slot-ico { color:rgba(255,255,255,.5); font-size:.8rem; flex-shrink:0; }
+  .pipe-ikoon { width:24px; height:24px; border-radius:6px; flex-shrink:0;
+                border:1px solid rgba(255,255,255,.25); background:transparent;
+                color:rgba(255,255,255,.8); cursor:pointer; font-size:.8rem;
+                display:inline-flex; align-items:center; justify-content:center;
+                padding:0; }
+  .pipe-ikoon:hover { background:rgba(255,255,255,.12); color:#fff; }
+  .pipe-ikoon svg { width:13px; height:13px; }
+  /* Lege kolommen worden smal en gedempt; de ruimte gaat naar kolommen waar
+     iets in zit. Hangt er een kaart boven, dan klapt de strook open — de
+     bestaande drag-over-klasse doet dat werk. */
+  .pipe-accordeon .pipe-row { display:flex; }
+  .pipe-accordeon .pipe-row > .pipe-cell { flex:3; min-width:0; }
+  .pipe-accordeon .pipe-row > .pipe-cell.pipe-smal { flex:0 0 34px; opacity:.45;
+                    transition:flex-basis .15s ease, opacity .15s ease; }
+  .pipe-accordeon .pipe-row > .pipe-cell.pipe-smal.drag-over { flex:3; opacity:1; }
+
   /* ── De twee panelen op de medewerkerkaart (ontwerp 3, 20-08) ──────────
      Gelijk hoog door stretch: de rij rekt beide panelen tot de hoogste, en
      de voetregel hangt aan de onderkant van zijn paneel. Krijgt de een ooit
@@ -2474,7 +2511,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-0902 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260820-0908 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2964,6 +3001,16 @@ function toggleMedewerkersWeek(jaar, week) {
   if (MEDEW_WEEK_OPEN.has(key)) MEDEW_WEEK_OPEN.delete(key); else MEDEW_WEEK_OPEN.add(key);
   render();
 }
+// Sleep je een kaart boven een dichte weekbalk, dan klapt die week open —
+// anders kun je niet naar een dichte week verslepen.
+function pipeBarSleepOpen(e, week, jaar) {
+  const key = `${jaar}_${week}`;
+  if (PIPE_WEEK_COLLAPSED && PIPE_WEEK_COLLAPSED.has(key)) {
+    PIPE_WEEK_COLLAPSED.delete(key);
+    render();
+  }
+}
+
 function togglePipeWeek(week, jaar) {
   const key = `${jaar}_${week}`;
   if (PIPE_WEEK_COLLAPSED.has(key)) PIPE_WEEK_COLLAPSED.delete(key); else PIPE_WEEK_COLLAPSED.add(key);
@@ -5343,7 +5390,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-0902';
+const APP_VERSIE = '20260820-0908';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7721,8 +7768,17 @@ function renderBM(bm) {
   for (const k of KPIS) weekNu[k] = Math.max(parseFloat(rawNu[k]) || 0, pipeNu[k] || 0);
   const passedW   = periodsPassedInYear(year, 'week');
   const gewerkteW = Math.max(1, passedW - (_ytdStartWk - 1));
-  const avgW = {};
-  for (const k of KPIS) avgW[k] = +(ytd[k] / gewerkteW).toFixed(2);
+  // Dezelfde rekensom als het collectieve blad (correctie 20-08): jaartotaal
+  // tegen jaartarget, zonder tussenafronding. Eerst het weekgemiddelde op twee
+  // decimalen afronden en dán delen gaf bij kleine getallen wilde uitslagen —
+  // contractvoorstellen sprong zo naar 30% terwijl het blad 96% zei.
+  // En starters rekent tegen het verwachte verloop van het jaardoel (cumDoel):
+  // bij een oplopende doelcurve wordt er begin van het jaar minder verwacht,
+  // en dat hoort hier hetzelfde te tellen als op het collectieve blad.
+  const targetW = cumDoel(bm, passedW, 52);
+  const pJaar = (k) => k === 'starters'
+    ? pct(ytd.starters, targetW || 1)
+    : pct(ytd[k], (normWeek[k] * gewerkteW) || 1);
   const nfmt = (n) => fmt(n, n >= 1 ? 1 : 2);
   const opNorm = KPIS.filter(k => (normWeek[k] || 0) > 0 ? weekNu[k] >= normWeek[k] : weekNu[k] > 0).length;
   const dezeWeekRijen = KPIS.map(k => {
@@ -7736,7 +7792,7 @@ function renderBM(bm) {
     </tr>`;
   }).join('');
   const ditJaarRijen = KPIS.map(k => {
-    const p = pct(avgW[k], normWeek[k] || 1);
+    const p = pJaar(k);
     // Starters op norm krijgt het huisstijl-geel: dat is het cijfer waar het
     // uiteindelijk om gaat.
     const kleur = p >= 100 ? (k === 'starters' ? '#F4CB3C' : '#34d399')
@@ -7748,7 +7804,7 @@ function renderBM(bm) {
       <td style="text-align:right;font-weight:var(--w-nadruk);color:${tekst};">${p}%</td>
     </tr>`;
   }).join('');
-  const schemaDiff  = +(ytd.starters - ytdTarget).toFixed(1);
+  const schemaDiff  = +(ytd.starters - targetW).toFixed(1);
   const schemaHtml  = schemaDiff >= 0
     ? `<span style="color:#6ee7b7;">+${fmt(schemaDiff, 1)} voor op schema</span>`
     : `<span style="color:#ff8080;">${fmt(schemaDiff, 1)} achter op schema</span>`;
@@ -24047,8 +24103,13 @@ function renderPipeline(bm) {
 
   // Initialiseer collapsed-set eenmalig: offset<0 (vorige weken) standaard dicht
   if (PIPE_WEEK_COLLAPSED === null) {
+    // Vorige weken dicht, en sinds 20-08 ook elke lege week behalve de
+    // huidige: zes lege kolommen om te vertellen dat er niets is, kostte een
+    // volledig blok. Openklappen kan altijd, en slepen opent vanzelf.
     PIPE_WEEK_COLLAPSED = new Set(
-      weeks.filter(wk => wk.offset < 0).map(wk => `${wk.year}_${wk.week}`)
+      weeks.filter(wk => wk.offset < 0 ||
+        (wk.offset !== 0 && !cards.some(c => c.week === wk.week && c.jaar === wk.year)))
+        .map(wk => `${wk.year}_${wk.week}`)
     );
   }
 
@@ -24067,7 +24128,15 @@ function renderPipeline(bm) {
       const cc = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
       return isAanb ? cc.reduce((s,c) => s + (+c.aanb || 0), 0) : cc.length;
     });
-    const summaryText = stageCounts.map((n,i) => `${KPI_LABELS_SHORT[i]}: ${n}`).join(' · ');
+    // Nullen blijven weg (20-08): "Int: 0 · Bez: 0" was zes keer per week de
+    // mededeling dat er niets is. De korte naam staat in de tooltip.
+    const isLeeg = stageCounts.every(n => !n);
+    const summaryText = isLeeg
+      ? '<span class="pipe-leeg-tekst">nog leeg</span>'
+      : stageCounts.map((n, i) => n > 0
+          ? `<span class="pipe-fp" title="${KPI_LABELS_SHORT[i]}"${i === 5 ? ' style="color:#F4CB3C;"' : ''}>` +
+            `<span class="d" style="background:${PIPE_STAGE_COLORS[i].stip || PIPE_STAGE_COLORS[i].punt};"></span>${n}</span>`
+          : '').join(' ');
 
     // Opslaan / Wijzigen knop in de balk
     let weekBtnHtml  = '';
@@ -24081,17 +24150,21 @@ function renderPipeline(bm) {
       weekEditable = !frozen;
       const bStyle = 'font-size:.72rem;font-weight:700;border-radius:6px;padding:3px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;line-height:1.6;';
       if (frozen) {
-        weekBtnHtml = `<button onclick="event.stopPropagation();unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bStyle}background:#fff;color:var(--primary);border:1px solid var(--primary);">Wijzigen</button>`;
+        // Wijzigen als potlood (20-08). Opslaan blijft een tekstknop: dat is
+        // de handeling die de week vastzet, die mag niet te subtiel zijn.
+        weekBtnHtml = `<button class="pipe-ikoon" title="Wijzigen"
+          onclick="event.stopPropagation();unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})">${btActie('potlood')}</button>`;
       } else {
         weekBtnHtml = `<button onclick="event.stopPropagation();saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year})" style="${bStyle}background:var(--primary);color:#fff;border:none;">Opslaan</button>`;
       }
     }
 
     // Badge naast weeknummer in de balk
+    // Huidig in het huisstijl-geel (20-08); volgend gedempt.
     const barBadge = isCur
-      ? '<span style="background:var(--success);color:#fff;font-size:.65rem;padding:1px 6px;border-radius:9px;margin-left:4px;">huidig</span>'
+      ? '<span style="background:rgba(244,203,60,.22);color:#F4CB3C;font-size:.65rem;padding:1px 7px;border-radius:9px;margin-left:4px;">huidig</span>'
       : isNext
-      ? '<span style="background:var(--primary);color:#fff;font-size:.65rem;padding:1px 6px;border-radius:9px;margin-left:4px;">volgend</span>'
+      ? '<span style="background:rgba(255,255,255,.13);color:rgba(255,255,255,.7);font-size:.65rem;padding:1px 7px;border-radius:9px;margin-left:4px;">volgend</span>'
       : '';
 
     // Pijl-indicator (frozen-status kleurt de balk iets groen)
@@ -24100,8 +24173,11 @@ function renderPipeline(bm) {
     // (zelfde taal als de rij-accenten in Projecten) plus een pil die zegt wat
     // het betekent — anders moet je de kleur maar weten.
     const barExtraStyle = weekFrozen ? 'box-shadow:inset 3px 0 0 #34d399;' : '';
+    // Een slotje in plaats van een pil met tekst (20-08); het woord staat in
+    // de tooltip. Het groene streepje links blijft: dat is de kleurtaal die
+    // Projecten ook gebruikt.
     const slotPil = weekFrozen
-      ? '<span class="pipe-slot-pil">vergrendeld</span>'
+      ? '<span class="pipe-slot-ico" title="Vergrendeld — klik op het potlood om te wijzigen">\u{1F512}</span>'
       : '';
 
     // Pipeline cellen (content)
@@ -24161,6 +24237,20 @@ function renderPipeline(bm) {
         </div>`;
       }).join('');
 
+      // Een lege kolom wordt een smalle gedempte strook met alleen de stip
+      // (20-08): vier van de zes kolommen waren vaak leeg en kregen evenveel
+      // ruimte als de gevulde. Slepen blijft werken — de bestaande
+      // drag-over-klasse klapt de strook open zodra er een kaart boven hangt.
+      if (!cellCards.length && !cellCount) {
+        return `<div class="pipe-cell pipe-smal leeg" title="${stage} — leeg"
+          ondragover="${weekEditable ? 'pipeDragOver(event)' : ''}"
+          ondragleave="${weekEditable ? 'pipeDragLeave(event)' : ''}"
+          ondrop="${weekEditable ? `pipeDrop(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year})` : ''}">
+          <div class="pipe-cell-hdr" style="justify-content:center;">
+            <span class="pipe-fase-stip" style="background:${col.stip || col.punt};"></span>
+          </div>
+        </div>`;
+      }
       return `<div class="pipe-cell${isCur?' pipe-cell-now':isPast?' pipe-cell-past':''}${cellCount ? '' : ' leeg'}"
         ondragover="${weekEditable ? 'pipeDragOver(event)' : ''}"
         ondragleave="${weekEditable ? 'pipeDragLeave(event)' : ''}"
@@ -24177,13 +24267,20 @@ function renderPipeline(bm) {
       </div>`;
     }).join('');
 
-    return `<div class="pipe-week-block">
-      <div class="pipe-week-bar${isCur?' wk-now':isNext?' wk-next':''}" style="${barExtraStyle}" onclick="togglePipeWeek(${wk.week},${wk.year})">
+    // Bij een lege dichte week is een plusje duidelijker dan een
+    // opslaanknop: de eerste handeling is hem openen om iets toe te voegen.
+    const barKnop = (isLeeg && isCollapsed && editable)
+      ? `<button class="pipe-ikoon" title="Week openen om toe te voegen"
+           onclick="event.stopPropagation();togglePipeWeek(${wk.week},${wk.year})">+</button>`
+      : weekBtnHtml;
+    return `<div class="pipe-week-block${isCollapsed ? '' : ' open'}">
+      <div class="pipe-week-bar${isCur?' wk-now':isNext?' wk-next':''}" style="${barExtraStyle}" onclick="togglePipeWeek(${wk.week},${wk.year})"
+           ondragover="pipeBarSleepOpen(event, ${wk.week}, ${wk.year})">
         <span class="pipe-week-bar-toggle">${isCollapsed ? '▶' : '▼'}</span>
         <span class="pipe-week-bar-title">W${wk.week}${barBadge}</span>
         ${slotPil}
         <span class="pipe-week-bar-summary">${summaryText}</span>
-        ${weekBtnHtml}
+        ${barKnop}
       </div>
       <div class="pipe-week-content" style="display:${isCollapsed?'none':'block'}">
         <div class="pipe-grid-wrap"><div class="pipe-grid">
@@ -24207,7 +24304,7 @@ function renderPipeline(bm) {
         <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
     </span>
   </div>
-  ${blocks}`;
+  <div class="pipe-accordeon">${blocks}</div>`;
 }
 
 // ── Drag & drop ───────────────────────────────────────────────────────────────
