@@ -2381,9 +2381,10 @@
   .tg-stil   { font-size:var(--t-xs); color:rgba(255,255,255,.4); }
 
   /* Leesmodus: de balk bovenaan en het uiterlijk van wat op slot staat. */
-  .lees-balk { display:flex; align-items:center; gap:8px; margin:0 0 14px;
-               background:#eff6ff; border:1px solid #bfdbfe; border-radius:var(--radius);
-               padding:9px 13px; font-size:.8rem; color:#1e40af; line-height:1.5; }
+  /* "Alleen lezen" is een pil geworden (21-08); het oude blauwe vlak stond
+     op elke alleen-lezen pagina bovenaan en voegde niets toe. */
+  .lees-pil { cursor:help; }
+  .lees-regel { font-size:.75rem; color:rgba(255,255,255,.55); margin:0 0 10px; }
   .lees-uit { opacity:.45 !important; cursor:not-allowed !important;
               pointer-events:none !important; }
 
@@ -2748,7 +2749,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260821-0830 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260821-0856 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5627,7 +5628,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260821-0830';
+const APP_VERSIE = '20260821-0856';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5940,13 +5941,24 @@ function _leesmodusToepassen() {
 
   if (!_LEESMODUS_RE) _LEESMODUS_RE = new RegExp('\\b(' + SCHRIJFACTIES.join('|') + ')\\s*\\(');
 
-  // De balk bovenaan. Zonder uitleg lijkt een grijze knop een storing.
-  if (!main.querySelector('.lees-balk')) {
-    const balk = document.createElement('div');
-    balk.className = 'lees-balk';
-    balk.innerHTML = 'Je kunt hier alleen kijken. Wijzigen staat voor jou uit — '
-      + 'vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het aan te zetten.';
-    main.insertBefore(balk, main.firstChild);
+  // Een kleine pil in de gele balk in plaats van een groot vlak (aanwijzing
+  // 21-08): dat vlak stond op elke alleen-lezen pagina bovenaan en zei elke
+  // keer hetzelfde. De uitleg staat in de tooltip; wie toch ergens op klikt
+  // krijgt hem alsnog via eisWijzig().
+  const kop = main.querySelector('.person-meta');
+  if (kop && !kop.querySelector('.lees-pil')) {
+    const pil = document.createElement('span');
+    pil.className = 'meta-pill lees-pil';
+    pil.textContent = 'Alleen lezen';
+    pil.title = 'Wijzigen staat voor jou uit — vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het aan te zetten.';
+    kop.appendChild(pil);
+  } else if (!kop && !main.querySelector('.lees-pil')) {
+    // Geen gele balk op deze pagina: dan een klein regeltje, geen vlak.
+    const r = document.createElement('div');
+    r.className = 'lees-pil lees-regel';
+    r.textContent = 'Alleen lezen';
+    r.title = 'Wijzigen staat voor jou uit — vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het aan te zetten.';
+    main.insertBefore(r, main.firstChild);
   }
 
   for (const el of main.querySelectorAll('button, input, select, textarea, [onclick]')) {
@@ -11500,6 +11512,10 @@ async function loadAllData() {
   laadStap('Weekcijfers…');        await laadPoging('weekcijfers', loadKpiWeekly);
   laadStap('Pipeline…');           await laadPoging('pipeline', pipeFetchAll);
   laadStap('Projecten…');          await laadPoging('projecten', loadProjecten);
+  await laadPoging('contractstatus', loadProjStatus);
+  // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
+  // dat dat lokaal werd bewaard) de database in, gaten vullen alleen.
+  projStatusMigreer();
                                    await laadPoging('projectevaluaties', loadProjEvaluaties);
   laadStap('Plannen van aanpak…'); await laadPoging('plannen van aanpak', loadPlanVanAanpak);
                                    await laadPoging('BUM-gesprekken', loadBumGesprekken);
@@ -12136,6 +12152,7 @@ async function stilVerversen() {
       laadPoging('plannen (verversen)', loadPlanVanAanpak),
       laadPoging('BUM (verversen)', loadBumGesprekken),
       laadPoging('memos (verversen)', loadMemos),
+      laadPoging('contractstatus (verversen)', loadProjStatus),
     ]);
     recomputeRatios();
     _VERVERS_LAATST = Date.now();
@@ -14212,12 +14229,82 @@ function renderEvalRow(src, id, startDateStr, nCols, safeId) {
   </tr>`;
 }
 
-// ── Contract frozen state ─────────────────────────────────────────────────────
+// ── Contractstatus: vastgezet en bonus ────────────────────────────────────
+// Stond in localStorage — op het apparaat van degene die het invulde. Een
+// collega zag daardoor een openstaand formulier waar bij de invuller
+// "CONTRACT — opgeslagen" stond (melding 21-08). Nu is de database de
+// waarheid en is localStorage alleen nog reservekopie voor als de tabel er
+// (nog) niet is.
+let PROJ_STATUS_CACHE = {};          // `${src}_${id}` → { bevroren, bonus }
+let _projStatusGeladen = false;
+
+async function loadProjStatus() {
+  if (!supa) return;
+  const { data, error } = await supa.from('project_contract_status').select('*');
+  if (error) {
+    // Tabel nog niet aangemaakt: stil verder op localStorage, éénmalig melden.
+    if (!_projStatusGeladen) _meldStil('project_contract_status laden', error);
+    return;
+  }
+  PROJ_STATUS_CACHE = {};
+  for (const r of (data || [])) {
+    PROJ_STATUS_CACHE[`${r.src}_${r.project_id}`] = { bevroren: !!r.bevroren, bonus: r.bonus || '' };
+  }
+  _projStatusGeladen = true;
+}
+
+function _projStatus(src, id) { return PROJ_STATUS_CACHE[`${src}_${id}`]; }
+
+function _projStatusSchrijf(src, id, velden) {
+  if (!magWijzigen('projecten') && !magWijzigen('hrm')) return;
+  const sleutel = `${src}_${id}`;
+  const nu = Object.assign({ bevroren: false, bonus: '' }, PROJ_STATUS_CACHE[sleutel], velden);
+  PROJ_STATUS_CACHE[sleutel] = nu;
+  if (!supa) return;
+  supa.from('project_contract_status').upsert({
+    src, project_id: String(id), bevroren: nu.bevroren, bonus: nu.bonus || null,
+    bijgewerkt_door: CURRENT_USER?.naam || null, bijgewerkt: new Date().toISOString(),
+  }, { onConflict: 'src,project_id' }).then(({ error }) => {
+    if (error) meldFout('contractstatus opslaan: ' + error.message, 'projStatusSchrijf');
+  });
+}
+
+// Eenmalige overzet van wat er op dit apparaat staat. Draait alleen voor wie
+// mag wijzigen, en vult uitsluitend gaten: wat al in de database staat wint.
+function projStatusMigreer() {
+  if (!_projStatusGeladen || !magWijzigen('projecten')) return;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      let m;
+      if ((m = /^bt_proj_frozen_(excel|pipeline)_(.+)$/.exec(k)) && localStorage.getItem(k) === '1') {
+        const st = _projStatus(m[1], m[2]);
+        if (!st || !st.bevroren) _projStatusSchrijf(m[1], m[2], { bevroren: true });
+      }
+      if ((m = /^bt_proj_contract_(excel|pipeline)_(.+)$/.exec(k))) {
+        const oud = (() => { try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch (_) { return {}; } })();
+        if (oud.bonus) {
+          const st = _projStatus(m[1], m[2]);
+          if (!st || !st.bonus) _projStatusSchrijf(m[1], m[2], { bonus: oud.bonus });
+        }
+      }
+    }
+  } catch (e) { _meldStil('contractstatus overzetten', e); }
+}
+
 function projContractFrozenKey(src, id) { return `bt_proj_frozen_${src}_${id}`; }
-function projContractFrozenLoad(src, id) { return localStorage.getItem(projContractFrozenKey(src, id)) === '1'; }
+function projContractFrozenLoad(src, id) {
+  const st = _projStatus(src, id);
+  if (st) return st.bevroren;
+  return localStorage.getItem(projContractFrozenKey(src, id)) === '1';
+}
 function projContractFrozenSave(src, id, val) {
-  if (val) localStorage.setItem(projContractFrozenKey(src, id), '1');
-  else localStorage.removeItem(projContractFrozenKey(src, id));
+  _projStatusSchrijf(src, id, { bevroren: !!val });
+  // Reservekopie op het apparaat, voor als de tabel er niet is.
+  try {
+    if (val) localStorage.setItem(projContractFrozenKey(src, id), '1');
+    else localStorage.removeItem(projContractFrozenKey(src, id));
+  } catch (_) {}
 }
 function projContractFreeze(src, id, safeId) {
   // Valideer verplichte velden
@@ -17157,7 +17244,9 @@ function renderPrognose() {
       </div>
     </div>
 
-    ${!canEditProj ? '<div class="info-box blue">ℹ️ Alleen-lezen overzicht — wijzigingen (import, goedkeuring, datums) kunnen alleen Yoël en Toussaint doorvoeren.</div>' : ''}
+    ${/* Het tweede alleen-lezen-vlak is weg (21-08): de pil in de gele balk
+         zegt het al, en de leesmodus grijst de knoppen zelf uit. */''}
+    ${!canEditProj ? `<span style="display:none;" class="lees-pil-anker"></span>` : ''}
 
     ${_projSubNavHtml}
 
@@ -24311,7 +24400,8 @@ function projContractLoad(src, id) {
   if (src === 'excel') {
     const p = PROJECTEN.find(x => String(x.id) === String(id));
     if (!p) return {};
-    const lsBonus = (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
+    const lsBonus = (_projStatus(src, id) || {}).bonus
+      || (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
     return {
       projectnr:   String(p.projectnr   ?? ''),
       cao:         String(p.cao          ?? ''),
@@ -24338,7 +24428,8 @@ function projContractLoad(src, id) {
   const hit = _pipeCardById(id);
   if (!hit) return {};
   const card = hit.card;
-  const lsBonus = (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
+  const lsBonus = (_projStatus(src, id) || {}).bonus
+    || (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
   return {
     projectnr:   String(card.projectnr ?? ''),
     cao:         String(card.cao          ?? ''),
@@ -24368,7 +24459,8 @@ function projContractLoad(src, id) {
 function projContractSave(src, id, obj) {
   if (!magWijzigen('projecten') && !magWijzigen('medewerkers')) return;
   if (src === 'excel') {
-    // Bonus is niet in DB — bewaar apart in localStorage
+    // Bonus: naar de gedeelde statustabel (21-08); localStorage blijft reserve.
+    _projStatusSchrijf(src, id, { bonus: obj.bonus || '' });
     try {
       const ls = JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}');
       ls.bonus = obj.bonus || '';
@@ -24413,7 +24505,8 @@ function projContractSave(src, id, obj) {
     });
     return;
   }
-  // pipeline → Supabase UPDATE op pipeline_cards; bonus apart in localStorage
+  // pipeline → Supabase UPDATE op pipeline_cards; bonus naar de statustabel (21-08)
+  _projStatusSchrijf(src, id, { bonus: obj.bonus || '' });
   try {
     const ls = JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}');
     ls.bonus = obj.bonus || '';
