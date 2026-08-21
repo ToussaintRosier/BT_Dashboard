@@ -89,6 +89,10 @@
     --accent: #E87400; --accent-gold: #F4CB3C;
     --success: #0e9f6e; --warn: #f59e0b; --danger: #e02424; --over: #9333ea;
     --text: #16142e; --muted: #5b6478; --border: #dde1e8; --radius: 10px;
+    /* Werd 66 keer gebruikt maar was nooit gedefinieerd (codereview 20-08);
+       de tekst erfde dan maar een kleur van zijn ouder. Nu een echte waarde,
+       één stap lichter dan --muted — dat is hoe hij overal bedoeld was. */
+    --text-muted: #6b7280;
 
     /* ── TEKST RECHTSTREEKS OP DE PAGINA ─────────────────────────────────
        De pagina is donkerblauw (#253151); --text en --muted hierboven zijn
@@ -2744,7 +2748,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260820-1932 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260821-0830 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5623,7 +5627,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260820-1932';
+const APP_VERSIE = '20260821-0830';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7340,17 +7344,13 @@ function renderBeheer() {
           <input id="inv-einddatum" type="date" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
         </div>
       </div>
-        <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div>
-            <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Wachtwoord instellen <span style="color:var(--text-muted);font-size:.75rem;">(leeg = uitnodigingsmail)</span></label>
-            <input id="inv-wachtwoord" type="password" placeholder="Minimaal 8 tekens" autocomplete="new-password" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
-          </div>
-          <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
-            <div style="font-size:.78rem;color:var(--text-muted);line-height:1.4;">
-              <strong>Met wachtwoord:</strong> account direct actief, geef gegevens zelf door.<br>
-              <strong>Zonder:</strong> collega ontvangt uitnodigingsmail.
-            </div>
-          </div>
+        ${/* Het wachtwoordveld is weggehaald (codereview 20-08): de uitleg bij
+             Toegang zegt zelf dat wachtwoorden die iemand anders instelt op
+             een briefje terechtkomen. Het scherm beloofde dus iets wat we
+             niet willen. Een nieuwe collega krijgt de uitnodigingsmail en
+             kiest daar zijn eigen wachtwoord. */''}
+        <div style="grid-column:1/-1;font-size:.78rem;color:var(--text-muted);line-height:1.4;">
+          De collega ontvangt een uitnodigingsmail en kiest daarin zelf een wachtwoord.
         </div>
       </div>
       <div id="inv-msg" style="margin-top:8px;font-size:.82rem;"></div>
@@ -7708,14 +7708,8 @@ async function beheerInviteVerstuur() {
     const begindatum  = document.getElementById('inv-begindatum')?.value || null;
     const einddatum   = document.getElementById('inv-einddatum')?.value  || null;
     const jaardoel    = parseInt(document.getElementById('inv-jaardoel')?.value||'12',10);
-    const wachtwoord  = document.getElementById('inv-wachtwoord')?.value?.trim() || null;
-
     if (!naam || !email || !rol) {
       if (msg) btZetStatus(msg, '⚠️ Naam, e-mail en rol zijn verplicht.');
-      return;
-    }
-    if (wachtwoord && wachtwoord.length < 8) {
-      if (msg) btZetStatus(msg, '⚠️ Wachtwoord moet minimaal 8 tekens zijn.');
       return;
     }
 
@@ -7728,7 +7722,7 @@ async function beheerInviteVerstuur() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + authHeader,
       },
-      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel, wachtwoord }),
+      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -24899,7 +24893,12 @@ function pipeUid() { return Date.now().toString(36) + Math.random().toString(36)
 var _pipeDrag = { bmNaam: null, stage: null, week: null, jaar: null, cardId: null };
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // Ook de apostrof en de backtick (codereview 20-08). Overal in het bestand
+  // staan attributen als onclick="fn('${id}')" met enkele aanhalingstekens
+  // erin; een naam als O'Brien brak zo'n knop, en wie kwaad wilde kon eruit
+  // breken. &#39; en &#96; zijn onschuldig in tekst én in elk attribuut.
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');
 }
 // Veilig veld → string: objecten worden leesbaar gemaakt i.p.v. [object Object]
 function strVal(v) {
