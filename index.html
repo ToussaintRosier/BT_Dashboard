@@ -379,12 +379,8 @@
               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .bt-onder { font-size:var(--t-xs); color:var(--muted); margin-top:1px;
               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  /* Initialen in de kleur van de collega, iets overlappend zoals gezichtjes. */
-  .bt-cirkel { display:inline-flex; align-items:center; justify-content:center;
-               width:24px; height:24px; border-radius:50%; font-size:.6rem;
-               font-weight:var(--w-nadruk); color:#fff; border:2px solid #fff;
-               margin-right:-7px; letter-spacing:.02em; vertical-align:middle; }
-  .bt-cirkel:last-child { margin-right:0; }
+  /* .bt-cirkel (gekleurde overlappende initialen) is opgeruimd (21-08): de
+     leesstand gebruikt nu dezelfde pil als de wijzigstand — .proj-ini-pil. */
   .bt-teller { text-align:center; font-size:var(--t-xs); color:var(--muted); padding:12px 0 2px; }
 
   /* ── Venster ─────────────────────────────────────────────────────────────
@@ -634,6 +630,11 @@
      eigen kolom kost hij 20 pixels breedte en geen extra regel — bij 81
      projecten scheelt dat honderden pixels scrollen. De betekenis staat in
      de legenda boven de tabel en in de tooltip. */
+  /* De initialen in de leesstand: exact de pil van de wijzigstand (21-08). */
+  .proj-ini-pil { display:inline-block; padding:3px 9px; border-radius:99px;
+                  font-size:.72rem; font-weight:var(--w-nadruk); letter-spacing:.02em;
+                  border:1px solid rgba(255,255,255,.35);
+                  background:rgba(255,255,255,.18); color:#fff; margin:1px 2px; }
   .proj-stip { display:inline-block; width:8px; height:8px; border-radius:50%; }
   .proj-stip-loopt      { background:#0e9f6e; }
   .proj-stip-onvolledig { background:#f0a020; }
@@ -2749,7 +2750,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260821-0856 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260821-0902 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5628,7 +5629,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260821-0856';
+const APP_VERSIE = '20260821-0902';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13967,13 +13968,15 @@ function projCollegaToggleEdit(containerId) {
   const selected = projCollegaLoad(src, id);
   el.innerHTML = _collegaChips(src, id, selected, containerId);
 }
-// Initialen als gekleurde cirkels, licht overlappend. Je herkent een rij aan de
-// kleur voordat je de letters leest — dat is het hele punt van deze weergave.
+// Dezelfde pil als in de wijzig-weergave (akkoord 21-08). Eerst waren dit
+// gekleurde, overlappende cirkels — maar wie mocht wijzigen zag pillen en wie
+// alleen keek cirkels, en dat waren twee ontwerpen voor hetzelfde gegeven.
+// Nu ziet iedereen de strakke pil; de volledige naam staat in de tooltip.
 function _collegaCirkels(initialen) {
   if (!initialen || !initialen.length) return '';
   return initialen.map(init => {
     const bm = BMS.find(b => bmInitialen(b.naam) === init);
-    return `<span class="bt-cirkel" style="background:${bm ? bm.kleur : '#8a93a6'}" title="${escHtml(bm ? bm.naam : init)}">${escHtml(init)}</span>`;
+    return `<span class="proj-ini-pil" title="${escHtml(bm ? bm.naam : init)}">${escHtml(init)}</span>`;
   }).join('');
 }
 
