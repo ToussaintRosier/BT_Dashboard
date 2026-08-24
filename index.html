@@ -721,6 +721,34 @@
                         flex:1 1 auto; min-width:0; outline:none; }
   .filter-search-pill::placeholder { color:rgba(255,255,255,.45); }
   .filter-search-pill:focus { background-color:rgba(255,255,255,.06); }
+  /* ── Bezoeken & wijzigingen (21-08) ───────────────────────────────────
+     Regels in plaats van een tabel: er staan maar drie of vier dingen per
+     regel en een tabel zou daar vier kolomkoppen boven zetten die niets
+     toevoegen. */
+  .kam-tel { display:flex; gap:16px; font-size:.76rem; color:rgba(255,255,255,.6);
+             margin-bottom:9px; }
+  .kam-tel b { color:#fff; font-weight:var(--w-nadruk); }
+  .kam-rij { display:flex; align-items:baseline; gap:9px; font-size:.8rem;
+             color:rgba(255,255,255,.88); padding:6px 0;
+             border-bottom:1px solid rgba(255,255,255,.08); }
+  .kam-rij:last-child { border-bottom:none; }
+  .kam-rij .d { font-size:.72rem; color:rgba(255,255,255,.45); flex-shrink:0;
+                width:74px; }
+  .kam-rij .t { min-width:0; }
+  .kam-rij .w { margin-left:auto; font-size:.72rem; color:rgba(255,255,255,.5);
+                flex-shrink:0; padding-left:10px; }
+  .kam-rij .stil { color:rgba(255,255,255,.5); }
+  /* De oude waarde blijft leesbaar maar doorgestreept: je wilt zien waar het
+     vandaan kwam, niet erover struikelen. */
+  .kam-rij .oud { text-decoration:line-through; color:rgba(255,255,255,.4); }
+  .kam-pil { font-size:.66rem; padding:1px 7px; border-radius:9px; flex-shrink:0; }
+  .kam-pil.n { background:rgba(52,211,153,.18); color:#6ee7b7; }
+  .kam-pil.w { background:rgba(244,203,60,.18); color:var(--accent-gold, #F4CB3C); }
+  .kam-pil.x { background:rgba(255,128,128,.15); color:#ff8080; }
+  .kam-pil.b { background:rgba(255,255,255,.12); color:rgba(255,255,255,.8); }
+  .kam-pil.leeg { background:none; color:rgba(255,255,255,.35); }
+  .kam-leeg { font-size:.78rem; color:rgba(255,255,255,.45); padding:4px 0; }
+
   /* ── De strategie (20-08) ─────────────────────────────────────────────
      Alleen om te lezen. Dezelfde vensters en genummerde koppen als de rest
      van MT-Overleg; het gele tussenkopje scheidt de twee groepen binnen de
@@ -2750,7 +2778,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260821-0902 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-1200 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5629,7 +5657,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260821-0902';
+const APP_VERSIE = '20260824-1200';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11514,6 +11542,7 @@ async function loadAllData() {
   laadStap('Pipeline…');           await laadPoging('pipeline', pipeFetchAll);
   laadStap('Projecten…');          await laadPoging('projecten', loadProjecten);
   await laadPoging('contractstatus', loadProjStatus);
+  await laadPoging('wijzigingslogboek', loadWijzigingen);
   // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
   // dat dat lokaal werd bewaard) de database in, gaten vullen alleen.
   projStatusMigreer();
@@ -12154,6 +12183,7 @@ async function stilVerversen() {
       laadPoging('BUM (verversen)', loadBumGesprekken),
       laadPoging('memos (verversen)', loadMemos),
       laadPoging('contractstatus (verversen)', loadProjStatus),
+      laadPoging('wijzigingen (verversen)', loadWijzigingen),
     ]);
     recomputeRatios();
     _VERVERS_LAATST = Date.now();
@@ -15826,7 +15856,8 @@ function renderComrap() {
 
     <!-- RESULTAAT -->
     ${st.resultaat ? `
-    <div id="comrap-resultaat" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;line-height:1.7;font-size:.89rem;">
+    ${/* Lettergrootte 10 punten (aanwijzing 21-08); stond op .89rem ≈ 14px. */''}
+    <div id="comrap-resultaat" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;line-height:1.7;font-size:10pt;">
       ${simpleMarkdown(st.resultaat)}
     </div>
     <div class="comrap-result-btns" style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">
@@ -16294,6 +16325,24 @@ async function comrapAnalyse() {
     week: a.week, jaar: a.jaar, tekst: a.analyse_tekst,
   }));
 
+  // Wat er bij de key accounts is gebeurd (21-08): de bezoeken van de KAM'ers
+  // en de wijzigingen in KAM en RLDV van diezelfde week. Zonder dit ziet de
+  // analyse wel de cijfers, maar niet wat eronder ligt — een score die omhoog
+  // gaat na een bezoek is precies het verband dat je eruit wilt halen.
+  const kam_bezoeken = _kamCollegas().map(bm => ({
+    naam: bm.naam,
+    verslagen: _kamBezoeken(bm.naam, y, w).map(r => ({
+      datum: r.datum, bedrijf: r.bedrijf || '', contactpersoon: r.contactpersoon || '',
+      soort: r.soortBezoek || '', samenvatting: String(r.result || '').slice(0, 1500),
+    })),
+  })).filter(x => x.verslagen.length);
+  const _wijzigLijst = (tabel) => _kamWijzigingenGebundeld(_kamWijzigingen(tabel, y, w)).map(x => ({
+    wanneer: String(x.wanneer).slice(0, 10), klant: x.naam || '', soort: x.soort, door: x.door || '',
+    velden: (x.velden || []).map(v => ({ veld: _kamVeldNaam(v.veld), van: v.oud || '', naar: v.nieuw || '' })),
+  }));
+  const kam_wijzigingen  = _wijzigLijst('accounts');
+  const rldv_wijzigingen = _wijzigLijst('sales_leads');
+
   st.bezig = true;
   const btn = document.getElementById('comrap-btn');
   if (btn) { btn.disabled = true; btZetStatus(btn, '⏳ Analyse genereren…'); }
@@ -16306,6 +16355,7 @@ async function comrapAnalyse() {
       body: JSON.stringify({
         week: w, jaar: y, bm_data: bmData,
         kanban, pipeline, weekreeks, dossiers, kandidaten, beldata_historie,
+        kam_bezoeken, kam_wijzigingen, rldv_wijzigingen,
         notities: st.notities + tekstImports, images: imageBlokken,
         historische_analyses,
       }),
@@ -18551,6 +18601,200 @@ async function kamMaakAccountplan(naam) {
 
 function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
 
+// Het scherm zelf. Dezelfde genummerde vensters als de rest van het dashboard;
+// de weekkeuze bovenin geldt voor alle drie de blokken.
+let KAM_WEEK_OFFSET = 0;
+function kamNavWeek(stap) { KAM_WEEK_OFFSET += stap; renderAccounts(); }
+function kamNavWeekNu()   { KAM_WEEK_OFFSET = 0; renderAccounts(); }
+
+function _kamWeekKeuze() {
+  const nu = isoWeek(new Date());
+  return _weekVerschoven(nu.year, nu.week, KAM_WEEK_OFFSET);
+}
+
+function _kamBezoekRij(r) {
+  const soort = (r.soortBezoek || 'bedrijfsbezoek').replace(/_/g, ' ');
+  const heeft = !!(r.result || r.heeftTranscript);
+  return `<div class="kam-rij">
+    <span class="d">${escHtml(String(r.datum || '').replace(/ \d{4}$/, ''))}</span>
+    <span class="t">${escHtml(r.bedrijf || 'zonder bedrijfsnaam')}${
+      r.contactpersoon ? ` <span class="stil">— ${escHtml(r.contactpersoon)}</span>` : ''}</span>
+    ${heeft ? `<span class="kam-pil b" onclick="selectTab('bezoek')" style="cursor:pointer;"
+                     title="Naar het verslag in de BZK-recorder">verslag</span>`
+            : '<span class="kam-pil leeg">geen verslag</span>'}
+    <span class="w">${escHtml(soort)}</span>
+  </div>`;
+}
+
+function _kamWijzigingRij(w) {
+  const dag = new Date(w.wanneer).toLocaleDateString('nl-NL', { weekday:'short', day:'numeric', month:'short' });
+  const pil = w.soort === 'nieuw'      ? '<span class="kam-pil n">nieuw</span>'
+            : w.soort === 'verwijderd' ? '<span class="kam-pil x">weg</span>'
+            : '<span class="kam-pil w">wijziging</span>';
+  // Bij een wijziging: welk veld, van wat naar wat. Bij meerdere velden op
+  // dezelfde dag staan ze achter elkaar op één regel.
+  const detail = (w.velden || []).length
+    ? ' · ' + w.velden.map(v =>
+        `${escHtml(_kamVeldNaam(v.veld))} <span class="oud">${escHtml(v.oud || '—')}</span> → ${escHtml(v.nieuw || '—')}`
+      ).join(' · ')
+    : '';
+  return `<div class="kam-rij">
+    <span class="d">${escHtml(dag)}</span>${pil}
+    <span class="t">${escHtml(w.naam || w.rij_id)}${detail}</span>
+    <span class="w">${escHtml(w.door || 'import')}</span>
+  </div>`;
+}
+
+// De kolomnamen uit de database zijn kort; in het scherm horen ze te heten
+// zoals ze in het overzicht staan.
+function _kamVeldNaam(veld) {
+  const uit = (ACC_SCORE_FIELDS.find(([f]) => f === veld) || [])[1];
+  if (uit) return uit;
+  const los = { strat_cp:'Strategisch contact', op_cp:'Operationeel contact',
+                naam:'Naam', huidige_relatie_score:'Relatie', opmerkingen:'Opmerking' };
+  return los[veld] || String(veld || '').replace(/_/g, ' ');
+}
+
+function renderKamBewegingHtml(subTabBtns) {
+  const wk  = _kamWeekKeuze();
+  const kams = _kamCollegas();
+  const nu  = isoWeek(new Date());
+  const isNu = wk.year === nu.year && wk.week === nu.week;
+
+  const bezoekBlokken = kams.map((bm, i) => {
+    const lijst = _kamBezoeken(bm.naam, wk.year, wk.week);
+    // Het aantal uit de weekcijfers staat ernaast: niet elk bezoek wordt
+    // opgenomen, dus de teller en de verslagen zijn twee verschillende dingen.
+    const rij  = RAW.find(r => r.naam === bm.naam && r.jaar === wk.year && r.week === wk.week);
+    const geteld = rij ? (+rij.bezoeken || 0) : 0;
+    const norm = (bm.normFix && bm.normFix.bezoeken) || 0;
+    return `<div class="bt-venster werk-blad">
+      <div class="pva-blok" style="margin-top:0;">${i + 1}&nbsp; Bezoeken — ${escHtml(bm.naam.split(' ')[0])}</div>
+      <div class="pva-blok-sub">Verslagen uit de BZK-recorder; het getal rechts komt uit de weekcijfers.</div>
+      <div class="kam-tel">
+        <span><b>${lijst.length}</b> ${lijst.length === 1 ? 'verslag' : 'verslagen'}</span>
+        <span><b>${fmt(geteld, geteld % 1 ? 1 : 0)}</b> geteld${norm ? ` van norm ${norm}` : ''}</span>
+      </div>
+      ${lijst.length ? lijst.map(_kamBezoekRij).join('')
+        : '<div class="kam-leeg">Geen verslagen in deze week.</div>'}
+    </div>`;
+  }).join('');
+
+  const blok = (nr, titel, sub, tabel) => {
+    const rijen = _kamWijzigingenGebundeld(_kamWijzigingen(tabel, wk.year, wk.week));
+    return `<div class="bt-venster werk-blad">
+      <div class="pva-blok" style="margin-top:0;">${nr}&nbsp; ${titel}</div>
+      <div class="pva-blok-sub">${sub}</div>
+      ${rijen.length ? rijen.map(_kamWijzigingRij).join('')
+        : `<div class="kam-leeg">Geen wijzigingen in deze week.${
+            WIJZIGINGEN_CACHE.length ? '' : ' Het logboek begint op de dag dat het is aangezet.'}</div>`}
+    </div>`;
+  };
+
+  return `<div class="mt-donker">
+    <div class="person-header">
+      <div class="person-name">Accountmanagement</div>
+      <div class="person-meta">
+        <span class="bt-nav licht">
+          <button class="pijl" onclick="kamNavWeek(-1)" title="Week terug" aria-label="Week terug">
+            <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M13 6H2M6 1 1 6l5 5"/></svg></button>
+          <span class="aan">Week ${wk.week} · ${wk.year}</span>
+          <button class="pijl" onclick="kamNavWeek(1)" title="Week vooruit" aria-label="Week vooruit">
+            <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
+        </span>
+        ${isNu ? '' : `<span class="meta-pill" style="cursor:pointer;" onclick="kamNavWeekNu()">terug naar deze week</span>`}
+      </div>
+    </div>
+    ${subTabBtns}
+    ${bezoekBlokken}
+    ${blok(kams.length + 1, 'Wijzigingen Key Accountmanagement',
+           'Nieuwe klanten en gewijzigde scores, met wie en wanneer.', 'accounts')}
+    ${blok(kams.length + 2, 'Wijzigingen RLDV',
+           'Nieuwe bedrijven, gewijzigde velden en verwijderingen.', 'sales_leads')}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BEZOEKEN & WIJZIGINGEN (21-08)
+//
+// Luc voert tactische en strategische gesprekken bij zijn klanten. Wat daar
+// uitkomt landt op twee plekken: als bezoekverslag in de recorder, en als
+// wijziging in Key Accountmanagement of RLDV — een nieuwe klant, een score
+// die omhoog gaat, een status die verspringt. Los van elkaar zeggen die
+// dingen weinig; naast elkaar zie je of een bezoek ergens toe leidt.
+//
+// De wijzigingen komen uit de tabel `wijzigingen`, die de database zelf vult
+// met triggers (supabase/wijzigingslogboek.sql). Dat is bewust niet in het
+// dashboard geregeld: zo wordt ook een Excel-import meegeschreven.
+let WIJZIGINGEN_CACHE = [];
+
+async function loadWijzigingen() {
+  if (!supa) return;
+  // Zes weken is genoeg: verder terug kijkt niemand, en het scheelt laadtijd.
+  const vanaf = new Date(Date.now() - 42 * 86400000).toISOString();
+  const { data, error } = await supa.from('wijzigingen').select('*')
+    .gte('wanneer', vanaf).order('wanneer', { ascending: false }).limit(500);
+  if (error) { _meldStil('wijzigingen laden', error); return; }
+  WIJZIGINGEN_CACHE = data || [];
+}
+
+// Wie zijn de Key Accountmanagers? Uit BMS, zodat een nieuwe KAM'er vanzelf
+// meekomt zonder dat hier een naam bijgeschreven hoeft te worden.
+function _kamCollegas() {
+  return BMS.filter(b => b.rol === 'Key Accountmanager' && !b.inactief);
+}
+
+// De bezoeken van één collega in een week, uit de BZK-recorder.
+function _kamBezoeken(naam, jaar, week) {
+  const { monday, sunday } = isoWeekDateRange(jaar, week);
+  return BEZOEK_RECORDS.filter(r => {
+    if ((r.recorder_naam || '') !== naam) return false;
+    const d = _kamDatum(r.datum);
+    return d && d >= monday && d <= sunday;
+  });
+}
+
+// De recorder bewaart de datum als leesbare tekst ("21 augustus 2026"); die
+// moet terug naar een datum om op week te kunnen filteren.
+const _KAM_MAANDEN = ['januari','februari','maart','april','mei','juni','juli',
+                      'augustus','september','oktober','november','december'];
+function _kamDatum(tekst) {
+  if (!tekst) return null;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(tekst);
+  if (iso) return new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3]));
+  const m = /^(\d{1,2})\s+([a-zA-Zé]+)\s+(\d{4})/.exec(tekst.trim());
+  if (!m) return null;
+  const mnd = _KAM_MAANDEN.indexOf(m[2].toLowerCase());
+  if (mnd < 0) return null;
+  return new Date(Date.UTC(+m[3], mnd, +m[1]));
+}
+
+// De wijzigingen van één tabel in een week.
+function _kamWijzigingen(tabel, jaar, week) {
+  const { monday, sunday } = isoWeekDateRange(jaar, week);
+  const eind = new Date(+sunday + 86400000);
+  return WIJZIGINGEN_CACHE.filter(w => {
+    if (w.tabel !== tabel) return false;
+    const d = new Date(w.wanneer);
+    return d >= monday && d < eind;
+  });
+}
+
+// Meerdere scores van dezelfde klant op dezelfde dag horen op één regel: vier
+// losse regels "Ambitie 2 → 4" lezen als vier gebeurtenissen terwijl het één
+// gesprek was.
+function _kamWijzigingenGebundeld(rijen) {
+  const uit = new Map();
+  for (const w of rijen) {
+    const dag = String(w.wanneer).slice(0, 10);
+    const sleutel = [w.rij_id, dag, w.soort].join('|');
+    if (!uit.has(sleutel)) uit.set(sleutel, { ...w, velden: [] });
+    if (w.soort === 'gewijzigd') uit.get(sleutel).velden.push(w);
+  }
+  return [...uit.values()];
+}
+
+
 function renderAccounts() {
   // Zelfde subTabBtn-patroon als renderFinancieel(): btn-secondary-knoppen in
   // een .acc-toolbar-rij, actieve knop krijgt inline primary-kleur i.p.v. een
@@ -18563,9 +18807,11 @@ function renderAccounts() {
       ${subTabBtn('sales', 'RLDV')}
       ${subTabBtn('strategisch', 'Key Accountmanagement (KAM)')}
       ${subTabBtn('accountplan', 'Accountplan (KAM)')}
+      ${subTabBtn('beweging', 'Bezoeken &amp; wijzigingen')}
     </div>`;
   const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'accountplan'  ? renderAccountplannenHtml(subTabBtns)
+             : ACCOUNT_SUBTAB === 'beweging'     ? renderKamBewegingHtml(subTabBtns)
              : renderSalesLeadsHtml(subTabBtns);
   document.getElementById('main').innerHTML = body;
 }
