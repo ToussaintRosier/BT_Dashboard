@@ -685,6 +685,14 @@
      alles eronder. */
   .filter-toolbar { display:flex; flex-wrap:nowrap; align-items:center; gap:10px;
                     margin-bottom:12px; overflow-x:auto; scrollbar-width:none; }
+  /* Melding 21-08: "Regio is niet te kiezen". Het menu ging wél open, maar je
+     zag het niet. Oorzaak: overflow-x:auto laat de browser ook verticaal
+     afknippen, en het keuzepaneel hangt onder de balk — dus precies in het
+     afgeknipte deel. Staat er een menu open, dan mag de balk niet knippen.
+     De klasse wordt bij het openen gezet; de :has-regel vangt het geval waarin
+     de balk opnieuw getekend wordt met een al geopend menu. */
+  .filter-toolbar.menu-open,
+  .filter-toolbar:has(.ms-dropdown[open]) { overflow:visible; }
   .filter-toolbar::-webkit-scrollbar { display:none; }
   .filter-toolbar-row { display:contents; }
   /* De strook: zoeken en filters in één omhulsel, met scheidingslijnen
@@ -2778,7 +2786,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-1442 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-1534 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5657,7 +5665,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-1442';
+const APP_VERSIE = '20260824-1534';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -18814,6 +18822,9 @@ function renderAccounts() {
              : ACCOUNT_SUBTAB === 'beweging'     ? renderKamBewegingHtml(subTabBtns)
              : renderSalesLeadsHtml(subTabBtns);
   document.getElementById('main').innerHTML = body;
+  // Een aangevinkte optie tekent het scherm opnieuw mét het menu open; dan
+  // vuurt het toggle-signaal niet en moet de klasse er hier op.
+  _filterBalkNietKnippen();
 }
 
 // ===========================================================================
@@ -18893,6 +18904,15 @@ function slClearMultiFilter(kind) {
 // aanvinken) open blijft i.p.v. steeds dicht te klappen.
 function slDropdownToggled(kind, isOpen) {
   SL_OPEN_DROPDOWN = isOpen ? kind : (SL_OPEN_DROPDOWN === kind ? null : SL_OPEN_DROPDOWN);
+  _filterBalkNietKnippen();
+}
+
+// Zolang er een keuzemenu openstaat mag de filterbalk niet afknippen; anders
+// valt het paneel buiten beeld (zie de regel bij .filter-toolbar).
+function _filterBalkNietKnippen() {
+  document.querySelectorAll('.filter-toolbar').forEach(balk => {
+    balk.classList.toggle('menu-open', !!balk.querySelector('.ms-dropdown[open]'));
+  });
 }
 
 function slResetFilters() {
