@@ -2311,6 +2311,14 @@
   .mt-donker .mt-knop-tweede:hover { background:rgba(255,255,255,.12) !important; color:#fff !important; }
   .mt-donker .mt-knop-eerste { background:#fff !important; color:#253151 !important;
                                border:none !important; }
+  /* Verwijderen staat rechts en is rood omlijnd: dezelfde maat als de andere
+     knoppen, maar niet dezelfde uitnodiging. */
+  .mt-knop-weg { margin-left:auto; background:transparent; border:1px solid #e02424;
+                 color:#e02424; border-radius:6px; padding:8px 16px; font-size:.82rem;
+                 font-family:inherit; cursor:pointer; }
+  .mt-knop-weg:hover { background:#e02424; color:#fff; }
+  .mt-donker .mt-knop-weg { border-color:#ff8080; color:#ff8080; }
+  .mt-donker .mt-knop-weg:hover { background:#ff8080; color:#253151; }
   /* ── Het BUM-gesprek en het plan van aanpak (keuze 20-08, variant A) ──
      Beide schermen zijn opgebouwd uit onderdelen die voor een licht vlak zijn
      gemaakt. Hieronder staat per onderdeel de donkere tegenhanger; de vorm
@@ -2786,7 +2794,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-1534 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-1908 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5665,7 +5673,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-1534';
+const APP_VERSIE = '20260824-1908';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5949,6 +5957,7 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen
 const SCHRIJFACTIES = ['onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
   'mtActieToevoegen', 'mtActieZet', 'mtActieVink', 'mtActieWeg',
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
+  'mtNotuleOudeWijzig', 'mtNotuleOudeOpslaanKnop', 'mtNotuleVerwijder',
   'mtNotuleOpslaanKnop', 'mtNotuleWijzig', 'mtCoachOpslaan', 'mtCoachWijzig',
   'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
 
@@ -9660,8 +9669,52 @@ function mtNotuleWijzig() {
   render();
 }
 
-// Het logboek: eerdere weken als inklapbare balken, elk met een printknop —
-// zelfde opzet als het logboek van het plan van aanpak.
+// Een oudere notule openzetten om te wijzigen. Zelfde slot als bij de notule
+// van deze week: dicht tenzij je er uitdrukkelijk om vraagt.
+function mtNotuleOudeWijzig(id) {
+  if (!eisWijzig('mtacties')) return;
+  window._mtNotuleUnlocked.add(String(id));
+  render();
+}
+function mtNotuleWijzigStop(id) {
+  window._mtNotuleUnlocked.delete(String(id));
+  render();
+}
+
+async function mtNotuleOudeOpslaanKnop(id) {
+  if (!eisWijzig('mtacties')) return;
+  const veld = document.getElementById('mt-notule-oud-' + id);
+  if (!veld) return;
+  const tekst = veld.value;
+  const tijd  = new Date().toISOString();
+  const { error } = await supa.from('mt_notulen').update({
+    tekst, bijgewerkt: tijd, bijgewerkt_door: CURRENT_USER?.naam || '',
+  }).eq('id', id);
+  if (error) { alert(_mtFoutTekst('Opslaan', error)); meldFout(error.message, 'mtNotuleOudeOpslaanKnop'); return; }
+  const rij = MT_NOTULEN.find(n => String(n.id) === String(id));
+  if (rij) { rij.tekst = tekst; rij.bijgewerkt = tijd; rij.bijgewerkt_door = CURRENT_USER?.naam || ''; }
+  window._mtNotuleUnlocked.delete(String(id));
+  render();
+}
+
+// Verwijderen vraagt om een bevestiging met de week erin: een notule is een
+// verslag van een overleg, en dat gooi je niet per ongeluk weg.
+async function mtNotuleVerwijder(id) {
+  if (!eisWijzig('mtacties')) return;
+  const rij = MT_NOTULEN.find(n => String(n.id) === String(id));
+  if (!rij) return;
+  if (!confirm(`Notule van week ${rij.week} · ${rij.jaar} verwijderen?\n\n` +
+               'Het verslag is daarna weg; dit kan niet ongedaan worden gemaakt.')) return;
+  const { error } = await supa.from('mt_notulen').delete().eq('id', id);
+  if (error) { alert(_mtFoutTekst('Verwijderen', error)); meldFout(error.message, 'mtNotuleVerwijder'); return; }
+  MT_NOTULEN = MT_NOTULEN.filter(n => String(n.id) !== String(id));
+  window._mtNotuleOpen.delete(String(id));
+  window._mtNotuleUnlocked.delete(String(id));
+  render();
+}
+
+// Het logboek: eerdere weken als inklapbare balken, elk met dezelfde knoppen
+// als de notule van deze week — zelfde opzet als het plan van aanpak.
 function mtNotuleLogboekHtml() {
   const { nu } = _mtNotuleDezeWeek();
   const eerdere = MT_NOTULEN.filter(n => !(n.jaar === nu.year && n.week === nu.week));
@@ -9674,13 +9727,30 @@ function mtNotuleLogboekHtml() {
       <span class="chev">${open ? '▲ Sluiten' : '▼ Openen'}</span>
     </div>`;
     if (!open) return bar;
+    // Elke uitgeklapte week heeft dezelfde knoppen als de notule van deze week
+    // (melding 21-08). Ze stonden er alleen bij de huidige week, waardoor een
+    // typefout van vorige week niet meer te herstellen was. Zelfde patroon:
+    // dicht tenzij je op Wijzigen klikt, zodat je een verslag niet per ongeluk
+    // overtypt terwijl je het leest.
+    const mag      = magWijzigen('mtacties');
+    const losOpen  = window._mtNotuleUnlocked.has(key);
+    const knoppen  = !mag ? '' : losOpen
+      ? `<button class="mt-knop-eerste" onclick="mtNotuleOudeOpslaanKnop(${n.id})">Opslaan</button>
+         <button class="mt-knop-tweede" onclick="mtNotuleWijzigStop(${n.id})">Annuleren</button>`
+      : `<button class="mt-knop-eerste" onclick="mtNotuleOudeWijzig(${n.id})">Wijzigen</button>`;
+    const wegKnop  = (!mag || losOpen) ? '' :
+      `<button class="mt-knop-weg" onclick="mtNotuleVerwijder(${n.id})"
+               title="Deze notule verwijderen">Verwijderen</button>`;
     return bar + `<div class="pva-log-content">
       <div class="plan-field">
         <div class="plan-field-title">Wat is er besproken en afgesproken?</div>
-        <textarea rows="3" data-pva-ta="1" disabled>${escHtml(n.tekst || '')}</textarea>
+        <textarea id="mt-notule-oud-${n.id}" rows="3" data-pva-ta="1"
+          ${losOpen ? '' : 'disabled'}>${escHtml(n.tekst || '')}</textarea>
       </div>
-      <div style="margin-top:8px;display:flex;gap:8px;">
+      <div class="mt-knoprij" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${knoppen}
         ${_mtExportKnoppen(d => `printMtNotule(${n.id}, ${d})`)}
+        ${wegKnop}
       </div>
     </div>`;
   }).join('');
