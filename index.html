@@ -1,3 +1,8 @@
+<!-- BT-VERSIE 20260824-2120 — wordt bij elke oplevering ververst. Staat op de
+     allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
+     2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
+     elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
+     toegestaan en verandert niets aan de weergave. -->
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -1692,6 +1697,45 @@
 
   /* Het knopje naast een tekstvak dat hetzelfde doet als F2. Op een telefoon
      is er geen functietoets, en daar wordt de meeste aantekening gemaakt. */
+  /* De melding als een kandidaat reageert (25-08). Rechtsonder, buiten de
+     leesrichting, zodat hij nooit iets afdekt waar je mee bezig bent. */
+  #melding-bak { position:fixed; right:18px; bottom:18px; z-index:9500;
+                 display:flex; flex-direction:column; gap:8px; max-width:400px; }
+  .melding { display:flex; gap:11px; align-items:flex-start;
+             background:#364160; border:1px solid rgba(255,255,255,.16);
+             border-left:3px solid #34d399; border-radius:10px; padding:11px 13px;
+             box-shadow:0 8px 24px rgba(0,0,0,.35);
+             animation:melding-in .25s ease-out; }
+  .melding.nee { border-left-color:#ff8080; }
+  .melding.uit { opacity:0; transform:translateY(6px); transition:opacity .25s, transform .25s; }
+  @keyframes melding-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .melding .t { font-size:.82rem; color:#fff; font-weight:var(--w-nadruk); }
+  .melding .s { font-size:.75rem; color:rgba(255,255,255,.6); margin-top:2px; line-height:1.45; }
+  .melding .k { margin-top:7px; display:flex; gap:6px; }
+  .melding-knop { background:transparent; border:1px solid rgba(255,255,255,.28);
+                  color:rgba(255,255,255,.85); border-radius:6px; padding:3px 9px;
+                  font-size:.74rem; font-family:inherit; cursor:pointer; }
+  .melding-knop:hover { background:rgba(255,255,255,.12); color:#fff; }
+  .melding-x { margin-left:auto; background:none; border:none; cursor:pointer;
+               color:rgba(255,255,255,.4); font-size:1rem; line-height:1; padding:0 2px; }
+  .melding-x:hover { color:#fff; }
+  @media (max-width:600px) { #melding-bak { right:10px; left:10px; bottom:10px; max-width:none; } }
+
+  /* Te doen in de dagstart (25-08). Het venster is licht; deze regels volgen
+     de opmaak van de rest van dat venster. */
+  .tedoen { margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
+  .tedoen-kop { font-size:var(--t-sm); color:var(--muted); letter-spacing:.04em; }
+  .tedoen-groep { font-size:.78rem; color:var(--text); font-weight:var(--w-nadruk);
+                  margin:11px 0 3px; }
+  .tedoen-groep b { color:var(--accent); font-weight:var(--w-nadruk); }
+  .tedoen-rij { display:flex; align-items:baseline; gap:8px; font-size:.82rem;
+                color:var(--text); padding:3px 0; }
+  .tedoen-naam { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tedoen-wie { font-size:.72rem; color:var(--muted); flex-shrink:0; }
+  .tedoen-dagen { margin-left:auto; font-size:.74rem; flex-shrink:0; }
+  .tedoen-rest { font-size:.74rem; color:var(--muted); padding:2px 0; }
+  .tedoen-voet { margin-top:11px; font-size:.74rem; color:var(--muted); }
+
   .werk-status { color:var(--muted); }
   .mt-donker .werk-status { color:rgba(255,255,255,.6); }
   .stempel-knop { background:transparent; border:1px solid var(--border); border-radius:5px;
@@ -2811,9 +2855,6 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-2053 — wordt bij elke oplevering ververst. Het dashboard
-     vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
-     er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
 
 <header>
@@ -5721,7 +5762,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-2053';
+const APP_VERSIE = '20260824-2120';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5734,7 +5775,11 @@ async function versieControle() {
   // Ook in een achtergrondtabblad kijken (aanpassing 24-08): juist dán is het
   // een goed moment om bij te werken, want er zit niemand naar te kijken.
   try {
-    const res = await fetch('index.html?v=' + Date.now(), { cache: 'no-store' });
+    // Alleen de eerste 2 kB: het stempel staat op regel één. Een server die
+    // geen deelverzoeken kent stuurt gewoon het hele bestand (status 200) en
+    // dan werkt het ook — alleen zwaarder.
+    const res = await fetch('index.html?v=' + Date.now(),
+      { cache: 'no-store', headers: { 'Range': 'bytes=0-2047' } });
     if (!res.ok) return;
     const nieuw = _versieUitTekst(await res.text());
     if (!nieuw || nieuw === APP_VERSIE) return;
@@ -11716,33 +11761,43 @@ async function loadAllData() {
   // Als eerste: bepaalt wat er verderop überhaupt getekend moet worden.
   await laadPoging('onderdelen', laadOnderdelen);
   await laadPoging('rechten', laadRechten);
+  // Het laden gebeurt naast elkaar in plaats van na elkaar (24-08). Het waren
+  // 23 wachtbeurten op een rij; elke stap kostte één ronde naar de server, en
+  // die rondes telden op tot seconden terwijl de stappen onafhankelijk zijn.
+  // Alleen de eerste stap moet echt vooraf: de lijst met collega's, want de
+  // pipeline-lader loopt die lijst af.
   laadStap('Medewerkers en doelen…');
   await laadPoging('medewerkers en doelen', loadBeheerData);
-  await laadPoging('aanmeldformulier', loadAanmeldSaved);
-  laadStap('Weekcijfers…');        await laadPoging('weekcijfers', loadKpiWeekly);
-  laadStap('Pipeline…');           await laadPoging('pipeline', pipeFetchAll);
-  laadStap('Projecten…');          await laadPoging('projecten', loadProjecten);
-  await laadPoging('contractstatus', loadProjStatus);
-  await laadPoging('wijzigingslogboek', loadWijzigingen);
+
+  laadStap('Alle gegevens tegelijk…');
+  const stap = (naam, fn) => laadPoging(naam, fn).then(() => laadStap(naam + '…'));
+  await Promise.allSettled([
+    stap('weekcijfers', loadKpiWeekly),
+    stap('pipeline', pipeFetchAll),
+    stap('projecten', loadProjecten),
+    stap('contractstatus', loadProjStatus),
+    stap('wijzigingslogboek', loadWijzigingen),
+    stap('projectevaluaties', loadProjEvaluaties),
+    stap('plannen van aanpak', loadPlanVanAanpak),
+    stap('BUM-gesprekken', loadBumGesprekken),
+    stap('MT-acties', laadMtActies),
+    stap('accountmanagement', accountsFetchAll),
+    stap('sales leads', salesLeadsFetchAll),
+    stap('omzetcijfers', loadFinancieelOmzet),
+    stap('begroting', loadBegroting),
+    stap('urenrapportage', loadUrenrapportage),
+    stap('rapportages', loadComrapAnalyses),
+    stap('documenten', loadEcDocumenten),
+    stap('gebruikslog', loadGebruikLog),
+    stap('toolgebruik', loadToolgebruik),
+    stap('memos', loadMemos),
+    stap('Brightech ONE', loadOne),
+    stap('aanmeldformulier', loadAanmeldSaved),
+  ]);
   // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
-  // dat dat lokaal werd bewaard) de database in, gaten vullen alleen.
+  // dat dat lokaal werd bewaard) de database in, gaten vullen alleen. Ná de
+  // contractstatus, want hij vult alleen gaten die daar niet in zitten.
   projStatusMigreer();
-                                   await laadPoging('projectevaluaties', loadProjEvaluaties);
-  laadStap('Plannen van aanpak…'); await laadPoging('plannen van aanpak', loadPlanVanAanpak);
-                                   await laadPoging('BUM-gesprekken', loadBumGesprekken);
-                                   await laadPoging('MT-acties', laadMtActies);
-  laadStap('Accountmanagement…');  await laadPoging('accountmanagement', accountsFetchAll);
-                                   await laadPoging('sales leads', salesLeadsFetchAll);
-  laadStap('Financiële cijfers…'); await laadPoging('omzetcijfers', loadFinancieelOmzet);
-                                   await laadPoging('begroting', loadBegroting);
-  laadStap('Urenrapportage…');     await laadPoging('urenrapportage', loadUrenrapportage);
-  laadStap('Rapportages…');
-  await laadPoging('rapportages', loadComrapAnalyses);
-  await laadPoging('documenten', loadEcDocumenten);
-  await laadPoging('gebruikslog', loadGebruikLog);
-  await laadPoging('toolgebruik', loadToolgebruik);
-  await laadPoging('memos', loadMemos);
-  await laadPoging('Brightech ONE', loadOne);
   laadStap('Berekeningen…');
   await laadPoging('berekeningen', async () => recomputeRatios());
 }
@@ -11847,7 +11902,7 @@ async function loadProfileAndStart() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-root').style.display = '';
   vulKopGebruiker();
-  toonLaadscherm(10);         // 10 stappen, komt overeen met de laadStap()-aanroepen in loadAllData()
+  toonLaadscherm(24);         // 1 vooraf + 21 parallel + migratie + berekening
   // try/finally: wat er ook misgaat, het laadscherm verdwijnt en het dashboard
   // wordt getekend. Blijven hangen op een spinner is geen optie — dan kan
   // iemand niets meer, ook niet de dingen die wél geladen zijn.
@@ -12239,6 +12294,105 @@ function _dagstartWaakhond() {
   setInterval(_dagstartControle, 15 * 60 * 1000);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// TE DOEN: INTAKES DIE NOG NIET GEDEELD ZIJN (25-08)
+//
+// De afspraak is dat een intake dezelfde dag wordt verwerkt en gedeeld met de
+// kandidaat. Wie dat vergeet, ziet het nergens terug — het gesprek staat er,
+// de analyse staat er, en het blijft liggen. Dit blok zet ze in de dagstart,
+// vanaf de dag ná het gesprek, en blijft ze tonen tot het gedaan is.
+//
+// Waarom in de dagstart en niet als apart scherm: het is één plek die je toch
+// al één keer per dag ziet, en dan blijft het bij één onderbreking per dag.
+//
+// Drie soorten, in deze volgorde van dringendheid:
+//   1. niet gedeeld       — het gesprek is verwerkt maar nooit verstuurd
+//   2. geen reactie       — verstuurd, kandidaat heeft nog niets laten weten
+//   3. verloopt binnenkort — de link vervalt; daarna moet je opnieuw delen
+const DAGSTART_TEAMOVERZICHT = ['Toussaint Rosier', 'Yoël Bronckers', 'Charlotte Gigase'];
+const TEDOEN_REACTIE_DAGEN  = 5;    // pas nabellen als er zoveel dagen niets komt
+const TEDOEN_VERLOOP_DAGEN  = 5;    // waarschuwen als de link binnen zoveel dagen vervalt
+
+function _tedoenDagenGeleden(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return 0;
+  const vandaag = new Date(); vandaag.setHours(0, 0, 0, 0);
+  const toen = new Date(d);   toen.setHours(0, 0, 0, 0);
+  return Math.round((vandaag - toen) / 86400000);
+}
+
+// Wiens werk is dit? De recorder houdt bij wie het gesprek heeft gevoerd.
+function _tedoenVoorMij(rec, mijnNaam, allesZien) {
+  if (allesZien) return true;
+  return (rec.recorder_naam || '') === mijnNaam;
+}
+
+function tedoenLijst() {
+  const mijnNaam   = CURRENT_USER?.bm_naam || CURRENT_USER?.naam || '';
+  const allesZien  = DAGSTART_TEAMOVERZICHT.includes(CURRENT_USER?.naam || '');
+  const uit = { nietGedeeld: [], geenReactie: [], verloopt: [] };
+
+  for (const rec of GESPREK_RECORDS) {
+    if (!_tedoenVoorMij(rec, mijnNaam, allesZien)) continue;
+    // Alleen gesprekken die al een analyse hebben; zonder analyse valt er nog
+    // niets te delen en is het geen taak maar werk in uitvoering.
+    if (!rec.result) continue;
+    const dagen = _tedoenDagenGeleden(_kamDatum(rec.datum) || rec.datum);
+    const gedeeld = AFSPRAKEN_GEDEELD[String(rec.id)] || null;
+    const wie = allesZien ? (rec.recorder_naam || '') : '';
+
+    if (!gedeeld || !gedeeld.gepubliceerd) {
+      // Vanaf de dag ná het gesprek, en blijven tonen tot het gedaan is.
+      if (dagen >= 1) uit.nietGedeeld.push({ rec, dagen, wie });
+      continue;
+    }
+    if (!gedeeld.akkoord_keuze) {
+      if (_tedoenDagenGeleden(gedeeld.gepubliceerd) >= TEDOEN_REACTIE_DAGEN) {
+        uit.geenReactie.push({ rec, dagen: _tedoenDagenGeleden(gedeeld.gepubliceerd), wie });
+      }
+      // Een link die bijna vervalt terwijl er nog geen antwoord is.
+      if (gedeeld.verloopt_op) {
+        const over = -_tedoenDagenGeleden(gedeeld.verloopt_op);
+        if (over >= 0 && over <= TEDOEN_VERLOOP_DAGEN) uit.verloopt.push({ rec, dagen: over, wie });
+      }
+    }
+  }
+  const sorteer = (a, b) => b.dagen - a.dagen;
+  uit.nietGedeeld.sort(sorteer); uit.geenReactie.sort(sorteer);
+  uit.verloopt.sort((a, b) => a.dagen - b.dagen);
+  uit.totaal = uit.nietGedeeld.length + uit.geenReactie.length + uit.verloopt.length;
+  return uit;
+}
+
+// Het blok in de dagstart. Leeg is leeg: staat er niets open, dan komt er ook
+// geen kopje — een lijstje dat "niets te doen" meldt is ruis.
+function tedoenHtml() {
+  let lijst;
+  try { lijst = tedoenLijst(); } catch (e) { _meldStil('te doen opbouwen', e); return ''; }
+  if (!lijst.totaal) return '';
+
+  const regel = (x, kleur, achter) => `<div class="tedoen-rij">
+      <span class="tedoen-naam">${escHtml([x.rec.naam, x.rec.functie].filter(Boolean).join(' — '))}</span>
+      ${x.wie ? `<span class="tedoen-wie">${escHtml(_dagstartVoornaam(x.wie))}</span>` : ''}
+      <span class="tedoen-dagen" style="color:${kleur};">${achter(x.dagen)}</span>
+    </div>`;
+  const groep = (titel, rijen, kleur, achter) => rijen.length
+    ? `<div class="tedoen-groep">${escHtml(titel)} <b>${rijen.length}</b></div>`
+      + rijen.slice(0, 6).map(x => regel(x, kleur, achter)).join('')
+      + (rijen.length > 6 ? `<div class="tedoen-rest">en nog ${rijen.length - 6}…</div>` : '')
+    : '';
+  const dagTekst = (n) => n === 1 ? 'sinds gisteren' : n + ' dagen';
+
+  return `<div class="tedoen">
+    <div class="tedoen-kop">NOG TE DOEN</div>
+    ${groep('Afspraken nog niet gedeeld', lijst.nietGedeeld, '#b45309', dagTekst)}
+    ${groep('Verstuurd, nog geen reactie', lijst.geenReactie, '#6b7280', dagTekst)}
+    ${groep('Link verloopt binnenkort', lijst.verloopt, '#b45309',
+            (n) => n === 0 ? 'vandaag' : 'over ' + n + (n === 1 ? ' dag' : ' dagen'))}
+    <div class="tedoen-voet">Delen doe je in de ITK-recorder, bij het gesprek.</div>
+  </div>`;
+}
+
 async function toonDagstart() {
   if (!CURRENT_USER) return;
   const sleutel = 'bt_dagstart_' + (CURRENT_USER.bm_naam || CURRENT_USER.naam || 'onbekend');
@@ -12273,6 +12427,15 @@ async function toonDagstart() {
       try { boodschap = _dagstartTeamBoodschap(); } catch (e) { _meldStil('dagstart teamcijfers', e); }
     }
   }
+  // Geen boodschap maar wel openstaande taken? Dan tóch tonen — dat is
+  // precies waar de herinnering voor is (25-08).
+  let taken = '';
+  try { taken = tedoenHtml(); } catch (_) {}
+  if (!boodschap && taken) {
+    boodschap = { kern: 'Er staat nog werk open van gisteren.',
+                  waarom: 'Intakes worden dezelfde dag verwerkt en gedeeld met de kandidaat. Hieronder staat wat er nog wacht.',
+                  focus: 'Deel wat er open staat, en bel na wat te lang stil blijft.' };
+  }
   if (!boodschap) return;
 
   _veiligLokaalOpslaan(sleutel, _dagstartVandaag(), 'dagstart datum');
@@ -12290,6 +12453,7 @@ async function toonDagstart() {
       <div style="margin-top:5px;font-size:var(--t-md);line-height:1.6;color:var(--text);">${escHtml(boodschap.waarom)}</div>
       <div style="margin-top:18px;font-size:var(--t-sm);color:var(--muted);letter-spacing:.04em;">VANDAAG</div>
       <div style="margin-top:5px;font-size:var(--t-md);line-height:1.6;color:var(--text);">${escHtml(boodschap.focus)}</div>
+      ${tedoenHtml()}
       <button id="dagstart-knop" disabled style="margin-top:26px;width:100%;padding:12px;border:0;border-radius:9px;background:#e6e8ee;color:var(--muted);font-size:var(--t-md);font-weight:var(--w-nadruk);cursor:default;transition:background .25s,color .25s;">Nog even lezen…</button>
     </div>`;
   document.body.appendChild(laag);
@@ -12412,6 +12576,9 @@ const _RT_TAKEN = {
   financieel_omzet: async () => { await loadFinancieelOmzet(); },
   plan_van_aanpak:  async () => { await loadPlanVanAanpak(); },
   bum_gesprek:      async () => { await loadBumGesprekken(); },
+  // De kandidaat reageert op zijn eigen link, buiten het dashboard om; deze
+  // tabel is de enige plek waar dat binnenkomt (25-08).
+  gedeelde_afspraken: async () => { await _afsprakenReactieCheck(); },
 };
 
 // Eén wijziging levert vaak meerdere berichten op — een opgeslagen week raakt
@@ -12993,6 +13160,91 @@ function afsprakenStatusPil(recId) {
     : (st.code === 'verzonden' ? 'De link is gedeeld; nog geen reactie ontvangen'
                                : 'De afspraken zijn nog niet met de kandidaat gedeeld');
   return `<span class="badge ${st.klasse}" title="${escHtml(titel)}" style="flex-shrink:0;">${st.tekst}</span>`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MELDING ALS DE KANDIDAAT REAGEERT (25-08)
+//
+// De kandidaat opent zijn link buiten het dashboard om en klikt akkoord of
+// niet akkoord. Dat verandert een rij in gedeelde_afspraken, en die tabel
+// gaat mee in de live-verbinding — dus de collega ziet het binnen seconden,
+// zonder verversen.
+//
+// Wat er onthouden wordt: welke reacties je al hebt gezien. Staat je scherm
+// dicht als de kandidaat klikt, dan zie je de melding alsnog zodra je weer
+// inlogt. Het staat in de browser van die collega zelf; het is een kijkstand,
+// geen gegeven dat in de database hoort.
+const REACTIE_GEZIEN_SLEUTEL = 'bt_afspraken_gezien';
+
+function _reactiesGezien() {
+  try { return new Set(JSON.parse(localStorage.getItem(REACTIE_GEZIEN_SLEUTEL) || '[]')); }
+  catch (_) { return new Set(); }
+}
+function _reactieOnthoud(sleutel) {
+  const gezien = _reactiesGezien();
+  gezien.add(sleutel);
+  // Niet eindeloos laten groeien: de laatste tweehonderd is ruim genoeg.
+  _veiligLokaalOpslaan(REACTIE_GEZIEN_SLEUTEL, [...gezien].slice(-200), 'geziene reacties');
+}
+
+// Kijkt of er reacties zijn die deze collega nog niet heeft gezien, en toont
+// er één melding per reactie.
+async function _afsprakenReactieCheck() {
+  if (!supa || !CURRENT_USER) return;
+  await loadAfsprakenGedeeld(true);
+  const mijnNaam  = CURRENT_USER.bm_naam || CURRENT_USER.naam || '';
+  const allesZien = DAGSTART_TEAMOVERZICHT.includes(CURRENT_USER.naam || '');
+  const gezien    = _reactiesGezien();
+
+  for (const rij of Object.values(AFSPRAKEN_GEDEELD)) {
+    if (!rij.akkoord_keuze || !rij.akkoord_op) continue;
+    // De sleutel bevat het moment: reageert dezelfde kandidaat later opnieuw,
+    // dan is dat een nieuwe melding.
+    const sleutel = rij.id + '|' + rij.akkoord_op;
+    if (gezien.has(sleutel)) continue;
+    const rec = GESPREK_RECORDS.find(r => String(r.id) === String(rij.verslag_id));
+    if (!rec) continue;
+    if (!allesZien && (rec.recorder_naam || '') !== mijnNaam) continue;
+    _reactieOnthoud(sleutel);
+    toonReactieMelding(rij, rec);
+  }
+}
+
+function toonReactieMelding(rij, rec) {
+  const akkoord = rij.akkoord_keuze === 'akkoord';
+  const naam    = rij.akkoord_naam || rec.naam || 'De kandidaat';
+  const wanneer = _oneWanneer(rij.akkoord_op) || '';
+  const bak = document.getElementById('melding-bak') || (() => {
+    const el = document.createElement('div');
+    el.id = 'melding-bak';
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  const kaart = document.createElement('div');
+  kaart.className = 'melding' + (akkoord ? '' : ' nee');
+  kaart.innerHTML = `
+    <div class="melding-tekst">
+      <div class="t">${escHtml(naam)} is ${akkoord ? 'akkoord' : 'niet akkoord'}</div>
+      <div class="s">${escHtml(rij.akkoord_toelichting
+          ? '"' + String(rij.akkoord_toelichting).slice(0, 160) + '"'
+          : 'Met de afspraken uit het gesprek.')}${wanneer ? ' — ' + escHtml(wanneer) : ''}</div>
+      <div class="k">
+        <button class="melding-knop" data-open="1">Openen</button>
+        <button class="melding-knop" data-weg="1">Later</button>
+      </div>
+    </div>
+    <button class="melding-x" data-weg="1" aria-label="Melding sluiten">&times;</button>`;
+
+  const weg = () => { kaart.classList.add('uit'); setTimeout(() => kaart.remove(), 250); };
+  kaart.addEventListener('click', (e) => {
+    if (e.target.closest('[data-weg]')) { weg(); return; }
+    if (e.target.closest('[data-open]')) { weg(); selectTab('gesprek'); }
+  });
+  bak.appendChild(kaart);
+  // Vanzelf weg na tien seconden; wie hem mist vindt het gesprek gewoon terug
+  // in de recorder, met dezelfde status erbij.
+  setTimeout(weg, 10000);
 }
 
 // Cache: verslag_id → rij uit gedeelde_afspraken (voor de badge op de kaarten)
