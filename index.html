@@ -2108,12 +2108,6 @@
   /* De weekknop: donker uitgevoerd, zoals de rest van de balk (aanwijzing
      20-08 met schermafbeelding). De witte knop van eerst sprong eruit als de
      enige lichte vlek op een donkere accordeon. */
-  /* "wijkt af": het opgeslagen cijfer van deze week klopt niet met de
-     kaartjes. Oranje, want het is geen storing maar wel iets om recht te
-     zetten — dezelfde kleur als een onvolledig contract in Projecten. */
-  .pipe-afwijk { flex-shrink:0; white-space:nowrap; font-size:.66rem;
-                 padding:1px 8px; border-radius:9px; cursor:help;
-                 background:rgba(240,160,32,.18); color:#f0a020; }
   .pipe-wkknop { flex-shrink:0; white-space:nowrap; cursor:pointer;
                  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.28);
                  color:rgba(255,255,255,.85); border-radius:6px;
@@ -2817,7 +2811,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-1955 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-2003 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5696,7 +5690,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-1955';
+const APP_VERSIE = '20260824-2003';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -17925,67 +17919,33 @@ function pipeLoad(bmNaam) {
 }
 
 function pipeSave(bmNaam, cards) {
-  if (supa) { PIPE_CACHE[bmNaam] = cards; }
-  else { try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {} }
-  // Elke wijziging in de pipeline kan de weekcijfers van een al opgeslagen
-  // week veranderen; die worden hierna bijgetrokken (zie _pipeWeekcijfersGelijk).
-  _pipeWeekcijfersLater(bmNaam);
+  if (supa) { PIPE_CACHE[bmNaam] = cards; return; }
+  try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {}
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// EEN OPGESLAGEN WEEK LOOPT MEE MET DE PIPELINE
+// WAAROM DE WEEKCIJFERS NIET AUTOMATISCH MEELOPEN MET DE PIPELINE
 //
-// WAT ER MISGING (melding 24-08)
-//   De weekcijfers in kpi_weekly zijn een momentopname: ze worden geschreven
-//   als iemand op Opslaan klikt. De pipeline verandert daarna gewoon door.
-//   Voegde je een kandidaat toe aan een week die al was opgeslagen, dan bleef
-//   het oude getal staan — op het collectieve blad, in de rapportage, in de
-//   ranglijst. Pas na Wijzigen en opnieuw Opslaan klopte het weer. Dat is
-//   precies wat er werd gemeld.
+// Op 24-08 heb ik geprobeerd een opgeslagen week automatisch bij te trekken
+// naar de telling uit de pipeline. Dat was fout, en het heeft cijfers stuk
+// gemaakt. De reden staat hier zodat niemand — ik incluis — het nog eens
+// probeert:
 //
-// WAAROM BIJTREKKEN MAG
-//   Handmatig invoeren van afwijkende cijfers kán al niet: saveWeeklyEntry()
-//   weigert op te slaan als de ingevoerde aantallen niet exact overeenkomen
-//   met de telling uit de pipeline. De pipeline ís dus de waarheid, en de
-//   opgeslagen week hoort die te volgen. Blijft het verschil staan, dan heb je
-//   twee waarheden en klopt er ergens altijd iets niet.
+//   Een kaartje verhuist mee door de fases. Dezelfde kandidaat is in week 20
+//   een intake, in week 22 een aanbieding en in week 25 een starter; het
+//   kaartje staat dus altijd maar op één plek, namelijk zijn laatste stap.
+//   Kandidaten die zijn afgevallen of opgeruimd staan er helemaal niet meer.
+//   De pipeline is een werkbord van vandaag; hij kan het verleden niet
+//   reconstrueren.
 //
-// WAT HET NIET DOET
-//   Weken die nog nooit zijn opgeslagen krijgen géén rij. Opslaan blijft de
-//   handeling waarmee je een week accordeert; dit trekt alleen bij wat al
-//   geaccordeerd wás.
+//   kpi_weekly is daarom geen kopie van de pipeline maar een archief: de
+//   stand op het moment dat iemand die week bewust heeft vastgelegd. Dat de
+//   telling van vandaag afwijkt van wat er toen stond is normaal verloop, geen
+//   fout — en dus ook geen reden om iets te overschrijven of te waarschuwen.
+//
+// Wat wél mag: bij het opslaan van een week de telling van dat moment
+// wegschrijven. Dat doet saveWeeklyEntryDirect(), en dat blijft zo.
 // ════════════════════════════════════════════════════════════════════════════
-let _pipeSyncTimers = {};
-
-function _pipeWeekcijfersLater(bmNaam) {
-  clearTimeout(_pipeSyncTimers[bmNaam]);
-  // Kort wachten: bij slepen of snel achter elkaar wijzigen anders vier
-  // schrijfacties voor één handeling.
-  _pipeSyncTimers[bmNaam] = setTimeout(() => _pipeWeekcijfersGelijk(bmNaam), 1200);
-}
-
-async function _pipeWeekcijfersGelijk(bmNaam) {
-  if (!supa || !CURRENT_USER) return;
-  if (!magWijzigen('medewerkers') || !canEdit(bmNaam)) return;
-  try {
-    // Alleen weken die al een rij hebben, en alleen dit en vorig jaar: verder
-    // terug verandert niemand meer iets aan zijn pipeline.
-    const jaren = [CUR.year, CUR.year - 1];
-    const rijen = RAW.filter(r => r.naam === bmNaam && jaren.includes(+r.jaar));
-    for (const rij of rijen) {
-      const telling = getPipeCountsForWeek(bmNaam, +rij.week, +rij.jaar);
-      const anders = KPIS.some(k => (+rij[k] || 0) !== (+telling[k] || 0));
-      if (!anders) continue;
-      const payload = { bm_naam: bmNaam, jaar: +rij.jaar, week: +rij.week, ...telling,
-                        updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
-      const { error } = await supa.from('kpi_weekly')
-        .upsert(payload, { onConflict: 'bm_naam,jaar,week' });
-      if (error) { meldFout('weekcijfers bijtrekken: ' + error.message, '_pipeWeekcijfersGelijk'); return; }
-      Object.assign(rij, telling);   // de cache meteen mee, anders loopt het scherm achter
-    }
-    recomputeRatios();
-  } catch (e) { _meldStil('weekcijfers bijtrekken', e); }
-}
 
 // Helper: bouw een pipeline-card object uit een DB-rij
 function _pipeCardFromRow(c) {
@@ -25587,16 +25547,10 @@ function renderPipeline(bm) {
     // Het groene streepje links blijft wél — dat is de kleurtaal die Projecten
     // ook gebruikt, en je ziet er in één blik aan welke weken al vastliggen.
     //
-    // Wijkt een opgeslagen week af van de kaartjes, dan hoort dat zichtbaar te
-    // zijn (24-08). Normaal trekt het dashboard dat zelf recht; lukt dat niet
-    // — geen net, geen rechten — dan zie je het hier in plaats van dat het
-    // ergens anders stilletjes een verkeerd getal oplevert.
-    const opgeslagen = RAW.find(r => r.naam === bm.naam && +r.jaar === wk.year && +r.week === wk.week);
-    const telling    = getPipeCountsForWeek(bm.naam, wk.week, wk.year);
-    const wijktAf    = opgeslagen && KPIS.some(k => (+opgeslagen[k] || 0) !== (+telling[k] || 0));
-    const slotPil    = wijktAf
-      ? `<span class="pipe-afwijk" title="De opgeslagen weekcijfers wijken af van de kaartjes hiernaast. Klik op Wijzigen en daarna Opslaan om het recht te zetten.">wijkt af</span>`
-      : '';
+    // Het label "wijkt af" is weer weggehaald (24-08): een verschil tussen de
+    // kaartjes van nu en de vastgelegde week is normaal verloop, geen fout.
+    // Zie de uitleg bij pipeSave().
+    const slotPil = '';
 
     // Pipeline cellen (content)
     const cells = PIPE_STAGES.map((stage, si) => {
