@@ -2778,7 +2778,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-1200 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-1442 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5657,7 +5657,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-1200';
+const APP_VERSIE = '20260824-1442';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -18932,11 +18932,18 @@ function slFilteredList() {
       const _hay = [s.naam, s.vakgebied, s.regio, s.contactpersoon, s.status, s.voorwaarden_bekend].filter(Boolean).join(' ').toLowerCase();
       if (!_hay.includes(_q)) return false;
     }
-    if (SL_FILTER_VAKGEBIED.length && !SL_FILTER_VAKGEBIED.includes(s.vakgebied || '')) return false;
-    if (SL_FILTER_REGIO.length && !SL_FILTER_REGIO.includes(s.regio || '')) return false;
-    if (SL_FILTER_CP.length && !SL_FILTER_CP.includes(s.contactpersoon || '')) return false;
-    if (SL_FILTER_STATUS.length && !SL_FILTER_STATUS.includes(s.status || '')) return false;
-    if (SL_FILTER_VOORW.length && !SL_FILTER_VOORW.includes(s.voorwaarden_bekend || '')) return false;
+    // De keuzelijst wordt met .trim() opgebouwd, dus de vergelijking moet dat
+    // ook doen (melding 21-08: "de filters werken niet"). Stond er in de
+    // import één spatie achter "Elektrotechniek", dan bood het menu de
+    // getrimde waarde aan en vond het filter vervolgens niets — een lege lijst
+    // zonder uitleg. Het zit in de gegevens, maar het filter hoort er tegen te
+    // kunnen: een spatie is geen andere categorie.
+    const veld = (v) => String(v || '').trim();
+    if (SL_FILTER_VAKGEBIED.length && !SL_FILTER_VAKGEBIED.includes(veld(s.vakgebied))) return false;
+    if (SL_FILTER_REGIO.length && !SL_FILTER_REGIO.includes(veld(s.regio))) return false;
+    if (SL_FILTER_CP.length && !SL_FILTER_CP.includes(veld(s.contactpersoon))) return false;
+    if (SL_FILTER_STATUS.length && !SL_FILTER_STATUS.includes(veld(s.status))) return false;
+    if (SL_FILTER_VOORW.length && !SL_FILTER_VOORW.includes(veld(s.voorwaarden_bekend))) return false;
     if (!slBoolMatch(s.sc, SL_FILTER_SC)) return false;
     if (!slBoolMatch(s.monteur, SL_FILTER_MONTEUR)) return false;
     if (!slBoolMatch(s.wvb, SL_FILTER_WVB)) return false;
