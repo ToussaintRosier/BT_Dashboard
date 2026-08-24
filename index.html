@@ -2811,7 +2811,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-2003 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-2041 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -2875,6 +2875,31 @@ const SUPABASE_ANON_KEY = 'sb_publishable_cABVGts0OTDqfQLQsYMVqg_5O0Rmp3I';
 const supa = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
+
+// ── De eigen echo (24-08, "de knoppen haperen") ────────────────────────────
+// Elke schrijfactie komt via de live-verbinding als bericht terug bij de
+// afzender zelf: je klikt Opslaan, het scherm hertekent meteen, en een
+// seconde later hertekent het nóg een keer omdat je eigen wijziging als
+// bericht binnenkomt. Dat zag je als knipperen.
+//
+// Hier wordt elke schrijfactie automatisch gestempeld, op de verbinding zelf
+// in plaats van bij tientallen losse aanroepen — dan kan een nieuwe
+// schrijfactie het stempelen niet vergeten. De realtime-afhandelaar
+// (_rtVerzamel) laadt de gegevens gewoon opnieuw, maar slaat de hertekening
+// over als het bericht alleen de eigen echo is.
+let _EIGEN_ECHO = {};
+function _echoVanZelf(tabel) { _EIGEN_ECHO[tabel] = Date.now(); }
+if (supa) {
+  const _origFrom = supa.from.bind(supa);
+  supa.from = (tabel) => {
+    const bouwer = _origFrom(tabel);
+    for (const m of ['insert', 'update', 'upsert', 'delete']) {
+      const orig = bouwer[m] && bouwer[m].bind(bouwer);
+      if (orig) bouwer[m] = (...args) => { _echoVanZelf(tabel); return orig(...args); };
+    }
+    return bouwer;
+  };
+}
 
 let CURRENT_USER = null;   // profiel van de ingelogde gebruiker (rol, naam, bm_naam)
 let GESPREK_COACHING_RESULTS = {}; // keyed by record.id → { loading, result, error }
@@ -5690,7 +5715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-2003';
+const APP_VERSIE = '20260824-2041';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12390,6 +12415,15 @@ const _RT_TAKEN = {
 // alles binnen een halve seconde verzameld en volgt er één hertekening.
 let _RT_WACHTRIJ = new Set();
 let _RT_TIMER    = null;
+
+// De eigen echo (24-08, "de knoppen haperen"). Elke schrijfactie komt via de
+// live-verbinding als bericht terug bij de afzender zelf: je klikt Opslaan,
+// het scherm hertekent meteen, en een seconde later hertekent het nóg een
+// keer omdat je eigen wijziging als bericht binnenkomt. Dat tweede keer zag
+// je als knipperen. Wie zelf net heeft geschreven, hoeft zijn eigen bericht
+// niet terug te zien: de gegevens worden wél opnieuw geladen (dat houdt de
+// cache eerlijk), alleen de hertekening blijft achterwege. Berichten van
+// collega's — buiten dit venster van vier seconden — hertekenen gewoon.
 function _rtVerzamel(tabel) {
   _RT_WACHTRIJ.add(tabel);
   if (_RT_TIMER) return;
@@ -12401,7 +12435,8 @@ function _rtVerzamel(tabel) {
       try { await _RT_TAKEN[t](); }
       catch (e) { _meldStil('realtime bijwerken: ' + t, e); }
     }
-    stilRender();
+    const vanAnder = tabellen.some(t => Date.now() - (_EIGEN_ECHO[t] || 0) > 4000);
+    if (vanAnder) stilRender();
   }, 500);
 }
 
