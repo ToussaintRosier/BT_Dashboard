@@ -2108,6 +2108,12 @@
   /* De weekknop: donker uitgevoerd, zoals de rest van de balk (aanwijzing
      20-08 met schermafbeelding). De witte knop van eerst sprong eruit als de
      enige lichte vlek op een donkere accordeon. */
+  /* "wijkt af": het opgeslagen cijfer van deze week klopt niet met de
+     kaartjes. Oranje, want het is geen storing maar wel iets om recht te
+     zetten — dezelfde kleur als een onvolledig contract in Projecten. */
+  .pipe-afwijk { flex-shrink:0; white-space:nowrap; font-size:.66rem;
+                 padding:1px 8px; border-radius:9px; cursor:help;
+                 background:rgba(240,160,32,.18); color:#f0a020; }
   .pipe-wkknop { flex-shrink:0; white-space:nowrap; cursor:pointer;
                  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.28);
                  color:rgba(255,255,255,.85); border-radius:6px;
@@ -2313,9 +2319,18 @@
                                border:none !important; }
   /* Verwijderen staat rechts en is rood omlijnd: dezelfde maat als de andere
      knoppen, maar niet dezelfde uitnodiging. */
+  /* Eén maat voor alle knoppen op de MT-schermen (24-08). Die maat stond
+     eerder in de opmaak van elke knop apart; een nieuwe knop die alleen een
+     kleur meekreeg werd daardoor een los blokje met de standaardmaat van de
+     browser. Nu draagt de klasse de vorm; de regels eromheen zetten er alleen
+     nog de kleur op. */
+  .mt-knop-eerste, .mt-knop-tweede, .mt-knop-weg {
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    box-sizing:border-box; height:36px; padding:0 16px; border-radius:6px;
+    font-size:.82rem; font-weight:var(--w-nadruk); font-family:inherit;
+    line-height:1; white-space:nowrap; cursor:pointer; }
   .mt-knop-weg { margin-left:auto; background:transparent; border:1px solid #e02424;
-                 color:#e02424; border-radius:6px; padding:8px 16px; font-size:.82rem;
-                 font-family:inherit; cursor:pointer; }
+                 color:#e02424; }
   .mt-knop-weg:hover { background:#e02424; color:#fff; }
   .mt-donker .mt-knop-weg { border-color:#ff8080; color:#ff8080; }
   .mt-donker .mt-knop-weg:hover { background:#ff8080; color:#253151; }
@@ -2794,7 +2809,7 @@
 }
 </style>
 </head>
-<!-- BT-VERSIE 20260824-1908 — wordt bij elke oplevering ververst. Het dashboard
+<!-- BT-VERSIE 20260824-1927 — wordt bij elke oplevering ververst. Het dashboard
      vergelijkt deze regel met wat er op de server staat; wijkt hij af, dan komt
      er onderin een balkje "nieuwe versie beschikbaar". -->
 <body>
@@ -5673,7 +5688,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-1908';
+const APP_VERSIE = '20260824-1927';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -5682,15 +5697,68 @@ function _versieUitTekst(tekst) {
 }
 
 async function versieControle() {
-  if (_versieGemeld || document.hidden) return;
+  if (_versieGemeld) return;
+  // Ook in een achtergrondtabblad kijken (aanpassing 24-08): juist dán is het
+  // een goed moment om bij te werken, want er zit niemand naar te kijken.
   try {
     const res = await fetch('index.html?v=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return;
     const nieuw = _versieUitTekst(await res.text());
     if (!nieuw || nieuw === APP_VERSIE) return;
     _versieGemeld = true;
-    toonVersieBalk();
+    _versieAutoBijwerken();
   } catch (_) { /* geen net, geen melding — volgende keer weer */ }
+}
+
+// ── Vanzelf bijwerken (24-08) ──────────────────────────────────────────────
+// Collega's moesten elke keer op "Bijwerken" klikken. Dat kan vanzelf, maar
+// niet zomaar: herladen terwijl iemand een notule typt of een gesprek opneemt
+// gooit werk weg. Dus: bijwerken zodra het rustig is, en anders wachten en
+// het elke minuut opnieuw proberen. Wie na tien minuten nog steeds bezig is,
+// krijgt alsnog de balk te zien zodat hij het zelf kan kiezen.
+let _versiePogingen = 0;
+let _versieWachtTimer = null;
+
+function _veiligOmTeHerladen() {
+  // Een tabblad op de achtergrond is altijd veilig: daar typt niemand.
+  if (document.hidden) return true;
+  const el = document.activeElement;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return false;
+  // Een opname of een analyse die loopt, breek je niet af.
+  if (typeof GESPREK !== 'undefined' && (GESPREK.recording || GESPREK.paused || GESPREK.analyzing)) return false;
+  if (typeof BEZOEK  !== 'undefined' && (BEZOEK.recording  || BEZOEK.paused  || BEZOEK.analyzing))  return false;
+  if (window._comrapState && window._comrapState.bezig) return false;
+  if (typeof UREN_SYNC_BUSY !== 'undefined' && UREN_SYNC_BUSY) return false;
+  if (typeof FINANCIEEL_SYNC_BUSY !== 'undefined' && FINANCIEEL_SYNC_BUSY) return false;
+  // Automatisch opslaan dat nog moet gebeuren: eerst dat, dan pas herladen.
+  if (typeof PVA_AUTOSAVE_TIMERS !== 'undefined'
+      && Object.values(PVA_AUTOSAVE_TIMERS || {}).some(Boolean)) return false;
+  // Een open venster (uitleg, ladder, contract, kaartje) niet wegtrekken.
+  if (document.querySelector('.uitleg-laag, .pipe-modal-overlay.open, dialog[open]')) return false;
+  return true;
+}
+
+function _versieAutoBijwerken() {
+  if (_veiligOmTeHerladen()) {
+    // Even een teken van leven, anders lijkt het scherm zomaar te verspringen.
+    if (!document.hidden) _toonVersieToast();
+    setTimeout(versieBijwerken, document.hidden ? 0 : 1200);
+    return;
+  }
+  _versiePogingen++;
+  // Na tien mislukte pogingen (dus tien minuten bezig) alsnog de keuze geven.
+  if (_versiePogingen >= 10) { toonVersieBalk(); return; }
+  clearTimeout(_versieWachtTimer);
+  _versieWachtTimer = setTimeout(_versieAutoBijwerken, 60 * 1000);
+}
+
+function _toonVersieToast() {
+  if (document.getElementById('versie-toast')) return;
+  const t = document.createElement('div');
+  t.className = 'versie-balk';
+  t.id = 'versie-toast';
+  t.innerHTML = '<span>Nieuwe versie — het scherm wordt even bijgewerkt.</span>';
+  document.body.appendChild(t);
 }
 
 function toonVersieBalk() {
@@ -5723,9 +5791,11 @@ async function versieBijwerken() {
 
 function _versieWaakhond() {
   versieControle();
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) versieControle(); });
+  // Bij terugkomen op het tabblad, bij het wegklikken ervan (dan is het juist
+  // een rustig moment), en verder elke vijf minuten.
+  document.addEventListener('visibilitychange', versieControle);
   window.addEventListener('focus', versieControle);
-  setInterval(versieControle, 15 * 60 * 1000);
+  setInterval(versieControle, 5 * 60 * 1000);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -9587,8 +9657,8 @@ function _mtAfdruk(titel, kop, meta, inhoud, direct) {
 // scherm opnieuw hoeft te zoeken. `roep` levert de aanroep op voor de stand
 // van direct: bijvoorbeeld roep => `printMtNotule(12, ${roep})`.
 function _mtExportKnoppen(maakAanroep) {
-  const stijl = `background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;` +
-                `padding:8px 16px;font-size:.82rem;cursor:pointer;`;
+  // Alleen nog de kleur; de maat zit in .mt-knop-tweede (aanpassing 24-08).
+  const stijl = `background:#fff;color:var(--muted);border:1px solid var(--border);`;
   return `<button class="mt-knop-tweede" style="${stijl}"
             title="Opent de pagina om na te lezen; daar bewaar je hem als PDF"
             onclick="${maakAanroep('false')}">Exporteer PDF</button>
@@ -9619,8 +9689,8 @@ function mtNotuleHuidigHtml() {
              onclick="stempelInvoegen(document.getElementById('mt-notule-veld'))">✎ initialen</button>`;
 
   const actieBtn = !mag ? '' : bevroren
-    ? `<button class="mt-knop-eerste" onclick="mtNotuleWijzig()" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Wijzigen</button>`
-    : `<button class="mt-knop-eerste" onclick="mtNotuleOpslaanKnop()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Opslaan</button>`;
+    ? `<button class="mt-knop-eerste" onclick="mtNotuleWijzig()" style="background:#fff;color:var(--primary);border:1px solid var(--primary);">Wijzigen</button>`
+    : `<button class="mt-knop-eerste" onclick="mtNotuleOpslaanKnop()" style="background:var(--primary);color:#fff;border:none;">Opslaan</button>`;
   const printBtn = _mtExportKnoppen(d => `printMtNotule(${rij ? rij.id : 0}, ${d})`);
   const status = bevroren ? _mtBevrorenPil('Bevroren & opgeslagen voor deze week') : '';
 
@@ -9737,7 +9807,7 @@ function mtNotuleLogboekHtml() {
     const knoppen  = !mag ? '' : losOpen
       ? `<button class="mt-knop-eerste" onclick="mtNotuleOudeOpslaanKnop(${n.id})">Opslaan</button>
          <button class="mt-knop-tweede" onclick="mtNotuleWijzigStop(${n.id})">Annuleren</button>`
-      : `<button class="mt-knop-eerste" onclick="mtNotuleOudeWijzig(${n.id})">Wijzigen</button>`;
+      : `<button class="mt-knop-tweede" onclick="mtNotuleOudeWijzig(${n.id})">Wijzigen</button>`;
     const wegKnop  = (!mag || losOpen) ? '' :
       `<button class="mt-knop-weg" onclick="mtNotuleVerwijder(${n.id})"
                title="Deze notule verwijderen">Verwijderen</button>`;
@@ -9781,7 +9851,7 @@ function mtNotuleLogboekHtml() {
         <textarea id="mt-notule-oud-tekst" rows="4" data-pva-ta="1" placeholder="Wat is er die week besproken en afgesproken?"></textarea>
       </div>
       <button class="mt-knop-eerste" onclick="mtNotuleOudeOpslaan()"
-        style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-weight:700;font-size:.8rem;cursor:pointer;">Opslaan</button>
+        style="background:var(--primary);color:#fff;border:none;">Opslaan</button>
     </div>`;
   }
   return werkLogboekHtml('Eerdere notulen — logboek', formulier + regels,
@@ -9906,8 +9976,8 @@ function mtCoachNotitieHtml(bmNaam) {
     `<button type="button" class="stempel-knop" title="Zet je initialen met datum en tijd neer (F2)"
              onclick="stempelInvoegen(document.getElementById('mt-coach-veld'))">✎ initialen</button>`;
   const actieBtn = !mag ? '' : bevroren
-    ? `<button class="mt-knop-eerste" onclick="mtCoachWijzig('${escApos(bmNaam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Wijzigen</button>`
-    : `<button class="mt-knop-eerste" onclick="mtCoachOpslaan('${escApos(bmNaam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.82rem;cursor:pointer;">Opslaan</button>`;
+    ? `<button class="mt-knop-eerste" onclick="mtCoachWijzig('${escApos(bmNaam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);">Wijzigen</button>`
+    : `<button class="mt-knop-eerste" onclick="mtCoachOpslaan('${escApos(bmNaam)}')" style="background:var(--primary);color:#fff;border:none;">Opslaan</button>`;
   // De knoppen staan er ook als er nog niets is opgeslagen; ze melden dat dan
   // zelf. Verschijnen ze pas ná de eerste keer opslaan, dan weet iemand die
   // het scherm voor het eerst opent niet dat ze bestaan.
@@ -10373,10 +10443,10 @@ function renderBumGesprek(bm) {
 
   const knop = !magSchrijven ? ''
     : unlocked
-      ? `<button class="mt-knop-eerste" onclick="saveBumGesprek('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Opslaan</button>`
-      : `<button class="mt-knop-eerste" onclick="unlockBumGesprek('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Wijzigen</button>`;
+      ? `<button class="mt-knop-eerste" onclick="saveBumGesprek('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;">Opslaan</button>`
+      : `<button class="mt-knop-eerste" onclick="unlockBumGesprek('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);">Wijzigen</button>`;
 
-  const printBtn = `<button class="mt-knop-tweede" onclick="printBumGesprek('${escApos(bm.naam)}',${jaar},${week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Exporteer PDF</button>`;
+  const printBtn = `<button class="mt-knop-tweede" onclick="printBumGesprek('${escApos(bm.naam)}',${jaar},${week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);">Exporteer PDF</button>`;
   const statusHtml = vast
     ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">Bevroren &amp; opgeslagen voor deze week</span>`
     : '';
@@ -10424,7 +10494,7 @@ function renderBumLogboek(bm) {
       ${blok('Wat is gerealiseerd', r.gerealiseerd)}
       ${blok('Afgesproken acties', r.nieuwe_acties)}
       <div style="margin-top:8px">
-        <button class="mt-knop-tweede" onclick="printBumGesprek('${escApos(bm.naam)}',${r.jaar},${r.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">Exporteer PDF</button>
+        <button class="mt-knop-tweede" onclick="printBumGesprek('${escApos(bm.naam)}',${r.jaar},${r.week})" style="background:#fff;color:var(--muted);border:1px solid var(--border);">Exporteer PDF</button>
       </div>
     </div>`;
   }).join('');
@@ -10560,10 +10630,10 @@ function renderPlanVanAanpak(bm) {
     : '';
 
   const actionBtn = unlocked
-    ? `<button class="mt-knop-eerste" onclick="savePlanVanAanpak('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Opslaan</button>`
-    : `<button class="mt-knop-eerste" onclick="unlockPlanVanAanpak('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Wijzigen</button>`;
+    ? `<button class="mt-knop-eerste" onclick="savePlanVanAanpak('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;">Opslaan</button>`
+    : `<button class="mt-knop-eerste" onclick="unlockPlanVanAanpak('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);">Wijzigen</button>`;
 
-  const printBtn = `<button class="mt-knop-tweede" onclick="printPlanVanAanpak('${escApos(bm.naam)}')" style="background:#fff;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:8px 18px;font-weight:700;font-size:.85rem;cursor:pointer;">Exporteer PDF</button>`;
+  const printBtn = `<button class="mt-knop-tweede" onclick="printPlanVanAanpak('${escApos(bm.naam)}')" style="background:#fff;color:var(--muted);border:1px solid var(--border);">Exporteer PDF</button>`;
 
   const isManager = isManagerLevel();
 
@@ -10580,8 +10650,8 @@ function renderPlanVanAanpak(bm) {
   const mgrNoteFrozen   = mgrNoteAlready && !mgrNoteUnlocked;
   const mgrNoteActionBtn = isManager
     ? (mgrNoteFrozen
-        ? `<button class="mt-knop-eerste" onclick="unlockManagerNotitie('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);border-radius:6px;padding:6px 14px;font-weight:700;font-size:.8rem;cursor:pointer;">Wijzigen</button>`
-        : `<button class="mt-knop-eerste" onclick="saveManagerNotitie('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:700;font-size:.8rem;cursor:pointer;">Opslaan</button>`)
+        ? `<button class="mt-knop-eerste" onclick="unlockManagerNotitie('${escApos(bm.naam)}')" style="background:#fff;color:var(--primary);border:1px solid var(--primary);">Wijzigen</button>`
+        : `<button class="mt-knop-eerste" onclick="saveManagerNotitie('${escApos(bm.naam)}')" style="background:var(--primary);color:#fff;border:none;">Opslaan</button>`)
     : '';
 
   // Linkerkolom: logboek met de laatste weken — elke week is een inklapbare balk,
@@ -17847,8 +17917,66 @@ function pipeLoad(bmNaam) {
 }
 
 function pipeSave(bmNaam, cards) {
-  if (supa) { PIPE_CACHE[bmNaam] = cards; return; }
-  try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {}
+  if (supa) { PIPE_CACHE[bmNaam] = cards; }
+  else { try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {} }
+  // Elke wijziging in de pipeline kan de weekcijfers van een al opgeslagen
+  // week veranderen; die worden hierna bijgetrokken (zie _pipeWeekcijfersGelijk).
+  _pipeWeekcijfersLater(bmNaam);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// EEN OPGESLAGEN WEEK LOOPT MEE MET DE PIPELINE
+//
+// WAT ER MISGING (melding 24-08)
+//   De weekcijfers in kpi_weekly zijn een momentopname: ze worden geschreven
+//   als iemand op Opslaan klikt. De pipeline verandert daarna gewoon door.
+//   Voegde je een kandidaat toe aan een week die al was opgeslagen, dan bleef
+//   het oude getal staan — op het collectieve blad, in de rapportage, in de
+//   ranglijst. Pas na Wijzigen en opnieuw Opslaan klopte het weer. Dat is
+//   precies wat er werd gemeld.
+//
+// WAAROM BIJTREKKEN MAG
+//   Handmatig invoeren van afwijkende cijfers kán al niet: saveWeeklyEntry()
+//   weigert op te slaan als de ingevoerde aantallen niet exact overeenkomen
+//   met de telling uit de pipeline. De pipeline ís dus de waarheid, en de
+//   opgeslagen week hoort die te volgen. Blijft het verschil staan, dan heb je
+//   twee waarheden en klopt er ergens altijd iets niet.
+//
+// WAT HET NIET DOET
+//   Weken die nog nooit zijn opgeslagen krijgen géén rij. Opslaan blijft de
+//   handeling waarmee je een week accordeert; dit trekt alleen bij wat al
+//   geaccordeerd wás.
+// ════════════════════════════════════════════════════════════════════════════
+let _pipeSyncTimers = {};
+
+function _pipeWeekcijfersLater(bmNaam) {
+  clearTimeout(_pipeSyncTimers[bmNaam]);
+  // Kort wachten: bij slepen of snel achter elkaar wijzigen anders vier
+  // schrijfacties voor één handeling.
+  _pipeSyncTimers[bmNaam] = setTimeout(() => _pipeWeekcijfersGelijk(bmNaam), 1200);
+}
+
+async function _pipeWeekcijfersGelijk(bmNaam) {
+  if (!supa || !CURRENT_USER) return;
+  if (!magWijzigen('medewerkers') || !canEdit(bmNaam)) return;
+  try {
+    // Alleen weken die al een rij hebben, en alleen dit en vorig jaar: verder
+    // terug verandert niemand meer iets aan zijn pipeline.
+    const jaren = [CUR.year, CUR.year - 1];
+    const rijen = RAW.filter(r => r.naam === bmNaam && jaren.includes(+r.jaar));
+    for (const rij of rijen) {
+      const telling = getPipeCountsForWeek(bmNaam, +rij.week, +rij.jaar);
+      const anders = KPIS.some(k => (+rij[k] || 0) !== (+telling[k] || 0));
+      if (!anders) continue;
+      const payload = { bm_naam: bmNaam, jaar: +rij.jaar, week: +rij.week, ...telling,
+                        updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
+      const { error } = await supa.from('kpi_weekly')
+        .upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+      if (error) { meldFout('weekcijfers bijtrekken: ' + error.message, '_pipeWeekcijfersGelijk'); return; }
+      Object.assign(rij, telling);   // de cache meteen mee, anders loopt het scherm achter
+    }
+    recomputeRatios();
+  } catch (e) { _meldStil('weekcijfers bijtrekken', e); }
 }
 
 // Helper: bouw een pipeline-card object uit een DB-rij
@@ -25450,7 +25578,17 @@ function renderPipeline(bm) {
     // Het slotje is vervallen (20-08): het woord staat nu op de knop zelf.
     // Het groene streepje links blijft wél — dat is de kleurtaal die Projecten
     // ook gebruikt, en je ziet er in één blik aan welke weken al vastliggen.
-    const slotPil = '';
+    //
+    // Wijkt een opgeslagen week af van de kaartjes, dan hoort dat zichtbaar te
+    // zijn (24-08). Normaal trekt het dashboard dat zelf recht; lukt dat niet
+    // — geen net, geen rechten — dan zie je het hier in plaats van dat het
+    // ergens anders stilletjes een verkeerd getal oplevert.
+    const opgeslagen = RAW.find(r => r.naam === bm.naam && +r.jaar === wk.year && +r.week === wk.week);
+    const telling    = getPipeCountsForWeek(bm.naam, wk.week, wk.year);
+    const wijktAf    = opgeslagen && KPIS.some(k => (+opgeslagen[k] || 0) !== (+telling[k] || 0));
+    const slotPil    = wijktAf
+      ? `<span class="pipe-afwijk" title="De opgeslagen weekcijfers wijken af van de kaartjes hiernaast. Klik op Wijzigen en daarna Opslaan om het recht te zetten.">wijkt af</span>`
+      : '';
 
     // Pipeline cellen (content)
     const cells = PIPE_STAGES.map((stage, si) => {
