@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260825-0804 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260825-1224 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -741,19 +741,31 @@
   .kam-tel { display:flex; gap:16px; font-size:.76rem; color:rgba(255,255,255,.6);
              margin-bottom:9px; }
   .kam-tel b { color:#fff; font-weight:var(--w-nadruk); }
-  .kam-rij { display:flex; align-items:baseline; gap:9px; font-size:.8rem;
-             color:rgba(255,255,255,.88); padding:6px 0;
-             border-bottom:1px solid rgba(255,255,255,.08); }
-  .kam-rij:last-child { border-bottom:none; }
-  .kam-rij .d { font-size:.72rem; color:rgba(255,255,255,.45); flex-shrink:0;
-                width:74px; }
-  .kam-rij .t { min-width:0; }
-  .kam-rij .w { margin-left:auto; font-size:.72rem; color:rgba(255,255,255,.5);
-                flex-shrink:0; padding-left:10px; }
-  .kam-rij .stil { color:rgba(255,255,255,.5); }
+  /* Vaste kolommen in plaats van losse regels (25-08): zo begint de klantnaam
+     bij elke rij op dezelfde plek en drukt een lange wijziging de rest niet weg. */
+  .kam-tab { width:100%; border-collapse:collapse; font-size:.8rem; }
+  .kam-tab th { text-align:left; font-size:.66rem; text-transform:uppercase;
+                letter-spacing:.04em; color:rgba(255,255,255,.45);
+                font-weight:var(--w-normaal); padding:0 10px 6px 0;
+                border-bottom:1px solid rgba(255,255,255,.14); }
+  .kam-tab td { padding:6px 10px 6px 0; color:rgba(255,255,255,.88);
+                border-bottom:1px solid rgba(255,255,255,.08); vertical-align:top; }
+  .kam-tab tr:last-child td { border-bottom:none; }
+  .kam-d   { width:96px; color:rgba(255,255,255,.45); white-space:nowrap; }
+  .kam-p   { width:86px; }
+  .kam-kl  { width:170px; color:#fff; }
+  .kam-wk  { width:56px; color:rgba(255,255,255,.5); }
+  .kam-st  { width:120px; }
+  .kam-wie { width:130px; text-align:right; color:rgba(255,255,255,.5);
+             white-space:nowrap; padding-right:0 !important; }
+  .kam-veldrij { padding:1px 0; }
+  .kam-veld  { color:rgba(255,255,255,.55); }
+  .kam-nieuw { color:rgba(255,255,255,.92); }
   /* De oude waarde blijft leesbaar maar doorgestreept: je wilt zien waar het
      vandaan kwam, niet erover struikelen. */
-  .kam-rij .oud { text-decoration:line-through; color:rgba(255,255,255,.4); }
+  .kam-tab .oud { text-decoration:line-through; color:rgba(255,255,255,.38); }
+  .kam-pil.ja  { background:rgba(52,211,153,.18); color:#6ee7b7; cursor:pointer; }
+  .kam-pil.nee { background:rgba(240,160,32,.16); color:#f0a020; }
   .kam-pil { font-size:.66rem; padding:1px 7px; border-radius:9px; flex-shrink:0; }
   .kam-pil.n { background:rgba(52,211,153,.18); color:#6ee7b7; }
   .kam-pil.w { background:rgba(244,203,60,.18); color:var(--accent-gold, #F4CB3C); }
@@ -3738,10 +3750,25 @@ const CHART_RASTER = 'rgba(255,255,255,.09)';
 const CHART_AS     = 'rgba(255,255,255,.18)';
 const CHART_TEKST  = 'rgba(255,255,255,.45)';
 
+// Onthoudt per grafiek welke gegevens er als laatst in stonden. Een
+// hertekening van het scherm bouwt het hele blok opnieuw op — ook de canvas —
+// dus de grafiek moet altijd opnieuw worden aangemaakt. Maar als er niets is
+// veranderd hoeft hij zich niet opnieuw op te bouwen voor het oog: dan slaan
+// we de animatie over en staat hij er meteen (melding 25-08: "de grafiek lijkt
+// zich steeds opnieuw te laden"). De vingerafdruk overleeft het opruimen van
+// de grafieken zelf, want die staan in een andere lijst.
+let _chartVingers = {};
+
 function makeChart(id, labels, datasets, type='line', opts={}) {
   destroyChart(id);
   const ctx = document.getElementById(id)?.getContext('2d');
   if (!ctx) return;
+  let vinger = '';
+  try {
+    vinger = JSON.stringify([type, labels, datasets.map(d => [d.label, d.type, d.data])]);
+  } catch (_) { vinger = ''; }
+  const zelfdeAlsNet = vinger && _chartVingers[id] === vinger;
+  _chartVingers[id] = vinger;
   const sets = datasets.map(d => {
     if (d.type === 'bar' || (type === 'bar' && !d.type)) {
       return Object.assign({ maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 } }, d);
@@ -3753,6 +3780,9 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
     data: { labels, datasets: sets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      // Zelfde gegevens als zojuist: meteen neerzetten. Anders de gewone,
+      // korte opbouw — die hoort bij een grafiek die écht verandert.
+      animation: zelfdeAlsNet ? false : { duration: 400 },
       plugins: {
         legend: { display: opts.legend !== false, position: 'top',
                   labels: { boxWidth: 10, boxHeight: 10, usePointStyle: false,
@@ -5762,7 +5792,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260825-0804';
+const APP_VERSIE = '20260825-1224';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8957,6 +8987,10 @@ function _renderKern() {
   vulKopGebruiker();
   snapshotPvaInputs();
   renderTabs();
+  // Alle grafieken opruimen: de schermen bouwen hun eigen blok opnieuw op, en
+  // een grafiek die aan een verdwenen canvas hangt blijft anders in het
+  // geheugen hangen. De vingerafdrukken blijven wél staan, zodat een grafiek
+  // die daarna met dezelfde gegevens terugkomt niet opnieuw opbouwt.
   Object.values(charts).forEach(c => c?.destroy()); charts = {};
   // Na elke hertekening de jaarwaarschuwing en de voetregel eromheen zetten.
   // Alleen op de schermen die daadwerkelijk met het gekozen jaar rekenen.
@@ -19085,37 +19119,53 @@ function _kamWeekKeuze() {
   return _weekVerschoven(nu.year, nu.week, KAM_WEEK_OFFSET);
 }
 
-function _kamBezoekRij(r) {
-  const soort = (r.soortBezoek || 'bedrijfsbezoek').replace(/_/g, ' ');
-  const heeft = !!(r.result || r.heeftTranscript);
-  return `<div class="kam-rij">
-    <span class="d">${escHtml(String(r.datum || '').replace(/ \d{4}$/, ''))}</span>
-    <span class="t">${escHtml(r.bedrijf || 'zonder bedrijfsnaam')}${
-      r.contactpersoon ? ` <span class="stil">— ${escHtml(r.contactpersoon)}</span>` : ''}</span>
-    ${heeft ? `<span class="kam-pil b" onclick="selectTab('bezoek')" style="cursor:pointer;"
-                     title="Naar het verslag in de BZK-recorder">verslag</span>`
-            : '<span class="kam-pil leeg">geen verslag</span>'}
-    <span class="w">${escHtml(soort)}</span>
-  </div>`;
+// Eén regel per bezoek uit de pipeline, met vaste kolommen.
+function _kamBezoekRij(x) {
+  const naamKlant = x.kaart.naam || x.kaart.opdrachtgever || 'zonder naam';
+  return `<tr>
+    <td class="kam-wk">W${x.week}</td>
+    <td>${escHtml(naamKlant)}</td>
+    <td class="kam-wie">${escHtml(_dagstartVoornaam(x.collega))}</td>
+    <td class="kam-st">${x.verslag
+      ? `<span class="kam-pil ja" onclick="selectTab('bezoek')"
+               title="Naar het verslag in de BZK-recorder">verslag ↗</span>`
+      : '<span class="kam-pil nee">geen verslag</span>'}</td>
+  </tr>`;
 }
 
+// Vaste kolommen (aanwijzing 25-08): datum, soort, klant, wat er veranderde,
+// wie. Eerder liep alles achter elkaar op één regel, waardoor de klantnaam bij
+// elke rij op een andere plek begon en de lange regels de rest wegdrukten.
 function _kamWijzigingRij(w) {
   const dag = new Date(w.wanneer).toLocaleDateString('nl-NL', { weekday:'short', day:'numeric', month:'short' });
   const pil = w.soort === 'nieuw'      ? '<span class="kam-pil n">nieuw</span>'
             : w.soort === 'verwijderd' ? '<span class="kam-pil x">weg</span>'
             : '<span class="kam-pil w">wijziging</span>';
-  // Bij een wijziging: welk veld, van wat naar wat. Bij meerdere velden op
-  // dezelfde dag staan ze achter elkaar op één regel.
+  // Elk gewijzigd veld op zijn eigen regel binnen dezelfde cel: vier velden
+  // achter elkaar op één regel leest als één lange zin.
   const detail = (w.velden || []).length
-    ? ' · ' + w.velden.map(v =>
-        `${escHtml(_kamVeldNaam(v.veld))} <span class="oud">${escHtml(v.oud || '—')}</span> → ${escHtml(v.nieuw || '—')}`
-      ).join(' · ')
-    : '';
-  return `<div class="kam-rij">
-    <span class="d">${escHtml(dag)}</span>${pil}
-    <span class="t">${escHtml(w.naam || w.rij_id)}${detail}</span>
-    <span class="w">${escHtml(w.door || 'import')}</span>
-  </div>`;
+    ? w.velden.map(v => `<div class="kam-veldrij">
+          <span class="kam-veld">${escHtml(_kamVeldNaam(v.veld))}</span>
+          <span class="oud">${escHtml(_kamWaarde(v.oud))}</span> →
+          <span class="kam-nieuw">${escHtml(_kamWaarde(v.nieuw))}</span>
+        </div>`).join('')
+    : `<span class="kam-veld">${w.soort === 'nieuw' ? 'toegevoegd' : 'verwijderd'}</span>`;
+  return `<tr>
+    <td class="kam-d">${escHtml(dag)}</td>
+    <td class="kam-p">${pil}</td>
+    <td class="kam-kl">${escHtml(w.naam || w.rij_id)}</td>
+    <td>${detail}</td>
+    <td class="kam-wie">${escHtml(w.door || 'import')}</td>
+  </tr>`;
+}
+
+// true en false zijn databasetaal; in het scherm hoort ja en nee te staan.
+function _kamWaarde(v) {
+  const t = String(v == null ? '' : v).trim();
+  if (t === '') return '—';
+  if (t === 'true')  return 'ja';
+  if (t === 'false') return 'nee';
+  return t.length > 60 ? t.slice(0, 60) + '…' : t;
 }
 
 // De kolomnamen uit de database zijn kort; in het scherm horen ze te heten
@@ -19134,31 +19184,44 @@ function renderKamBewegingHtml(subTabBtns) {
   const nu  = isoWeek(new Date());
   const isNu = wk.year === nu.year && wk.week === nu.week;
 
-  const bezoekBlokken = kams.map((bm, i) => {
-    const lijst = _kamBezoeken(bm.naam, wk.year, wk.week);
-    // Het aantal uit de weekcijfers staat ernaast: niet elk bezoek wordt
-    // opgenomen, dus de teller en de verslagen zijn twee verschillende dingen.
-    const rij  = RAW.find(r => r.naam === bm.naam && r.jaar === wk.year && r.week === wk.week);
-    const geteld = rij ? (+rij.bezoeken || 0) : 0;
-    const norm = (bm.normFix && bm.normFix.bezoeken) || 0;
-    return `<div class="bt-venster werk-blad">
-      <div class="pva-blok" style="margin-top:0;">${i + 1}&nbsp; Bezoeken — ${escHtml(bm.naam.split(' ')[0])}</div>
-      <div class="pva-blok-sub">Verslagen uit de BZK-recorder; het getal rechts komt uit de weekcijfers.</div>
-      <div class="kam-tel">
-        <span><b>${lijst.length}</b> ${lijst.length === 1 ? 'verslag' : 'verslagen'}</span>
-        <span><b>${fmt(geteld, geteld % 1 ? 1 : 0)}</b> geteld${norm ? ` van norm ${norm}` : ''}</span>
-      </div>
-      ${lijst.length ? lijst.map(_kamBezoekRij).join('')
-        : '<div class="kam-leeg">Geen verslagen in deze week.</div>'}
+  // Eén lijst voor alle key accountmanagers samen (keuze 25-08), nieuwste
+  // week bovenaan. Charlotte staat er los bij: zij voert dezelfde gesprekken
+  // maar heeft in het systeem niet de rol Key Accountmanager.
+  const bezoeken = [];
+  for (const bm of kams) {
+    for (const kaart of _kamBezoeken(bm.naam, wk.year, wk.week)) {
+      bezoeken.push({ kaart, collega: bm.naam, week: wk.week,
+                      verslag: _kamVerslagBij(kaart, bm.naam, wk.year, wk.week) });
+    }
+  }
+  const metVerslag = bezoeken.filter(x => x.verslag).length;
+  const bezoekBlokken = `<div class="bt-venster werk-blad">
+      <div class="pva-blok" style="margin-top:0;">1&nbsp; Bezoeken</div>
+      <div class="pva-blok-sub">Wat er in de pipeline in de fase Bezoeken staat, met de vraag of er een verslag bij zit.</div>
+      ${bezoeken.length ? `
+        <div class="kam-tel">
+          <span><b>${bezoeken.length}</b> ${bezoeken.length === 1 ? 'bezoek' : 'bezoeken'}</span>
+          <span><b>${metVerslag}</b> met verslag</span>
+          <span><b>${bezoeken.length - metVerslag}</b> zonder</span>
+        </div>
+        <table class="kam-tab">
+          <tr><th class="kam-wk">Week</th><th>Opdrachtgever</th><th class="kam-wie">Collega</th><th class="kam-st">Verslag</th></tr>
+          ${bezoeken.map(_kamBezoekRij).join('')}
+        </table>`
+      : '<div class="kam-leeg">Geen bezoeken in deze week.</div>'}
     </div>`;
-  }).join('');
 
   const blok = (nr, titel, sub, tabel) => {
     const rijen = _kamWijzigingenGebundeld(_kamWijzigingen(tabel, wk.year, wk.week));
     return `<div class="bt-venster werk-blad">
       <div class="pva-blok" style="margin-top:0;">${nr}&nbsp; ${titel}</div>
       <div class="pva-blok-sub">${sub}</div>
-      ${rijen.length ? rijen.map(_kamWijzigingRij).join('')
+      ${rijen.length
+        ? `<table class="kam-tab">
+             <tr><th class="kam-d">Wanneer</th><th class="kam-p">Soort</th>
+                 <th class="kam-kl">Klant</th><th>Wat</th><th class="kam-wie">Door</th></tr>
+             ${rijen.map(_kamWijzigingRij).join('')}
+           </table>`
         : `<div class="kam-leeg">Geen wijzigingen in deze week.${
             WIJZIGINGEN_CACHE.length ? '' : ' Het logboek begint op de dag dat het is aangezet.'}</div>`}
     </div>`;
@@ -19180,9 +19243,9 @@ function renderKamBewegingHtml(subTabBtns) {
     </div>
     ${subTabBtns}
     ${bezoekBlokken}
-    ${blok(kams.length + 1, 'Wijzigingen Key Accountmanagement',
+    ${blok(2, 'Wijzigingen Key Accountmanagement',
            'Nieuwe klanten en gewijzigde scores, met wie en wanneer.', 'accounts')}
-    ${blok(kams.length + 2, 'Wijzigingen RLDV',
+    ${blok(3, 'Wijzigingen RLDV',
            'Nieuwe bedrijven, gewijzigde velden en verwijderingen.', 'sales_leads')}
   </div>`;
 }
@@ -19213,18 +19276,35 @@ async function loadWijzigingen() {
 
 // Wie zijn de Key Accountmanagers? Uit BMS, zodat een nieuwe KAM'er vanzelf
 // meekomt zonder dat hier een naam bijgeschreven hoeft te worden.
+const KAM_EXTRA = ['Charlotte Gigase'];   // voert dezelfde gesprekken, andere rol
 function _kamCollegas() {
-  return BMS.filter(b => b.rol === 'Key Accountmanager' && !b.inactief);
+  return BMS.filter(b => !b.inactief &&
+    (b.rol === 'Key Accountmanager' || KAM_EXTRA.includes(b.naam)));
 }
 
-// De bezoeken van één collega in een week, uit de BZK-recorder.
+// De bezoeken van één collega in een week — uit de PIPELINE (keuze 25-08).
+// Daar staat wat er werkelijk gepland en gedaan is; de recorder bevat alleen
+// de bezoeken waarvan iemand een opname heeft gemaakt. Andersom om dus: de
+// pipeline is de lijst, het verslag is een kolom erbij.
 function _kamBezoeken(naam, jaar, week) {
+  return (pipeLoad(naam) || []).filter(c =>
+    c.stage === 'Bezoeken' && +c.week === +week && +c.jaar === +jaar);
+}
+
+// Hoort er een verslag bij dit bezoek? Gekoppeld op dezelfde bedrijfsnaam in
+// dezelfde week — hoofdletters en dubbele spaties genegeerd. Een verslag dat
+// een week later is opgenomen of onder een andere schrijfwijze staat, wordt
+// niet gevonden; dat is bewust, want een verkeerd gekoppeld verslag is erger
+// dan een lege kolom.
+function _kamVerslagBij(kaart, naam, jaar, week) {
   const { monday, sunday } = isoWeekDateRange(jaar, week);
-  return BEZOEK_RECORDS.filter(r => {
-    if ((r.recorder_naam || '') !== naam) return false;
+  const sleutel = _itkSleutel(kaart.naam || kaart.opdrachtgever || '');
+  if (!sleutel) return null;
+  return BEZOEK_RECORDS.find(r => {
+    if (_itkSleutel(r.bedrijf) !== sleutel) return false;
     const d = _kamDatum(r.datum);
     return d && d >= monday && d <= sunday;
-  });
+  }) || null;
 }
 
 // De recorder bewaart de datum als leesbare tekst ("21 augustus 2026"); die
