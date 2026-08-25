@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260824-2120 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260825-0804 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5762,7 +5762,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260824-2120';
+const APP_VERSIE = '20260825-0804';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12347,9 +12347,11 @@ function tedoenLijst() {
       continue;
     }
     if (!gedeeld.akkoord_keuze) {
-      if (_tedoenDagenGeleden(gedeeld.gepubliceerd) >= TEDOEN_REACTIE_DAGEN) {
-        uit.geenReactie.push({ rec, dagen: _tedoenDagenGeleden(gedeeld.gepubliceerd), wie });
-      }
+      // gepubliceerd is een ja/nee-veld, geen datum (fout 25-08: dat gaf
+      // 20690 dagen — geteld vanaf 1970). Wanneer er is verstuurd staat in
+      // updated_at; is dat er niet, dan valt hij terug op created_at.
+      const sinds = _tedoenDagenGeleden(gedeeld.updated_at || gedeeld.created_at);
+      if (sinds >= TEDOEN_REACTIE_DAGEN) uit.geenReactie.push({ rec, dagen: sinds, wie });
       // Een link die bijna vervalt terwijl er nog geen antwoord is.
       if (gedeeld.verloopt_op) {
         const over = -_tedoenDagenGeleden(gedeeld.verloopt_op);
@@ -12357,8 +12359,10 @@ function tedoenLijst() {
       }
     }
   }
-  const sorteer = (a, b) => b.dagen - a.dagen;
-  uit.nietGedeeld.sort(sorteer); uit.geenReactie.sort(sorteer);
+  // Nieuwste bovenaan (aanwijzing 25-08): het minste aantal dagen eerst. Wat
+  // al weken ligt zakt naar onderen — je begint bij wat vers is.
+  const nieuwsteEerst = (a, b) => a.dagen - b.dagen;
+  uit.nietGedeeld.sort(nieuwsteEerst); uit.geenReactie.sort(nieuwsteEerst);
   uit.verloopt.sort((a, b) => a.dagen - b.dagen);
   uit.totaal = uit.nietGedeeld.length + uit.geenReactie.length + uit.verloopt.length;
   return uit;
@@ -12385,10 +12389,12 @@ function tedoenHtml() {
 
   return `<div class="tedoen">
     <div class="tedoen-kop">NOG TE DOEN</div>
-    ${groep('Afspraken nog niet gedeeld', lijst.nietGedeeld, '#b45309', dagTekst)}
+    ${/* Volgorde (25-08): eerst wat is verstuurd en waar je op wacht, dan wat
+         binnenkort vervalt, en onderaan de stapel die nog gedeeld moet worden. */''}
     ${groep('Verstuurd, nog geen reactie', lijst.geenReactie, '#6b7280', dagTekst)}
     ${groep('Link verloopt binnenkort', lijst.verloopt, '#b45309',
             (n) => n === 0 ? 'vandaag' : 'over ' + n + (n === 1 ? ' dag' : ' dagen'))}
+    ${groep('Afspraken nog niet gedeeld', lijst.nietGedeeld, '#b45309', dagTekst)}
     <div class="tedoen-voet">Delen doe je in de ITK-recorder, bij het gesprek.</div>
   </div>`;
 }
@@ -13256,7 +13262,7 @@ async function loadAfsprakenGedeeld(force) {
   try {
     const { data, error } = await supa
       .from('gedeelde_afspraken')
-      .select('id,token,verslag_id,afspraken,notitie,gepubliceerd,verloopt_op,akkoord_op,akkoord_naam,akkoord_keuze,akkoord_toelichting');
+      .select('id,token,verslag_id,afspraken,notitie,gepubliceerd,verloopt_op,akkoord_op,akkoord_naam,akkoord_keuze,akkoord_toelichting,created_at,updated_at');
     if (error) throw error;
     AFSPRAKEN_GEDEELD = {};
     (data || []).forEach(r => { if (r.verslag_id) AFSPRAKEN_GEDEELD[String(r.verslag_id)] = r; });
