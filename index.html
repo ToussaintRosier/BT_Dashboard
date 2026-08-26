@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260826-1824 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260826-1851 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5865,7 +5865,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260826-1824';
+const APP_VERSIE = '20260826-1851';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9135,19 +9135,33 @@ let WEEKLY_EDIT_UNLOCKED = new Set();
 // voor een specifieke week/jaar. Koppeling via KPI_STAGE_MAP (niet meer positioneel).
 // Starters en Contractvoorstellen die 'gedeeld' zijn met een collega tellen voor
 // 0,5 in plaats van 1.
+// ── DE telregel (26-08) ────────────────────────────────────────────────────
+// Er is precies één manier om pipeline-kaartjes in een fase te tellen:
+//   · Aanbieden          = de som van het 'aanb'-veld, niet het aantal kaartjes
+//   · Starter en
+//     Contractvoorstel   = gedeelde plaatsing telt als 0,5
+//   · alle andere fases  = het aantal kaartjes
+// Deze regel stond op vijf plekken los uitgeschreven, en op twee daarvan nét
+// anders: de weekbalk telde drie kaartjes waar de kolom eronder 2 zei
+// (0,5 + 1 + 0,5). Iedereen telt voortaan hier; wie een eigen telling
+// bijschrijft, laat test_pipeline_telling.js afgaan.
+function telKaarten(kaartenInFase, stage) {
+  if (stage === 'Aanbieden')
+    return kaartenInFase.reduce((s, c) => s + (+c.aanb || 0), 0);
+  if (stage === 'Starter' || stage === 'Contractvoorstel')
+    return kaartenInFase.reduce((s, c) => s + (c.gedeeld ? 0.5 : 1), 0);
+  return kaartenInFase.length;
+}
+
+// Halve getallen leesbaar maken: 1.5 → "1,5", hele getallen zonder komma.
+function telFmt(n) { return (+n % 1 ? (+n).toFixed(1).replace('.', ',') : String(+n)); }
+
 function getPipeCountsForWeek(bmNaam, week, jaar) {
   const cards  = pipeLoad(bmNaam);
   const counts = {};
   KPIS.forEach(k => {
     const stage = KPI_STAGE_MAP[k];
-    const inStage = cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar);
-    counts[k] = (k === 'starters' || k === 'contractvoorstellen')
-      ? inStage.reduce((sum, c) => sum + (c.gedeeld ? 0.5 : 1), 0)
-      // aanbiedingen = som van het 'aanb'-veld per kandidaat-blokje, niet het
-      // aantal kandidaten/blokjes zelf in de fase 'Aanbieden'.
-      : k === 'aanbiedingen'
-      ? inStage.reduce((sum, c) => sum + (c.aanb || 0), 0)
-      : inStage.length;
+    counts[k] = telKaarten(cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar), stage);
   });
   return counts;
 }
@@ -9160,12 +9174,7 @@ function getPipeCountsActive(bmNaam) {
   const counts = {};
   KPIS.forEach(k => {
     const stage = KPI_STAGE_MAP[k];
-    const inStage = cards.filter(c => c.stage === stage && !c.verwijderd_op);
-    counts[k] = (k === 'starters' || k === 'contractvoorstellen')
-      ? inStage.reduce((sum, c) => sum + (c.gedeeld ? 0.5 : 1), 0)
-      : k === 'aanbiedingen'
-      ? inStage.reduce((sum, c) => sum + (c.aanb || 0), 0)
-      : inStage.length;
+    counts[k] = telKaarten(cards.filter(c => c.stage === stage && !c.verwijderd_op), stage);
   });
   return counts;
 }
@@ -16797,9 +16806,12 @@ function _comrapPipeline(week, jaar) {
     for (const stage of PIPE_STAGES) {
       const inFase = kaarten.filter(c => c.stage === stage);
       const naWeek = inFase.filter(c => c.week === na.week && c.jaar === na.year);
-      if (inFase.length) { mijn.actief[stage] = inFase.length; perFase[stage] += inFase.length; }
-      if (naWeek.length) { mijn.volgende_week[stage] = naWeek.length; naFase[stage] += naWeek.length; }
-      if (stage !== 'Starter') totaalActief += inFase.length;
+      // Via dé telregel (26-08): de analyse kreeg hier kaartjes-aantallen mee
+      // terwijl het scherm gewogen telt — dan spreekt het advies de cijfers tegen.
+      const nIn = telKaarten(inFase, stage), nNa = telKaarten(naWeek, stage);
+      if (nIn) { mijn.actief[stage] = nIn; perFase[stage] += nIn; }
+      if (nNa) { mijn.volgende_week[stage] = nNa; naFase[stage] += nNa; }
+      if (stage !== 'Starter') totaalActief += nIn;
     }
     if (Object.keys(mijn.actief).length || Object.keys(mijn.volgende_week).length) perPersoon.push(mijn);
   }
@@ -18390,7 +18402,12 @@ async function pipeFetchAll() {
   const { data, error } = await supa.from('pipeline_cards').select('*');
   if (error) { console.error('Pipeline laden mislukt:', error); return; }
   const next = {};
-  (data || []).forEach(c => {
+  // Afgewezen kaarten horen niet in de pipeline (26-08). Wie op "niet akkoord"
+  // klikte zag de kaart zelf direct verdwijnen, maar de rij wordt in de
+  // database alleen gemarkeerd — bij de eerstvolgende herlading kwam hij bij
+  // iedereen terug in de kanban én in de telling. De regel is: wat uit de
+  // pipeline is gehaald, telt nergens meer mee.
+  (data || []).filter(c => c.goedkeuring !== 'niet_akkoord').forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
     next[c.bm_naam].push(_pipeCardFromRow(c));
   });
@@ -25936,12 +25953,11 @@ function renderPipeline(bm) {
     const colKey   = `${wk.year}_${wk.week}`;
     const isCollapsed = PIPE_WEEK_COLLAPSED.has(colKey);
 
-    // Per-stage tellingen voor de summary-balk
-    const stageCounts = PIPE_STAGES.map((stage, si) => {
-      const isAanb = stage === 'Aanbieden';
-      const cc = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
-      return isAanb ? cc.reduce((s,c) => s + (+c.aanb || 0), 0) : cc.length;
-    });
+    // Per-stage tellingen voor de summary-balk — via dé telregel. Hier stond
+    // een eigen som die gedeelde plaatsingen als hele kaartjes telde: de balk
+    // zei 3 contractvoorstellen waar de kolom eronder 2 zei (26-08).
+    const stageCounts = PIPE_STAGES.map(stage =>
+      telKaarten(cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year), stage));
     // Alle zes de fasen staan in de balk, ook als er nul in zit (aanwijzing
     // 20-08). Eerder bleven de nullen weg omdat "Int: 0 · Bez: 0" zes keer per
     // week de mededeling was dat er niets is — maar met stipjes in plaats van
@@ -25954,7 +25970,7 @@ function renderPipeline(bm) {
       : stageCounts.map((n, i) => {
           const kleur = i === 5 && n > 0 ? ' style="color:#F4CB3C;"' : '';
           return `<span class="pipe-fp${n ? '' : ' nul'}" title="${KPI_LABELS_SHORT[i]}"${kleur}>` +
-                 `<span class="d" style="background:${PIPE_STAGE_COLORS[i].stip || PIPE_STAGE_COLORS[i].punt};"></span>${n}</span>`;
+                 `<span class="d" style="background:${PIPE_STAGE_COLORS[i].stip || PIPE_STAGE_COLORS[i].punt};"></span>${telFmt(n)}</span>`;
         }).join(' ');
 
     // Opslaan / Wijzigen knop in de balk
@@ -26015,13 +26031,8 @@ function renderPipeline(bm) {
       const isAanb    = stage === 'Aanbieden';
       const isMatch   = stage === 'Matchgesprekken';
       const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
-      // Zelfde telregels als getPipeCountsForWeek: gedeeld = 0,5 bij
-      // starters en contractvoorstellen, aanbiedingen = som van 'aanb'.
-      // De kop en de weekcijfers eronder mogen elkaar niet tegenspreken.
-      const isDeel    = stage === 'Starter' || stage === 'Contractvoorstel';
-      const cellCount = isAanb  ? cellCards.reduce((s,c) => s + (+c.aanb || 0), 0)
-                      : isDeel  ? cellCards.reduce((s,c) => s + (c.gedeeld ? 0.5 : 1), 0)
-                      : cellCards.length;
+      // Via dé telregel — de kop en de weekcijfers mogen elkaar niet tegenspreken.
+      const cellCount = telKaarten(cellCards, stage);
 
       const cardsHtml = cellCards.map(c => {
         const aanbGetal = +c.aanb || 0;
@@ -26075,7 +26086,7 @@ function renderPipeline(bm) {
             <span class="pipe-fase-stip" style="background:${col.stip || col.punt};"></span>
             <span class="pipe-cell-hdr-name" title="${escHtml(stage)}">${stage}</span>
           </span>
-          <span class="pipe-cell-hdr-cnt">${cellCount}</span>
+          <span class="pipe-cell-hdr-cnt">${telFmt(cellCount)}</span>
         </div>
         ${cardsHtml}
         ${weekEditable ? `<button class="pipe-add-btn" onclick="pipeOpenModal('${bmE}','${escApos(stage)}',${wk.week},${wk.year})">+ toevoegen</button>` : ''}
