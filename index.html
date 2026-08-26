@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260825-1311 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260826-1824 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3490,6 +3490,13 @@ let TOTAAL_DOEL = TEAM_DOEL + MGMT_DOEL;
 let EXCL  = new Set(['Luc Kools', 'Yoël Bronckers', 'Luc Schiffers']);
 // EXCL_RATIO: voor ratio-berekeningen ook management uitsluiten (vertekening voorkomen)
 let EXCL_RATIO = EXCL;
+// EXCL_TOTAAL: voor TOTALEN en GRAFIEKEN telt iedereen mee (aanwijzing 26-08).
+// Alleen Luc Schiffers (uit dienst) blijft eruit. Waarom een aparte lijst en
+// niet gewoon EXCL leegmaken: EXCL voedt computeRatios(), en dát bepaalt elke
+// norm op elke kaart. Een KAM met 27 aanbiedingen en 0 starters zou de ratio
+// aanbiedingen-per-starter voor het hele team optillen. De vraag was "laat het
+// werk van iedereen zien", niet "verschuif alle normen".
+let EXCL_TOTAAL = new Set(['Luc Schiffers']);
 // EXCL_STARTERS: starters-totalen tellen Luc Kools en Yoël Bronckers wél mee —
 // hun funnel-ratio's wijken structureel af, maar hun starters zijn reële
 // resultaten die in het teamtotaal thuishoren. Alleen Luc Schiffers (uit dienst)
@@ -3526,7 +3533,7 @@ function computeRatios(naam) {
   // ongeluk ingevoerde week zou anders de ratio's van het hele team kleuren.
   const spec = new Set((typeof BMS !== 'undefined' ? BMS : []).filter(b => b.special).map(b => b.naam));
   const src = RAW.filter(d => (naam ? d.naam === naam
-                                    : !EXCL.has(d.naam) && !spec.has(d.naam)) && inLast26(d));
+                                    : !EXCL_RATIO.has(d.naam) && !spec.has(d.naam)) && inLast26(d));
   const tot = { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
   for (const d of src) for (const k of KPIS) tot[k] += (d[k] || 0);
   const s = tot.starters || 1;
@@ -3634,24 +3641,90 @@ function ytdTotals(rows) {
   return t;
 }
 
+// ── De weekcijferregel (26-08) ────────────────────────────────────────────
+// Dezelfde som stond op vier plekken anders geschreven, met vier verschillende
+// uitkomsten voor één week: de eigen kaart zei 265 aanbiedingen, het
+// teamoverzicht 240 en de Team Resultaten-grafiek 200. Vanaf nu rekent
+// iedereen hier.
+//
+// De regel: neem het opgeslagen weekcijfer, en vul het per KPI aan met de
+// pipeline als die hoger is. Iemand slaat zijn week maandag op en werkt daarna
+// door — dat werk hoort te blijven staan, niet te verdwijnen.
+//
+// WAAROM DE GRENS BIJ WEEK 25
+//   Alles t/m week 24 van 2026 komt uit de ingebouwde historie: een
+//   momentopname, geen levende gegevens. De pipeline kan het verleden niet
+//   reconstrueren — een kaartje verhuist mee door de fases, dus wie in week 20
+//   een intake was staat er nu als matchgesprek in, en afgevallen kandidaten
+//   staan er helemaal niet meer in. Daar de pipeline overheen laten lopen is
+//   precies wat op 24 augustus de weekcijfers van Charlotte halveerde. Vanaf
+//   week 25 komt alles uit de database en houdt de pipeline gelijke tred.
+//
+// En nadrukkelijk: dit rekent alleen voor het SCHERM. Er wordt nooit iets
+// weggeschreven op basis van deze functie.
+const PIPE_AANVUL_VANAF = { jaar: 2026, week: 25 };
+
+function _magPipeAanvullen(jaar, week) {
+  if (jaar > PIPE_AANVUL_VANAF.jaar) return true;
+  if (jaar < PIPE_AANVUL_VANAF.jaar) return false;
+  return week >= PIPE_AANVUL_VANAF.week;
+}
+
+// Geeft één week van één collega, met de aanvulling erin verwerkt.
+// Retourneert ook of er is aangevuld, zodat het scherm dat kan tonen.
+function weekcijfersVoor(naam, jaar, week) {
+  const saved   = RAW.find(d => d.naam === naam && d.jaar === jaar && d.week === week);
+  const isSaved = !!saved;
+  const pipe    = (typeof pipeLoad === 'function') ? getPipeCountsForWeek(naam, week, jaar) : {};
+  const vals    = {};
+  const achter  = [];
+  const aanvullen = _magPipeAanvullen(jaar, week);
+  for (const k of KPIS) {
+    const s = parseFloat(saved && saved[k]) || 0;
+    const p = (aanvullen ? pipe[k] : 0) || 0;
+    vals[k] = isSaved ? Math.max(s, p) : p;
+    if (isSaved && p > s) achter.push(k);
+  }
+  return { vals, isSaved, achter, pipe };
+}
+
+// Alle weekrijen van een jaar met de aanvulling erin verwerkt — de bron voor
+// de teamgrafieken. Weken die alleen in de pipeline staan (nog niet opgeslagen)
+// komen er als eigen rij bij, anders zou de grafiek ze helemaal missen.
+function teamRijenMetPipeline(jaar, excl) {
+  const uit = [];
+  const gezien = new Set();
+  for (const d of RAW) {
+    if (d.jaar !== jaar || excl.has(d.naam)) continue;
+    gezien.add(`${d.naam}|${d.week}`);
+    uit.push({ ...d, ...weekcijfersVoor(d.naam, jaar, d.week).vals });
+  }
+  // Nog niet opgeslagen weken: t/m de huidige week, en alleen waar de
+  // aanvulling is toegestaan.
+  for (const bm of (typeof BMS !== 'undefined' ? BMS : [])) {
+    if (excl.has(bm.naam)) continue;
+    const cards = (typeof pipeLoad === 'function') ? pipeLoad(bm.naam) : [];
+    const weken = new Set(cards
+      .filter(c => c.jaar === jaar && c.week && !gezien.has(`${bm.naam}|${c.week}`)
+                   && (jaar < CUR.year || c.week <= CUR.week)
+                   && _magPipeAanvullen(jaar, c.week))
+      .map(c => c.week));
+    for (const w of weken) {
+      uit.push({ naam: bm.naam, jaar, week: w, ...weekcijfersVoor(bm.naam, jaar, w).vals });
+    }
+  }
+  return uit;
+}
+
 // Jaarrealisatie volgens de afgesproken regel (14-08): een opgeslagen week
 // geldt; een week die alleen nog in de pipeline staat telt alvast mee, tot en
 // met de huidige week. Zonder die tweede helft miste de ranglijst precies de
 // lopende week — de weektabel toonde hem wel, het jaartotaal erboven niet.
+// Sinds 26-08 via dezelfde regel als de weekschermen: een opgeslagen week die
+// achterloopt op de pipeline telde hier nog op zijn oude cijfer mee, waardoor
+// het jaartotaal onder de som van de weken kon uitkomen.
 function jaarTotalen(naam, jaar) {
-  const rows = filterData(naam, jaar);
-  const t = ytdTotals(rows);
-  const opgeslagen = new Set(rows.map(d => d.week));
-  const cards = (typeof pipeLoad === 'function') ? pipeLoad(naam) : [];
-  const losseWeken = new Set(cards
-    .filter(c => c.jaar === jaar && c.week && !opgeslagen.has(c.week)
-                 && (jaar < CUR.year || c.week <= CUR.week))
-    .map(c => c.week));
-  for (const w of losseWeken) {
-    const p = getPipeCountsForWeek(naam, w, jaar);
-    for (const k of KPIS) t[k] += p[k] || 0;
-  }
-  return t;
+  return ytdTotals(teamRijenMetPipeline(jaar, new Set()).filter(d => d.naam === naam));
 }
 
 // De teamnorm is de som van de individuele normen — niet meer één berekening
@@ -5792,7 +5865,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260825-1311';
+const APP_VERSIE = '20260826-1824';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8231,10 +8304,9 @@ function renderBM(bm) {
   // week/maand-schakelaar van de grafiek: "wat heb je deze week gedaan" is
   // een weekvraag, ook als de grafiek op maanden staat.
   const normWeek = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
-  const rawNu    = RAW.find(r => r.naam === bm.naam && r.jaar === CUR.year && r.week === CUR.week) || {};
-  const pipeNu   = getPipeCountsForWeek(bm.naam, CUR.week, CUR.year);
-  const weekNu   = {};
-  for (const k of KPIS) weekNu[k] = Math.max(parseFloat(rawNu[k]) || 0, pipeNu[k] || 0);
+  // Via de gedeelde regel (26-08), zodat deze kaart en het teamoverzicht niet
+  // meer uit elkaar kunnen lopen.
+  const weekNu   = weekcijfersVoor(bm.naam, CUR.year, CUR.week).vals;
   const passedW   = periodsPassedInYear(year, 'week');
   const gewerkteW = Math.max(1, passedW - (_ytdStartWk - 1));
   // Dezelfde rekensom als het collectieve blad (correctie 20-08): jaartotaal
@@ -8470,14 +8542,13 @@ function renderMedewerkersOverzicht() {
 
     // Uit dienst: alleen tonen in de weken waarin hij nog in dienst was.
     const bmArr = BMS.filter(bm => teltMeeInWeek(bm, jaar, week)).map(bm => {
-      const saved = RAW.find(d => d.naam === bm.naam && d.jaar === jaar && d.week === week);
-      const isSaved = !!saved;
-      const pipe  = getPipeCountsForWeek(bm.naam, week, jaar);
-      // Gebruik opgeslagen waarden als basis; voor starters: neem het maximum
-      // zodat een later toegevoegde starter (na opslaan) alsnog meetelt.
-      const vals = isSaved ? { ...saved } : { ...pipe };
-      const staleStarters = isSaved && (pipe.starters || 0) > (saved.starters || 0);
-      if (staleStarters) vals.starters = pipe.starters || 0;
+      // Via de gedeelde regel (26-08). Hiervoor werd alleen `starters`
+      // bijgetrokken; de andere vijf KPI's bleven op het bevroren cijfer staan.
+      // Wie zijn week opsloeg en daarna doorwerkte, zag dat werk hier stilletjes
+      // verdwijnen — 25 aanbiedingen in week 35, zonder enig signaal.
+      const wk = weekcijfersVoor(bm.naam, jaar, week);
+      const { vals, isSaved } = wk;
+      const achter = wk.achter;
       if (!isSaved) anyLive = true;
       for (const k of KPIS) totals[k] += vals[k] || 0;
       // Een week waarin iemand niets deed is informatie, geen ruis. Verborg je
@@ -8486,8 +8557,10 @@ function renderMedewerkersOverzicht() {
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
       const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', activeNormFix(bm), bm.doelStartFraction);
       const status = isSaved
-        ? (staleStarters
-            ? '<span style="color:#fbbf24;font-size:.75rem;" title="Invoer verouderd — pipeline toont meer starters; zet dit recht via Wijzigen + Opslaan">opg.</span>'
+        ? (achter.length
+            ? '<span style="color:#fbbf24;font-size:.75rem;" title="Invoer verouderd — de pipeline telt meer ' +
+              achter.map(k => KPI_LABELS[k].toLowerCase()).join(', ') +
+              '; zet dit recht via Wijzigen + Opslaan">opg.</span>'
             : '<span style="color:#4ade80;font-size:.76rem;" title="Opgeslagen">✔</span>')
         : '<span style="color:rgba(255,255,255,.45);font-size:.72rem;font-style:italic;" title="Nog niet opgeslagen — pipeline-stand">live</span>';
       return '<tr' + (hasAny ? '' : ' style="opacity:.45;" title="Deze week geen activiteit vastgelegd"') + '>' +
@@ -8643,14 +8716,16 @@ function renderTeam() {
   const passed = periodsPassedInYear(year, view);
   const r      = TEAM_RATIOS;
 
-  // All team rows for selected year
-  const rows  = RAW.filter(d => d.jaar===year && !EXCL.has(d.naam));
+  // Totalen en grafieken tellen iedereen mee, inclusief de Key Accountmanagers
+  // (aanwijzing 26-08) — en met de pipeline-aanvulling erin. De ratiotabel
+  // verderop houdt EXCL_RATIO aan, zodat de normen niet verschuiven.
+  const rows  = teamRijenMetPipeline(year, EXCL_TOTAAL);
   // Always aggregate starters by maand for team chart
   const aggM  = aggregateByPeriod(rows, 'maand');
   // Starters-specifiek aggregaat: Luc Kools en Yoël Bronckers tellen hier wél
   // mee (zie EXCL_STARTERS) — gebruikt alleen voor de starters-grafiek/cijfers,
   // niet voor de overige (funnel-ratio) KPI's hierboven.
-  const rowsStarters  = RAW.filter(d => d.jaar===year && !EXCL_STARTERS.has(d.naam));
+  const rowsStarters  = teamRijenMetPipeline(year, EXCL_STARTERS);
   const aggMStarters  = aggregateByPeriod(rowsStarters, 'maand');
   const startersByPeriod = {};
   aggMStarters.forEach(a => { startersByPeriod[a.period] = a.starters; });
@@ -8668,7 +8743,9 @@ function renderTeam() {
   const aanbSafePerIntake  = AANB_PER_INTAKE_P75; // 6.3
   const aanb2xPerIntake    = +(aanbBaselinePerIntake * 2).toFixed(1);
   // YTD actueel: aanbiedingen / intakes als team (excl. management)
-  const ytdTeamIntakes     = ytdTotals(RAW.filter(d => d.jaar===year && !EXCL.has(d.naam))).intakes;
+  // Bewust EXCL_RATIO: dit is een verhoudingsgetal, geen totaal. Een KAM doet
+  // geen intakes, dus zou hij de noemer platdrukken en de ratio opblazen.
+  const ytdTeamIntakes     = ytdTotals(RAW.filter(d => d.jaar===year && !EXCL_RATIO.has(d.naam))).intakes;
   const aanbActPerIntake   = ytdTeamIntakes > 0 ? +(ytd.aanbiedingen / ytdTeamIntakes).toFixed(1) : 0;
   const aanbPctVsBase      = pct(aanbActPerIntake, aanbBaselinePerIntake||1);
   const aanbPctVsSafe      = pct(aanbActPerIntake, aanbSafePerIntake||1);
@@ -8705,8 +8782,8 @@ function renderTeam() {
 
   // Nieuwste jaar boven, oudste onder; 2023 is uitgesloten (niet representatief).
   const histRows = [2026,2025,2024,2022].map(yr => {
-    const yr_rows = RAW.filter(d => d.jaar===yr && !EXCL.has(d.naam));
-    const yr_rows_starters = RAW.filter(d => d.jaar===yr && !EXCL_STARTERS.has(d.naam));
+    const yr_rows = teamRijenMetPipeline(yr, EXCL_TOTAAL);
+    const yr_rows_starters = teamRijenMetPipeline(yr, EXCL_STARTERS);
     if (!yr_rows.length && !yr_rows_starters.length) return '';
     const t = ytdTotals(yr_rows);
     const tStarters = ytdTotals(yr_rows_starters).starters;
@@ -11626,6 +11703,7 @@ async function loadBeheerData() {
     for (const bm of BMS) if (bm.rol === 'Key Accountmanager') EXCL.add(bm.naam);
     EXCL_RATIO    = EXCL;
     EXCL_STARTERS = new Set(['Luc Schiffers']);
+    EXCL_TOTAAL   = new Set(['Luc Schiffers']);
   }
 }
 
