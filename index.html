@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-1359 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-1522 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3072,7 +3072,9 @@ let ACCOUNTS_CACHE = [];   // Accountmanagement: klantenlijst, gedeeld door iede
 let ACC_SEARCH = '', ACC_FILTER_STRAT = '', ACC_FILTER_OP = ''; // Accountmanagement filters
 let ACC_EDIT_UNLOCKED = new Set(); // ids van klanten die nu in bewerk-modus staan (bevroren tot opslaan)
 let SALES_LEADS_CACHE = []; // Sales Leads: prospectlijst (RLDV), gedeeld door iedereen die inlogt
-let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' — welke sub-tab van Accountmanagement actief is
+let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'beweging' | 'verslagen'
+let GESPREKSVERSLAGEN_CACHE = [];   // gespreksverslagen (verzoek 28-08)
+let GV_FORM = null;                 // null = dicht; {} = nieuw; {id} = bewerken
 let SL_SEARCH = '';
 let SL_FILTER_VAKGEBIED = [], SL_FILTER_REGIO = [], SL_FILTER_CP = [], SL_FILTER_STATUS = [], SL_FILTER_VOORW = []; // multi-select: meerdere opties per kolom mogelijk
 let SL_FILTER_SC = '', SL_FILTER_MONTEUR = '', SL_FILTER_WVB = '', SL_FILTER_ENG = '', SL_FILTER_PM = ''; // '' | 'ja' | 'nee'
@@ -6026,7 +6028,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-1359';
+const APP_VERSIE = '20260828-1522';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6366,7 +6368,8 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen
 // zou een melding elke paar seconden opnieuw in beeld springen.
 // Alles wat een gebruiker kan aanklikken en wat daarna iets verandert. Wordt
 // gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
-const SCHRIJFACTIES = ['onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
+const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag',
+  'onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
   'mtActieToevoegen', 'mtActieZet', 'mtActieVink', 'mtActieWeg',
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
   'mtNotuleOudeWijzig', 'mtNotuleOudeOpslaanKnop', 'mtNotuleVerwijder',
@@ -12152,6 +12155,7 @@ async function loadAllData() {
     stap('memos', loadMemos),
     stap('Brightech ONE', () => loadOne().then(_oneTagCheck)),
     stap('mijlpalen', loadMijlpalen),
+    stap('gespreksverslagen', loadGespreksverslagen),
     stap('aanmeldformulier', loadAanmeldSaved),
   ]);
   // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
@@ -20167,6 +20171,134 @@ function _kamWijzigingenGebundeld(rijen) {
 }
 
 
+// ════════════════════════════════════════════════════════════════════════════
+// GESPREKSVERSLAGEN (akkoord 28-08)
+//   Eén vast format voor klantgesprekken, met twee ingangen:
+//   · de knop "→ Verslag" op een BZK-record (kopieert; de opname blijft staan)
+//   · de +knop in het tabblad, voor een gesprek zonder opname
+//   Herkomst blijft zichtbaar via het label "uit opname" of "handmatig", en
+//   een omgezet verslag houdt de koppeling naar zijn opname.
+// ════════════════════════════════════════════════════════════════════════════
+
+async function loadGespreksverslagen() {
+  if (!supa) return;
+  const { data, error } = await supa.from('gespreksverslagen')
+    .select('*').order('datum', { ascending: false }).limit(400);
+  if (error) {
+    // Tabel bestaat pas na supabase/gespreksverslagen.sql — stil, het tabblad
+    // legt het zelf uit.
+    if (!/relation .* does not exist/i.test(error.message || '')) _meldStil('gespreksverslagen laden', error);
+    return;
+  }
+  GESPREKSVERSLAGEN_CACHE = data || [];
+}
+
+// "25 augustus 2026" → "2026-08-25". De BZK-recorder bewaart de datum als
+// leesbare tekst; het verslag wil een echte datum om op te sorteren.
+function _gvDatumIso(tekst) {
+  const M = { januari:1, februari:2, maart:3, april:4, mei:5, juni:6, juli:7,
+              augustus:8, september:9, oktober:10, november:11, december:12 };
+  const m = /^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/i.exec(String(tekst || '').trim());
+  if (m && M[m[2].toLowerCase()])
+    return `${m[3]}-${String(M[m[2].toLowerCase()]).padStart(2, '0')}-${String(+m[1]).padStart(2, '0')}`;
+  const d = new Date(tekst);
+  return isNaN(d) ? toISODate(new Date()) : toISODate(d);
+}
+
+// ── Omzetten vanuit een BZK-record ──────────────────────────────────────────
+async function bzkNaarGespreksverslag(recId) {
+  if (!eisWijzig('accounts')) return;
+  const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(recId));
+  if (!rec) return;
+  // Al eens omgezet? Dan niet nog een kopie maken maar ernaartoe gaan.
+  const bestaand = GESPREKSVERSLAGEN_CACHE.find(g => String(g.bron_verslag_id) === String(recId));
+  if (bestaand) {
+    ACCOUNT_SUBTAB = 'verslagen'; GV_FORM = null; selectTab('accounts');
+    alert('Dit record is al omgezet — je wordt ernaartoe gebracht.');
+    return;
+  }
+  const r = rec.result || {};
+  const stukken = [];
+  if (r.huidigePersoneelssituatie) stukken.push(strVal(r.huidigePersoneelssituatie));
+  if (r.wervingsbehoefte && (r.wervingsbehoefte.functies || r.wervingsbehoefte.profiel))
+    stukken.push('Wervingsbehoefte: ' + [r.wervingsbehoefte.functies, r.wervingsbehoefte.aantallen, r.wervingsbehoefte.profiel]
+      .filter(Boolean).map(strVal).join(' · '));
+  if (r.commercieelePotentie) stukken.push('Commercieel potentieel: ' + strVal(r.commercieelePotentie));
+  const rij = {
+    bedrijf: rec.bedrijf || '', contactpersoon: rec.contactpersoon || '',
+    datum: _gvDatumIso(rec.datum), soort: rec.soortBezoek || 'bedrijfsbezoek',
+    samenvatting: stukken.join('\n\n') || strVal(r.samenvatting || ''),
+    acties: strVal(r.afspraken || ''), vervolg: '',
+    bron: 'opname', bron_verslag_id: String(recId),
+    auteur: rec.recorder_naam || CURRENT_USER?.naam || '',
+    created_by: CURRENT_USER?.id || null,
+  };
+  const { data, error } = await supa.from('gespreksverslagen').insert(rij).select().single();
+  if (error) { alert('Omzetten mislukt: ' + _gvFout(error)); meldFout('gespreksverslag omzetten: ' + error.message, 'bzkNaarGespreksverslag'); return; }
+  GESPREKSVERSLAGEN_CACHE.unshift(data);
+  ACCOUNT_SUBTAB = 'verslagen'; GV_FORM = null;
+  selectTab('accounts');
+}
+
+function _gvFout(e) {
+  return /relation .* does not exist/i.test(e.message || '')
+    ? 'de verslagentabel bestaat nog niet. Vraag de beheerder om supabase/gespreksverslagen.sql te draaien.'
+    : (e.message || e);
+}
+
+// ── Opslaan (nieuw of bewerken) ─────────────────────────────────────────────
+async function gvOpslaan(knop) {
+  if (!eisWijzig('accounts')) return;
+  const v = (id) => document.getElementById(id)?.value?.trim() || '';
+  const bedrijf = v('gv-bedrijf');
+  if (!bedrijf) { alert('Vul in elk geval de opdrachtgever in.'); return; }
+  const rij = {
+    bedrijf, contactpersoon: v('gv-cp'), datum: v('gv-datum') || toISODate(new Date()),
+    soort: v('gv-soort') || 'bedrijfsbezoek',
+    samenvatting: v('gv-samenvatting'), acties: v('gv-acties'), vervolg: v('gv-vervolg'),
+    updated_by: CURRENT_USER?.naam || null, updated_at: new Date().toISOString(),
+  };
+  if (knop) { knop.disabled = true; knop.textContent = 'Opslaan…'; }
+  let error;
+  if (GV_FORM && GV_FORM.id) {
+    ({ error } = await supa.from('gespreksverslagen').update(rij).eq('id', GV_FORM.id));
+    if (!error) {
+      const i = GESPREKSVERSLAGEN_CACHE.findIndex(g => String(g.id) === String(GV_FORM.id));
+      if (i >= 0) GESPREKSVERSLAGEN_CACHE[i] = { ...GESPREKSVERSLAGEN_CACHE[i], ...rij };
+    }
+  } else {
+    rij.bron = 'handmatig';
+    rij.auteur = CURRENT_USER?.naam || '';
+    rij.created_by = CURRENT_USER?.id || null;
+    const { data, error: e2 } = await supa.from('gespreksverslagen').insert(rij).select().single();
+    error = e2;
+    if (!error) GESPREKSVERSLAGEN_CACHE.unshift(data);
+  }
+  if (error) {
+    alert('Opslaan mislukt: ' + _gvFout(error));
+    meldFout('gespreksverslag opslaan: ' + error.message, 'gvOpslaan');
+    if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
+    return;
+  }
+  GV_FORM = null;
+  renderAccounts();
+}
+
+async function gvVerwijder(id) {
+  if (!eisWijzig('accounts')) return;
+  if (!confirm('Dit gespreksverslag verwijderen?\n\nEen verslag dat uit een opname komt, verwijdert de opname zelf niet.')) return;
+  const { error } = await supa.from('gespreksverslagen').delete().eq('id', id);
+  if (error) { alert('Verwijderen mislukt: ' + _gvFout(error)); return; }
+  GESPREKSVERSLAGEN_CACHE = GESPREKSVERSLAGEN_CACHE.filter(g => String(g.id) !== String(id));
+  renderAccounts();
+}
+
+function gvNieuw()      { GV_FORM = {}; renderAccounts(); }
+function gvBewerk(id)   { GV_FORM = { id }; renderAccounts(); }
+function gvAnnuleer()   { GV_FORM = null; renderAccounts(); }
+function gvToggle(id)   { GV_OPEN.has(id) ? GV_OPEN.delete(id) : GV_OPEN.add(id); renderAccounts(); }
+const GV_OPEN = new Set();
+
 function renderAccounts() {
   // Zelfde subTabBtn-patroon als renderFinancieel(): btn-secondary-knoppen in
   // een .acc-toolbar-rij, actieve knop krijgt inline primary-kleur i.p.v. een
@@ -20180,10 +20312,12 @@ function renderAccounts() {
       ${subTabBtn('strategisch', 'Key Accountmanagement (KAM)')}
       ${subTabBtn('accountplan', 'Accountplan (KAM)')}
       ${subTabBtn('beweging', 'Bezoeken &amp; wijzigingen')}
+      ${subTabBtn('verslagen', 'Gespreksverslagen')}
     </div>`;
   const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'accountplan'  ? renderAccountplannenHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'beweging'     ? renderKamBewegingHtml(subTabBtns)
+             : ACCOUNT_SUBTAB === 'verslagen'    ? renderGespreksverslagenHtml(subTabBtns)
              : renderSalesLeadsHtml(subTabBtns);
   document.getElementById('main').innerHTML = body;
   // Een aangevinkte optie tekent het scherm opnieuw mét het menu open; dan
@@ -20674,6 +20808,90 @@ function renderSalesLeadsHtml(subTabBtns) {
 // tweede sub-tab) — inhoud en gedrag ongewijzigd, alleen hernoemd van
 // renderAccounts() en geeft nu een HTML-string terug i.p.v. direct te schrijven
 // naar #main, zodat de dispatcher hierboven de sub-tab-knoppen kan toevoegen.
+function renderGespreksverslagenHtml(subTabBtns) {
+  const mag = magWijzigen('accounts');
+  const SOORTEN = { bedrijfsbezoek: 'Bedrijfsbezoek', evaluatie_medewerker: 'Evaluatie',
+                    voorbereiding_matchgesprek: 'Match prep', telefonisch: 'Telefonisch', overig: 'Overig' };
+  const dagFmt = (iso) => { const d = new Date(iso + 'T00:00:00');
+    return isNaN(d) ? escHtml(iso || '') : d.toLocaleDateString('nl-NL', { weekday:'short', day:'numeric', month:'short' }); };
+
+  // ── Het formulier: hetzelfde blad voor nieuw en bewerken ────────────────
+  let formHtml = '';
+  if (GV_FORM) {
+    const g = GV_FORM.id ? (GESPREKSVERSLAGEN_CACHE.find(x => String(x.id) === String(GV_FORM.id)) || {}) : {};
+    const inp = 'style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:.84rem;background:#fff;color:var(--text);font-family:inherit;"';
+    formHtml = `<div class="bt-venster werk-blad" style="margin-bottom:14px;">
+      <div class="pva-blok" style="margin-top:0;">${GV_FORM.id ? 'Verslag bewerken' : 'Nieuw gespreksverslag'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;">
+        <input id="gv-bedrijf" placeholder="Opdrachtgever *" value="${escHtml(g.bedrijf || '')}" ${inp}>
+        <input id="gv-cp" placeholder="Contactpersoon" value="${escHtml(g.contactpersoon || '')}" ${inp}>
+        <input id="gv-datum" type="date" value="${escHtml(g.datum || toISODate(new Date()))}" ${inp}>
+        <select id="gv-soort" ${inp}>${Object.entries(SOORTEN).map(([w, t]) =>
+          `<option value="${w}" ${g.soort === w ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      </div>
+      <div class="crm-kop">Samenvatting</div>
+      <textarea id="gv-samenvatting" rows="5" placeholder="Wat is er besproken…" ${inp}>${escHtml(g.samenvatting || '')}</textarea>
+      <div class="crm-kop">Afspraken &amp; acties</div>
+      <textarea id="gv-acties" rows="3" placeholder="Wie doet wat, en wanneer…" ${inp}>${escHtml(g.acties || '')}</textarea>
+      <div class="crm-kop">Vervolgafspraak</div>
+      <input id="gv-vervolg" placeholder="Bijvoorbeeld: week 38 · locatiebezoek" value="${escHtml(g.vervolg || '')}" ${inp}>
+      <div class="crm-knoppen">
+        <button class="crm-knop goed" onclick="gvOpslaan(this)">Opslaan</button>
+        <button class="crm-knop" onclick="gvAnnuleer()">Annuleren</button>
+      </div>
+    </div>`;
+  }
+
+  // ── De lijst ────────────────────────────────────────────────────────────
+  const pil = (g) => g.bron === 'opname'
+    ? '<span class="kam-pil ja" style="cursor:default;">uit opname</span>'
+    : '<span class="kam-pil" style="background:rgba(133,183,235,.18);color:#85B7EB;">handmatig</span>';
+  const rijen = GESPREKSVERSLAGEN_CACHE.map(g => {
+    const open = GV_OPEN.has(String(g.id));
+    return `<div style="border-bottom:1px solid rgba(255,255,255,.1);">
+      <div class="crm-klik" style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:none;font-size:.84rem;"
+           onclick="gvToggle('${escApos(String(g.id))}')">
+        <span style="font-size:.7rem;color:rgba(255,255,255,.45);transform:rotate(${open ? 90 : 0}deg);transition:transform .15s;">▶</span>
+        <span style="color:#fff;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.bedrijf || '')}</span>
+        <span style="color:rgba(255,255,255,.6);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml([g.contactpersoon, (g.samenvatting || '').split('\n')[0]].filter(Boolean).join(' · '))}</span>
+        ${pil(g)}
+        <span style="color:rgba(255,255,255,.45);font-size:.74rem;white-space:nowrap;">${dagFmt(g.datum)} · ${escHtml(_dagstartVoornaam(g.auteur || ''))}</span>
+      </div>
+      ${open ? `<div style="padding:4px 6px 14px 28px;">
+        <div class="crm-kop">Samenvatting</div>
+        <div style="font-size:.84rem;line-height:1.6;white-space:pre-wrap;color:rgba(255,255,255,.88);">${escHtml(g.samenvatting || '—')}</div>
+        <div class="crm-kop">Afspraken &amp; acties</div>
+        <div style="font-size:.84rem;line-height:1.6;white-space:pre-wrap;color:rgba(255,255,255,.88);">${escHtml(g.acties || '—')}</div>
+        <div class="crm-kop">Vervolgafspraak</div>
+        <div style="font-size:.84rem;color:rgba(255,255,255,.88);">${escHtml(g.vervolg || '—')}</div>
+        <div class="crm-knoppen">
+          ${g.bron === 'opname' && g.bron_verslag_id ? `<button class="crm-knop" onclick="selectTab('bezoek')">Oorspronkelijke opname ↗</button>` : ''}
+          ${mag ? `<button class="crm-knop" onclick="gvBewerk('${escApos(String(g.id))}')">Wijzigen</button>
+          <button class="crm-knop" style="color:#ff8080;border-color:rgba(255,128,128,.4);" onclick="gvVerwijder('${escApos(String(g.id))}')">Verwijderen</button>` : ''}
+        </div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<div class="mt-donker">
+    <div class="person-header licht">
+      <div class="person-name">Accountmanagement</div>
+      <div class="person-meta"><span class="meta-pill">Gespreksverslagen — uit opnames en handmatig</span></div>
+    </div>
+    ${subTabBtns}
+    ${formHtml}
+    <div class="bt-venster werk-blad">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div class="pva-blok" style="margin:0;">Gespreksverslagen</div>
+        <span style="color:rgba(255,255,255,.4);font-size:.76rem;">${GESPREKSVERSLAGEN_CACHE.length} verslag${GESPREKSVERSLAGEN_CACHE.length === 1 ? '' : 'en'}</span>
+        ${mag && !GV_FORM ? `<button class="crm-knop" style="margin-left:auto;color:#F4CB3C;border-color:rgba(244,203,60,.5);" onclick="gvNieuw()">+ Nieuw verslag</button>` : ''}
+      </div>
+      ${GESPREKSVERSLAGEN_CACHE.length ? rijen
+        : `<div style="color:rgba(255,255,255,.5);font-size:.84rem;padding:14px 0;">Nog geen gespreksverslagen. Zet een BZK-record om via de knop "→ Verslag" bij de records, of maak er hier een met + Nieuw verslag.</div>`}
+    </div>
+  </div>`;
+}
+
 function renderStrategischeLeadsHtml(subTabBtns) {
   const canEditAccounts = !!CURRENT_USER && CURRENT_USER.rol !== 'backoffice';
   const list = ACCOUNTS_CACHE;
@@ -23360,6 +23578,7 @@ function _recRegelBezoek(rec, soortPil) {
             ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" class="rec-collega" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='inline-block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
           }
+          <span onclick="event.stopPropagation();bzkNaarGespreksverslag('${rec.id}')" style="font-size:.72rem;color:var(--primary);cursor:pointer;padding:2px 7px;border:1px solid var(--border);border-radius:5px;flex-shrink:0;background:#fff;font-weight:var(--w-nadruk);" title="Omzetten naar een gespreksverslag onder Accountmanagement — de opname zelf blijft staan">→ Verslag</span>
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;" title="Verwijder">${btActie('prullenbak')}</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--card);">
