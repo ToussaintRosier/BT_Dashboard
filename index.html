@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-0823 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-0836 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5986,7 +5986,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-0823';
+const APP_VERSIE = '20260828-0836';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10352,8 +10352,10 @@ async function mtCoachOpslaan(bmNaam) {
   const tekst = veld ? veld.value : '';
   const { nu, rij } = _mtCoachDezeWeek(bmNaam);
   const tijd = new Date().toISOString();
+  // Zonder rij-nummer (28-08): de botsingsregel op collega+jaar+week vindt de
+  // bestaande rij zelf. Een verouderd nummer uit de cache gaf een botsing op
+  // de sleutel terwijl de week gewoon bijgewerkt had kunnen worden.
   const { data, error } = await supa.from('mt_coaching_notities').upsert({
-    ...(rij ? { id: rij.id } : {}),
     bm_naam: bmNaam, jaar: nu.year, week: nu.week, tekst,
     bijgewerkt: tijd, bijgewerkt_door: CURRENT_USER?.naam || '',
   }, { onConflict: 'bm_naam,jaar,week' }).select();
@@ -11920,6 +11922,11 @@ window.onerror = function (melding, bron, regel, kolom, e) {
 // want vrijwel elke gegevensactie is async.
 window.addEventListener('unhandledrejection', function (ev) {
   const r = ev && ev.reason;
+  const _t = String((r && (r.message || r)) || '');
+  // Ruis van browserextensies, niet van het dashboard (28-08): "No Listener"
+  // en "message channel closed" komen uit andermans injectiescripts. In het
+  // logboek verdringen ze echte fouten — 13 regels bij één collega.
+  if (/No Listener|message channel closed|Extension context invalidated|tabs:outgoing/i.test(_t)) return;
   meldFout(r && (r.message || r), 'onafgevangen promise', r && r.stack);
 });
 
@@ -12951,7 +12958,10 @@ function computeCoachingData(bm) {
     const year   = getYear();
     const CUR_WK = CUR.week;
     const isKAM = bm.rol === 'Key Accountmanager';
-    const r26   = INDIVIDUAL_RATIOS[bm.naam];
+    // Vangnet (28-08): een collega zonder eigen ratiogegevens — of een render
+    // die nét voor de ratioberekening valt — gaf hier "reading 'intakes' of
+    // undefined". Terugvallen op de teamratio's, en desnoods op lege totalen.
+    const r26   = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS || {};
     const rowsYTD = filterData(bm.naam, year);
     const ytd   = jaarTotalen(bm.naam, year);
 
@@ -12965,13 +12975,13 @@ function computeCoachingData(bm) {
     const starterPctOfDoel = pct(ytd.starters, bm.doel);
 
     // Funnel conversions (26 weeks basis)
-    const r     = r26.totals;
+    const r     = r26.totals || { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
     const i2a   = r.intakes   ? +(r.aanbiedingen    / r.intakes).toFixed(1)    : 0;
     const a2m   = r.aanbiedingen ? +(r.matchgesprekken / r.aanbiedingen * 100).toFixed(1) : 0;
     const m2s   = r.matchgesprekken ? +(r.starters / r.matchgesprekken * 100).toFixed(1)  : 0;
 
     // Team benchmarks (last 26 wks)
-    const tr    = TEAM_RATIOS.totals;
+    const tr    = TEAM_RATIOS.totals || { intakes:0, bezoeken:0, aanbiedingen:0, matchgesprekken:0, contractvoorstellen:0, starters:0 };
     const ti2a  = tr.intakes   ? +(tr.aanbiedingen    / tr.intakes).toFixed(1)    : 0;
     const ta2m  = tr.aanbiedingen ? +(tr.matchgesprekken / tr.aanbiedingen * 100).toFixed(1) : 0;
     const tm2s  = tr.matchgesprekken ? +(tr.starters / tr.matchgesprekken * 100).toFixed(1)  : 0;
