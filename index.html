@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-1522 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-1538 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -743,6 +743,30 @@
   .kam-tel b { color:#fff; font-weight:var(--w-nadruk); }
   /* Vaste kolommen in plaats van losse regels (25-08): zo begint de klantnaam
      bij elke rij op dezelfde plek en drukt een lange wijziging de rest niet weg. */
+  /* Weekkeuze als eigen strook (28-08): stond in de gele kopbalk en was daar
+     wit-op-geel, dus onleesbaar. */
+  .kam-weekbalk { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                  background:#364160; border:1px solid rgba(255,255,255,.14);
+                  border-radius:10px; padding:9px 12px; margin:0 0 14px; }
+  .kam-wknop { display:inline-flex; align-items:center; gap:6px; height:32px;
+               padding:0 13px; border-radius:8px; cursor:pointer;
+               background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.2);
+               color:rgba(255,255,255,.9); font-family:inherit; font-size:.78rem; }
+  .kam-wknop:hover { background:rgba(255,255,255,.18); color:#fff; }
+  .kam-wknop.terug { margin-left:auto; border-color:rgba(244,203,60,.5);
+                     color:var(--accent-gold, #F4CB3C); }
+  .kam-wknop svg { width:12px; height:10px; fill:none; stroke:currentColor;
+                   stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .kam-wknu { display:inline-flex; align-items:baseline; gap:6px; padding:0 6px;
+              color:#fff; font-size:1rem; font-weight:var(--w-nadruk); }
+  .kam-wknu small { color:rgba(255,255,255,.5); font-size:.74rem; font-weight:400; }
+  .kam-wkstil { margin-left:auto; color:rgba(255,255,255,.45); font-size:.76rem; }
+  /* De +knop naast "geen verslag": maakt er meteen een handmatig verslag van. */
+  .kam-plus { width:20px; height:20px; margin-left:6px; padding:0; cursor:pointer;
+              border-radius:5px; background:rgba(244,203,60,.16);
+              border:1px solid rgba(244,203,60,.45); color:var(--accent-gold, #F4CB3C);
+              font-family:inherit; font-size:.85rem; line-height:1; vertical-align:middle; }
+  .kam-plus:hover { background:rgba(244,203,60,.3); color:#fff; }
   .kam-tab { width:100%; border-collapse:collapse; font-size:.8rem; }
   .kam-tab th { text-align:left !important; font-size:.66rem; text-transform:uppercase;
                 letter-spacing:.04em; color:rgba(255,255,255,.45);
@@ -6028,7 +6052,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-1522';
+const APP_VERSIE = '20260828-1538';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6368,7 +6392,7 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen
 // zou een melding elke paar seconden opnieuw in beeld springen.
 // Alles wat een gebruiker kan aanklikken en wat daarna iets verandert. Wordt
 // gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
-const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag',
+const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag', 'kamNieuwVerslag',
   'onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
   'mtActieToevoegen', 'mtActieZet', 'mtActieVink', 'mtActieWeg',
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
@@ -19945,6 +19969,9 @@ function _kamWeekKeuze() {
 // Eén regel per bezoek uit de pipeline, met vaste kolommen.
 function _kamBezoekRij(x) {
   const naamKlant = x.kaart.naam || x.kaart.opdrachtgever || 'zonder naam';
+  // Vanuit een bezoek zonder verslag kun je er met de +knop meteen één maken
+  // (aanwijzing 28-08). Klant, collega en week gaan mee zodat het blad al
+  // half ingevuld is.
   return `<tr>
     <td class="kam-wk">W${x.week}</td>
     <td>${escHtml(naamKlant)}</td>
@@ -19952,7 +19979,12 @@ function _kamBezoekRij(x) {
     <td class="kam-st">${x.verslag
       ? `<span class="kam-pil ja" onclick="selectTab('bezoek')"
                title="Naar het verslag in de BZK-recorder">verslag ↗</span>`
-      : '<span class="kam-pil nee">geen verslag</span>'}</td>
+      : `<span class="kam-pil nee">geen verslag</span>` +
+        (magWijzigen('accounts')
+          ? `<button class="kam-plus" title="Hier een gespreksverslag van maken"
+                aria-label="Gespreksverslag maken voor ${escHtml(naamKlant)}"
+                onclick="kamNieuwVerslag('${escApos(naamKlant)}','${escApos(x.collega)}',${x.week},${x.jaar || CUR.year})">+</button>`
+          : '')}</td>
   </tr>`;
 }
 
@@ -20013,7 +20045,7 @@ function renderKamBewegingHtml(subTabBtns) {
   const bezoeken = [];
   for (const bm of kams) {
     for (const kaart of _kamBezoeken(bm.naam, wk.year, wk.week)) {
-      bezoeken.push({ kaart, collega: bm.naam, week: wk.week,
+      bezoeken.push({ kaart, collega: bm.naam, week: wk.week, jaar: wk.year,
                       verslag: _kamVerslagBij(kaart, bm.naam, wk.year, wk.week) });
     }
   }
@@ -20050,21 +20082,26 @@ function renderKamBewegingHtml(subTabBtns) {
     </div>`;
   };
 
+  // De weekkeuze stond in de gele kopbalk: witte letters op geel, dus
+  // onleesbaar (aanwijzing 28-08). Nu een eigen donkere strook onder de
+  // tabbladen, met de knoppen als echte knoppen in plaats van kale pijltjes.
+  const weekBalk = `<div class="kam-weekbalk">
+    <button class="kam-wknop" onclick="kamNavWeek(-1)" title="Week terug" aria-label="Week terug">
+      <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M13 6H2M6 1 1 6l5 5"/></svg>vorige</button>
+    <span class="kam-wknu">Week ${wk.week}<small>${wk.year}</small></span>
+    <button class="kam-wknop" onclick="kamNavWeek(1)" title="Week vooruit" aria-label="Week vooruit">
+      volgende<svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
+    ${isNu ? '<span class="kam-wkstil">dit is de huidige week</span>'
+           : `<button class="kam-wknop terug" onclick="kamNavWeekNu()">terug naar deze week</button>`}
+  </div>`;
+
   return `<div class="mt-donker">
     <div class="person-header">
       <div class="person-name">Accountmanagement</div>
-      <div class="person-meta">
-        <span class="bt-nav licht">
-          <button class="pijl" onclick="kamNavWeek(-1)" title="Week terug" aria-label="Week terug">
-            <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M13 6H2M6 1 1 6l5 5"/></svg></button>
-          <span class="aan">Week ${wk.week} · ${wk.year}</span>
-          <button class="pijl" onclick="kamNavWeek(1)" title="Week vooruit" aria-label="Week vooruit">
-            <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
-        </span>
-        ${isNu ? '' : `<span class="meta-pill" style="cursor:pointer;" onclick="kamNavWeekNu()">terug naar deze week</span>`}
-      </div>
+      <div class="person-meta"><span class="meta-pill">Bezoeken &amp; wijzigingen</span></div>
     </div>
     ${subTabBtns}
+    ${weekBalk}
     ${bezoekBlokken}
     ${blok(2, 'Wijzigingen Key Accountmanagement',
            'Nieuwe klanten en gewijzigde scores, met wie en wanneer.', 'accounts')}
@@ -20294,6 +20331,17 @@ async function gvVerwijder(id) {
 }
 
 function gvNieuw()      { GV_FORM = {}; renderAccounts(); }
+
+// Vanuit een bezoek zonder verslag (KAM-tabblad): open het lege blad met de
+// klant, de collega en de datum van die week er alvast in.
+function kamNieuwVerslag(bedrijf, collega, week, jaar) {
+  if (!eisWijzig('accounts')) return;
+  const maandag = isoWeekStartDate(jaar, week);
+  GV_FORM = { bedrijf, auteur: collega, datum: toISODate(maandag), soort: 'bedrijfsbezoek' };
+  ACCOUNT_SUBTAB = 'verslagen';
+  renderAccounts();
+  setTimeout(() => document.getElementById('gv-cp')?.focus(), 60);
+}
 function gvBewerk(id)   { GV_FORM = { id }; renderAccounts(); }
 function gvAnnuleer()   { GV_FORM = null; renderAccounts(); }
 function gvToggle(id)   { GV_OPEN.has(id) ? GV_OPEN.delete(id) : GV_OPEN.add(id); renderAccounts(); }
@@ -20818,7 +20866,9 @@ function renderGespreksverslagenHtml(subTabBtns) {
   // ── Het formulier: hetzelfde blad voor nieuw en bewerken ────────────────
   let formHtml = '';
   if (GV_FORM) {
-    const g = GV_FORM.id ? (GESPREKSVERSLAGEN_CACHE.find(x => String(x.id) === String(GV_FORM.id)) || {}) : {};
+    // Bij bewerken uit de lijst; bij nieuw uit GV_FORM zelf, zodat de +knop
+    // vanuit het bezoekenoverzicht klant en datum kan meegeven.
+    const g = GV_FORM.id ? (GESPREKSVERSLAGEN_CACHE.find(x => String(x.id) === String(GV_FORM.id)) || {}) : GV_FORM;
     const inp = 'style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:.84rem;background:#fff;color:var(--text);font-family:inherit;"';
     formHtml = `<div class="bt-venster werk-blad" style="margin-bottom:14px;">
       <div class="pva-blok" style="margin-top:0;">${GV_FORM.id ? 'Verslag bewerken' : 'Nieuw gespreksverslag'}</div>
