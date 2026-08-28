@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-1327 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-1359 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1732,6 +1732,46 @@
      is er geen functietoets, en daar wordt de meeste aantekening gemaakt. */
   /* De melding als een kandidaat reageert (25-08). Rechtsonder, buiten de
      leesrichting, zodat hij nooit iets afdekt waar je mee bezig bent. */
+  /* ── CRM-laag (28-08): één popup-basis voor alle infokaarten ─────────────
+     Eén laag, altijd hetzelfde gedrag: klik ernaast of Esc sluit hem. De
+     meldingen (z 9500) blijven erboven; de dagstart (9999) boven alles. */
+  .crm-laag { position:fixed; inset:0; z-index:9400; background:rgba(20,27,48,.55);
+              display:flex; align-items:center; justify-content:center; padding:20px; }
+  .crm-kaart { background:#253151; border:1px solid rgba(255,255,255,.14);
+               border-radius:12px; padding:18px 20px; max-width:560px; width:100%;
+               max-height:82vh; overflow:auto; box-shadow:0 18px 50px rgba(0,0,0,.45);
+               color:rgba(255,255,255,.88); font-size:.85rem; }
+  .crm-kaart h4 { margin:0 0 2px; color:#fff; font-size:1.05rem; font-weight:var(--w-nadruk); }
+  .crm-sub { color:rgba(255,255,255,.5); font-size:.76rem; margin-bottom:14px; }
+  .crm-kop { color:rgba(255,255,255,.45); font-size:.66rem; text-transform:uppercase;
+             letter-spacing:.04em; margin:12px 0 6px; }
+  .crm-rij { display:flex; justify-content:space-between; gap:12px; padding:5px 0;
+             border-bottom:1px solid rgba(255,255,255,.08); }
+  .crm-rij:last-child { border-bottom:none; }
+  .crm-rij .l { color:rgba(255,255,255,.6); }
+  .crm-rij .r { color:#fff; text-align:right; }
+  .crm-let-op { background:rgba(240,160,32,.12); border:1px solid rgba(240,160,32,.35);
+                border-radius:8px; padding:9px 12px; margin-top:12px; font-size:.8rem;
+                color:#f0a020; }
+  .crm-knoppen { display:flex; gap:6px; flex-wrap:wrap; margin-top:14px; }
+  .crm-knop { border:1px solid rgba(255,255,255,.28); background:transparent; cursor:pointer;
+              border-radius:8px; padding:7px 13px; color:rgba(255,255,255,.88);
+              font-family:inherit; font-size:.78rem; }
+  .crm-knop:hover { background:rgba(255,255,255,.1); color:#fff; }
+  .crm-knop.goed { border-color:rgba(52,211,153,.5); color:#6ee7b7; }
+  .crm-x { float:right; background:none; border:none; color:rgba(255,255,255,.5);
+           font-size:1.15rem; cursor:pointer; padding:0 0 0 12px; line-height:1; }
+  .crm-x:hover { color:#fff; }
+  /* Klikbare getallen en namen: rustig stippellijntje, geen blauwe link. */
+  .crm-klik { cursor:pointer; border-bottom:1px dotted rgba(255,255,255,.4); }
+  .crm-klik:hover { border-bottom-color:#F4CB3C; }
+  /* Zweefkaartje (hover): klein, volgt het element, nooit klikbaar zelf. */
+  #crm-zweef { position:fixed; z-index:9450; background:#1c2440;
+               border:1px solid rgba(255,255,255,.22); border-radius:9px;
+               padding:11px 13px; max-width:300px; font-size:.76rem;
+               color:rgba(255,255,255,.88); box-shadow:0 6px 18px rgba(0,0,0,.4);
+               pointer-events:none; }
+  #crm-zweef .crm-kop { margin-top:0; }
   #melding-bak { position:fixed; right:18px; bottom:18px; z-index:9500;
                  display:flex; flex-direction:column; gap:8px; max-width:400px; }
   .melding { display:flex; gap:11px; align-items:flex-start;
@@ -5986,7 +6026,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-1327';
+const APP_VERSIE = '20260828-1359';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7056,7 +7096,7 @@ async function memoIntrekken(id) {
 // dashboard het menu bouwen zoals die collega het ziet, en kijken wat erin
 // staat. Verandert er iets aan de rechten, dan verandert dit overzicht mee.
 // ════════════════════════════════════════════════════════════════════════════
-let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten' | 'onderdelen' | 'fouten'
+let BEHEER_SUBVIEW = 'collegas';   // 'collegas' | 'rechten' | 'onderdelen' | 'fouten' | 'mijlpalen'
 
 // Wie mag er op een pagina niet alleen kijken maar ook wijzigen. Deze regels
 // roepen de bestaande functies aan in plaats van ze over te schrijven; wat hier
@@ -7139,13 +7179,77 @@ function _rechtenCollegas() {
     .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
 }
 
+// ── Mijlpalen invoeren (verzoek 28-08) ──────────────────────────────────────
+// Verjaardag en datum in dienst per collega. Het geboortejaar wordt wel
+// opgeslagen (nodig om de datum te bewaren) maar nergens getoond — in de
+// dagstart staat alleen "is jarig". Wijzigen mag wie hrm mag wijzigen.
+function renderBeheerMijlpalen() {
+  const mag = magWijzigen('hrm');
+  const rij = (naam) => {
+    const m = MIJLPALEN_CACHE.find(x => x.naam === naam) || {};
+    const veld = (f, val) => mag
+      ? `<input type="date" id="mp-${f}-${naam.replace(/\s+/g, '_')}" value="${escHtml(val || '')}"
+           style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;background:#fff;color:var(--text);">`
+      : `<span style="color:var(--muted);">${val ? escHtml(val) : '—'}</span>`;
+    return `<tr>
+      <td style="text-align:left;font-weight:var(--w-nadruk);">${escHtml(naam)}</td>
+      <td style="text-align:left;">${veld('geb', m.geboortedatum)}</td>
+      <td style="text-align:left;">${veld('dienst', m.in_dienst_sinds)}</td>
+      ${mag ? `<td style="text-align:left;"><button class="mt-knop-eerste" onclick="mijlpaalOpslaan('${escApos(naam)}', this)">Opslaan</button></td>` : ''}
+    </tr>`;
+  };
+  const namen = Array.from(new Set([
+    ...BMS.filter(b => !b.inactief).map(b => b.naam),
+    ...DAGSTART_TEAMOVERZICHT,
+  ]));
+  document.getElementById('main').innerHTML = `<div>
+    <div class="person-header">
+      <div class="person-name">Beheer — Mijlpalen</div>
+      <div class="person-meta"><span class="meta-pill">verjaardagen en jubilea in de dagstart</span></div>
+    </div>
+    ${_rechtenSubtabs()}
+    <div style="padding:16px 20px;">
+      <div class="bt-venster werk-blad"><table class="bt-cijfers">
+        <thead><tr><th style="text-align:left;">Collega</th><th style="text-align:left;">Verjaardag</th>
+          <th style="text-align:left;">In dienst sinds</th>${mag ? '<th style="text-align:left;">&nbsp;</th>' : ''}</tr></thead>
+        <tbody>${namen.map(rij).join('')}</tbody>
+      </table></div>
+      <div style="margin-top:10px;font-size:.78rem;color:var(--muted);">
+        Het geboortejaar wordt nergens getoond — de dagstart zegt alleen dat iemand jarig is.
+        Jubilea tellen hele jaren vanaf de datum in dienst.</div>
+    </div></div>`;
+}
+
+async function mijlpaalOpslaan(naam, knop) {
+  if (!eisWijzig('hrm')) return;
+  const id  = naam.replace(/\s+/g, '_');
+  const geb    = document.getElementById('mp-geb-' + id)?.value || null;
+  const dienst = document.getElementById('mp-dienst-' + id)?.value || null;
+  if (knop) { knop.disabled = true; knop.textContent = 'Opslaan…'; }
+  const { error } = await supa.from('hrm_mijlpalen').upsert(
+    { naam, geboortedatum: geb, in_dienst_sinds: dienst,
+      bijgewerkt_door: CURRENT_USER?.naam || null, bijgewerkt: new Date().toISOString() },
+    { onConflict: 'naam' });
+  if (error) {
+    alert('Opslaan mislukt: ' + (/relation .* does not exist/i.test(error.message || '')
+      ? 'de tabel bestaat nog niet. Vraag de beheerder om supabase/crm_ronde.sql te draaien.'
+      : error.message));
+    meldFout('mijlpaal opslaan: ' + error.message, 'mijlpaalOpslaan');
+  } else {
+    MIJLPALEN_CACHE = MIJLPALEN_CACHE.filter(m => m.naam !== naam)
+      .concat([{ naam, geboortedatum: geb, in_dienst_sinds: dienst }]);
+  }
+  if (knop) { knop.disabled = false; knop.textContent = error ? 'Opnieuw' : 'Opgeslagen ✓';
+              setTimeout(() => { knop.textContent = 'Opslaan'; }, 1800); }
+}
+
 function beheerSubview(welke) { BEHEER_SUBVIEW = welke; renderBeheer(); }
 
 function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
   return `<div class="bm-subtabs" style="display:flex;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('fouten', 'Fouten')}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('fouten', 'Fouten')}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -7609,6 +7713,7 @@ function renderBeheerFouten() {
 
 function renderBeheer() {
   if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
+  if (BEHEER_SUBVIEW === 'mijlpalen')  { renderBeheerMijlpalen(); return; }
   if (BEHEER_SUBVIEW === 'onderdelen') { renderBeheerOnderdelen(); return; }
   if (BEHEER_SUBVIEW === 'fouten')     { renderBeheerFouten(); return; }
   const huidigJaar = new Date().getFullYear();
@@ -8321,6 +8426,9 @@ function selectBmSubTab(tab) {
 
 // ── BM Panel ──────────────────────────────────────────────────────────────────
 function renderBM(bm) {
+  // Vastloper-melding (CRM 28-08): alleen op je eigen kaart, één keer per dag,
+  // en pas nadat het scherm er staat.
+  setTimeout(() => { try { vastloperCheck(bm.naam); } catch (_) {} }, 400);
   const year   = getYear();
   const ratios = INDIVIDUAL_RATIOS[bm.naam];
   const norm   = normPerPeriod(bm.doel, ratios, view, activeNormFix(bm), bm.doelStartFraction);
@@ -8446,14 +8554,16 @@ function renderBM(bm) {
     : pct(ytd[k], ((normWeek[k] / (normWeek.starters || 1)) * targetW) || 1);
   const nfmt = (n) => fmt(n, n >= 1 ? 1 : 2);
   const opNorm = KPIS.filter(k => (normWeek[k] || 0) > 0 ? weekNu[k] >= normWeek[k] : weekNu[k] > 0).length;
+  // Getal en norm zijn klikbaar (CRM-ronde 28-08): het getal opent de
+  // opbouw (opgeslagen vs pipeline, welke kaartjes), de norm de rekensom.
   const dezeWeekRijen = KPIS.map(k => {
     const w = weekNu[k], n = normWeek[k] || 0;
     const ok = n > 0 ? w >= n : w > 0;
     return `<tr>
       <td style="width:20px;">${ok ? '<span style="color:#34d399;">✓</span>' : '<span style="color:rgba(255,255,255,.35);">○</span>'}</td>
       <td class="bm-kpi">${KPI_LABELS[k]}</td>
-      <td style="text-align:right;color:#fff;font-weight:var(--w-nadruk);">${fmt(w, w % 1 ? 1 : 0)}</td>
-      <td style="text-align:right;color:rgba(255,255,255,.45);">norm ${nfmt(n)}</td>
+      <td style="text-align:right;color:#fff;font-weight:var(--w-nadruk);"><span class="crm-klik" title="Waar komt dit getal vandaan?" onclick="uitlegWeekGetal('${escApos(bm.naam)}','${k}')">${fmt(w, w % 1 ? 1 : 0)}</span></td>
+      <td style="text-align:right;color:rgba(255,255,255,.45);"><span class="crm-klik" title="Hoe is deze norm berekend?" onclick="uitlegNorm('${escApos(bm.naam)}','${k}')">norm ${nfmt(n)}</span></td>
     </tr>`;
   }).join('');
   // Boven de 100% is de balk altijd groen, en hoe verder erboven, hoe
@@ -12041,6 +12151,7 @@ async function loadAllData() {
     stap('toolgebruik', loadToolgebruik),
     stap('memos', loadMemos),
     stap('Brightech ONE', () => loadOne().then(_oneTagCheck)),
+    stap('mijlpalen', loadMijlpalen),
     stap('aanmeldformulier', loadAanmeldSaved),
   ]);
   // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
@@ -12168,6 +12279,12 @@ async function loadProfileAndStart() {
   }
   _startMobielTabelWaarnemer();
   toonDagstart().then(toonMemos).catch(() => toonMemos());
+  // CRM-meldingen (28-08): weekafsluiting op vrijdag en de mijlpalen/contract-
+  // familie. Ná de dagstart, zodat ze er niet doorheen vallen.
+  setTimeout(() => {
+    try { weekafsluitingCheck(); } catch (_) {}
+    try { _crmMeldingenCheck(); } catch (_) {}
+  }, 1500);
   _dagstartWaakhond();
   subscribeRealtime();
   _publiceerAchtergrond();
@@ -12709,6 +12826,7 @@ async function toonDagstart() {
       <div style="margin-top:18px;font-size:var(--t-sm);color:var(--muted);letter-spacing:.04em;">VANDAAG</div>
       <div style="margin-top:5px;font-size:var(--t-md);line-height:1.6;color:var(--text);">${escHtml(boodschap.focus)}</div>
       ${tedoenHtml()}
+      ${(() => { try { return mijlpalenHtml(); } catch (_) { return ''; } })()}
       <button id="dagstart-knop" disabled style="margin-top:26px;width:100%;padding:12px;border:0;border-radius:9px;background:#e6e8ee;color:var(--muted);font-size:var(--t-md);font-weight:var(--w-nadruk);cursor:default;transition:background .25s,color .25s;">Nog even lezen…</button>
     </div>`;
   document.body.appendChild(laag);
@@ -13588,6 +13706,355 @@ function toonTagMelding(p) {
   bak.appendChild(kaart);
   // Blijft staan tot je kiest: een tag is persoonlijk, die hoort niet
   // ongezien te verdwijnen zoals een statusmelding.
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CRM-LAAG (verzoeken 28-08): één popup-basis, uitlegkaarten en zweefkaartjes.
+// Alles hier is ALLEEN-LEZEN: geen enkele functie in deze laag schrijft naar
+// de database. Kaarten tonen wat er is en verwijzen door.
+// ════════════════════════════════════════════════════════════════════════════
+
+function crmKaartToon(html) {
+  crmKaartSluit();
+  const laag = document.createElement('div');
+  laag.className = 'crm-laag';
+  laag.id = 'crm-laag';
+  laag.innerHTML = `<div class="crm-kaart" role="dialog" aria-modal="true">
+    <button class="crm-x" onclick="crmKaartSluit()" aria-label="Sluiten">&times;</button>${html}</div>`;
+  laag.addEventListener('click', (e) => { if (e.target === laag) crmKaartSluit(); });
+  document.body.appendChild(laag);
+  document.addEventListener('keydown', _crmEsc);
+}
+function _crmEsc(e) { if (e.key === 'Escape') crmKaartSluit(); }
+function crmKaartSluit() {
+  document.getElementById('crm-laag')?.remove();
+  document.removeEventListener('keydown', _crmEsc);
+}
+
+// Zweefkaartje: één element dat meebeweegt; inhoud komt per aanroep.
+function crmZweefToon(e, html) {
+  let el = document.getElementById('crm-zweef');
+  if (!el) { el = document.createElement('div'); el.id = 'crm-zweef'; document.body.appendChild(el); }
+  el.innerHTML = html;
+  const r = (e.currentTarget || e.target).getBoundingClientRect();
+  el.style.left = Math.min(window.innerWidth - 310, r.left) + 'px';
+  el.style.top  = (r.bottom + 8 + 300 > window.innerHeight ? r.top - el.offsetHeight - 8 : r.bottom + 8) + 'px';
+  // Na het vullen nog eens plaatsen: de hoogte is nu pas bekend.
+  requestAnimationFrame(() => {
+    el.style.top = (r.bottom + 8 + el.offsetHeight > window.innerHeight
+      ? Math.max(8, r.top - el.offsetHeight - 8) : r.bottom + 8) + 'px';
+  });
+}
+function crmZweefWeg() { document.getElementById('crm-zweef')?.remove(); }
+
+const _crmRij  = (l, r) => `<div class="crm-rij"><span class="l">${l}</span><span class="r">${r}</span></div>`;
+function _crmDagSleutel(naam) {
+  const d = new Date();
+  return naam + '|' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+function _crmGezien(sleutel) {
+  try { return (JSON.parse(localStorage.getItem('bt_crm_gezien') || '[]')).includes(sleutel); }
+  catch (_) { return false; }
+}
+function _crmOnthoud(sleutel) {
+  try {
+    const l = JSON.parse(localStorage.getItem('bt_crm_gezien') || '[]'); l.push(sleutel);
+    localStorage.setItem('bt_crm_gezien', JSON.stringify(l.slice(-300)));
+  } catch (_) {}
+}
+
+// ── 8. Waarom staat hier dit getal? ─────────────────────────────────────────
+function uitlegWeekGetal(bmNaam, k) {
+  const bm = BMS.find(b => b.naam === bmNaam); if (!bm) return;
+  const wk    = weekcijfersVoor(bmNaam, CUR.year, CUR.week);
+  const saved = RAW.find(d => d.naam === bmNaam && d.jaar === CUR.year && d.week === CUR.week);
+  const sVal  = parseFloat(saved && saved[k]) || 0;
+  const pVal  = wk.pipe[k] || 0;
+  const stage = KPI_STAGE_MAP[k];
+  const kaarten = pipeLoad(bmNaam).filter(c => c.stage === stage && c.week === CUR.week && c.jaar === CUR.year);
+  const loopt = wk.isSaved && pVal > sVal;
+  crmKaartToon(`
+    <h4>${KPI_LABELS[k]} W${CUR.week} — ${telFmt(wk.vals[k])}</h4>
+    <div class="crm-sub">${escHtml(bmNaam)} · zo is dit getal opgebouwd</div>
+    ${_crmRij('Opgeslagen in het weekschema', wk.isSaved ? telFmt(sVal) : '<span style="color:rgba(255,255,255,.45);">nog niet opgeslagen</span>')}
+    ${_crmRij('Nu in de pipeline', telFmt(pVal))}
+    ${_crmRij('<span style="color:rgba(255,255,255,.45);">Getoond wordt de hoogste</span>', '<b>' + telFmt(wk.vals[k]) + '</b>')}
+    ${loopt ? `<div class="crm-let-op">Je week is opgeslagen op ${telFmt(sVal)} en loopt ${telFmt(pVal - sVal)} achter op de pipeline. Even Wijzigen + Opslaan in het weekschema.</div>` : ''}
+    <div class="crm-kop">In de pipeline</div>
+    <div style="font-size:.8rem;color:rgba(255,255,255,.75);">${
+      kaarten.length
+        ? kaarten.slice(0, 8).map(c => escHtml(c.naam || 'zonder naam')
+            + (c.gedeeld ? ' <span style="color:rgba(255,255,255,.45);">(gedeeld, 0,5)</span>' : '')
+            + (k === 'aanbiedingen' ? ' <span style="color:rgba(255,255,255,.45);">· ' + (+c.aanb || 0) + '</span>' : '')
+          ).join('<br>') + (kaarten.length > 8 ? '<br>… en ' + (kaarten.length - 8) + ' meer' : '')
+        : 'Geen kaartjes in deze fase deze week.'}</div>`);
+}
+
+// ── 9. Hoe komt de norm tot stand? ──────────────────────────────────────────
+function uitlegNorm(bmNaam, k) {
+  const bm = BMS.find(b => b.naam === bmNaam); if (!bm) return;
+  const ratios = INDIVIDUAL_RATIOS[bmNaam] || TEAM_RATIOS;
+  const norm   = normPerPeriod(bm.doel, ratios, 'week', activeNormFix(bm), bm.doelStartFraction);
+  const fix    = activeNormFix(bm);
+  const perWeek = +(bm.doel / 52).toFixed(2);
+  const regels = [];
+  regels.push(_crmRij('Jaardoel starters', fmt(bm.doel, 0)));
+  regels.push(_crmRij('Per week (doel ÷ 52)', fmt(perWeek, 2)));
+  if (bm.doelStartFraction) regels.push(_crmRij('Startdatum-correctie', 'later in het jaar begonnen — doel telt vanaf de startweek'));
+  if (k === 'starters') {
+    regels.push(_crmRij('<b>Weeknorm starters</b>', '<b>' + fmt(norm.starters, 2) + '</b>'));
+  } else if (k === 'contractvoorstellen') {
+    regels.push(_crmRij('Plus 20% (afspraak 25-08)', '× 1,2'));
+    regels.push(_crmRij('<b>Weeknorm contractvoorstellen</b>', '<b>' + fmt(norm[k], 2) + '</b>'));
+  } else {
+    const factor = norm.starters ? +(norm[k] / norm.starters).toFixed(1) : 0;
+    regels.push(_crmRij('× ratio ' + KPI_LABELS[k].toLowerCase() + ' per starter', '× ' + fmt(factor, 1)));
+    regels.push(_crmRij('<b>Weeknorm ' + KPI_LABELS[k].toLowerCase() + '</b>', '<b>' + fmt(norm[k], 2) + '</b>'));
+  }
+  crmKaartToon(`
+    <h4>Norm ${KPI_LABELS[k].toLowerCase()} — ${fmt(norm[k], norm[k] >= 1 ? 1 : 2)}</h4>
+    <div class="crm-sub">${escHtml(bmNaam)} · zo is deze lat gelegd</div>
+    ${regels.join('')}
+    ${fix ? `<div class="crm-let-op">Voor deze rol geldt een aangepaste norm (Key Accountmanager): sommige KPI's tellen niet of anders mee.</div>` : ''}
+    <div class="crm-kop">Waar de ratio's vandaan komen</div>
+    <div style="font-size:.8rem;color:rgba(255,255,255,.6);">Berekend over de laatste 26 weken${INDIVIDUAL_RATIOS[bmNaam] ? ' van ' + escHtml(bmNaam) + ' zelf' : ' van het team'}, exclusief Key Accountmanagers. Verandert het werk, dan bewegen de ratio's vanzelf mee.</div>`);
+}
+
+// ── 14. Mijlpalen: verjaardagen en jubilea ──────────────────────────────────
+// Ingevoerd onder Beheer (tabblad Mijlpalen), bewaard in hrm_mijlpalen.
+// In de dagstart getoond — bewust geen popup: een verjaardag onderbreekt je
+// werk niet, maar je wilt hem niet missen. Het geboortejaar tonen we nergens.
+let MIJLPALEN_CACHE = [];
+
+async function loadMijlpalen() {
+  if (!supa) return;
+  const { data, error } = await supa.from('hrm_mijlpalen').select('*');
+  if (error) {
+    // Tabel bestaat pas na het draaien van crm_ronde.sql — stil laten gaan,
+    // het dagstartblok blijft dan gewoon leeg.
+    if (!/relation .* does not exist/i.test(error.message || '')) _meldStil('mijlpalen laden', error);
+    return;
+  }
+  MIJLPALEN_CACHE = data || [];
+}
+
+// Welke mijlpalen vallen er vandaag t/m over `dagen` dagen?
+function mijlpalenKomend(dagen) {
+  const uit = [];
+  const nu = new Date(); nu.setHours(0, 0, 0, 0);
+  const actief = new Set(BMS.filter(b => !b.inactief).map(b => b.naam));
+  for (const m of MIJLPALEN_CACHE) {
+    if (!actief.has(m.naam) && !DAGSTART_TEAMOVERZICHT.includes(m.naam)) continue;
+    for (const [veld, soort] of [['geboortedatum', 'verjaardag'], ['in_dienst_sinds', 'jubileum']]) {
+      if (!m[veld]) continue;
+      const d = new Date(m[veld] + 'T00:00:00');
+      if (isNaN(d)) continue;
+      // De eerstvolgende keer dat deze dag+maand valt.
+      const dit = new Date(nu.getFullYear(), d.getMonth(), d.getDate());
+      const val = dit >= nu ? dit : new Date(nu.getFullYear() + 1, d.getMonth(), d.getDate());
+      const over = Math.round((val - nu) / 86400000);
+      if (over > dagen) continue;
+      const jaren = val.getFullYear() - d.getFullYear();
+      if (soort === 'jubileum' && jaren < 1) continue;       // eerste werkdag is geen jubileum
+      uit.push({ naam: m.naam, soort, over, jaren,
+                 label: soort === 'verjaardag'
+                   ? `${m.naam} is ${over === 0 ? 'vandaag ' : ''}jarig`
+                   : `${m.naam} · ${jaren} jaar in dienst` });
+    }
+  }
+  return uit.sort((a, b) => a.over - b.over);
+}
+
+function mijlpalenHtml() {
+  const lijst = mijlpalenKomend(7);
+  if (!lijst.length) return '';
+  const wanneer = (o) => o === 0 ? 'vandaag' : o === 1 ? 'morgen' : 'over ' + o + ' dgn';
+  return `<div style="margin-top:16px;font-size:var(--t-sm);color:var(--muted);letter-spacing:.04em;">TEAM</div>
+    <div style="margin-top:5px;font-size:var(--t-md);line-height:1.7;color:var(--text);">
+      ${lijst.slice(0, 4).map(m => `<span style="color:var(--muted);font-size:.85em;">${wanneer(m.over)}</span> — ${escHtml(m.label)}`).join('<br>')}
+    </div>`;
+}
+
+// ── 15. De meldingenfamilie: contract, start, projecteinde ──────────────────
+// Elke melding gaat één keer per gebeurtenis (localStorage-sleutel), alleen
+// naar de eigenaar van de kaart en de managers. Alles alleen-lezen.
+function _crmMagMelding(bmNaam) {
+  const ik = CURRENT_USER?.bm_naam || CURRENT_USER?.naam || '';
+  return ik && (ik === bmNaam || DAGSTART_TEAMOVERZICHT.includes(ik));
+}
+
+function _crmMeldKaart(titel, sub, kleur, sleutel) {
+  if (_crmGezien(sleutel)) return;
+  _crmOnthoud(sleutel);
+  const bak = _meldingBak();
+  const kaart = document.createElement('div');
+  kaart.className = 'melding';
+  kaart.innerHTML = `
+    <div class="melding-tekst">
+      <div class="t" style="color:${kleur};">${titel}</div>
+      <div class="s">${sub}</div>
+      <div class="k"><button class="melding-knop" data-weg="1">Gezien</button></div>
+    </div>
+    <button class="melding-x" data-weg="1" aria-label="Melding sluiten">&times;</button>`;
+  kaart.addEventListener('click', (e) => {
+    if (e.target.closest('[data-weg]')) { kaart.classList.add('uit'); setTimeout(() => kaart.remove(), 250); }
+  });
+  bak.appendChild(kaart);
+}
+
+function _crmMeldingenCheck() {
+  if (!CURRENT_USER) return;
+  const nu = new Date(); nu.setHours(0, 0, 0, 0);
+  const msDag = 86400000;
+  for (const bm of BMS) {
+    if (!_crmMagMelding(bm.naam)) continue;
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.verwijderd_op) continue;
+      // Contract getekend: het bevroren-stempel van de laatste 24 uur.
+      const st = (typeof _projStatus === 'function') ? _projStatus('pipeline', c.id) : null;
+      if (st && st.bevroren && st.bevroren_op
+          && Date.now() - new Date(st.bevroren_op).getTime() < msDag
+          && (st.bijgewerkt_door || '') !== (CURRENT_USER.naam || '')) {
+        _crmMeldKaart('Contract vastgezet',
+          escHtml(c.naam || '') + (c.opdrachtgever ? ' · ' + escHtml(c.opdrachtgever) : ''),
+          '#F4CB3C', 'contract|' + c.id + '|' + st.bevroren_op);
+      }
+      // Startdatum nadert: binnen vijf dagen, alleen akkoord-kaarten.
+      if (c.goedkeuring === 'akkoord' && c.start_datum) {
+        const over = Math.round((new Date(c.start_datum + 'T00:00:00') - nu) / msDag);
+        if (over >= 0 && over <= 5) {
+          _crmMeldKaart('Startdatum nadert',
+            escHtml(c.naam || '') + ' start ' + (over === 0 ? 'vandaag' : over === 1 ? 'morgen' : 'over ' + over + ' dagen') + ' — alles rond?',
+            '#85B7EB', 'start|' + c.id + '|' + c.start_datum);
+        }
+      }
+      // Project loopt af: binnen vier weken, nog geen definitieve einddatum
+      // in het verleden.
+      const einde = c.definitieve_einddatum || c.eind_datum_verwacht;
+      if (c.goedkeuring === 'akkoord' && einde) {
+        const over = Math.round((new Date(einde + 'T00:00:00') - nu) / msDag);
+        if (over >= 0 && over <= 28) {
+          _crmMeldKaart('Project loopt af',
+            escHtml(c.naam || '') + (c.opdrachtgever ? ' bij ' + escHtml(c.opdrachtgever) : '') +
+            ' · nog ' + Math.max(1, Math.round(over / 7)) + ' ' + (Math.round(over / 7) <= 1 ? 'week' : 'weken') + ' — verlengen bespreken?',
+            '#f0a020', 'einde|' + c.id + '|' + einde);
+        }
+      }
+    }
+  }
+}
+
+// ── 10. Zweefkaartje op een pipelinekaartje ─────────────────────────────────
+// Zonder fase-dagen (aanwijzing 28-08: een kandidaat blijft in zijn fase
+// staan, dus die telling zegt niets). Wel: wat je wilt weten zonder klikken.
+function pipeZweef(e, bmNaam, cardId) {
+  const c = pipeLoad(bmNaam).find(x => String(x.id) === String(cardId));
+  if (!c) return;
+  const verslag = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : [])
+    .some(r => _itkSleutel(r.naam) === _itkSleutel(c.naam));
+  const regels = [];
+  if (c.functie)          regels.push(_crmRij('Functie', escHtml(c.functie)));
+  if (c.salarisindicatie) regels.push(_crmRij('SI', escHtml(String(c.salarisindicatie))));
+  if (c.salaris)          regels.push(_crmRij('Salaris', escHtml(String(c.salaris))));
+  if (c.regio)            regels.push(_crmRij('Regio', escHtml(c.regio) + (c.reisbereidheid ? ' · ' + escHtml(String(c.reisbereidheid)) + ' min' : '')));
+  if (c.opdrachtgever)    regels.push(_crmRij('Opdrachtgever', escHtml(c.opdrachtgever)));
+  if (c.gesprek)          regels.push(_crmRij('Gespreksronde', escHtml(String(c.gesprek)) + 'e'));
+  regels.push(_crmRij('ITK-verslag', verslag ? '<span style="color:#6ee7b7;">aanwezig</span>' : '<span style="color:rgba(255,255,255,.45);">geen</span>'));
+  if (c.gedeeld) regels.push(_crmRij('Plaatsing', 'gedeeld · telt als 0,5'));
+  crmZweefToon(e, `<div class="crm-kop">${escHtml(c.naam || 'zonder naam')} · W${c.week}</div>${regels.join('')}`);
+}
+
+// ── 11. Zweefkaartje op een klant in de KAM-tabel ───────────────────────────
+function accZweef(e, accId) {
+  const a = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : [])
+    .find(x => String(x.id) === String(accId));
+  if (!a) return;
+  const balk = (v) => {
+    const b = Math.max(0, Math.min(5, +v || 0)) * 20;
+    return `<span style="display:inline-block;width:64px;height:4px;background:rgba(255,255,255,.12);border-radius:2px;vertical-align:middle;margin-right:7px;"><i style="display:block;width:${b}%;height:4px;background:${b >= 60 ? '#5DCAA5' : '#F4CB3C'};border-radius:2px;"></i></span>` + (v || '—');
+  };
+  const scoreRegels = ACC_SCORE_FIELDS.map(([f, label]) => _crmRij(escHtml(label), balk(a[f]))).join('');
+  // Laatste bezoek en lopende kandidaten uit de pipelines van alle collega's.
+  const sleutel = _itkSleutel(a.naam);
+  let laatste = null, lopend = 0;
+  for (const bm of BMS) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (_itkSleutel(c.opdrachtgever || '') !== sleutel && _itkSleutel(c.naam || '') !== sleutel) continue;
+      if (c.stage === 'Bezoeken') {
+        if (!laatste || (c.jaar * 100 + c.week) > laatste.j * 100 + laatste.w)
+          laatste = { j: c.jaar, w: c.week, wie: bm.naam };
+      } else if (c.stage !== 'Starter') lopend++;
+    }
+  }
+  crmZweefToon(e, `<div class="crm-kop">${escHtml(a.naam || '')} · score ${accScore(a)}</div>${scoreRegels}
+    <div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.6);">
+      ${laatste ? 'Laatst bezocht W' + laatste.w + ' door ' + escHtml(_dagstartVoornaam(laatste.wie)) : 'Geen bezoek in de pipeline'}
+      ${lopend ? ' · ' + lopend + ' kandida' + (lopend === 1 ? 'at' : 'ten') + ' lopend' : ''}</div>`);
+}
+
+// ── 12. Vastlopers: kaartjes zonder beweging ────────────────────────────────
+// Op het weekstempel — geen nieuwe kolom nodig. Een kaartje dat op week 30
+// staat terwijl we in week 35 leven, heeft vijf weken geen stap gezet.
+const VASTLOPER_WEKEN = 3;
+
+function vastloperLijst(bmNaam) {
+  const nuW = CUR.year * 52 + CUR.week;
+  return pipeLoad(bmNaam).filter(c =>
+       c.stage !== 'Starter'
+    && !c.verwijderd_op
+    && (c.goedkeuring || 'open') === 'open'
+    && c.week && c.jaar
+    && nuW - (c.jaar * 52 + c.week) >= VASTLOPER_WEKEN)
+    .map(c => ({ ...c, wekenStil: nuW - (c.jaar * 52 + c.week) }))
+    .sort((a, b) => b.wekenStil - a.wekenStil);
+}
+
+function vastloperCheck(bmNaam) {
+  if (!CURRENT_USER || bmNaam !== (CURRENT_USER.bm_naam || CURRENT_USER.naam)) return;
+  const sleutel = _crmDagSleutel('vastlopers|' + bmNaam);
+  if (_crmGezien(sleutel)) return;
+  const lijst = vastloperLijst(bmNaam);
+  if (!lijst.length) return;
+  _crmOnthoud(sleutel);
+  crmKaartToon(`
+    <h4 style="color:#f0a020;">${lijst.length} kandida${lijst.length === 1 ? 'at staat' : 'ten staan'} stil</h4>
+    <div class="crm-sub">Langer dan ${VASTLOPER_WEKEN} weken geen nieuwe stap in de pipeline</div>
+    ${lijst.slice(0, 8).map(c => _crmRij(escHtml(c.naam || 'zonder naam')
+        + ' <span style="color:rgba(255,255,255,.45);">· ' + escHtml(c.stage) + '</span>',
+        c.wekenStil + ' wkn')).join('')}
+    ${lijst.length > 8 ? `<div style="color:rgba(255,255,255,.45);font-size:.76rem;margin-top:6px;">… en ${lijst.length - 8} meer</div>` : ''}
+    <div class="crm-knoppen">
+      <button class="crm-knop" onclick="crmKaartSluit()">Naar de pipeline</button>
+      <button class="crm-knop" onclick="crmKaartSluit()">Later</button>
+    </div>
+    <div style="margin-top:9px;font-size:.7rem;color:rgba(255,255,255,.4);">Verplaatsen of afvoeren doe je in de pipeline zelf — deze melding raakt je gegevens niet aan.</div>`);
+}
+
+// ── 13. Weekafsluiting op vrijdag ───────────────────────────────────────────
+function weekafsluitingCheck() {
+  if (!CURRENT_USER) return;
+  const ik = CURRENT_USER.bm_naam || CURRENT_USER.naam || '';
+  if (!ik || !BMS.some(b => b.naam === ik)) return;
+  if (typeof canEdit === 'function' && !canEdit(ik)) return;
+  if (new Date().getDay() !== 5) return;                       // alleen vrijdag
+  const sleutel = _crmDagSleutel('weekafsluiting|' + ik);
+  if (_crmGezien(sleutel)) return;
+  const wk = weekcijfersVoor(ik, CUR.year, CUR.week);
+  // Al opgeslagen en niets loopt achter? Dan niets vragen.
+  if (wk.isSaved && !wk.achter.length) return;
+  _crmOnthoud(sleutel);
+  const waarschuwing = KPIS.filter(k => !(wk.vals[k] > 0) && k !== 'starters' && k !== 'contractvoorstellen');
+  crmKaartToon(`
+    <h4>Week ${CUR.week} afsluiten?</h4>
+    <div class="crm-sub">Dit staat er nu in je pipeline</div>
+    ${KPIS.map(k => _crmRij(KPI_LABELS[k], telFmt(wk.vals[k]))).join('')}
+    ${waarschuwing.length ? `<div class="crm-let-op">Let op: 0 ${waarschuwing.map(k => KPI_LABELS[k].toLowerCase()).join(', 0 ')} deze week. Klopt dat, of staat er iets nog niet in?</div>` : ''}
+    ${wk.isSaved && wk.achter.length ? `<div class="crm-let-op">Je opgeslagen week loopt achter op de pipeline (${wk.achter.map(k => KPI_LABELS[k].toLowerCase()).join(', ')}).</div>` : ''}
+    <div class="crm-knoppen">
+      <button class="crm-knop goed" onclick="saveWeeklyEntryDirect('${escApos(ik)}',${CUR.week},${CUR.year},this);setTimeout(crmKaartSluit,600)">Opslaan</button>
+      <button class="crm-knop" onclick="crmKaartSluit()">Eerst aanpassen</button>
+      <button class="crm-knop" onclick="crmKaartSluit()">Later</button>
+    </div>`);
 }
 
 function toonReactieMelding(rij, rec) {
@@ -15104,7 +15571,8 @@ async function loadProjStatus() {
   }
   PROJ_STATUS_CACHE = {};
   for (const r of (data || [])) {
-    PROJ_STATUS_CACHE[`${r.src}_${r.project_id}`] = { bevroren: !!r.bevroren, bonus: r.bonus || '' };
+    PROJ_STATUS_CACHE[`${r.src}_${r.project_id}`] = { bevroren: !!r.bevroren, bonus: r.bonus || '',
+      bevroren_op: r.bevroren_op || null, bijgewerkt_door: r.bijgewerkt_door || null };
   }
   _projStatusGeladen = true;
 }
@@ -15119,6 +15587,9 @@ function _projStatusSchrijf(src, id, velden) {
   if (!supa) return;
   supa.from('project_contract_status').upsert({
     src, project_id: String(id), bevroren: nu.bevroren, bonus: nu.bonus || null,
+    // Het stempel (CRM 28-08): wanneer werd dit contract vastgezet? Alleen
+    // zetten op het moment van bevriezen zelf, niet bij elke andere wijziging.
+    ...(velden.bevroren === true ? { bevroren_op: new Date().toISOString() } : {}),
     bijgewerkt_door: CURRENT_USER?.naam || null, bijgewerkt: new Date().toISOString(),
   }, { onConflict: 'src,project_id' }).then(({ error }) => {
     if (error) meldFout('contractstatus opslaan: ' + error.message, 'projStatusSchrijf');
@@ -20244,7 +20715,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
     const stale = accIsStale(a.updated_at);
     const naamCell = editing
       ? `<input type="text" id="acc-naam-${safeId}" class="acc-text-input" value="${escHtml(a.naam||'')}">`
-      : `${escHtml(a.naam||'')}${stale ? ` <span title="Langer dan 1 maand niet bijgewerkt" style="color:var(--danger);font-weight:600;">❗</span>` : ''}`;
+      : `<span onmouseenter="accZweef(event,'${escApos(String(a.id))}')" onmouseleave="crmZweefWeg()">${escHtml(a.naam||'')}</span>${stale ? ` <span title="Langer dan 1 maand niet bijgewerkt" style="color:var(--danger);font-weight:600;">❗</span>` : ''}`;
     const lastModCell = `<span style="color:${stale ? 'var(--danger)' : 'var(--muted)'};font-size:.82rem;">${fmtAccDate(a.updated_at)}</span>`;
     const stratCell = editing
       ? `<input type="text" id="acc-stratcp-${safeId}" class="acc-text-input" style="text-align:center;text-transform:uppercase;" value="${escHtml(a.strat_cp||'')}">`
@@ -26320,6 +26791,7 @@ function renderPipeline(bm) {
         const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" style="box-shadow:inset 2px 0 0 ${col.punt};" draggable="${weekEditable?'true':'false'}"
+          onmouseenter="pipeZweef(event,'${bmE}','${c.id}')" onmouseleave="crmZweefWeg()"
           ondragstart="${weekEditable ? `pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')` : ''}"
           ondragend="pipeDragEnd(event)">
           <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${aanbInlineHtml}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">${btActie('potlood')}</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
