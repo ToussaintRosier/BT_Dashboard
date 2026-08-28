@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-0836 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-1327 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5986,7 +5986,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-0836';
+const APP_VERSIE = '20260828-1327';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13485,31 +13485,78 @@ function _oneTagOnthoud(id) {
   } catch (_) {}
 }
 
+// De grens is je laatste bezoek aan ONE, niet een uur (herstel 28-08).
+//
+// WAT ER MIS WAS
+//   Ik had een uur-venster ingebouwd tegen popup-stapels na een vakantie. Maar
+//   berichten die buiten dat uur vielen werden stilzwijgend als "gemeld"
+//   weggeschreven — dus wie 's ochtends getagd werd en pas twee uur later het
+//   dashboard opende, kreeg de melding niet, en ook nooit meer. Precies wat er
+//   met het @ALL-bericht van Charlotte gebeurde.
+//
+//   Nu geldt dezelfde grens als de oranje badge in het menu: alles wat
+//   binnenkwam sinds je laatste bezoek aan ONE. Staan er meer dan twee klaar,
+//   dan komt er één melding in plaats van een stapel — dat was de zorg
+//   waarvoor het uur ooit bedoeld was.
+const ONE_TAG_LOSSE_MAX = 2;
+
 function _oneTagCheck() {
   if (!CURRENT_USER) return;
-  const ik = CURRENT_USER.naam || CURRENT_USER.bm_naam || '';
+  const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '').trim();
   if (!ik) return;
   const gemeld = _oneTagsGemeld();
-  // Alleen recente berichten (laatste uur): wie na een week inlogt krijgt de
-  // badge in het menu, geen stapel popups over oud nieuws.
-  const vers = Date.now() - 60 * 60 * 1000;
-  for (const p of (ONE_POSTS || [])) {
-    if (gemeld.has(String(p.id))) continue;
-    if (!(p.getagd || []).includes(ik)) continue;
-    if (p.auteur === ik) continue;                       // jezelf taggen meldt niets
-    if (new Date(p.created_at).getTime() < vers) { _oneTagOnthoud(p.id); continue; }
-    _oneTagOnthoud(p.id);
-    toonTagMelding(p);
-  }
+  const sinds  = _oneSinds();
+  const nieuw  = (ONE_POSTS || []).filter(p =>
+       !gemeld.has(String(p.id))
+    && (p.getagd || []).map(n => String(n).trim()).includes(ik)
+    && String(p.auteur || '').trim() !== ik      // jezelf taggen meldt niets
+    && p.created_by !== ONE_MIJN_ID
+    && (!sinds || p.created_at > sinds));
+  if (!nieuw.length) return;
+
+  // Pas als gemeld wegschrijven wanneer de melding er ook echt staat.
+  nieuw.forEach(p => _oneTagOnthoud(p.id));
+  if (nieuw.length > ONE_TAG_LOSSE_MAX) toonTagMeldingBundel(nieuw);
+  else nieuw.forEach(toonTagMelding);
 }
 
-function toonTagMelding(p) {
-  const bak = document.getElementById('melding-bak') || (() => {
+// Meer dan een handvol tegelijk: één melding met de knop naar ONE. Vijf
+// popups over elkaar heen leest niemand.
+function toonTagMeldingBundel(posts) {
+  const bak = _meldingBak();
+  const kaart = document.createElement('div');
+  kaart.className = 'melding';
+  const namen = Array.from(new Set(posts.map(p => String(p.auteur || '').trim()).filter(Boolean)));
+  kaart.innerHTML = `
+    <div class="melding-tekst">
+      <div class="t">Je bent in ${posts.length} berichten getagd</div>
+      <div class="s">${escHtml(namen.slice(0, 3).join(', '))}${namen.length > 3 ? ' en anderen' : ''}</div>
+      <div class="k">
+        <button class="melding-knop" data-open="1">Naar Brightech ONE</button>
+        <button class="melding-knop" data-weg="1">Later</button>
+      </div>
+    </div>
+    <button class="melding-x" data-weg="1" aria-label="Melding sluiten">&times;</button>`;
+  const weg = () => { kaart.classList.add('uit'); setTimeout(() => kaart.remove(), 250); };
+  kaart.addEventListener('click', (e) => {
+    if (e.target.closest('[data-weg]')) { weg(); return; }
+    if (e.target.closest('[data-open]')) { weg(); selectTab('one'); }
+  });
+  bak.appendChild(kaart);
+}
+
+// Eén plek waar het meldingenhoekje wordt aangemaakt.
+function _meldingBak() {
+  return document.getElementById('melding-bak') || (() => {
     const el = document.createElement('div');
     el.id = 'melding-bak';
     document.body.appendChild(el);
     return el;
   })();
+}
+
+function toonTagMelding(p) {
+  const bak = _meldingBak();
   const kaart = document.createElement('div');
   kaart.className = 'melding';
   kaart.innerHTML = `
