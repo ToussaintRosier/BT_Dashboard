@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260826-1851 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-0813 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1180,6 +1180,21 @@
                          font-size:1rem; line-height:1; padding:0 4px; opacity:.7; }
   .one-tag-chip button:hover { opacity:1; }
   .one-foto-blok { margin-top:10px; }
+  .one-bestand-blok { margin-top:10px; }
+  .one-bestand-regel { display:flex; align-items:center; gap:10px; font-size:.82rem;
+                       color:rgba(255,255,255,.85); background:rgba(255,255,255,.06);
+                       border:1px solid rgba(255,255,255,.15); border-radius:8px;
+                       padding:7px 12px; max-width:440px; }
+  .one-bestand-regel .stil { color:rgba(255,255,255,.45); font-size:.76rem; }
+  .one-bestand-type { font-size:.66rem; letter-spacing:.04em; color:var(--accent-gold, #F4CB3C);
+                      border:1px solid rgba(244,203,60,.4); border-radius:5px;
+                      padding:1px 6px; flex-shrink:0; }
+  .one-kaart-bestand { display:inline-flex; align-items:center; gap:8px; margin-top:10px;
+                       font-size:.82rem; color:rgba(255,255,255,.9);
+                       background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18);
+                       border-radius:8px; padding:7px 12px; text-decoration:none; }
+  .one-kaart-bestand .naam { text-decoration:underline; }
+  .one-kaart-bestand:hover { background:rgba(255,255,255,.12); color:#fff; }
   .one-foto-blok img { max-width:min(100%, 960px); max-height:540px;
                        width:auto; height:auto;
                        border-radius:10px; display:block; }
@@ -4715,6 +4730,8 @@ let ONE_POLL_CONCEPT = [];
 let ONE_FILTER = 'alles';
 let ONE_MIJN_ID = null;
 let ONE_FOTO = null;                 // de gekozen foto, al verkleind
+let ONE_BESTAND = null;              // het gekozen bestand { file, naam }
+let ONE_BESTAND_URLS = {};           // bestand_pad → tijdelijke downloadlink
 let ONE_TAGS = [];                   // getagde collega's in het bericht dat je schrijft
 let ONE_ALLEN = false;               // 'iedereen' aangezet: dan tellen losse namen niet meer
 let ONE_FOTO_URLS = {};              // foto_pad → tijdelijke link
@@ -4770,6 +4787,7 @@ async function loadOne() {
                      .map(p => String(p.naam || p.bm_naam || '').trim())
                      .filter(Boolean))).sort((a, b) => a.localeCompare(b));
     await _oneFotoLinks();
+    await _oneBestandLinks();
   } catch (e) { _meldStil('Brightech ONE ophalen', e); }
 }
 
@@ -4782,6 +4800,17 @@ async function _oneFotoLinks() {
     const { data } = await supa.storage.from('one-fotos').createSignedUrls(paden, 60 * 60 * 8);
     (data || []).forEach(r => { if (r && r.signedUrl) ONE_FOTO_URLS[r.path] = r.signedUrl; });
   } catch (e) { _meldStil('ONE-foto’s ophalen', e); }
+}
+
+// Bestanden: zelfde afscherming als de foto's — per bestand een tijdelijke
+// downloadlink van acht uur.
+async function _oneBestandLinks() {
+  const paden = ONE_POSTS.map(p => p.bestand_pad).filter(p => p && !ONE_BESTAND_URLS[p]);
+  if (!paden.length) return;
+  try {
+    const { data } = await supa.storage.from('one-bestanden').createSignedUrls(paden, 60 * 60 * 8);
+    (data || []).forEach(r => { if (r && r.signedUrl) ONE_BESTAND_URLS[r.path] = r.signedUrl; });
+  } catch (e) { _meldStil('ONE-bestanden ophalen', e); }
 }
 
 // ── Meldingen ───────────────────────────────────────────────────────────────
@@ -4944,6 +4973,7 @@ function renderOne() {
         'placeholder="Vertel het in je eigen woorden.">' + escHtml(ONE_CONCEPT.tekst) + '</textarea>' +
       '<div id="one-tags" class="one-tag-chips">' + _oneTagChipsHtml() + '</div>' +
       '<div id="one-foto-blok" class="one-foto-blok">' + _oneFotoVoorbeeldHtml() + '</div>' +
+      '<div id="one-bestand-blok" class="one-bestand-blok">' + _oneBestandVoorbeeldHtml() + '</div>' +
       _onePollBouwHtml() +
       _oneTaakBouwHtml() +
       '<div class="one-schrijf-acties">' +
@@ -4951,6 +4981,10 @@ function renderOne() {
           '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/>' +
           '<circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 4.5-4.5L12 16l3-3 5 5"/></svg>Foto' +
           '<input type="file" accept="image/*" hidden onchange="oneKiesFoto(this)"></label>' +
+        '<label class="one-stil-knop" title="Bestand toevoegen (PDF, Word, Excel, PowerPoint, tekst of CSV — max 10 MB)">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/>' +
+          '<path d="M13 3v6h6"/></svg>Bestand' +
+          '<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden onchange="oneKiesBestand(this)"></label>' +
         // Eén knop voor beide manieren van taggen: één collega of iedereen.
         // Twee losse knoppen naast elkaar suggereerden dat het twee dingen zijn.
         '<select class="one-stil-knop one-keuze-knop' + (ONE_ALLEN ? ' aan' : '') + '" ' +
@@ -5397,6 +5431,15 @@ function _oneKaartHtml(p, sinds) {
     ? '<div class="one-kaart-foto"><img src="' + ONE_FOTO_URLS[p.foto_pad] +
       '" alt="Foto bij dit bericht" onclick="oneToonFoto(this.src)"></div>' : '';
 
+  // De downloadregel opent de tijdelijke link in een nieuw tabblad; de
+  // oorspronkelijke bestandsnaam staat erop, niet het opslagpad.
+  const bestandHtml = p.bestand_pad && ONE_BESTAND_URLS[p.bestand_pad]
+    ? '<a class="one-kaart-bestand" href="' + ONE_BESTAND_URLS[p.bestand_pad] +
+      '" target="_blank" rel="noopener" download="' + escHtml(p.bestand_naam || 'bestand') + '">' +
+      '<span class="one-bestand-type">' +
+      escHtml(String(p.bestand_naam || '').split('.').pop().toUpperCase() || 'PDF') + '</span>' +
+      '<span class="naam">' + escHtml(p.bestand_naam || 'bestand') + '</span></a>' : '';
+
   const beheerHtml = _oneMagBeheren(p)
     ? '<div class="one-beheer">' +
       (isManagerLevel() ? '<button onclick="oneVastzetten(\'' + p.id + '\',' + (p.vastgezet ? 'false' : 'true') + ')">' +
@@ -5427,6 +5470,7 @@ function _oneKaartHtml(p, sinds) {
     _onePollHtml(p) +
     _oneTakenHtml(p) +
     fotoHtml +
+    bestandHtml +
     '<div class="one-balk">' + _oneDuimHtml('post', p.id) +
       '<button class="one-reageer-knop" onclick="oneToggleInvoer(\'' + sleutel + '\')">' +
       (alleReacties.length
@@ -5510,6 +5554,51 @@ async function oneKiesFoto(invoer) {
   }
 }
 
+// ── Bestanden bij een bericht (verzoek 26-08) ───────────────────────────────
+// Alleen kantoortypes, en anders dan bij foto's wordt er niets verkleind: het
+// bestand gaat zoals het is. Vandaar de hardere grens van 10 MB, die de
+// opslagmap zelf óók afdwingt (supabase/one_bestanden.sql).
+const ONE_BESTAND_MAX   = 10 * 1024 * 1024;
+const ONE_BESTAND_TYPES = /\.(pdf|docx?|xlsx?|pptx?|txt|csv)$/i;
+
+function _oneBestandGrootte(b) {
+  return b >= 1024 * 1024 ? (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'
+                          : Math.max(1, Math.round(b / 1024)) + ' kB';
+}
+
+function _oneBestandVoorbeeldHtml() {
+  if (!ONE_BESTAND) return '';
+  return '<div class="one-bestand-regel"><span class="one-bestand-type">' +
+    escHtml(ONE_BESTAND.naam.split('.').pop().toUpperCase()) + '</span>' +
+    '<span>' + escHtml(ONE_BESTAND.naam) + '</span>' +
+    '<span class="stil">' + _oneBestandGrootte(ONE_BESTAND.file.size) + '</span>' +
+    '<button class="one-stil-knop" onclick="oneVerwijderBestand()">weghalen</button></div>';
+}
+
+function oneKiesBestand(invoer) {
+  const bestand = invoer.files && invoer.files[0];
+  invoer.value = '';
+  const vak = document.getElementById('one-bestand-blok');
+  if (!bestand || !vak) return;
+  if (!ONE_BESTAND_TYPES.test(bestand.name || '')) {
+    btZetStatus(vak, '❌ Dit type kan niet mee. Wel: PDF, Word, Excel, PowerPoint, tekst of CSV.');
+    return;
+  }
+  if (bestand.size > ONE_BESTAND_MAX) {
+    btZetStatus(vak, '❌ Dit bestand is ' + _oneBestandGrootte(bestand.size) +
+      ' — de grens is 10 MB. Maak het kleiner of deel het op een andere manier.');
+    return;
+  }
+  ONE_BESTAND = { file: bestand, naam: String(bestand.name || 'bestand').replace(/[^\w.\-]+/g, '_') };
+  vak.innerHTML = _oneBestandVoorbeeldHtml();
+}
+
+function oneVerwijderBestand() {
+  ONE_BESTAND = null;
+  const vak = document.getElementById('one-bestand-blok');
+  if (vak) vak.innerHTML = '';
+}
+
 function oneVerwijderFoto() {
   if (ONE_FOTO && ONE_FOTO.url) URL.revokeObjectURL(ONE_FOTO.url);
   ONE_FOTO = null;
@@ -5585,6 +5674,22 @@ function oneHaalTagWeg(i) {
 // ── Plaatsen ────────────────────────────────────────────────────────────────
 // Storage-fouten komen in het Engels terug en zeggen een collega niets. Hier
 // vertaald naar wat er werkelijk aan de hand is, met de stap die het oplost.
+function _oneBestandFout(fout) {
+  const m = String(fout?.message || fout || '');
+  if (/bucket not found/i.test(m)) {
+    return 'de bestandsruimte is nog niet aangemaakt in Supabase. Vraag de beheerder om ' +
+           'supabase/one_bestanden.sql uit te voeren. Je bericht zelf is niet verloren — ' +
+           'haal het bestand weg en plaats het, of probeer het straks opnieuw.';
+  }
+  if (/payload too large|entity too large|exceeded the maximum/i.test(m)) {
+    return 'het bestand is te groot voor de opslag (grens is 10 MB).';
+  }
+  if (/mime type|not supported/i.test(m)) {
+    return 'dit bestandstype wordt niet geaccepteerd. Wel: PDF, Word, Excel, PowerPoint, tekst of CSV.';
+  }
+  return 'het bestand kon niet worden geplaatst: ' + m;
+}
+
 function _oneFotoFout(fout) {
   const m = String(fout?.message || fout || '');
   if (/bucket not found/i.test(m)) {
@@ -5628,6 +5733,15 @@ async function onePlaats() {
         .upload(pad, ONE_FOTO.blob, { contentType:'image/jpeg' });
       if (fErr) throw new Error(_oneFotoFout(fErr));
     }
+    let bestandPad = null, bestandNaam = null;
+    if (ONE_BESTAND) {
+      bestandPad  = ONE_MIJN_ID + '/' + Date.now() + '-' + ONE_BESTAND.naam;
+      bestandNaam = ONE_BESTAND.naam;
+      const { error: bErr } = await supa.storage.from('one-bestanden')
+        .upload(bestandPad, ONE_BESTAND.file,
+                { contentType: ONE_BESTAND.file.type || 'application/octet-stream' });
+      if (bErr) throw new Error(_oneBestandFout(bErr));
+    }
     // Ook namen die je zelf hebt ingetypt tellen mee als tag, zolang het een
     // bestaande collega is.
     const ik = CURRENT_USER.naam || CURRENT_USER.bm_naam || '';
@@ -5642,6 +5756,7 @@ async function onePlaats() {
 
     const { data: nieuwPost, error } = await supa.from('one_posts').insert({
       onderwerp, tekst, categorie, foto_pad: pad,
+      bestand_pad: bestandPad, bestand_naam: bestandNaam,
       getagd: getagd.length ? getagd : null,
       auteur: CURRENT_USER.naam || CURRENT_USER.bm_naam || '',
       created_by: ONE_MIJN_ID,
@@ -5687,7 +5802,7 @@ async function onePlaats() {
     }
 
     if (ONE_FOTO && ONE_FOTO.url) URL.revokeObjectURL(ONE_FOTO.url);
-    ONE_FOTO = null; ONE_TAGS = []; ONE_ALLEN = false;
+    ONE_FOTO = null; ONE_BESTAND = null; ONE_TAGS = []; ONE_ALLEN = false;
     ONE_POLL_CONCEPT = []; ONE_TAAK_CONCEPT = [];
     ONE_CONCEPT = { onderwerp:'', tekst:'', categorie, reacties: ONE_CONCEPT.reacties };
     await loadOne();
@@ -5865,7 +5980,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260826-1851';
+const APP_VERSIE = '20260828-0813';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
