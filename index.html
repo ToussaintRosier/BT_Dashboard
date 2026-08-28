@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-1538 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-1552 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -767,6 +767,20 @@
               border:1px solid rgba(244,203,60,.45); color:var(--accent-gold, #F4CB3C);
               font-family:inherit; font-size:.85rem; line-height:1; vertical-align:middle; }
   .kam-plus:hover { background:rgba(244,203,60,.3); color:#fff; }
+  /* Gespreksverslagen: vaste kolommen, alles links (aanwijzing 28-08). */
+  .gv-tab tr.gv-rij { cursor:pointer; }
+  .gv-tab tr.gv-rij:hover td { background:rgba(255,255,255,.05); }
+  .gv-pijl  { width:18px; color:rgba(255,255,255,.45); font-size:.68rem; }
+  .gv-klant { width:150px; color:#fff; }
+  .gv-cp    { width:150px; color:rgba(255,255,255,.7); }
+  .gv-tekst { color:rgba(255,255,255,.6); max-width:0; overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; }
+  .gv-soort { width:96px; }
+  .gv-datum { width:96px; color:rgba(255,255,255,.5); white-space:nowrap; }
+  .gv-door  { width:96px; color:rgba(255,255,255,.6); white-space:nowrap; }
+  .gv-open  { padding:2px 0 16px 28px !important; }
+  .gv-veld  { font-size:.84rem; line-height:1.6; white-space:pre-wrap;
+              color:rgba(255,255,255,.88); }
   .kam-tab { width:100%; border-collapse:collapse; font-size:.8rem; }
   .kam-tab th { text-align:left !important; font-size:.66rem; text-transform:uppercase;
                 letter-spacing:.04em; color:rgba(255,255,255,.45);
@@ -1796,6 +1810,10 @@
                color:rgba(255,255,255,.88); box-shadow:0 6px 18px rgba(0,0,0,.4);
                pointer-events:none; }
   #crm-zweef .crm-kop { margin-top:0; }
+  /* In het zweefkaartje vaste kolommen: label links, waarde op één lijn
+     (aanwijzing 28-08 — alles netjes onder elkaar). */
+  #crm-zweef .crm-rij { display:grid; grid-template-columns:132px 1fr; gap:10px; }
+  #crm-zweef .crm-rij .r { text-align:left; }
   #melding-bak { position:fixed; right:18px; bottom:18px; z-index:9500;
                  display:flex; flex-direction:column; gap:8px; max-width:400px; }
   .melding { display:flex; gap:11px; align-items:flex-start;
@@ -6052,7 +6070,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-1538';
+const APP_VERSIE = '20260828-1552';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13976,10 +13994,9 @@ function _crmMeldingenCheck() {
 // Zonder fase-dagen (aanwijzing 28-08: een kandidaat blijft in zijn fase
 // staan, dus die telling zegt niets). Wel: wat je wilt weten zonder klikken.
 function pipeZweef(e, bmNaam, cardId) {
-  const c = pipeLoad(bmNaam).find(x => String(x.id) === String(cardId));
+  const kaarten = pipeLoad(bmNaam);
+  const c = kaarten.find(x => String(x.id) === String(cardId));
   if (!c) return;
-  const verslag = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : [])
-    .some(r => _itkSleutel(r.naam) === _itkSleutel(c.naam));
   const regels = [];
   if (c.functie)          regels.push(_crmRij('Functie', escHtml(c.functie)));
   if (c.salarisindicatie) regels.push(_crmRij('SI', escHtml(String(c.salarisindicatie))));
@@ -13987,7 +14004,31 @@ function pipeZweef(e, bmNaam, cardId) {
   if (c.regio)            regels.push(_crmRij('Regio', escHtml(c.regio) + (c.reisbereidheid ? ' · ' + escHtml(String(c.reisbereidheid)) + ' min' : '')));
   if (c.opdrachtgever)    regels.push(_crmRij('Opdrachtgever', escHtml(c.opdrachtgever)));
   if (c.gesprek)          regels.push(_crmRij('Gespreksronde', escHtml(String(c.gesprek)) + 'e'));
-  regels.push(_crmRij('ITK-verslag', verslag ? '<span style="color:#6ee7b7;">aanwezig</span>' : '<span style="color:rgba(255,255,255,.45);">geen</span>'));
+
+  // Aanbiedingen: het weekgetal staat al op het kaartje. Hier het totaal over
+  // alle weken voor deze kandidaat (aanwijzing 28-08) — dat is wat je wilt
+  // weten als je bepaalt of er nog een aanbieding bij moet.
+  if (c.stage === 'Aanbieden') {
+    const sleutel = _itkSleutel(c.naam || '');
+    const alle = kaarten.filter(x => x.stage === 'Aanbieden' && !x.verwijderd_op
+                                  && _itkSleutel(x.naam || '') === sleutel);
+    const totaal = alle.reduce((som, x) => som + (+x.aanb || 0), 0);
+    regels.push(_crmRij('Aanbiedingen deze week', telFmt(+c.aanb || 0)));
+    regels.push(_crmRij('<b>Totaal voor deze kandidaat</b>',
+      `<b>${telFmt(totaal)}</b> <span style="color:rgba(255,255,255,.45);">over ${alle.length} ${alle.length === 1 ? 'week' : 'weken'}</span>`));
+  }
+
+  // Bij een bezoek hoort een BZK-verslag, bij een kandidaat een ITK-verslag
+  // (correctie 28-08: hier stond overal ITK, ook in de fase Bezoeken).
+  if (c.stage === 'Bezoeken') {
+    const bzk = (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : [])
+      .some(r => _itkSleutel(r.bedrijf) === _itkSleutel(c.naam || c.opdrachtgever || ''));
+    regels.push(_crmRij('BZK-verslag', bzk ? '<span style="color:#6ee7b7;">aanwezig</span>' : '<span style="color:rgba(255,255,255,.45);">geen</span>'));
+  } else {
+    const itk = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : [])
+      .some(r => _itkSleutel(r.naam) === _itkSleutel(c.naam));
+    regels.push(_crmRij('ITK-verslag', itk ? '<span style="color:#6ee7b7;">aanwezig</span>' : '<span style="color:rgba(255,255,255,.45);">geen</span>'));
+  }
   if (c.gedeeld) regels.push(_crmRij('Plaatsing', 'gedeeld · telt als 0,5'));
   crmZweefToon(e, `<div class="crm-kop">${escHtml(c.naam || 'zonder naam')} · W${c.week}</div>${regels.join('')}`);
 }
@@ -20896,31 +20937,42 @@ function renderGespreksverslagenHtml(subTabBtns) {
   const pil = (g) => g.bron === 'opname'
     ? '<span class="kam-pil ja" style="cursor:default;">uit opname</span>'
     : '<span class="kam-pil" style="background:rgba(133,183,235,.18);color:#85B7EB;">handmatig</span>';
+  // Vaste kolommen, alles links uitgelijnd (aanwijzing 28-08) — dezelfde
+  // tabelopzet als de bezoeken en wijzigingen op het KAM-tabblad.
   const rijen = GESPREKSVERSLAGEN_CACHE.map(g => {
     const open = GV_OPEN.has(String(g.id));
-    return `<div style="border-bottom:1px solid rgba(255,255,255,.1);">
-      <div class="crm-klik" style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:none;font-size:.84rem;"
-           onclick="gvToggle('${escApos(String(g.id))}')">
-        <span style="font-size:.7rem;color:rgba(255,255,255,.45);transform:rotate(${open ? 90 : 0}deg);transition:transform .15s;">▶</span>
-        <span style="color:#fff;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(g.bedrijf || '')}</span>
-        <span style="color:rgba(255,255,255,.6);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml([g.contactpersoon, (g.samenvatting || '').split('\n')[0]].filter(Boolean).join(' · '))}</span>
-        ${pil(g)}
-        <span style="color:rgba(255,255,255,.45);font-size:.74rem;white-space:nowrap;">${dagFmt(g.datum)} · ${escHtml(_dagstartVoornaam(g.auteur || ''))}</span>
-      </div>
-      ${open ? `<div style="padding:4px 6px 14px 28px;">
+    // Wie het verslag heeft gemaakt. Bij een handmatig verslag is dat degene
+    // die het typte; bij een omgezet verslag de collega van de opname. Is het
+    // later gewijzigd, dan staat dat erachter.
+    const maker = _dagstartVoornaam(g.auteur || '') || '—';
+    return `<tr class="gv-rij" onclick="gvToggle('${escApos(String(g.id))}')">
+        <td class="gv-pijl"><span style="display:inline-block;transform:rotate(${open ? 90 : 0}deg);transition:transform .15s;">▶</span></td>
+        <td class="gv-klant">${escHtml(g.bedrijf || '')}</td>
+        <td class="gv-cp">${escHtml(g.contactpersoon || '—')}</td>
+        <td class="gv-tekst">${escHtml((g.samenvatting || '').split('\n')[0] || '—')}</td>
+        <td class="gv-soort">${pil(g)}</td>
+        <td class="gv-datum">${dagFmt(g.datum)}</td>
+        <td class="gv-door">${escHtml(maker)}</td>
+      </tr>
+      ${open ? `<tr><td colspan="7" class="gv-open">
         <div class="crm-kop">Samenvatting</div>
-        <div style="font-size:.84rem;line-height:1.6;white-space:pre-wrap;color:rgba(255,255,255,.88);">${escHtml(g.samenvatting || '—')}</div>
+        <div class="gv-veld">${escHtml(g.samenvatting || '—')}</div>
         <div class="crm-kop">Afspraken &amp; acties</div>
-        <div style="font-size:.84rem;line-height:1.6;white-space:pre-wrap;color:rgba(255,255,255,.88);">${escHtml(g.acties || '—')}</div>
+        <div class="gv-veld">${escHtml(g.acties || '—')}</div>
         <div class="crm-kop">Vervolgafspraak</div>
-        <div style="font-size:.84rem;color:rgba(255,255,255,.88);">${escHtml(g.vervolg || '—')}</div>
+        <div class="gv-veld">${escHtml(g.vervolg || '—')}</div>
+        <div class="crm-kop">Vastgelegd door</div>
+        <div class="gv-veld">${escHtml(g.auteur || '—')}${
+          g.bron === 'handmatig' ? ' <span style="color:rgba(255,255,255,.45);">· handmatig ingevoerd</span>'
+                                 : ' <span style="color:rgba(255,255,255,.45);">· uit een BZK-opname</span>'}${
+          g.updated_by && g.updated_by !== g.auteur
+            ? `<br><span style="color:rgba(255,255,255,.45);">laatst gewijzigd door ${escHtml(g.updated_by)}</span>` : ''}</div>
         <div class="crm-knoppen">
           ${g.bron === 'opname' && g.bron_verslag_id ? `<button class="crm-knop" onclick="selectTab('bezoek')">Oorspronkelijke opname ↗</button>` : ''}
           ${mag ? `<button class="crm-knop" onclick="gvBewerk('${escApos(String(g.id))}')">Wijzigen</button>
           <button class="crm-knop" style="color:#ff8080;border-color:rgba(255,128,128,.4);" onclick="gvVerwijder('${escApos(String(g.id))}')">Verwijderen</button>` : ''}
         </div>
-      </div>` : ''}
-    </div>`;
+      </td></tr>` : ''}`;
   }).join('');
 
   return `<div class="mt-donker">
@@ -20936,7 +20988,14 @@ function renderGespreksverslagenHtml(subTabBtns) {
         <span style="color:rgba(255,255,255,.4);font-size:.76rem;">${GESPREKSVERSLAGEN_CACHE.length} verslag${GESPREKSVERSLAGEN_CACHE.length === 1 ? '' : 'en'}</span>
         ${mag && !GV_FORM ? `<button class="crm-knop" style="margin-left:auto;color:#F4CB3C;border-color:rgba(244,203,60,.5);" onclick="gvNieuw()">+ Nieuw verslag</button>` : ''}
       </div>
-      ${GESPREKSVERSLAGEN_CACHE.length ? rijen
+      ${GESPREKSVERSLAGEN_CACHE.length
+        ? `<table class="kam-tab gv-tab">
+             <tr><th class="gv-pijl">&nbsp;</th><th class="gv-klant">Opdrachtgever</th>
+                 <th class="gv-cp">Contactpersoon</th><th>Samenvatting</th>
+                 <th class="gv-soort">Herkomst</th><th class="gv-datum">Datum</th>
+                 <th class="gv-door">Door</th></tr>
+             ${rijen}
+           </table>`
         : `<div style="color:rgba(255,255,255,.5);font-size:.84rem;padding:14px 0;">Nog geen gespreksverslagen. Zet een BZK-record om via de knop "→ Verslag" bij de records, of maak er hier een met + Nieuw verslag.</div>`}
     </div>
   </div>`;
