@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-0813 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260828-0823 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1149,9 +1149,13 @@
   /* Drie gelijke vakken op één rij: foto, collega taggen, @ALL. Even breed en
      even hoog, want ze zijn even belangrijk — verschillende maten suggereren
      een rangorde die er niet is. Plaatsen staat eronder op volle breedte. */
-  .one-schrijf-acties { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:10px; }
-  .one-schrijf-acties > * { height:38px; width:100%; box-sizing:border-box; margin:0;
-                            display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+  /* Vijf knoppen op één rij (aanwijzing 28-08): met de bestandknop erbij
+     viel Taak naar een tweede regel. Iets compacter en ze passen weer. */
+  .one-schrijf-acties { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px; }
+  .one-schrijf-acties > * { height:32px; width:100%; box-sizing:border-box; margin:0;
+                            display:inline-flex; align-items:center; justify-content:center; gap:6px;
+                            font-size:.78rem; padding:0 8px; white-space:nowrap; }
+  .one-schrijf-acties svg { width:13px; height:13px; flex-shrink:0; }
   .one-schrijf-voet { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
   .one-stil-knop { display:inline-flex; align-items:center; gap:6px;
                    background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.14);
@@ -1181,6 +1185,8 @@
   .one-tag-chip button:hover { opacity:1; }
   .one-foto-blok { margin-top:10px; }
   .one-bestand-blok { margin-top:10px; }
+  .one-kaart.one-uitgelicht { outline:2px solid var(--accent-gold, #F4CB3C);
+                              outline-offset:3px; transition:outline-color .4s; }
   .one-bestand-regel { display:flex; align-items:center; gap:10px; font-size:.82rem;
                        color:rgba(255,255,255,.85); background:rgba(255,255,255,.06);
                        border:1px solid rgba(255,255,255,.15); border-radius:8px;
@@ -1423,7 +1429,7 @@
   @media (max-width: 768px) {
     .one-kolom { max-width:none; }
     .one-plaats-knop { margin-left:0; width:100%; }
-    .one-schrijf-acties { grid-template-columns:repeat(2,1fr); }
+    .one-schrijf-acties { grid-template-columns:repeat(3,1fr); }
     .one-filter { padding:8px 9px; font-size:var(--t-xs); }
   }
 
@@ -5449,7 +5455,7 @@ function _oneKaartHtml(p, sinds) {
 
   const noemtMij = _oneNoemtMij(p);
 
-  return '<article class="one-kaart ' + (p.vastgezet ? 'one-vast ' : '') + (isNieuw ? 'one-nieuw' : '') + '">' +
+  return '<article id="one-post-' + escHtml(String(p.id)) + '" class="one-kaart ' + (p.vastgezet ? 'one-vast ' : '') + (isNieuw ? 'one-nieuw' : '') + '">' +
     '<div class="one-kop">' +
       '<span class="one-avatar" style="background:' + _oneAvatarKleur(naam) + ';">' +
         escHtml(_oneInitialen(naam)) + '</span>' +
@@ -5980,7 +5986,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-0813';
+const APP_VERSIE = '20260828-0823';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12027,7 +12033,7 @@ async function loadAllData() {
     stap('gebruikslog', loadGebruikLog),
     stap('toolgebruik', loadToolgebruik),
     stap('memos', loadMemos),
-    stap('Brightech ONE', loadOne),
+    stap('Brightech ONE', () => loadOne().then(_oneTagCheck)),
     stap('aanmeldformulier', loadAanmeldSaved),
   ]);
   // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
@@ -12821,6 +12827,8 @@ const _RT_TAKEN = {
   // De kandidaat reageert op zijn eigen link, buiten het dashboard om; deze
   // tabel is de enige plek waar dat binnenkomt (25-08).
   gedeelde_afspraken: async () => { await _afsprakenReactieCheck(); },
+  // Een nieuw bericht waarin je getagd bent geeft direct een melding (28-08).
+  one_posts: async () => { await loadOne(); _oneTagCheck(); if (currentTab === 'one') renderOne(); },
 };
 
 // Eén wijziging levert vaak meerdere berichten op — een opgeslagen week raakt
@@ -13450,6 +13458,79 @@ async function _afsprakenReactieCheck() {
     _reactieOnthoud(sleutel);
     toonReactieMelding(rij, rec);
   }
+}
+
+// ── Melding bij een tag in Brightech ONE (verzoek 28-08) ────────────────────
+// Alleen voor wie getagd is, direct nadat het bericht binnenkomt via realtime,
+// met een knop rechtstreeks naar het bericht. Wat al gemeld is, wordt per
+// bericht onthouden — ook na een herstart van de browser.
+function _oneTagsGemeld() {
+  try { return new Set(JSON.parse(localStorage.getItem('bt_one_tags_gemeld') || '[]')); }
+  catch (_) { return new Set(); }
+}
+function _oneTagOnthoud(id) {
+  try {
+    const l = Array.from(_oneTagsGemeld()); l.push(String(id));
+    localStorage.setItem('bt_one_tags_gemeld', JSON.stringify(l.slice(-200)));
+  } catch (_) {}
+}
+
+function _oneTagCheck() {
+  if (!CURRENT_USER) return;
+  const ik = CURRENT_USER.naam || CURRENT_USER.bm_naam || '';
+  if (!ik) return;
+  const gemeld = _oneTagsGemeld();
+  // Alleen recente berichten (laatste uur): wie na een week inlogt krijgt de
+  // badge in het menu, geen stapel popups over oud nieuws.
+  const vers = Date.now() - 60 * 60 * 1000;
+  for (const p of (ONE_POSTS || [])) {
+    if (gemeld.has(String(p.id))) continue;
+    if (!(p.getagd || []).includes(ik)) continue;
+    if (p.auteur === ik) continue;                       // jezelf taggen meldt niets
+    if (new Date(p.created_at).getTime() < vers) { _oneTagOnthoud(p.id); continue; }
+    _oneTagOnthoud(p.id);
+    toonTagMelding(p);
+  }
+}
+
+function toonTagMelding(p) {
+  const bak = document.getElementById('melding-bak') || (() => {
+    const el = document.createElement('div');
+    el.id = 'melding-bak';
+    document.body.appendChild(el);
+    return el;
+  })();
+  const kaart = document.createElement('div');
+  kaart.className = 'melding';
+  kaart.innerHTML = `
+    <div class="melding-tekst">
+      <div class="t">${escHtml(p.auteur || 'Een collega')} heeft je getagd</div>
+      <div class="s">${escHtml(String(p.onderwerp || p.tekst || '').slice(0, 120))}</div>
+      <div class="k">
+        <button class="melding-knop" data-open="1">Naar het bericht</button>
+        <button class="melding-knop" data-weg="1">Later</button>
+      </div>
+    </div>
+    <button class="melding-x" data-weg="1" aria-label="Melding sluiten">&times;</button>`;
+  const weg = () => { kaart.classList.add('uit'); setTimeout(() => kaart.remove(), 250); };
+  kaart.addEventListener('click', (e) => {
+    if (e.target.closest('[data-weg]')) { weg(); return; }
+    if (e.target.closest('[data-open]')) {
+      weg();
+      selectTab('one');
+      // Even wachten tot de feed getekend is, dan naar het bericht springen
+      // en hem kort laten oplichten zodat je ziet waar je moet kijken.
+      setTimeout(() => {
+        const el = document.getElementById('one-post-' + p.id);
+        if (el) { el.scrollIntoView({ behavior:'smooth', block:'center' });
+                  el.classList.add('one-uitgelicht');
+                  setTimeout(() => el.classList.remove('one-uitgelicht'), 2400); }
+      }, 350);
+    }
+  });
+  bak.appendChild(kaart);
+  // Blijft staan tot je kiest: een tag is persoonlijk, die hoort niet
+  // ongezien te verdwijnen zoals een statusmelding.
 }
 
 function toonReactieMelding(rij, rec) {
