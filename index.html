@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260828-1600 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260831-1138 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -663,12 +663,38 @@
   .proj-raster .wrd > input,
   .proj-raster .wrd > select,
   .proj-raster .wrd > span { width:100% !important; }
+  /* Vangnet (28-08): het contractblok staat op een donker paneel, maar de
+     invoervelden zijn wit. Zonder color-scheme kleurt Safari ze in donkere
+     modus zelf donker in — en dan typ je wit op wit. Dit geldt voor het veld,
+     de keuzelijst, de opties in die lijst én de plaatshoudertekst. */
+  .proj-raster input,
+  .proj-raster select,
+  .proj-raster textarea { color-scheme:light; color:#16142e !important;
+                          -webkit-text-fill-color:#16142e; }
+  .proj-raster select option { color:#16142e; background:#fff; }
+  .proj-raster input::placeholder { color:#8b93a7; -webkit-text-fill-color:#8b93a7; }
+  /* De berekende velden blijven grijs-cursief, maar wel leesbaar. */
+  .proj-raster span[id^="pr-calc-"] { color:#374151 !important;
+                                      -webkit-text-fill-color:#374151; }
   @media (max-width:900px) { .proj-raster { grid-template-columns:repeat(2, minmax(0,1fr)); } }
   .proj-save-btn { background:var(--primary); color:#fff; border:none; border-radius:6px; padding:5px 12px; font-size:.78rem; font-weight:700; cursor:pointer; }
   .proj-save-btn:hover { background:var(--primary-dark); }
   .proj-del-btn { background:#fff; color:#e02424; border:1px solid #e02424; border-radius:6px; padding:5px 12px; font-size:.78rem; font-weight:700; cursor:pointer; }
   .proj-del-btn:hover { background:#e02424; color:#fff; }
   .acc-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+  /* ── Witte invoervelden op een donker paneel (herstel 28-08) ────────────
+     Staat een Mac in donkere modus, dan kleurt Safari invoervelden zélf donker
+     in — ook als wij het veld wit maken. De getypte tekst werd daardoor wit op
+     wit. `color-scheme:light` vertelt de browser dat dit lichte velden zijn;
+     -webkit-text-fill-color zet de tekstkleur vast waar `color` niet volstaat.
+     Dit is de vijfde keer dat onzichtbare tekst is gemeld — vandaar één regel
+     voor alles wat een witte achtergrond heeft, in plaats van per veld. */
+  .veld-licht, .acc-text-input, .acc-score-input, .acc-select,
+  .proj-raster input, .proj-raster select, .proj-raster textarea {
+    color-scheme:light; color:#16142e; -webkit-text-fill-color:#16142e; }
+  .veld-licht::placeholder, .acc-text-input::placeholder,
+  .proj-raster input::placeholder {
+    color:#8b93a7; -webkit-text-fill-color:#8b93a7; }
   .acc-text-input { width:100%; border:1px solid var(--border); border-radius:6px; padding:4px 5px; font-size:.76rem; color:var(--text); background:#fff; box-sizing:border-box; }
   .acc-select { border:1px solid var(--border); border-radius:6px; padding:6px 9px; font-size:.82rem; background:#fff; color:var(--text); cursor:pointer; width:130px; box-sizing:border-box; }
   .acc-select-pill { height:26px; border:1.5px solid var(--border); border-radius:13px; padding:0 26px 0 12px; font-size:.76rem; background:var(--card); color:var(--text); cursor:pointer; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; outline:none; }
@@ -6090,7 +6116,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260828-1600';
+const APP_VERSIE = '20260831-1138';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15802,9 +15828,14 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo) {
     // Sinds ze in een raster van vier kolommen staan is die breedte niet meer
     // nodig — en die ruimte gebruiken we nu (aanwijzing 20-08). De maat is
     // .72rem: gelijk aan de labels en de blokkoppen hier, en niet groter.
+    // Echte kleur, geen variabele (herstel 28-08). Deze velden staan op een
+    // donker paneel; met een Mac in donkere modus trok Safari ze naar zijn
+    // eigen donkere weergave en werd de getypte tekst wit op wit. `color-scheme`
+    // zegt tegen de browser dat dit lichte velden zijn, en de kleur staat er
+    // met een hex bij zodat er niets meer valt te erven of te overrulen.
     const stIn  = `font-size:.72rem;line-height:1.35;padding:4px 8px;width:100%;`
                 + `box-sizing:border-box;border:1px solid var(--border);border-radius:5px;`
-                + `background:${bgCol};color:${frozen ? '#33415c' : 'var(--text)'};`;
+                + `color-scheme:light;background:${bgCol};color:${frozen ? '#33415c' : '#16142e'};`;
 
     // Projectnr: voor excel-projecten altijd read-only (het is de DB-sleutel)
     if (f.key === 'projectnr' && src === 'excel') {
