@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260831-1138 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260831-1339 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6116,7 +6116,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260831-1138';
+const APP_VERSIE = '20260831-1339';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22693,14 +22693,26 @@ async function _saveVerslagToSupa(type, meta, result, transcript, stil) {
 // megabytes en dat is precies waarom de lijst seconden op zich liet wachten.
 // De lijst zelf (datum, naam, functie, analyse) is maar een fractie daarvan en
 // is dus vrijwel meteen binnen. De transcripties komen daarna op de achtergrond.
+// Het ophalen mag NOOIT stil mislukken (herstel 31-08). Hier stond de error
+// weggegooid en de catch slikte alles: ging het ophalen mis, dan zag je gewoon
+// de oude lijst en dacht je dat er records verdwenen waren. Nu komt er een
+// zichtbare melding en gaat de fout naar het logboek.
+let _verslagenLaadFout = { gesprek: '', bezoek: '' };
+
 async function _loadVerlagenFromSupa(type, metTranscript) {
   if (!supa) return null;
   const kolommen = metTranscript ? '*' : 'id, type, meta, result, created_at';
   try {
-    const { data } = await supa.from('verslagen').select(kolommen).eq('type', type)
-      .order('created_at', { ascending: false }).limit(50);
+    const { data, error } = await supa.from('verslagen').select(kolommen).eq('type', type)
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) throw error;
+    _verslagenLaadFout[type] = '';
     return data || null;
-  } catch(_) { return null; }
+  } catch (e) {
+    _verslagenLaadFout[type] = (e && (e.message || e)) || 'onbekende fout';
+    meldFout('verslagen ophalen (' + type + '): ' + _verslagenLaadFout[type], '_loadVerlagenFromSupa');
+    return null;
+  }
 }
 
 // Fase 2: transcripties ophalen en in de al getoonde records schuiven.
@@ -22766,14 +22778,15 @@ async function loadGesprekRecordsFromDb() {
   // mislukt) niet weggooien. Vroeger verdween zo'n verslag stilletjes bij de
   // eerstvolgende verversing — dat is iemand ook echt overkomen. Nu blijven ze
   // staan en worden ze meteen opnieuw gepubliceerd.
-  const _gLokaal = bestaand.filter(e =>
-    !(typeof e.id === 'string' && String(e.id).includes('-')) && e.result &&
-    !GESPREK_RECORDS.some(sr => _itkSleutel(sr.naam) === _itkSleutel(e.naam) &&
-      _itkSleutel(sr.functie) === _itkSleutel(e.functie) && sr.datum === e.datum));
+  // Samenvoegen op ID (herstel 31-08) — zie de uitleg bij de bezoekrecords.
+  const _gServerIds = new Set(GESPREK_RECORDS.map(r => String(r.id)));
+  const _gLokaal = bestaand.filter(e => !_gServerIds.has(String(e.id)));
   if (_gLokaal.length) {
-    _gLokaal.forEach(r => { r.ongedeeld = true; });
+    const nooitGedeeld = _gLokaal.filter(e =>
+      !(typeof e.id === 'string' && String(e.id).includes('-')) && e.result);
+    nooitGedeeld.forEach(r => { r.ongedeeld = true; });
     GESPREK_RECORDS = _gLokaal.concat(GESPREK_RECORDS);
-    _herpubliceerVerslagen('gesprek', _gLokaal);
+    if (nooitGedeeld.length) _herpubliceerVerslagen('gesprek', nooitGedeeld);
   }
   _saveGesprekRec();
   if (currentTab === 'gesprek') renderGesprek();
@@ -22821,14 +22834,23 @@ async function loadBezoekRecordsFromDb() {
       heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
     };
   });
-  const _bLokaal = bestaandB.filter(e =>
-    !(typeof e.id === 'string' && String(e.id).includes('-')) && e.result &&
-    !BEZOEK_RECORDS.some(sr => _itkSleutel(sr.bedrijf) === _itkSleutel(e.bedrijf) &&
-      (sr.soortBezoek || '') === (e.soortBezoek || '') && sr.datum === e.datum));
+  // SAMENVOEGEN, niet vervangen (herstel 31-08). Hierboven wordt BEZOEK_RECORDS
+  // opnieuw opgebouwd uit wat de server teruggaf. Alles wat de server níet
+  // noemde viel daarmee van het scherm — ook een opname die op dat moment nog
+  // onderweg was naar de server. Die vulden we alleen aan als er al een
+  // 'result' was en de bedrijfsnaam nergens anders voorkwam; dat is te weinig.
+  // Nu blijft élk lokaal record staan dat niet op ID in de serverlijst zit.
+  const serverIds = new Set(BEZOEK_RECORDS.map(r => String(r.id)));
+  const _bLokaal = bestaandB.filter(e => !serverIds.has(String(e.id)));
   if (_bLokaal.length) {
-    _bLokaal.forEach(r => { r.ongedeeld = true; });
+    // Wat nooit op de server aankwam krijgt het label en wordt opnieuw
+    // aangeboden. Wat er wél staat maar buiten de opgehaalde reeks viel,
+    // blijft gewoon zichtbaar zonder label.
+    const nooitGedeeld = _bLokaal.filter(e =>
+      !(typeof e.id === 'string' && String(e.id).includes('-')) && e.result);
+    nooitGedeeld.forEach(r => { r.ongedeeld = true; });
     BEZOEK_RECORDS = _bLokaal.concat(BEZOEK_RECORDS);
-    _herpubliceerVerslagen('bezoek', _bLokaal);
+    if (nooitGedeeld.length) _herpubliceerVerslagen('bezoek', nooitGedeeld);
   }
   _saveBezoekRec();
   if (currentTab === 'bezoek') renderBezoekRecorder();
@@ -22951,11 +22973,20 @@ function addBezoekRecord() {
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
   const recNaam = BEZOEK.recorderNaam || '';
   const soort = b.soortBezoek || 'bedrijfsbezoek';
-  // Dedup: vervang bestaand record met zelfde bedrijf+soort+datum+recorder i.p.v. nieuw aanmaken.
-  const dupIdx = BEZOEK_RECORDS.findIndex(r =>
+  // Lijkt dit op een bestaand record (zelfde bedrijf, soort, datum en opnemer)?
+  // Vroeger werd dat oude record dan zonder vragen overschreven. Neem je op één
+  // dag twee keer bij dezelfde opdrachtgever op, dan was de eerste opname weg —
+  // stil, en zonder weg terug. Dat is Charlotte overkomen (melding 31-08).
+  // Nu vragen we het, en is het antwoord standaard: bewaar allebei.
+  const dupIdxRuw = BEZOEK_RECORDS.findIndex(r =>
     r.bedrijf === b.bedrijf && r.soortBezoek === soort &&
     r.datum === datum && r.recorder_naam === recNaam
   );
+  const dupIdx = (dupIdxRuw >= 0 && !confirm(
+      'Er staat al een verslag van vandaag voor "' + (b.bedrijf || 'dit bezoek') + '".\n\n' +
+      'OK  = dat verslag vervangen door deze nieuwe opname (het oude is dan weg)\n' +
+      'Annuleren = allebei bewaren'))
+    ? -1 : dupIdxRuw;
   const record = { datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam };
   if (dupIdx >= 0) {
     const existingId = BEZOEK_RECORDS[dupIdx].id;
@@ -22965,7 +22996,6 @@ function addBezoekRecord() {
   } else {
     const nieuw = { ...record, id: Date.now(), ongedeeld: true };
     BEZOEK_RECORDS.unshift(nieuw);
-    if (BEZOEK_RECORDS.length > 50) BEZOEK_RECORDS.length = 50;
     _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript)
       .then(serverId => {
         if (serverId) { nieuw.id = serverId; nieuw.ongedeeld = false; }
@@ -23699,6 +23729,7 @@ function renderGesprekRecords() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <span style="font-size:.83rem;color:var(--muted);">${GESPREK_RECORDS_ZICHTBAAR.length} records — gedeeld tussen collega's${_gArchief.length?` · ${_gArchief.length} van oud-collega's verborgen`:''}</span>
+      ${_verslagenLaadFout.gesprek ? `<span style="font-size:.8rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:6px;padding:4px 10px;" title="${escHtml(_verslagenLaadFout.gesprek)}">⚠️ De lijst kon niet worden opgehaald — je ziet mogelijk niet alles. Klik op Herlaad.</span>` : ''}
       <div style="display:flex;gap:8px;">
         <button onclick="publiceerLokaleToewijzingen(false)" title="Zet de toewijzingen die alleen in jouw browser staan op de server, zodat collega's ze ook zien" style="font-size:.78rem;padding:5px 12px;background:#fff;color:var(--primary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:var(--w-nadruk);white-space:nowrap;">Toewijzingen delen</button>
         ${_herlaadStatus.gesprek==='loading'
@@ -23789,6 +23820,7 @@ function renderBezoekRecords() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <span style="font-size:.83rem;color:var(--muted);">${BEZOEK_RECORDS_ZICHTBAAR.length} records — gedeeld tussen collega's${_bArchief.length?` · ${_bArchief.length} van oud-collega's verborgen`:''}</span>
+      ${_verslagenLaadFout.bezoek ? `<span style="font-size:.8rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:6px;padding:4px 10px;" title="${escHtml(_verslagenLaadFout.bezoek)}">⚠️ De lijst kon niet worden opgehaald — je ziet mogelijk niet alles. Klik op Herlaad.</span>` : ''}
       <div style="display:flex;gap:8px;">
         <button onclick="publiceerLokaleToewijzingen(false)" title="Zet de toewijzingen die alleen in jouw browser staan op de server, zodat collega's ze ook zien" style="font-size:.78rem;padding:5px 12px;background:#fff;color:var(--primary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:var(--w-nadruk);white-space:nowrap;">Toewijzingen delen</button>
         ${_herlaadStatus.bezoek==='loading'
