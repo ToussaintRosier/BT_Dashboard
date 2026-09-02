@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260902-1530 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260902-2106 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6116,7 +6116,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260902-1530';
+const APP_VERSIE = '20260902-2106';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8490,6 +8490,66 @@ applyDesktopZoom();
 startKopDatum();
 _versieWaakhond();
 
+// ── Onthouden tabblad: per account, en op naam ───────────────────────────────
+// Dit stond onder EEN sleutel voor de hele browser, als volgnummer in de
+// medewerkerslijst. Die sleutel werd bij uitloggen niet gewist, dus wie hier
+// het laatst een collega-kaart open had bepaalde waar de VOLGENDE gebruiker
+// uitkwam (melding 02-09: na inloggen kwam Toussaint op Charlottes kaart).
+// Een volgnummer is bovendien breekbaar: komt er een collega bij of gaat er
+// een weg, dan wijst hetzelfde nummer naar iemand anders.
+const TAB_SLEUTEL_OUD = 'bt_last_tab';
+const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
+                      'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties'];
+
+function _tabSleutel() {
+  const uid = CURRENT_USER && CURRENT_USER.id;
+  return uid ? 'bt_last_tab_' + uid : null;
+}
+
+// De oude gedeelde sleutel is nergens meer goed voor. Hem overal weghalen
+// zorgt dat de nu opgeslagen verkeerde waarde meteen verdwijnt.
+function _tabSleutelOudWeg() {
+  try { localStorage.removeItem(TAB_SLEUTEL_OUD); } catch (_) { /* stil: mag niets blokkeren */ }
+}
+
+function _tabOnthoud(i) {
+  const sleutel = _tabSleutel();
+  if (!sleutel) return;                     // niet ingelogd: niets onthouden
+  const waarde = (typeof i === 'number' && BMS[i]) ? { soort: 'bm', naam: BMS[i].naam } : i;
+  _veiligLokaalOpslaan(sleutel, waarde, 'laatste tabblad onthouden');
+}
+
+function _tabVergeet() {
+  _tabSleutelOudWeg();
+  const sleutel = _tabSleutel();
+  if (!sleutel) return;
+  try { localStorage.removeItem(sleutel); } catch (_) { /* stil: uitloggen gaat voor */ }
+}
+
+// Geeft het tabblad terug waar DEZE gebruiker mag beginnen, of null voor
+// "gebruik gewoon de standaardtab".
+function _tabHerstel() {
+  _tabSleutelOudWeg();
+  const sleutel = _tabSleutel();
+  if (!sleutel) return null;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(sleutel)); }
+  catch (_) { return null; }                // kapotte waarde: standaardtab
+  if (saved === null || saved === undefined) return null;
+
+  if (typeof saved === 'string') return TAB_SCHERMEN.includes(saved) ? saved : null;
+
+  if (saved && typeof saved === 'object' && saved.soort === 'bm') {
+    // Een persoonlijke kaart komt alleen terug als het je eigen kaart is.
+    // Die van een ander valt terug op Overzicht — ook al mag je hem zien.
+    const ik = String(CURRENT_USER.bm_naam || CURRENT_USER.naam || '');
+    if (!ik || saved.naam !== ik) return 'medewerkers';
+    const idx = BMS.findIndex(b => b.naam === ik);
+    return idx >= 0 ? idx : 'medewerkers';
+  }
+  return null;    // oud volgnummer: bewust niet meer herstellen
+}
+
 function selectTab(i) {
   // Een uitgezet onderdeel is niet meer te openen. Zonder deze regel kon je er
   // nog steeds komen via het onthouden tabblad of een knop elders in het scherm
@@ -8497,7 +8557,7 @@ function selectTab(i) {
   if (typeof i === 'string' && i !== 'beheer' && !magZien(i)) i = eersteZichtbaarTabblad();
   currentTab=i; bmSubTab='kpis'; pipeWeekOffset=0;
   gesprekSubView='recorder'; bezoekSubView='recorder';
-  _veiligLokaalOpslaan('bt_last_tab', i, 'laatste tabblad onthouden');
+  _tabOnthoud(i);
   if ((typeof i === 'number' && i < BMS.length) || i === 'team') medewerkersOpen = true;
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
@@ -12331,25 +12391,15 @@ async function loadProfileAndStart() {
     const idx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
     currentTab = idx >= 0 ? idx : 0;
   } else {
-    // Manager/backoffice/overige: herstel laatste tab uit localStorage
-    try {
-      const saved = JSON.parse(localStorage.getItem('bt_last_tab'));
-      if (saved !== null && saved !== undefined) {
-        const validStr = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing','gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties'];
-        if (validStr.includes(saved)) {
-          currentTab = saved;
-        } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved < BMS.length) {
-          // Alleen numerieke BM-tabs herstellen (< BMS.length).
-          currentTab = saved;
-        } else if (typeof saved === 'number' && Number.isInteger(saved) && saved >= BMS.length) {
-          // Stale numerieke management-tab (Team of Projecten) — herken op basis van
-          // offset t.o.v. hardcoded BMS.length: +0 = Team, +1 of meer = Projecten.
-          // Beide tabs hebben nu string-keys zodat dit niet meer mis kan gaan.
-          currentTab = (saved === BMS.length) ? 'team' : 'projecten';
-          if (currentTab === 'team') medewerkersOpen = true; else managementOpen = true;
-        }
-      }
-    } catch(_) { /* bewust stil: kapotte opgeslagen tabkeuze → gewoon de standaardtab */ }
+    // Manager/backoffice/overige: herstel het laatste scherm van DEZE gebruiker.
+    // _tabHerstel weigert de kaart van een collega — die valt terug op Overzicht.
+    const hersteld = _tabHerstel();
+    if (hersteld !== null && hersteld !== undefined) {
+      currentTab = hersteld;
+      if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
+      else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
+      else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
+    }
   }
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-root').style.display = '';
@@ -12941,7 +12991,7 @@ async function toonDagstart() {
   knop.onclick = () => { if (!knop.disabled) { clearInterval(tik); laag.remove(); } };
 }
 
-function logout() { if (supa) supa.auth.signOut().then(() => location.reload()); }
+function logout() { _tabVergeet(); if (supa) supa.auth.signOut().then(() => location.reload()); }
 
 // ── Live updates: manager-/teamscherm volgt invoer van anderen automatisch ────
 // ════════════════════════════════════════════════════════════════════════════
