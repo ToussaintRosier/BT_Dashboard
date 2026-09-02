@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260902-1505 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260902-1530 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6116,7 +6116,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260902-1505';
+const APP_VERSIE = '20260902-1530';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21891,13 +21891,32 @@ async function recWis(sleutel) {
 
 // Voert een taak maximaal drie keer uit, met een oplopende wachttijd ertussen.
 // Eén netwerk-hapering mag nooit meer het verschil zijn tussen wel en geen verslag.
+// Vijf pogingen met oplopend wachten: 5, 10, 20, 40 seconden (doorlichting
+// 02-09). Drie pogingen binnen twaalf seconden was te kort voor een grote
+// opname op een wisselende verbinding — dat was de "Load failed" van 28-08.
+const UPLOAD_POGINGEN = 5;
+
+// "Load failed" is Safari's woord voor "de verbinding viel weg". Daar kan
+// niemand iets mee; wél met de grootte en wat je eraan kunt doen.
+function _uploadFoutTekst(err, mb) {
+  const m = String(err?.message || err || '');
+  const grootte = mb != null ? ' — de opname is ' + mb + ' MB' : '';
+  if (/load failed|failed to fetch|network/i.test(m))
+    return 'de verbinding viel weg tijdens het uploaden' + grootte +
+           (mb != null && mb > 25 ? '; probeer het op een stabielere verbinding, bijvoorbeeld een telefoon-hotspot' : '');
+  if (/payload too large|entity too large|exceeded/i.test(m))
+    return 'de opname is te groot voor de opslag' + grootte;
+  if (/bucket not found/i.test(m))
+    return 'de opslagmap "audio-opnames" bestaat niet in Supabase';
+  return m + grootte;
+}
 async function _metPogingen(taak, meldPoging) {
   let fout;
-  for (let poging = 1; poging <= 3; poging++) {
+  for (let poging = 1; poging <= UPLOAD_POGINGEN; poging++) {
     try { return await taak(); }
     catch (e) {
       fout = e;
-      if (poging < 3) { meldPoging(poging); await new Promise(r => setTimeout(r, 4000 * poging)); }
+      if (poging < UPLOAD_POGINGEN) { meldPoging(poging); await new Promise(r => setTimeout(r, 5000 * Math.pow(2, poging - 1))); }
     }
   }
   throw fout;
@@ -22182,7 +22201,7 @@ async function gesprekUpload(blob, mimeType) {
         .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
       if (error) throw new Error('Audio opslaan mislukt: ' + error.message +
         ' — Controleer of de Storage bucket "audio-opnames" is aangemaakt in Supabase.');
-    }, (p) => { GESPREK.statusMsg = '⏳ Upload haperde — nieuwe poging (' + (p + 1) + ' van 3)…'; renderGesprek(); });
+    }, (p) => { GESPREK.statusMsg = '⏳ Upload haperde — nieuwe poging (' + (p + 1) + ' van ' + UPLOAD_POGINGEN + ')…'; renderGesprek(); });
     GESPREK._audioStoragePath = storagePath;
 
     // Stap 2: Tijdelijke URL (1 uur geldig — lang genoeg voor transcriptie).
@@ -22221,16 +22240,28 @@ async function gesprekUpload(blob, mimeType) {
     // mogelijk al op de server). Opnieuw proberen kan altijd.
     GESPREK.analyzing = false;
     GESPREK.uploadFout = true;
-    GESPREK.statusMsg = '❌ Verwerken is na 3 pogingen niet gelukt (' + (err?.message || err) +
+    const mbG = GESPREK._laatsteBlob ? Math.round(GESPREK._laatsteBlob.size / 1024 / 1024 * 10) / 10 : null;
+    GESPREK.statusMsg = '❌ Verwerken is na ' + UPLOAD_POGINGEN + ' pogingen niet gelukt (' + _uploadFoutTekst(err, mbG) +
       '). De opname is NIET verloren — controleer de verbinding en klik op Opnieuw proberen.';
     renderGesprek();
   }
 }
 
+// Polling met een einde (doorlichting 02-09): dit liep eerder eeuwig door
+// als de transcriptiedienst nooit antwoordde. Na 15 minuten stoppen we, met
+// de audio nog op het apparaat en de knop Opnieuw proberen in beeld.
+const POLL_MAX_GESPREK = 180;   // × 5 s = 15 min
 function gesprekPoll() {
+  GESPREK._pollTeller = 0;
   GESPREK.pollingTimer = setInterval(async () => {
     // Guard: al een resultaat? Timer stoppen, niets meer doen.
     if (GESPREK.result) { clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null; return; }
+    if (++GESPREK._pollTeller > POLL_MAX_GESPREK) {
+      clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
+      GESPREK.analyzing = false; GESPREK.uploadFout = true;
+      GESPREK.statusMsg = '⚠️ De transcriptie duurt te lang (meer dan 15 minuten). De opname is NIET verloren — klik op Opnieuw proberen.';
+      renderGesprek(); return;
+    }
     try {
       const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
       const params = new URLSearchParams({ id: GESPREK.transcriptId });
@@ -22266,7 +22297,11 @@ function gesprekPoll() {
           GESPREK._audioStoragePath = null;
         }
         GESPREK.analyzing = false;
-        GESPREK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt');
+        // Weg terug (doorlichting 02-09): na een transcriptiefout stond hier
+        // alleen een waarschuwing — geen knop. De audio stond nog op het
+        // apparaat, maar je kon er niet meer bij. Nu wél.
+        GESPREK.uploadFout = true;
+        GESPREK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt') + ' — de opname is NIET verloren, klik op Opnieuw proberen.';
         renderGesprek();
       }
       // queued / processing: blijf pollen
@@ -22880,8 +22915,12 @@ async function loadBezoekRecordsFromDb() {
 //          wordt één keer op inhoud gekoppeld: dezelfde naam/klant, datum en
 //          opnemer → het neemt het servernummer over en wordt NIET opnieuw
 //          verstuurd. Dit is wat de kopieën van 02-09 stopt.
-// Regel 3: wat nergens op de server te vinden is, blijft staan en wordt
-//          (met vast nummer) één keer aangeboden. Nooit weggooien.
+// Regel 3: een record dat de server nog NOOIT heeft bevestigd (ongedeeld, of
+//          een oud kloknummer) blijft staan en wordt met vast nummer
+//          aangeboden. Een record dat de server ooit wél kende en nu niet
+//          meer noemt, is daar verwijderd — dat laten we gaan. Anders zou
+//          een verslag dat een manager weggooit uit de browser van een
+//          collega terugkomen (gevaar gevonden bij de doorlichting 02-09).
 function _verslagenSamenvoegen(type, serverLijst, lokaal) {
   const serverIds = new Set(serverLijst.map(r => String(r.id)));
   const sleutel = type === 'gesprek'
@@ -22901,7 +22940,9 @@ function _verslagenSamenvoegen(type, serverLijst, lokaal) {
         continue;
       }
       e.id = _nieuwVerslagId();
+      e.ongedeeld = true;      // nooit door de server bevestigd, dus aanbieden
     }
+    if (_isVerslagUuid(e.id) && e.ongedeeld !== true) continue; // elders verwijderd
     bewaren.push(e);                                            // regel 3
     if (e.result) { e.ongedeeld = true; aanbieden.push(e); }
   }
@@ -23062,7 +23103,8 @@ async function _updateBezoekVerslagInSupa(localId, result, transcript) {
     if (typeof localId === 'string' && localId.includes('-')) {
       await supa.from('verslagen').update({ result, transcript }).eq('id', localId);
     }
-    // Tijdelijke records (id = timestamp) staan nog niet in DB — die worden bij herlaad automatisch gedupliceerd.
+    // Een oud kloknummer staat nog niet in de database; dat record wordt bij de
+    // eerstvolgende verversing op inhoud gekoppeld of met vast nummer aangeboden.
     // In dat geval niets doen; het in-memory record is al bijgewerkt.
   } catch(e) { _meldStil('bezoekverslag bijwerken op de server', e); }
 }
@@ -23149,13 +23191,29 @@ async function gesprekRecordToewijzen(id, naam) {
 }
 function gesprekRecordVerwijder(id) {
   if (!eisWijzig('gesprek')) return;
+  // Bevestigen (doorlichting 02-09): dit was één klik op een prullenbakje,
+  // zonder vraag en zonder weg terug. En de serverfout werd genegeerd: weigerde
+  // de server (geen eigenaar, geen manager), dan was het record hier weg en
+  // kwam het bij de volgende verversing gewoon terug.
+  const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
+  const wie = rec ? ([rec.naam, rec.functie].filter(Boolean).join(' — ') || 'dit verslag') : 'dit verslag';
+  if (!confirm('"' + wie + '" verwijderen?\n\nDit haalt het verslag voor iedereen weg. Dit is niet terug te draaien.')) return;
+  const terug = GESPREK_RECORDS.slice();
   GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>String(r.id)!==String(id));
   GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
   _saveGesprekRec();
-  if (supa && typeof id === 'string' && id.includes('-')) {
-    supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{});
-  }
   renderGesprek();
+  if (supa && _isVerslagUuid(id)) {
+    supa.from('verslagen').delete().eq('id', id).select('id').then(({ data, error }) => {
+      if (error || !data || !data.length) {
+        // Terugzetten en zeggen waarom — niet stilletjes laten terugkomen.
+        GESPREK_RECORDS = terug; _saveGesprekRec(); renderGesprek();
+        alert('Verwijderen is niet gelukt: ' + (error?.message ||
+          'de server heeft het geweigerd — alleen de opnemer of een manager mag een verslag verwijderen.'));
+        meldFout('verslag verwijderen: ' + (error?.message || 'geweigerd'), 'gesprekRecordVerwijder');
+      }
+    });
+  }
 }
 function gesprekRecordWisAlles() {
   if (!eisWijzig('gesprek')) return;
@@ -23287,17 +23345,37 @@ async function bezoekRecordToewijzen(id, naam) {
 }
 function bezoekRecordVerwijder(id) {
   if (!eisWijzig('bezoek')) return;
+  // Bevestigen (doorlichting 02-09): dit was één klik op een prullenbakje,
+  // zonder vraag en zonder weg terug. En de serverfout werd genegeerd: weigerde
+  // de server (geen eigenaar, geen manager), dan was het record hier weg en
+  // kwam het bij de volgende verversing gewoon terug.
+  const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
+  const wie = rec ? ([rec.bedrijf, rec.contactpersoon].filter(Boolean).join(' — ') || 'dit verslag') : 'dit verslag';
+  if (!confirm('"' + wie + '" verwijderen?\n\nDit haalt het verslag voor iedereen weg. Dit is niet terug te draaien.')) return;
+  const terug = BEZOEK_RECORDS.slice();
   BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>String(r.id)!==String(id));
   BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id);
   _saveBezoekRec();
-  if (supa && typeof id === 'string' && id.includes('-')) {
-    supa.from('verslagen').delete().eq('id', id).then(()=>{}).catch(()=>{});
-  }
   renderBezoekRecorder();
+  if (supa && _isVerslagUuid(id)) {
+    supa.from('verslagen').delete().eq('id', id).select('id').then(({ data, error }) => {
+      if (error || !data || !data.length) {
+        // Terugzetten en zeggen waarom — niet stilletjes laten terugkomen.
+        BEZOEK_RECORDS = terug; _saveBezoekRec(); renderBezoekRecorder();
+        alert('Verwijderen is niet gelukt: ' + (error?.message ||
+          'de server heeft het geweigerd — alleen de opnemer of een manager mag een verslag verwijderen.'));
+        meldFout('verslag verwijderen: ' + (error?.message || 'geweigerd'), 'bezoekRecordVerwijder');
+      }
+    });
+  }
 }
 function bezoekRecordWisAlles() {
   if (!eisWijzig('bezoek')) return;
-  if(!confirm('Weet je zeker dat je alle bezoekverslagen wilt wissen? (Verwijdert ook van de gedeelde server)'))return;
+  // Alleen managers (doorlichting 02-09): dit wist de verslagen van het hele
+  // team van de gedeelde server, met één bevestiging. Dat hoort niet bij
+  // iedereen met opnamerecht te liggen.
+  if (!isManagerLevel()) { alert('Alle verslagen wissen kan alleen een manager.'); return; }
+  if(!confirm('Weet je zeker dat je ALLE bezoekverslagen van het hele team wilt wissen?\n\nDit verwijdert ze ook van de gedeelde server en is niet terug te draaien.'))return;
   const ids = BEZOEK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
   BEZOEK_RECORDS=[]; BEZOEK_OPEN.clear(); BEZOEK_SHOW_TR.clear(); _saveBezoekRec();
   if (supa && ids.length) ids.forEach(id=>supa.from('verslagen').delete().eq('id',id).then(()=>{}).catch(()=>{}));
@@ -23973,7 +24051,7 @@ async function bezoekUpload(blob, mimeType) {
       const { error } = await supa.storage.from('audio-opnames')
         .upload(storagePath, blob, { contentType: mimeType || 'audio/webm', upsert: true });
       if (error) throw new Error('Opslag-upload mislukt: ' + error.message);
-    }, (p) => { BEZOEK.statusMsg = '⏳ Upload haperde — nieuwe poging (' + (p + 1) + ' van 3)…'; renderBezoekRecorder(); });
+    }, (p) => { BEZOEK.statusMsg = '⏳ Upload haperde — nieuwe poging (' + (p + 1) + ' van ' + UPLOAD_POGINGEN + ')…'; renderBezoekRecorder(); });
     BEZOEK._audioStoragePath = storagePath;
 
     // Stap 2: Signed URL (1 uur geldig — ruim voor AssemblyAI).
@@ -24011,16 +24089,28 @@ async function bezoekUpload(blob, mimeType) {
     // Bewust niets weggooien: de audio staat op dit apparaat bewaard.
     BEZOEK.analyzing = false;
     BEZOEK.uploadFout = true;
-    BEZOEK.statusMsg = '❌ Verwerken is na 3 pogingen niet gelukt (' + (err?.message || err) +
+    const mbB = BEZOEK._laatsteBlob ? Math.round(BEZOEK._laatsteBlob.size / 1024 / 1024 * 10) / 10 : null;
+    BEZOEK.statusMsg = '❌ Verwerken is na ' + UPLOAD_POGINGEN + ' pogingen niet gelukt (' + _uploadFoutTekst(err, mbB) +
       '). De opname is NIET verloren — controleer de verbinding en klik op Opnieuw proberen.';
     renderBezoekRecorder();
   }
 }
 
+// Polling met een einde (doorlichting 02-09): dit liep eerder eeuwig door
+// als de transcriptiedienst nooit antwoordde. Na 15 minuten stoppen we, met
+// de audio nog op het apparaat en de knop Opnieuw proberen in beeld.
+const POLL_MAX_BEZOEK = 180;   // × 5 s = 15 min
 function bezoekPoll() {
+  BEZOEK._pollTeller = 0;
   BEZOEK.pollingTimer = setInterval(async () => {
     // Guard: al een resultaat? Timer stoppen, niets meer doen.
     if (BEZOEK.result) { clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null; return; }
+    if (++BEZOEK._pollTeller > POLL_MAX_BEZOEK) {
+      clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
+      BEZOEK.analyzing = false; BEZOEK.uploadFout = true;
+      BEZOEK.statusMsg = '⚠️ De transcriptie duurt te lang (meer dan 15 minuten). De opname is NIET verloren — klik op Opnieuw proberen.';
+      renderBezoekRecorder(); return;
+    }
     try {
       const authHeader = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
       const params = new URLSearchParams({ id: BEZOEK.transcriptId });
@@ -24050,7 +24140,11 @@ function bezoekPoll() {
       } else if (data.status === 'error' || data.error) {
         clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
         BEZOEK.analyzing = false;
-        BEZOEK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt');
+        // Weg terug (doorlichting 02-09): na een transcriptiefout stond hier
+        // alleen een waarschuwing — geen knop. De audio stond nog op het
+        // apparaat, maar je kon er niet meer bij. Nu wél.
+        BEZOEK.uploadFout = true;
+        BEZOEK.statusMsg = '⚠️ ' + (data.error || 'Transcriptie mislukt') + ' — de opname is NIET verloren, klik op Opnieuw proberen.';
         // Opruimen: tijdelijk Storage-bestand verwijderen bij fout.
         if (BEZOEK._audioStoragePath && supa) {
           supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
