@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260902-2106 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260902-2112 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6116,7 +6116,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260902-2106';
+const APP_VERSIE = '20260902-2112';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8548,6 +8548,31 @@ function _tabHerstel() {
     return idx >= 0 ? idx : 'medewerkers';
   }
   return null;    // oud volgnummer: bewust niet meer herstellen
+}
+
+// Bepaalt waar je begint. Draait NA loadAllData, dus met de echte
+// medewerkerslijst. Er wordt nooit teruggevallen op een volgnummer: bestaat
+// je eigen kaart niet, dan kom je op Overzicht — nooit op de kaart van een
+// willekeurige collega.
+function _kiesStartTab() {
+  if (!CURRENT_USER) return;
+  const ik = String(CURRENT_USER.bm_naam || CURRENT_USER.naam || '');
+  const eigenIdx = ik ? BMS.findIndex(b => b.naam === ik) : -1;
+
+  if (CURRENT_USER.rol === 'bm') {
+    currentTab = eigenIdx >= 0 ? eigenIdx : 'medewerkers';
+    medewerkersOpen = true;
+    return;
+  }
+
+  // Manager/backoffice/overige: het laatste scherm van DEZE gebruiker.
+  // _tabHerstel weigert de kaart van een collega — die valt terug op Overzicht.
+  const hersteld = _tabHerstel();
+  if (hersteld === null || hersteld === undefined) return;   // standaardtab
+  currentTab = hersteld;
+  if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
+  else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
+  else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
 }
 
 function selectTab(i) {
@@ -12386,21 +12411,11 @@ async function loadProfileAndStart() {
     return;
   }
   CURRENT_USER = profile;
-  if (CURRENT_USER.rol === 'bm') {
-    // BM gaat altijd naar eigen tab
-    const idx = BMS.findIndex(b => b.naam === CURRENT_USER.bm_naam);
-    currentTab = idx >= 0 ? idx : 0;
-  } else {
-    // Manager/backoffice/overige: herstel het laatste scherm van DEZE gebruiker.
-    // _tabHerstel weigert de kaart van een collega — die valt terug op Overzicht.
-    const hersteld = _tabHerstel();
-    if (hersteld !== null && hersteld !== undefined) {
-      currentTab = hersteld;
-      if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
-      else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
-      else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
-    }
-  }
+  // Het starttabblad wordt hier BEWUST niet gekozen. In BMS staat op dit
+  // moment nog de ingebouwde lijst; de echte lijst met collega's wordt pas
+  // tijdens loadAllData opgebouwd. Kiezen gebeurt daarna, in _kiesStartTab().
+  // (Melding 02-09: hier stond een terugval op volgnummer 0, waardoor je op
+  // de kaart van de eerste collega in de lijst belandde.)
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-root').style.display = '';
   vulKopGebruiker();
@@ -12414,6 +12429,7 @@ async function loadProfileAndStart() {
     console.error('Onverwachte fout bij het laden:', e);
     LAAD_MISLUKT.push('een onbekend onderdeel');
   } finally {
+    _kiesStartTab();          // pas hier is BMS de echte lijst
     _corrigeerTabblad();
     try { render(); } catch (e) { console.error('Tekenen mislukt:', e); }
     verbergLaadscherm();
