@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260902-2112 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260903-0827 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1265,6 +1265,25 @@
                        border-radius:8px; padding:7px 12px; text-decoration:none; }
   .one-kaart-bestand .naam { text-decoration:underline; }
   .one-kaart-bestand:hover { background:rgba(255,255,255,.12); color:#fff; }
+  .one-video-blok { margin-top:10px; }
+  .one-video-regel { display:flex; align-items:center; gap:10px; font-size:.82rem;
+                     color:rgba(255,255,255,.85); background:rgba(255,255,255,.06);
+                     border:1px solid rgba(255,255,255,.15); border-radius:8px;
+                     padding:7px 12px; max-width:440px; flex-wrap:wrap; }
+  .one-video-regel .stil { color:rgba(255,255,255,.45); font-size:.76rem; }
+  /* Waarschuwing bij een .mov: blijft leesbaar op het donkere paneel. */
+  .one-video-let { flex-basis:100%; color:#F4CB3C; font-size:.74rem; line-height:1.35; }
+  .one-kaart-video { margin-top:11px; }
+  .one-kaart-video video { width:100%; max-width:min(100%, 720px); max-height:520px;
+                           border-radius:10px; display:block; background:#16213d; }
+  /* Een filmpje van 25 MB duurt op 4G een halve minuut. De balk loopt niet
+     mee met de werkelijke voortgang — die geeft Supabase niet terug — maar
+     laat wel zien dat er iets gebeurt in plaats van een bevroren knop. */
+  .one-bezig { margin-top:10px; height:4px; border-radius:2px; overflow:hidden;
+               background:rgba(255,255,255,.12); }
+  .one-bezig i { display:block; height:100%; width:38%; border-radius:2px;
+                 background:var(--accent, #E87400); animation:oneBezig 1.1s ease-in-out infinite; }
+  @keyframes oneBezig { 0% { margin-left:-40%; } 100% { margin-left:100%; } }
   .one-foto-blok img { max-width:min(100%, 960px); max-height:540px;
                        width:auto; height:auto;
                        border-radius:10px; display:block; }
@@ -4868,6 +4887,8 @@ let ONE_MIJN_ID = null;
 let ONE_FOTO = null;                 // de gekozen foto, al verkleind
 let ONE_BESTAND = null;              // het gekozen bestand { file, naam }
 let ONE_BESTAND_URLS = {};           // bestand_pad → tijdelijke downloadlink
+let ONE_VIDEO = null;                // het gekozen filmpje { file, naam }
+let ONE_VIDEO_URLS = {};             // video_pad → tijdelijke kijklink
 let ONE_TAGS = [];                   // getagde collega's in het bericht dat je schrijft
 let ONE_ALLEN = false;               // 'iedereen' aangezet: dan tellen losse namen niet meer
 let ONE_FOTO_URLS = {};              // foto_pad → tijdelijke link
@@ -4924,6 +4945,7 @@ async function loadOne() {
                      .filter(Boolean))).sort((a, b) => a.localeCompare(b));
     await _oneFotoLinks();
     await _oneBestandLinks();
+    await _oneVideoLinks();
   } catch (e) { _meldStil('Brightech ONE ophalen', e); }
 }
 
@@ -4947,6 +4969,17 @@ async function _oneBestandLinks() {
     const { data } = await supa.storage.from('one-bestanden').createSignedUrls(paden, 60 * 60 * 8);
     (data || []).forEach(r => { if (r && r.signedUrl) ONE_BESTAND_URLS[r.path] = r.signedUrl; });
   } catch (e) { _meldStil('ONE-bestanden ophalen', e); }
+}
+
+// Filmpjes: zelfde afscherming als de foto's en de bestanden — per filmpje
+// een tijdelijke kijklink van acht uur.
+async function _oneVideoLinks() {
+  const paden = ONE_POSTS.map(p => p.video_pad).filter(p => p && !ONE_VIDEO_URLS[p]);
+  if (!paden.length) return;
+  try {
+    const { data } = await supa.storage.from('one-video').createSignedUrls(paden, 60 * 60 * 8);
+    (data || []).forEach(r => { if (r && r.signedUrl) ONE_VIDEO_URLS[r.path] = r.signedUrl; });
+  } catch (e) { _meldStil('ONE-filmpjes ophalen', e); }
 }
 
 // ── Meldingen ───────────────────────────────────────────────────────────────
@@ -5110,6 +5143,7 @@ function renderOne() {
       '<div id="one-tags" class="one-tag-chips">' + _oneTagChipsHtml() + '</div>' +
       '<div id="one-foto-blok" class="one-foto-blok">' + _oneFotoVoorbeeldHtml() + '</div>' +
       '<div id="one-bestand-blok" class="one-bestand-blok">' + _oneBestandVoorbeeldHtml() + '</div>' +
+      '<div id="one-video-blok" class="one-video-blok">' + _oneVideoVoorbeeldHtml() + '</div>' +
       _onePollBouwHtml() +
       _oneTaakBouwHtml() +
       '<div class="one-schrijf-acties">' +
@@ -5121,6 +5155,10 @@ function renderOne() {
           '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/>' +
           '<path d="M13 3v6h6"/></svg>Bestand' +
           '<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden onchange="oneKiesBestand(this)"></label>' +
+        '<label class="one-stil-knop" title="Filmpje toevoegen (MP4, WebM of MOV — max 25 MB)">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="2"/>' +
+          '<path d="m15 10 6-3v10l-6-3z"/></svg>Filmpje' +
+          '<input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" hidden onchange="oneKiesVideo(this)"></label>' +
         // Eén knop voor beide manieren van taggen: één collega of iedereen.
         // Twee losse knoppen naast elkaar suggereerden dat het twee dingen zijn.
         '<select class="one-stil-knop one-keuze-knop' + (ONE_ALLEN ? ' aan' : '') + '" ' +
@@ -5576,6 +5614,14 @@ function _oneKaartHtml(p, sinds) {
       escHtml(String(p.bestand_naam || '').split('.').pop().toUpperCase() || 'PDF') + '</span>' +
       '<span class="naam">' + escHtml(p.bestand_naam || 'bestand') + '</span></a>' : '';
 
+  // preload="metadata": alleen het eerste stukje wordt opgehaald, niet het
+  // hele filmpje. Anders zou het openen van de feed op een telefoon meteen
+  // tientallen megabytes kosten. playsinline houdt het op een iPhone in de
+  // kaart in plaats van dat het scherm zich vult.
+  const videoHtml = p.video_pad && ONE_VIDEO_URLS[p.video_pad]
+    ? '<div class="one-kaart-video"><video controls preload="metadata" playsinline src="' +
+      ONE_VIDEO_URLS[p.video_pad] + '"></video></div>' : '';
+
   const beheerHtml = _oneMagBeheren(p)
     ? '<div class="one-beheer">' +
       (isManagerLevel() ? '<button onclick="oneVastzetten(\'' + p.id + '\',' + (p.vastgezet ? 'false' : 'true') + ')">' +
@@ -5606,6 +5652,7 @@ function _oneKaartHtml(p, sinds) {
     _onePollHtml(p) +
     _oneTakenHtml(p) +
     fotoHtml +
+    videoHtml +
     bestandHtml +
     '<div class="one-balk">' + _oneDuimHtml('post', p.id) +
       '<button class="one-reageer-knop" onclick="oneToggleInvoer(\'' + sleutel + '\')">' +
@@ -5614,7 +5661,6 @@ function _oneKaartHtml(p, sinds) {
         : 'Reageren') + '</button>' +
     '</div>' +
     reactieBlok +
-  '</article>';    reactieBlok +
   '</article>';
 }
 
@@ -5733,6 +5779,78 @@ function oneVerwijderBestand() {
   ONE_BESTAND = null;
   const vak = document.getElementById('one-bestand-blok');
   if (vak) vak.innerHTML = '';
+}
+
+// ── Filmpje bij een bericht (verzoek 02-09) ─────────────────────────────────
+// Er wordt niets omgezet of verkleind: het filmpje gaat zoals het is. Vandaar
+// de grens van 25 MB, die de opslagmap zelf óók afdwingt
+// (supabase/one_video.sql). Waarom niet 50: zie de uitleg in dat bestand.
+const ONE_VIDEO_MAX   = 25 * 1024 * 1024;
+const ONE_VIDEO_TYPES = /\.(mp4|webm|mov|m4v)$/i;
+
+// Filmpjes van een iPhone zijn .mov en vaak in HEVC. Die spelen wel in Safari
+// en op een Mac, maar niet in Chrome op Windows — daar ziet een collega dan
+// een zwart vlak. Beter dat de afzender dat nu weet dan de kijker straks.
+function _oneVideoWaarschuwing(naam) {
+  return /\.(mov|m4v)$/i.test(naam || '')
+    ? 'Let op: dit is een .mov-filmpje. Dat speelt op een Mac en iPhone, maar ' +
+      'lang niet altijd in Chrome op Windows. Een MP4 werkt overal.'
+    : '';
+}
+
+function _oneVideoVoorbeeldHtml() {
+  if (!ONE_VIDEO) return '';
+  const let_ = _oneVideoWaarschuwing(ONE_VIDEO.naam);
+  return '<div class="one-video-regel"><span class="one-bestand-type">FILM</span>' +
+    '<span>' + escHtml(ONE_VIDEO.naam) + '</span>' +
+    '<span class="stil">' + _oneBestandGrootte(ONE_VIDEO.file.size) + '</span>' +
+    '<button class="one-stil-knop" onclick="oneVerwijderVideo()">weghalen</button>' +
+    (let_ ? '<span class="one-video-let">' + escHtml(let_) + '</span>' : '') +
+    '</div>';
+}
+
+function oneKiesVideo(invoer) {
+  const bestand = invoer.files && invoer.files[0];
+  invoer.value = '';
+  const vak = document.getElementById('one-video-blok');
+  if (!bestand || !vak) return;
+  if (!ONE_VIDEO_TYPES.test(bestand.name || '')) {
+    btZetStatus(vak, '❌ Dit is geen filmpje. Wel: MP4, WebM of MOV.');
+    return;
+  }
+  if (bestand.size > ONE_VIDEO_MAX) {
+    btZetStatus(vak, '❌ Dit filmpje is ' + _oneBestandGrootte(bestand.size) +
+      ' — de grens is 25 MB. Maak het korter, of stuur het op een andere manier.');
+    return;
+  }
+  ONE_VIDEO = { file: bestand, naam: String(bestand.name || 'filmpje').replace(/[^\w.\-]+/g, '_') };
+  vak.innerHTML = _oneVideoVoorbeeldHtml();
+}
+
+function oneVerwijderVideo() {
+  ONE_VIDEO = null;
+  const vak = document.getElementById('one-video-blok');
+  if (vak) vak.innerHTML = '';
+}
+
+function _oneVideoFout(fout) {
+  const m = String(fout?.message || fout || '');
+  if (/bucket not found/i.test(m)) {
+    return 'de filmruimte is nog niet aangemaakt in Supabase. Vraag de beheerder om ' +
+           'supabase/one_video.sql uit te voeren. Je bericht zelf is niet verloren — ' +
+           'haal het filmpje weg en plaats het, of probeer het straks opnieuw.';
+  }
+  if (/payload too large|entity too large|exceeded the maximum/i.test(m)) {
+    return 'het filmpje is te groot voor de opslag (grens is 25 MB).';
+  }
+  if (/mime type|not supported/i.test(m)) {
+    return 'dit soort filmpje wordt niet geaccepteerd. Wel: MP4, WebM of MOV.';
+  }
+  if (/exceeded|quota|storage limit/i.test(m)) {
+    return 'de opslag zit vol. Vraag de beheerder om ruimte vrij te maken of het ' +
+           'Supabase-plan te verhogen.';
+  }
+  return 'het filmpje kon niet worden geplaatst: ' + m;
 }
 
 function oneVerwijderFoto() {
@@ -5878,6 +5996,20 @@ async function onePlaats() {
                 { contentType: ONE_BESTAND.file.type || 'application/octet-stream' });
       if (bErr) throw new Error(_oneBestandFout(bErr));
     }
+    let videoPad = null, videoNaam = null;
+    if (ONE_VIDEO) {
+      // Een filmpje van 25 MB duurt op 4G een halve minuut. Zonder deze melding
+      // lijkt het dashboard te hangen en drukt iemand nog een keer op Plaatsen.
+      btZetStatus(status, '⏳ Filmpje versturen (' + _oneBestandGrootte(ONE_VIDEO.file.size) +
+        ')… dit kan even duren.<div class="one-bezig"><i></i></div>');
+      videoPad  = ONE_MIJN_ID + '/' + Date.now() + '-' + ONE_VIDEO.naam;
+      videoNaam = ONE_VIDEO.naam;
+      const { error: vErr } = await supa.storage.from('one-video')
+        .upload(videoPad, ONE_VIDEO.file,
+                { contentType: ONE_VIDEO.file.type || 'video/mp4' });
+      if (vErr) throw new Error(_oneVideoFout(vErr));
+      btZetStatus(status, '⏳ Bezig met plaatsen…');
+    }
     // Ook namen die je zelf hebt ingetypt tellen mee als tag, zolang het een
     // bestaande collega is.
     const ik = CURRENT_USER.naam || CURRENT_USER.bm_naam || '';
@@ -5893,6 +6025,7 @@ async function onePlaats() {
     const { data: nieuwPost, error } = await supa.from('one_posts').insert({
       onderwerp, tekst, categorie, foto_pad: pad,
       bestand_pad: bestandPad, bestand_naam: bestandNaam,
+      video_pad: videoPad, video_naam: videoNaam,
       getagd: getagd.length ? getagd : null,
       auteur: CURRENT_USER.naam || CURRENT_USER.bm_naam || '',
       created_by: ONE_MIJN_ID,
@@ -5938,7 +6071,7 @@ async function onePlaats() {
     }
 
     if (ONE_FOTO && ONE_FOTO.url) URL.revokeObjectURL(ONE_FOTO.url);
-    ONE_FOTO = null; ONE_BESTAND = null; ONE_TAGS = []; ONE_ALLEN = false;
+    ONE_FOTO = null; ONE_BESTAND = null; ONE_VIDEO = null; ONE_TAGS = []; ONE_ALLEN = false;
     ONE_POLL_CONCEPT = []; ONE_TAAK_CONCEPT = [];
     ONE_CONCEPT = { onderwerp:'', tekst:'', categorie, reacties: ONE_CONCEPT.reacties };
     await loadOne();
@@ -6116,7 +6249,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260902-2112';
+const APP_VERSIE = '20260903-0827';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
