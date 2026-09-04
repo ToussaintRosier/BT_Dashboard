@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260903-1441 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260904-0814 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6249,7 +6249,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260903-1441';
+const APP_VERSIE = '20260904-0814';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22232,6 +22232,69 @@ function bezoekOpnameWeggooien() {
   renderBezoekRecorder();
 }
 
+// ── Een bestaande opname inladen (verzoek 03-09) ────────────────────────────
+// Beide recorders gebruiken deze drie hulpjes. De verwerking zelf is dezelfde
+// als bij een live opname: het gekozen bestand gaat gewoon in gesprekUpload
+// of bezoekUpload, en die doen de rest.
+const REC_AUDIO_MAX   = 50 * 1024 * 1024;                       // zie supabase/audio_opnames_bucket.sql
+const REC_AUDIO_TYPES = /\.(m4a|mp3|wav|aac|ogg|oga|opus|webm|mp4|flac)$/i;
+
+// Geeft de reden terug waarom dit bestand niet kan, of een lege tekst als het
+// wél kan. Eén plek, zodat ITK en BZK niet uit elkaar kunnen gaan lopen.
+function _recBestandFout(bestand) {
+  if (!bestand) return 'Er is geen bestand gekozen.';
+  if (!REC_AUDIO_TYPES.test(bestand.name || '')) {
+    return 'Dit is geen geluidsbestand dat verwerkt kan worden.\n\n' +
+           'Wel: m4a, mp3, wav, aac, ogg, opus, webm, mp4 of flac.';
+  }
+  if (bestand.size > REC_AUDIO_MAX) {
+    return 'Dit bestand is ' + _oneBestandGrootte(bestand.size) + ' — de grens is 50 MB.\n\n' +
+           'Een uur spraak past meestal wel als mp3 of m4a, maar een wav-bestand niet: ' +
+           'dat is ongeveer 10 MB per minuut. Zet het eerst om naar mp3, of knip het in tweeën.';
+  }
+  if (bestand.size < 2000) return 'Dit bestand is leeg of beschadigd.';
+  return '';
+}
+
+// De lengte uit het bestand zelf lezen. Bij een live opname komt die van de
+// stopwatch, maar die staat op nul als je een bestand inlaadt. Lukt het niet,
+// dan wordt het 0 — de lengte is nergens noodzakelijk, alleen netjes.
+function _audioDuur(bestand) {
+  return new Promise((klaar) => {
+    let af = false;
+    const gereed = (sec) => { if (!af) { af = true; klaar(sec); } };
+    try {
+      const url = URL.createObjectURL(bestand);
+      const a = document.createElement('audio');
+      a.preload = 'metadata';
+      a.onloadedmetadata = () => {
+        const d = Math.round(a.duration);
+        URL.revokeObjectURL(url);
+        gereed(isFinite(d) && d > 0 ? d : 0);
+      };
+      a.onerror = () => { URL.revokeObjectURL(url); gereed(0); };
+      // Niet blijven hangen op een bestand waar de browser niets mee kan.
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} gereed(0); }, 8000);
+      a.src = url;
+    } catch (_) { gereed(0); }
+  });
+}
+
+// De extensie in de opslag. Een ingeladen bestand houdt zijn eigen extensie;
+// bij een live opname wordt hij uit het mimetype afgeleid. De eerste drie
+// regels zijn precies wat er hiervoor stond, zodat live opnemen zich niets
+// aantrekt van deze wijziging.
+function _recExt(mimeType, bestandsnaam) {
+  const uitNaam = String(bestandsnaam || '').match(/\.([a-z0-9]{2,5})$/i);
+  if (uitNaam) return uitNaam[1].toLowerCase();
+  const m = String(mimeType || '');
+  if (m.includes('mp4')) return 'mp4';
+  if (m.includes('ogg')) return 'ogg';
+  if (m.includes('mpeg')) return 'mp3';
+  if (m.includes('wav')) return 'wav';
+  return 'webm';
+}
+
 // AssemblyAI kent alleen "Spreker A" en "Spreker B" — het herkent stemmen, geen
 // mensen. De analyse bepaalt uit de context wie wie is en geeft dat terug; hier
 // zetten we die namen in het transcript. Weet de analyse het niet zeker, dan
@@ -22364,6 +22427,26 @@ async function gesprekDoorgaan() {
   }
 }
 
+// Een bestand inladen in plaats van opnemen. Vanaf gesprekUpload is er geen
+// verschil meer met een gewone opname.
+async function gesprekBestandKiezen(invoer) {
+  const bestand = invoer.files && invoer.files[0];
+  invoer.value = '';
+  if (!bestand) return;
+  if (!String(GESPREK.recorderNaam || '').trim()) {
+    alert('Vul eerst jouw naam in bij Opgenomen door.'); return;
+  }
+  const fout = _recBestandFout(bestand);
+  if (fout) { alert(fout); return; }
+  GESPREK._ingeladen    = true;
+  GESPREK._bestandsnaam = bestand.name;
+  GESPREK.statusMsg = '⏳ Bestand inlezen…';
+  renderGesprek();
+  GESPREK.totalRecordingTime = 0;
+  GESPREK.recordingTime = await _audioDuur(bestand);
+  gesprekUpload(bestand, bestand.type || '');
+}
+
 function gesprekStop() {
   if (GESPREK.checkpointTimer) { clearInterval(GESPREK.checkpointTimer); GESPREK.checkpointTimer = null; }
   if (GESPREK.timerInterval) { clearInterval(GESPREK.timerInterval); GESPREK.timerInterval = null; }
@@ -22393,7 +22476,7 @@ async function gesprekUpload(blob, mimeType) {
             recorderNaam: GESPREK.recorderNaam || '' } });
 
   try {
-    const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+    const ext = _recExt(mimeType, GESPREK._bestandsnaam);
     const userId = (supa ? (await supa.auth.getSession())?.data?.session?.user?.id : null) || 'anoniem';
 
     // Stap 1: Upload audio naar Supabase Storage vanuit de browser — met drie
@@ -22537,6 +22620,9 @@ function gesprekReset() {
     mediaRecorder: null, audioChunks: [], pendingBlobs: [],
     recordingTime: 0, totalRecordingTime: 0, timerInterval: null,
     _audioStoragePath: null,
+    // Merktekens van een ingeladen bestand horen bij die ene verwerking; laat
+    // je ze staan, dan gaat de volgende live opname als "ingeladen" de boeken in.
+    _ingeladen: false, _bestandsnaam: null,
   };
   renderGesprek();
 }
@@ -22756,7 +22842,11 @@ function renderGesprek() {
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         ${!g.recording && !g.paused && !g.analyzing
           ? `<button class="proj-save-btn" style="background:#dc2626;border-color:#dc2626;font-size:1rem;padding:10px 22px;${!g.recorderNaam.trim()?'opacity:.45;cursor:not-allowed;':''}"
-               onclick="${g.recorderNaam.trim()?'gesprekStart()':'alert(\'Vul eerst jouw naam in bij Opgenomen door.\')'}">🎙️ Start opname</button>`
+               onclick="${g.recorderNaam.trim()?'gesprekStart()':'alert(\'Vul eerst jouw naam in bij Opgenomen door.\')'}">🎙️ Start opname</button>
+             <label class="btn-secondary" style="font-size:.92rem;padding:9px 18px;cursor:pointer;${!g.recorderNaam.trim()?'opacity:.45;cursor:not-allowed;':''}"
+               title="Een bestaande geluidsopname inladen en verwerken alsof je hem nu had opgenomen (max 50 MB)">📂 Opname inladen
+               <input type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.webm,.mp4,.flac" hidden
+                 ${!g.recorderNaam.trim()?'disabled':''} onchange="gesprekBestandKiezen(this)"></label>`
           : g.recording
           ? `<button class="btn-secondary" style="font-size:.92rem;padding:9px 18px;"
                onclick="gesprekPauze()">Pauze</button>
@@ -23221,7 +23311,8 @@ function addGesprekRecord() {
   );
 
   const record = { datum, naam:g.naam, functie:g.functie, result:g.result,
-                   transcript:g.transcript, recorder_naam:recNaam, heeftTranscript: !!g.transcript };
+                   transcript:g.transcript, recorder_naam:recNaam, heeftTranscript: !!g.transcript,
+                   ingeladen: !!g._ingeladen };
 
   if (dupIdx >= 0) {
     const bestaandId = GESPREK_RECORDS[dupIdx].id;
@@ -23241,7 +23332,8 @@ function addGesprekRecord() {
     // Lukt het opslaan, dan krijgt het record meteen zijn server-ID en is het
     // definitief. Lukt het niet, dan blijft het staan met het label "alleen op
     // dit apparaat" en wordt het bij de volgende verversing opnieuw geprobeerd.
-    _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam }, g.result, g.transcript, false, nieuw.id)
+    _saveVerslagToSupa('gesprek', { naam:g.naam, functie:g.functie, datum, recorder_naam:recNaam,
+                                    bron: g._ingeladen ? 'ingeladen' : 'opname' }, g.result, g.transcript, false, nieuw.id)
       .then(serverId => {
         if (serverId) nieuw.ongedeeld = false;
         _saveGesprekRec();
@@ -23291,7 +23383,8 @@ function addBezoekRecord() {
   } else {
     const nieuw = { ...record, id: _nieuwVerslagId(), ongedeeld: true };
     BEZOEK_RECORDS.unshift(nieuw);
-    _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam }, b.result, b.transcript, false, nieuw.id)
+    _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam,
+                                   bron: b._ingeladen ? 'ingeladen' : 'opname' }, b.result, b.transcript, false, nieuw.id)
       .then(serverId => {
         if (serverId) nieuw.ongedeeld = false;
         _saveBezoekRec();
@@ -24218,6 +24311,24 @@ async function bezoekStart() {
   }
 }
 
+// Zie de uitleg bij gesprekBestandKiezen: zelfde weg, andere velden.
+async function bezoekBestandKiezen(invoer) {
+  const bestand = invoer.files && invoer.files[0];
+  invoer.value = '';
+  if (!bestand) return;
+  if (!String(BEZOEK.recorderNaam || '').trim()) {
+    alert('Vul eerst jouw naam in bij Opgenomen door.'); return;
+  }
+  const fout = _recBestandFout(bestand);
+  if (fout) { alert(fout); return; }
+  BEZOEK._ingeladen    = true;
+  BEZOEK._bestandsnaam = bestand.name;
+  BEZOEK.statusMsg = '⏳ Bestand inlezen…';
+  renderBezoekRecorder();
+  BEZOEK.recordingTime = await _audioDuur(bestand);
+  bezoekUpload(bestand, bestand.type || '');
+}
+
 function bezoekStop() {
   if (BEZOEK.checkpointTimer) { clearInterval(BEZOEK.checkpointTimer); BEZOEK.checkpointTimer = null; }
   if (BEZOEK.timerInterval) { clearInterval(BEZOEK.timerInterval); BEZOEK.timerInterval = null; }
@@ -24244,7 +24355,7 @@ async function bezoekUpload(blob, mimeType) {
             soortBezoek: BEZOEK.soortBezoek || '', recorderNaam: BEZOEK.recorderNaam || '' } });
 
   try {
-    const ext = (mimeType || '').includes('mp4') ? 'mp4' : (mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+    const ext = _recExt(mimeType, BEZOEK._bestandsnaam);
 
     // Stap 1: Upload naar Storage — met drie pogingen.
     const mb = Math.round(blob.size / 1024 / 1024 * 10) / 10;
@@ -24386,6 +24497,9 @@ function bezoekReset() {
     mediaRecorder: null, audioChunks: [],
     recordingTime: 0, timerInterval: null,
     _audioStoragePath: null,
+    // Zie de uitleg bij de gespreksrecorder: het merkteken hoort bij één
+    // verwerking en mag niet blijven hangen.
+    _ingeladen: false, _bestandsnaam: null,
   };
   renderBezoekRecorder();
 }
@@ -24758,7 +24872,11 @@ function renderBezoekRecorder() {
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         ${!b.recording && !b.analyzing
           ? `<button class="proj-save-btn" style="background:#0369a1;border-color:#0369a1;font-size:1rem;padding:10px 22px;${!b.recorderNaam.trim()?'opacity:.45;cursor:not-allowed;':''}"
-               onclick="${b.recorderNaam.trim()?'bezoekStart()':'alert(\'Vul eerst jouw naam in bij Opgenomen door.\')'}">🎙️ Start opname</button>`
+               onclick="${b.recorderNaam.trim()?'bezoekStart()':'alert(\'Vul eerst jouw naam in bij Opgenomen door.\')'}">🎙️ Start opname</button>
+             <label class="btn-secondary" style="font-size:.92rem;padding:9px 18px;cursor:pointer;${!b.recorderNaam.trim()?'opacity:.45;cursor:not-allowed;':''}"
+               title="Een bestaande geluidsopname inladen en verwerken alsof je hem nu had opgenomen (max 50 MB)">📂 Opname inladen
+               <input type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.webm,.mp4,.flac" hidden
+                 ${!b.recorderNaam.trim()?'disabled':''} onchange="bezoekBestandKiezen(this)"></label>`
           : b.recording
           ? `<button class="proj-save-btn" style="background:#374151;border-color:#374151;font-size:1rem;padding:10px 22px;"
                onclick="bezoekStop()">Stop opname</button>
