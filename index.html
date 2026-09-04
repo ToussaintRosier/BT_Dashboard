@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260904-0814 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260904-1401 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6249,7 +6249,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260904-0814';
+const APP_VERSIE = '20260904-1401';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22542,9 +22542,12 @@ async function gesprekUpload(blob, mimeType) {
 const POLL_MAX_GESPREK = 180;   // × 5 s = 15 min
 function gesprekPoll() {
   GESPREK._pollTeller = 0;
+  GESPREK._pollBezig = false;
   GESPREK.pollingTimer = setInterval(async () => {
     // Guard: al een resultaat? Timer stoppen, niets meer doen.
     if (GESPREK.result) { clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null; return; }
+    // Eén vraag tegelijk — zie de uitleg bij bezoekPoll (melding 04-09).
+    if (GESPREK._pollBezig) return;
     if (++GESPREK._pollTeller > POLL_MAX_GESPREK) {
       clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
       GESPREK.analyzing = false; GESPREK.uploadFout = true;
@@ -22559,10 +22562,13 @@ function gesprekPoll() {
       // Wie het gesprek voerde: dan schrijft de analyse zijn naam in plaats van
       // "de interviewer", en kan hij de juiste spreker aan die naam koppelen.
       if (GESPREK.recorderNaam) params.set('recorder_naam', GESPREK.recorderNaam);
+      GESPREK._pollBezig = true;
       const res = await fetch(SUPABASE_URL + '/functions/v1/gesprek-check?' + params.toString(), {
         headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
       });
       const data = await res.json();
+      // Een laat antwoord telt niet — zie bezoekPoll.
+      if (GESPREK.result) return;
       if (data.status === 'completed') {
         clearInterval(GESPREK.pollingTimer); GESPREK.pollingTimer = null;
         // Verwijder audiobestand uit Storage (privacy — transcriptie is klaar)
@@ -22595,6 +22601,7 @@ function gesprekPoll() {
       }
       // queued / processing: blijf pollen
     } catch(_) { /* keep polling on network error */ }
+    finally { GESPREK._pollBezig = false; }
   }, 5000);
 }
 
@@ -23377,7 +23384,11 @@ function addBezoekRecord() {
   const record = { datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam };
   if (dupIdx >= 0) {
     const existingId = BEZOEK_RECORDS[dupIdx].id;
-    BEZOEK_RECORDS[dupIdx] = { ...record, id: existingId };
+    // De bestaande velden (zoals "ongedeeld") blijven staan. Zonder dat gold
+    // een net vervangen verslag bij de volgende verversing als "elders
+    // verwijderd" en viel het uit de lijst — waarna de volgende poging weer
+    // een nieuw verslag aanmaakte (melding 04-09).
+    BEZOEK_RECORDS[dupIdx] = { ...BEZOEK_RECORDS[dupIdx], ...record, id: existingId };
     // Update bestaand DB-record
     _updateBezoekVerslagInSupa(existingId, b.result, b.transcript);
   } else {
@@ -24419,9 +24430,15 @@ async function bezoekUpload(blob, mimeType) {
 const POLL_MAX_BEZOEK = 180;   // × 5 s = 15 min
 function bezoekPoll() {
   BEZOEK._pollTeller = 0;
+  BEZOEK._pollBezig = false;
   BEZOEK.pollingTimer = setInterval(async () => {
     // Guard: al een resultaat? Timer stoppen, niets meer doen.
     if (BEZOEK.result) { clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null; return; }
+    // Eén vraag tegelijk (melding 04-09). Zodra de transcriptie klaar is,
+    // draait de server bij diezelfde vraag ook de analyse — 30 tot 90 s. Zonder
+    // deze regel gingen er in die tijd nog tien vragen uit, elk met een eigen
+    // analyse en een eigen verslag. Tien keer "er staat al een verslag".
+    if (BEZOEK._pollBezig) return;
     if (++BEZOEK._pollTeller > POLL_MAX_BEZOEK) {
       clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
       BEZOEK.analyzing = false; BEZOEK.uploadFout = true;
@@ -24435,10 +24452,15 @@ function bezoekPoll() {
       if (BEZOEK.contactpersoon) params.set('contactpersoon', BEZOEK.contactpersoon);
       params.set('soort_bezoek', BEZOEK.soortBezoek || 'bedrijfsbezoek');
       if (BEZOEK.recorderNaam) params.set('recorder_naam', BEZOEK.recorderNaam);
+      BEZOEK._pollBezig = true;
       const res = await fetch(SUPABASE_URL + '/functions/v1/bezoek-check?' + params.toString(), {
         headers: authHeader ? { 'Authorization': 'Bearer ' + authHeader } : {},
       });
       const data = await res.json();
+      // Een laat antwoord telt niet: is het verslag er inmiddels al, dan mag een
+      // tweede antwoord er niet nóg een maken. Dit vangt op wat de bewaking
+      // hierboven mist als er tóch twee vragen onderweg waren.
+      if (BEZOEK.result) return;
       if (data.status === 'completed') {
         clearInterval(BEZOEK.pollingTimer); BEZOEK.pollingTimer = null;
         BEZOEK.transcript = _sprekersVervangen(data.transcript || '', data.analyse?.sprekers);
@@ -24470,6 +24492,7 @@ function bezoekPoll() {
         renderBezoekRecorder();
       }
     } catch(_) { /* keep polling on network error */ }
+    finally { BEZOEK._pollBezig = false; }
   }, 5000);
 }
 
