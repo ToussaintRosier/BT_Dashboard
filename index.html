@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260907-0931 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260907-1753 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6306,7 +6306,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260907-0931';
+const APP_VERSIE = '20260907-1753';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6996,6 +6996,9 @@ function toggleTools(event) {
 // van pagina te wisselen.
 function goMedewerkersOverzicht() {
   currentTab = 'medewerkers';
+  // Ook dit scherm onthouden. Het loopt niet via selectTab, dus zonder deze
+  // regel bleef het Overzicht als enige scherm buiten de herinnering vallen.
+  _tabOnthoud('medewerkers');
   medewerkersOpen = true;
   bmSubTab = 'kpis';
   renderTabs();
@@ -8749,16 +8752,22 @@ function _kiesStartTab() {
   const ik = String(CURRENT_USER.bm_naam || CURRENT_USER.naam || '');
   const eigenIdx = ik ? BMS.findIndex(b => b.naam === ik) : -1;
 
-  if (CURRENT_USER.rol === 'bm') {
-    currentTab = eigenIdx >= 0 ? eigenIdx : 'medewerkers';
-    medewerkersOpen = true;
+  // Het laatste scherm van DEZE gebruiker — voor iedereen, ook voor een BM
+  // (verzoek 07-09: "na verversen wil ik blijven waar ik was"). Tot nu toe
+  // werd een BM altijd naar zijn eigen kaart gestuurd, ook als hij in ONE of
+  // op de recorder zat, en naar het Overzicht als zijn kaart niet bestond.
+  // _tabHerstel weigert de kaart van een collega — die valt terug op Overzicht,
+  // dus dit maakt niets zichtbaar wat iemand niet al mocht zien.
+  const hersteld = _tabHerstel();
+  if (hersteld === null || hersteld === undefined) {
+    // Niets onthouden (eerste keer, of net uitgelogd): een BM begint op zijn
+    // eigen kaart, de rest op de standaardtab.
+    if (CURRENT_USER.rol === 'bm') {
+      currentTab = eigenIdx >= 0 ? eigenIdx : 'medewerkers';
+      medewerkersOpen = true;
+    }
     return;
   }
-
-  // Manager/backoffice/overige: het laatste scherm van DEZE gebruiker.
-  // _tabHerstel weigert de kaart van een collega — die valt terug op Overzicht.
-  const hersteld = _tabHerstel();
-  if (hersteld === null || hersteld === undefined) return;   // standaardtab
   currentTab = hersteld;
   if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
   else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
