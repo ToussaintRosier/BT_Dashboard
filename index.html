@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260904-1401 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260907-0931 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1215,11 +1215,28 @@
      een rangorde die er niet is. Plaatsen staat eronder op volle breedte. */
   /* Vijf knoppen op één rij (aanwijzing 28-08): met de bestandknop erbij
      viel Taak naar een tweede regel. Iets compacter en ze passen weer. */
-  .one-schrijf-acties { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px; }
-  .one-schrijf-acties > * { height:32px; width:100%; box-sizing:border-box; margin:0;
-                            display:inline-flex; align-items:center; justify-content:center; gap:6px;
-                            font-size:.78rem; padding:0 8px; white-space:nowrap; }
-  .one-schrijf-acties svg { width:13px; height:13px; flex-shrink:0; }
+  /* Eén regel: de werkbalk links, Taggen ernaast, Plaatsen rechts. */
+  .one-schrijf-acties { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  .one-werkbalk { display:inline-flex; align-items:center; gap:2px; padding:3px;
+                  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12);
+                  border-radius:9px; }
+  .one-werkbalk-streep { width:1px; height:18px; background:rgba(255,255,255,.14); margin:0 3px; }
+  /* De pictogramknoppen: geen eigen rand, die zit om de balk heen. */
+  .one-werkbalk .one-stil-knop { width:34px; height:30px; padding:0; gap:0;
+                                 justify-content:center; background:transparent; border:0;
+                                 border-radius:6px; }
+  .one-werkbalk .one-stil-knop:hover { background:rgba(255,255,255,.14); }
+  .one-werkbalk .one-stil-knop.aan { background:rgba(244,203,60,.22); }
+  .one-werkbalk .one-stil-knop svg { width:17px; height:17px; }
+  /* Het woord staat in de knop maar is op een breed scherm verborgen. Op een
+     telefoon bestaat aanwijzen niet, dus daar komt het terug (zie @media). */
+  .one-knop-tekst { display:none; }
+  .one-schrijf-acties .one-keuze-knop { height:32px; padding:0 26px 0 11px; font-size:.78rem; }
+  .one-schrijf-acties .one-keuze-knop svg { width:15px; height:15px; }
+  /* De uitleg onder de balk: verschijnt bij aanwijzen, houdt altijd zijn
+     hoogte zodat de knoppen niet verspringen. */
+  .one-werkbalk-uitleg { min-height:15px; margin-top:7px; font-size:.7rem;
+                         color:rgba(255,255,255,.45); }
   .one-schrijf-voet { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
   .one-stil-knop { display:inline-flex; align-items:center; gap:6px;
                    background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.14);
@@ -1512,7 +1529,16 @@
   @media (max-width: 768px) {
     .one-kolom { max-width:none; }
     .one-plaats-knop { margin-left:0; width:100%; }
-    .one-schrijf-acties { grid-template-columns:repeat(3,1fr); }
+    /* Smal scherm: geen aanwijzen, dus geen tooltip en geen uitlegregel. De
+       woorden komen terug en de balk valt uiteen in gewone knoppen. */
+    .one-schrijf-acties { flex-wrap:wrap; gap:6px; }
+    .one-werkbalk { display:contents; }
+    .one-werkbalk-streep, .one-werkbalk-uitleg { display:none; }
+    .one-knop-tekst { display:inline; }
+    .one-werkbalk .one-stil-knop { width:auto; height:32px; padding:0 11px; gap:6px;
+                                   background:rgba(255,255,255,.09);
+                                   border:1px solid rgba(255,255,255,.14); border-radius:8px; }
+    .one-schrijf-acties .one-plaats-knop { flex-basis:100%; }
     .one-filter { padding:8px 9px; font-size:var(--t-xs); }
   }
 
@@ -5147,36 +5173,53 @@ function renderOne() {
       _onePollBouwHtml() +
       _oneTaakBouwHtml() +
       '<div class="one-schrijf-acties">' +
-        '<label class="one-stil-knop" title="Foto toevoegen (max 2 MB)">' +
+        '<div class="one-werkbalk">' +
+        '<label class="one-stil-knop" ' + _oneWbHaak('Foto toevoegen — max 2 MB') +
+          ' aria-label="Foto toevoegen" title="Foto toevoegen (max 2 MB)">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/>' +
-          '<circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 4.5-4.5L12 16l3-3 5 5"/></svg>Foto' +
+          '<circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 4.5-4.5L12 16l3-3 5 5"/></svg>' +
+          '<span class="one-knop-tekst">Foto</span>' +
           '<input type="file" accept="image/*" hidden onchange="oneKiesFoto(this)"></label>' +
-        '<label class="one-stil-knop" title="Bestand toevoegen (PDF, Word, Excel, PowerPoint, tekst of CSV — max 10 MB)">' +
+        '<label class="one-stil-knop" ' +
+          _oneWbHaak('Bestand toevoegen — PDF, Word, Excel, PowerPoint, tekst of CSV, max 10 MB') +
+          ' aria-label="Bestand toevoegen" title="Bestand toevoegen (PDF, Word, Excel, PowerPoint, tekst of CSV — max 10 MB)">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/>' +
-          '<path d="M13 3v6h6"/></svg>Bestand' +
+          '<path d="M13 3v6h6"/></svg>' +
+          '<span class="one-knop-tekst">Bestand</span>' +
           '<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden onchange="oneKiesBestand(this)"></label>' +
-        '<label class="one-stil-knop" title="Filmpje toevoegen (MP4, WebM of MOV — max 25 MB)">' +
+        '<label class="one-stil-knop" ' +
+          _oneWbHaak('Filmpje toevoegen — MP4, WebM of MOV, max 25 MB') +
+          ' aria-label="Filmpje toevoegen" title="Filmpje toevoegen (MP4, WebM of MOV — max 25 MB)">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="2"/>' +
-          '<path d="m15 10 6-3v10l-6-3z"/></svg>Filmpje' +
+          '<path d="m15 10 6-3v10l-6-3z"/></svg>' +
+          '<span class="one-knop-tekst">Filmpje</span>' +
           '<input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" hidden onchange="oneKiesVideo(this)"></label>' +
+        '<span class="one-werkbalk-streep" aria-hidden="true"></span>' +
+        '<button class="one-stil-knop' + (ONE_POLL_CONCEPT.length ? ' aan' : '') + '" ' +
+          _oneWbHaak('Een poll toevoegen aan dit bericht') +
+          ' aria-label="Poll toevoegen" onclick="onePollStart()" title="Een poll toevoegen aan dit bericht">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>' +
+          '<span class="one-knop-tekst">Poll</span></button>' +
+        '<button class="one-stil-knop' + (ONE_TAAK_CONCEPT.length ? ' aan' : '') + '" ' +
+          _oneWbHaak('Taken toevoegen en koppelen aan collega\'s') +
+          ' aria-label="Taak toevoegen" onclick="oneTaakStart()" title="Taken toevoegen en koppelen aan collega\'s">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+          '<path d="M9 6h11M9 12h11M9 18h7"/><path d="m3 6 1.4 1.4L7 4.8"/>' +
+          '<path d="m3 12 1.4 1.4L7 10.8"/><path d="m3 18 1.4 1.4L7 16.8"/></svg>' +
+          '<span class="one-knop-tekst">Taak</span></button>' +
+        '</div>' +
         // Eén knop voor beide manieren van taggen: één collega of iedereen.
-        // Twee losse knoppen naast elkaar suggereerden dat het twee dingen zijn.
+        // Deze staat bewust NAAST de werkbalk en niet erin: een keuzelijst kan
+        // niet als los pictogram — je moet kunnen lezen wat je kiest.
         '<select class="one-stil-knop one-keuze-knop' + (ONE_ALLEN ? ' aan' : '') + '" ' +
           'onchange="oneTagCollega(this)" title="Een collega of iedereen taggen">' +
           '<option value="">' + (ONE_ALLEN ? '@ALL getagd' : 'Taggen\u2026') + '</option>' +
           '<option value="@ALL">Iedereen (@ALL)</option>' + _oneCollegaOpties() + '</select>' +
-        '<button class="one-stil-knop' + (ONE_POLL_CONCEPT.length ? ' aan' : '') + '" ' +
-          'onclick="onePollStart()" title="Een poll toevoegen aan dit bericht">' +
-          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Poll</button>' +
-        '<button class="one-stil-knop' + (ONE_TAAK_CONCEPT.length ? ' aan' : '') + '" ' +
-          'onclick="oneTaakStart()" title="Taken toevoegen en koppelen aan collega\'s">' +
-          '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-          '<path d="M9 6h11M9 12h11M9 18h7"/><path d="m3 6 1.4 1.4L7 4.8"/>' +
-          '<path d="m3 12 1.4 1.4L7 10.8"/><path d="m3 18 1.4 1.4L7 16.8"/></svg>Taak</button>' +
+        '<button class="one-plaats-knop" onclick="onePlaats()">Plaatsen</button>' +
       '</div>' +
+      '<div class="one-werkbalk-uitleg" id="one-wb-uitleg"></div>' +
       '<div class="one-schrijf-voet">' +
         '<span id="one-schrijf-status"></span>' +
-        '<button class="one-plaats-knop" onclick="onePlaats()">Plaatsen</button>' +
       '</div>' +
     '</div>';
 
@@ -5853,6 +5896,20 @@ function _oneVideoFout(fout) {
   return 'het filmpje kon niet worden geplaatst: ' + m;
 }
 
+// De uitlegregel onder de werkbalk. Op een breed scherm staan de knoppen als
+// pictogram; deze regel zegt wat je aanwijst. Op een telefoon is hij verborgen
+// en staat het woord gewoon in de knop — daar bestaat aanwijzen niet.
+function _oneWbHaak(tekst) {
+  const t = escHtml(tekst).replace(/'/g, '&#39;');
+  return 'onmouseenter="oneWbUitleg(\'' + t + '\')" onmouseleave="oneWbUitleg(\'\')" ' +
+         'onfocus="oneWbUitleg(\'' + t + '\')" onblur="oneWbUitleg(\'\')"';
+}
+
+function oneWbUitleg(tekst) {
+  const el = document.getElementById('one-wb-uitleg');
+  if (el) el.textContent = tekst || '';
+}
+
 function oneVerwijderFoto() {
   if (ONE_FOTO && ONE_FOTO.url) URL.revokeObjectURL(ONE_FOTO.url);
   ONE_FOTO = null;
@@ -6249,7 +6306,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260904-1401';
+const APP_VERSIE = '20260907-0931';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
