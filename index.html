@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-0901 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-0916 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1279,14 +1279,23 @@
   .kand-fase:disabled { cursor:default; }
   .kand-fase:disabled:hover { background:transparent; color:rgba(255,255,255,.42); }
   .kand-fase.aan:disabled:hover { background:rgba(14,159,110,.28); color:#5fd6a8; }
-  .kand-fase-uitleg { margin-top:6px; min-height:13px; font-size:.66rem;
-                      color:rgba(255,255,255,.45); }
+  .kand-fases { align-items:center; }
+  .kand-fase-teller { margin-left:auto; padding-left:6px; font-size:.64rem;
+                      color:rgba(255,255,255,.45); white-space:nowrap; }
+
   /* Kaartkleur op de kandidaatkaart. Bewust doorschijnend met een gekleurde
      rand: de kaart is donker en de tekst wit, dus een lichte achtergrond zou
      te weinig contrast geven. */
   .kand-kleur-groen { background:rgba(14,159,110,.16);  border:2px solid #0e9f6e; }
   .kand-kleur-geel  { background:rgba(245,158,11,.16);  border:2px solid #f59e0b; }
   .kand-kleur-rood  { background:rgba(220,38,38,.18);   border:2px solid #e05252; }
+  /* Alleen in het Kandidaten-raster: kaarten even hoog en de fase-rij tegen
+     de onderrand, zodat hij bij elke kaart op dezelfde plek staat (08-09).
+     .pipe-card zelf blijft ongemoeid — die klasse wordt ook op het
+     Pipeline-bord gebruikt, waar de kaarten versleepbaar zijn. */
+  .kand-raster { align-items:stretch; }
+  .kand-raster > .pipe-card { display:flex; flex-direction:column; }
+  .kand-fase-blok { margin-top:auto; padding-top:8px; }
   .kand-legenda { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:10px; }
   .kand-legenda span.rij { display:inline-flex; align-items:center; gap:6px;
                            color:rgba(255,255,255,.75); font-size:.76rem; }
@@ -6341,7 +6350,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-0901';
+const APP_VERSIE = '20260908-0916';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19391,7 +19400,7 @@ function renderKandidaten() {
         Zoekresultaten
         <span style="font-weight:400;color:rgba(255,255,255,.6);font-size:.78rem;margin-left:8px">${matchCards.length} kandidaat${matchCards.length===1?'':'en'}</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">${cardsHtml}</div>
+      <div class="kand-raster" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">${cardsHtml}</div>
     </div>`;
   } else {
     weekSections = weeks.map(wk => {
@@ -19406,7 +19415,7 @@ function renderKandidaten() {
           Week ${wk.week} (${wk.year})${wk.offset===0?' · huidige week':''}
           <span style="font-weight:400;color:rgba(255,255,255,.6);font-size:.78rem;margin-left:8px">${wkCards.length} intake${wkCards.length===1?'':'s'}</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">${cardsHtml}</div>
+        <div class="kand-raster" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">${cardsHtml}</div>
       </div>`;
     }).join('');
   }
@@ -19532,10 +19541,6 @@ function kandKaartKleur(c) {
   return { klasse: '', reden: '' };
 }
 
-function _kandFaseUitleg(tekst) {
-  const el = document.getElementById('kand-fase-uitleg');
-  if (el) el.textContent = tekst || '';
-}
 
 function _kandFasesHtml(c, magWijzig) {
   const aan   = new Set(kandFasesEffectief(c));
@@ -19549,19 +19554,23 @@ function _kandFasesHtml(c, magWijzig) {
                                           : (isAan ? ' — afgevinkt' : '')));
     return '<button class="kand-fase' + (isAan ? ' aan' : '') + '"' +
       (klik ? '' : ' disabled') +
-      ' title="' + escHtml(f.label) + '" aria-label="' + escHtml(f.label) + '"' +
+      ' title="' + tekst + '" aria-label="' + escHtml(f.label) + '"' +
       ' aria-pressed="' + (isAan ? 'true' : 'false') + '"' +
-      ' onmouseenter="_kandFaseUitleg(\'' + tekst + '\')" onmouseleave="_kandFaseUitleg(\'\')"' +
-      ' onfocus="_kandFaseUitleg(\'' + tekst + '\')" onblur="_kandFaseUitleg(\'\')"' +
       (klik ? ' onclick="kandidaatFaseToggle(\'' + escApos(c.bmNaam) + '\',\'' + c.id + '\',\'' + f.sleutel + '\')"' : '') +
       '><svg viewBox="0 0 24 24" aria-hidden="true">' + f.svg + '</svg>' +
       (isAan ? '<span class="kand-fase-vink" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 13 4 4 10-10"/></svg></span>' : '') +
       '</button>';
   }).join('');
+  // Variant B (08-09): de teller staat rechts náást de pictogrammen, niet
+  // eronder. Dat scheelt een regel per kaart. De reden van de kleur past daar
+  // niet meer bij en verhuist naar de tooltip van het hele blok.
   const staat = aan.size + ' van ' + KAND_FASES.length + ' gedaan' +
                 (kleur.reden ? ' · ' + kleur.reden : '');
-  return '<div class="kand-fases">' + knoppen + '</div>' +
-         '<div class="kand-fase-uitleg">' + escHtml(staat) + '</div>';
+  return '<div class="kand-fase-blok" title="' + escHtml(staat) + '">' +
+           '<div class="kand-fases">' + knoppen +
+             '<span class="kand-fase-teller">' + aan.size + '/' + KAND_FASES.length + '</span>' +
+           '</div>' +
+         '</div>';
 }
 
 function _kandLegendaHtml() {
