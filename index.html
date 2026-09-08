@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-0922 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1031 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2143,9 +2143,21 @@
   .kand-raster > .pipe-card.kand-kleur-groen { background:rgba(14,159,110,.16); border:2px solid #0e9f6e; }
   .kand-raster > .pipe-card.kand-kleur-geel  { background:rgba(245,158,11,.16); border:2px solid #f59e0b; }
   .kand-raster > .pipe-card.kand-kleur-rood  { background:rgba(220,38,38,.18);  border:2px solid #e05252; }
+  /* Na 72 uur donkerder, maar niet zó donker dat de witte tekst wegvalt:
+     dit vlak haalt ruim voldoende contrast met #fff. */
+  .kand-raster > .pipe-card.kand-kleur-donkerrood { background:rgba(153,27,27,.55); border:2px solid #ef4444; }
   .kand-raster > .pipe-card.kand-kleur-groen:hover { background:rgba(14,159,110,.24); }
   .kand-raster > .pipe-card.kand-kleur-geel:hover  { background:rgba(245,158,11,.24); }
   .kand-raster > .pipe-card.kand-kleur-rood:hover  { background:rgba(220,38,38,.26); }
+  .kand-raster > .pipe-card.kand-kleur-donkerrood:hover { background:rgba(153,27,27,.68); }
+  /* De klokregel op de kaart. Kleurt mee met de stand, zodat de kaartkleur
+     niet het enige signaal is (en het ook leesbaar blijft voor wie kleur
+     moeilijk onderscheidt). */
+  .kand-klok { font-size:.65rem; margin-top:3px; color:rgba(255,255,255,.6); }
+  .kand-kleur-geel  .kand-klok { color:#f8d47a; }
+  .kand-kleur-rood  .kand-klok { color:#ffb3b3; }
+  .kand-kleur-donkerrood .kand-klok { color:#ffd4d4; }
+  .kand-kleur-donkerrood .card-sub  { color:rgba(255,255,255,.62); }
   .pipe-card .card-edit:hover { color:#fff; background:transparent; }
 
   .pipe-add-btn { border:1px dashed rgba(255,255,255,.22); color:rgba(255,255,255,.45); }
@@ -6358,7 +6370,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-0922';
+const APP_VERSIE = '20260908-1031';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19387,6 +19399,7 @@ function renderKandidaten() {
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
         <div class="card-sub" style="font-weight:700;color:#fff;">Aanbiedingen: ${aanbTotal}</div>
         <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
+        ${fasesTijdvak ? _kandKlokHtml(c) : ''}
         ${fasesTijdvak ? _kandFasesHtml(c, magKandidatenWijzigen()) : statusBtns}
       </div>`;
   };
@@ -19492,22 +19505,81 @@ function _kandFaseTijdvak(c) {
   return week >= KAND_FASE_VANAF.week;
 }
 
+// Wat er nog onderweg is naar de server: kaart-id → wat wij het laatst hebben
+// verstuurd. Nodig omdat een verversing tussendoor de kaartenlijst overschrijft
+// met de serverstand, en die loopt een paar honderd milliseconden achter.
+//
+// Zonder dit ging het zo (melding 08-09): je vinkt Intake aan, de verversing
+// komt binnen vóórdat de server dat verwerkt heeft en zet de kaart terug op
+// leeg, en je volgende klik rekent verder vanaf leeg. Intake was dan niet
+// alleen van het scherm verdwenen maar ook uit de database — de tweede klik
+// stuurde immers een lijst zónder Intake. Vandaar dat vinkjes "vanzelf
+// uitgingen" als je ze snel achter elkaar zette.
+const _KAND_FASE_ONDERWEG = new Map();
+const KAND_FASE_ONDERWEG_MS = 15000;   // ruim genoeg voor een trage verbinding
+
+function _kandOnderweg(id) {
+  const r = _KAND_FASE_ONDERWEG.get(String(id));
+  if (!r) return null;
+  if (r.tot < Date.now()) { _KAND_FASE_ONDERWEG.delete(String(id)); return null; }
+  return r.lijst;
+}
+
 // Wat er op een kaart is afgevinkt. Onbekende of dubbele sleutels vallen af,
-// zodat een handmatige aanpassing in de database niets kan breken.
+// zodat een handmatige aanpassing in de database niets kan breken. Staat er nog
+// iets onderweg naar de server, dan telt dát — niet de achterlopende serverstand.
 function kandFasesVan(c) {
   const geldig = new Set(KAND_FASES.map(f => f.sleutel));
-  const ruw = Array.isArray(c && c.kand_fases) ? c.kand_fases : [];
+  const onderweg = c ? _kandOnderweg(c.id) : null;
+  const ruw = onderweg || (Array.isArray(c && c.kand_fases) ? c.kand_fases : []);
   return Array.from(new Set(ruw.map(String).filter(x => geldig.has(x))));
 }
 
-// Hoeveel hele weken staat deze kaart open? Gerekend vanaf de maandag van de
-// week waarin de intake staat, dus ook kloppend over de jaargrens heen.
-function _kandWekenOpen(c) {
-  if (!c || !c.jaar || !c.week) return 0;
-  const start = isoWeekStartDate(+c.jaar, +c.week);
-  const nu    = isoWeekStartDate(CUR.year, CUR.week);
-  if (!start || !nu) return 0;
-  return Math.max(0, Math.round((nu - start) / (7 * 24 * 3600 * 1000)));
+// ── De intakeklok (verzoek 08-09) ───────────────────────────────────────────
+// Het invoerveld werkt met lokale tijd zonder tijdzone ("2026-09-08T09:30");
+// in de database staat een echt tijdstip. Deze twee zetten dat over en weer om.
+function _naarVeldTijd(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+         'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function _uitVeldTijd(waarde) {
+  if (!waarde) return null;
+  const d = new Date(waarde);
+  return isNaN(d) ? null : d.toISOString();
+}
+
+// Hoeveel uur is het geleden dat de kandidaat gesproken is? null betekent:
+// nog geen intakedatum ingevuld, dus de klok loopt niet.
+function kandUrenSindsIntake(c) {
+  if (!c || !c.intake_op) return null;
+  const d = new Date(c.intake_op);
+  if (isNaN(d)) return null;
+  return Math.max(0, (Date.now() - d.getTime()) / 3600000);
+}
+
+// "8 sep 09:30" — kort, want de ruimte op een kaartje is beperkt.
+function kandIntakeTekst(c) {
+  if (!c || !c.intake_op) return '';
+  const d = new Date(c.intake_op);
+  if (isNaN(d)) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return 'Intake ' + d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) +
+         ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+// De stand van de klok in woorden, voor achter de datum.
+function kandKlokTekst(c) {
+  const uren = kandUrenSindsIntake(c);
+  if (uren === null) return '';
+  if (uren < KAND_UREN_GEEL) {
+    const over = Math.max(0, Math.round(KAND_UREN_GEEL - uren));
+    return over <= 1 ? 'nog minder dan 1 u' : 'nog ' + over + ' u';
+  }
+  return Math.round(uren) + ' u open';
 }
 
 // Zijn de afspraken met deze kandidaat verzonden? Dat staat al ergens: bij het
@@ -19530,25 +19602,44 @@ function kandFasesEffectief(c) {
   return KAND_FASES.map(f => f.sleutel).filter(k => set.has(k));
 }
 
-// De kleur van de kaart. Alles af is groen en gaat vóór alles; anders bepaalt
-// de ouderdom de kleur (afspraak 08-09: een week geel, twee weken rood).
-const KAND_GEEL_WEKEN = 1;
-const KAND_ROOD_WEKEN = 2;
+// De kleur van de kaart. Alles af is groen en gaat vóór alles. Anders telt de
+// klok sinds het intakegesprek: de zeven stappen horen binnen 24 uur rond te
+// zijn (afspraak 08-09). Zonder intakedatum is de kandidaat nog niet gesproken
+// en verandert er niets — geen kleur, geen klok.
+const KAND_UREN_GEEL      = 24;
+const KAND_UREN_ROOD      = 48;
+const KAND_UREN_DONKERROOD = 72;
 function kandKaartKleur(c) {
   const gedaan = kandFasesEffectief(c).length;
   if (gedaan >= KAND_FASES.length) {
     return { klasse: 'kand-kleur-groen', reden: 'Alle fases afgerond' };
   }
-  const weken = _kandWekenOpen(c);
-  if (weken >= KAND_ROOD_WEKEN) {
-    return { klasse: 'kand-kleur-rood', reden: weken + ' weken open, nog niet afgerond' };
+  const uren = kandUrenSindsIntake(c);
+  if (uren === null) return { klasse: '', reden: 'Nog geen intakedatum ingevuld' };
+  const u = Math.round(uren);
+  if (uren >= KAND_UREN_DONKERROOD) {
+    return { klasse: 'kand-kleur-donkerrood', reden: u + ' uur na de intake, nog niet afgerond' };
   }
-  if (weken >= KAND_GEEL_WEKEN) {
-    return { klasse: 'kand-kleur-geel', reden: 'Een week open, nog niet afgerond' };
+  if (uren >= KAND_UREN_ROOD) {
+    return { klasse: 'kand-kleur-rood', reden: u + ' uur na de intake, nog niet afgerond' };
   }
-  return { klasse: '', reden: '' };
+  if (uren >= KAND_UREN_GEEL) {
+    return { klasse: 'kand-kleur-geel', reden: u + ' uur na de intake, nog niet afgerond' };
+  }
+  return { klasse: '', reden: 'Binnen 24 uur — ' + kandKlokTekst(c) };
 }
 
+
+// De regel met de intakedatum en de stand van de klok. Staat er geen datum,
+// dan zegt de kaart dat ook — anders lijkt het alsof de klok gewoon nog loopt.
+function _kandKlokHtml(c) {
+  const datum = kandIntakeTekst(c);
+  if (!datum) {
+    return '<div class="kand-klok" style="font-style:italic;">geen intakedatum</div>';
+  }
+  const klok = kandKlokTekst(c);
+  return '<div class="kand-klok">' + escHtml(datum + (klok ? ' · ' + klok : '')) + '</div>';
+}
 
 function _kandFasesHtml(c, magWijzig) {
   const aan   = new Set(kandFasesEffectief(c));
@@ -19601,12 +19692,25 @@ async function kandidaatFaseToggle(bmNaam, cardId, sleutel) {
   // Vaste volgorde bewaren, zodat de database er leesbaar uitziet.
   const lijst = KAND_FASES.map(f => f.sleutel).filter(k => nu.has(k));
   cards[idx] = { ...cards[idx], kand_fases: lijst };
+  // Vasthouden tot de server bij is. Een verversing die tussendoor binnenkomt
+  // mag deze klik niet terugdraaien (zie de uitleg bij _KAND_FASE_ONDERWEG).
+  _KAND_FASE_ONDERWEG.set(String(cardId), { lijst, tot: Date.now() + KAND_FASE_ONDERWEG_MS });
   pipeSave(bmNaam, cards);
   render();
   if (supa) {
     const { error } = await supa.from('pipeline_cards')
       .update({ kand_fases: lijst }).eq('id', cardId);
+    if (!error) {
+      // Gelukt. Nog even vasthouden: de verversing die bij deze wijziging hoort
+      // is meestal net onderweg, en die zou anders alsnog de oude stand tonen.
+      const r = _KAND_FASE_ONDERWEG.get(String(cardId));
+      if (r && r.lijst === lijst) r.tot = Date.now() + 4000;
+    }
     if (error) {
+      // Mislukt: het merkteken meteen weg, anders blijft het scherm iets tonen
+      // wat nergens is opgeslagen.
+      const r = _KAND_FASE_ONDERWEG.get(String(cardId));
+      if (r && r.lijst === lijst) _KAND_FASE_ONDERWEG.delete(String(cardId));
       meldFout(error.message, 'kandidaatFaseToggle');
       alert(/column .* does not exist/i.test(error.message || '')
         ? 'De fases zijn nog niet aangemaakt in de database. Vraag de beheerder om supabase/kandidaat_fases.sql uit te voeren.'
@@ -19714,6 +19818,7 @@ function _pipeCardFromRow(c) {
     // Zonder deze regel overleeft een afgevinkte fase geen verversing: deze
     // lijst bepaalt welke kolommen uit de database de kaart in gaan (07-09).
     kand_fases: Array.isArray(c.kand_fases) ? c.kand_fases : [],
+    intake_op: c.intake_op || null,
     collega_initials: c.collega_initials || null,
     projectnr: c.projectnr || null,
     cao: c.cao || null, contractvorm: c.contractvorm || null,
@@ -27990,7 +28095,7 @@ function renderPipeline(bm) {
                </select>
              </div>`
           : '';
-        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
+        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', kandIntakeTekst(c), c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" style="box-shadow:inset 2px 0 0 ${col.punt};" draggable="${weekEditable?'true':'false'}"
           onmouseenter="pipeZweef(event,'${bmE}','${c.id}')" onmouseleave="crmZweefWeg()"
@@ -28117,6 +28222,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-si').value = '';
   document.getElementById('pipe-modal-regio').value = '';
   document.getElementById('pipe-modal-reisbereidheid').value = '';
+  document.getElementById('pipe-modal-intake-op').value = '';
   document.getElementById('pipe-modal-bezoek-reden').value = '';
   document.getElementById('pipe-modal-bezoek-contactpersoon').value = '';
   document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = '';
@@ -28141,6 +28247,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-si').value = card.salarisindicatie || '';
   document.getElementById('pipe-modal-regio').value = card.regio || '';
   document.getElementById('pipe-modal-reisbereidheid').value = card.reisbereidheid || '';
+  document.getElementById('pipe-modal-intake-op').value = _naarVeldTijd(card.intake_op);
   document.getElementById('pipe-modal-bezoek-reden').value = card.bezoek_reden || '';
   document.getElementById('pipe-modal-bezoek-contactpersoon').value = card.bezoek_contactpersoon || '';
   document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = card.bezoek_contactpersoon_functie || '';
@@ -28167,6 +28274,7 @@ async function pipeConfirmAdd() {
   const si              = isIntake ? document.getElementById('pipe-modal-si').value.trim() : undefined;
   const regio           = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
   const reisbereidheid  = isIntake ? (document.getElementById('pipe-modal-reisbereidheid').value || null) : undefined;
+  const intakeOp        = isIntake ? _uitVeldTijd(document.getElementById('pipe-modal-intake-op').value) : undefined;
   const bezoekReden     = isBezoek ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
   const bezoekContact   = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon').value.trim() : undefined;
   const bezoekContactFunctie = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value.trim() : undefined;
@@ -28224,7 +28332,7 @@ async function pipeConfirmAdd() {
   if (cardId) {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
-    if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; updatePayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; }
+    if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; updatePayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; updatePayload.intake_op = intakeOp; }
     if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
@@ -28236,7 +28344,7 @@ async function pipeConfirmAdd() {
     const card  = cards.find(c => c.id === cardId);
     if (card) {
       card.naam = naam; card.notitie = notitie;
-      if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; card.reisbereidheid = reisbereidheid ? +reisbereidheid : null; }
+      if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; card.reisbereidheid = reisbereidheid ? +reisbereidheid : null; card.intake_op = intakeOp; }
       if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
@@ -28250,7 +28358,7 @@ async function pipeConfirmAdd() {
   // Nieuwe kandidaat toevoegen
   const datum = new Date().toLocaleDateString('nl-NL');
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
-  if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; insertPayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; }
+  if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; insertPayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; insertPayload.intake_op = intakeOp; }
   if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
@@ -28260,7 +28368,7 @@ async function pipeConfirmAdd() {
       .insert(insertPayload)
       .select().single();
     if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
   } else {
     newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie };
   }
@@ -28356,6 +28464,12 @@ function pipeDelete(bmNaam, cardId) {
         <option value="45">45 minuten</option>
         <option value="60">60 minuten</option>
       </select>
+      <label for="pipe-modal-intake-op"
+             style="display:block;font-size:.74rem;color:var(--muted);margin:2px 0 3px;">Datum en tijd intakegesprek</label>
+      <input type="datetime-local" id="pipe-modal-intake-op" class="veld-licht" style="margin-bottom:4px;"/>
+      <p style="font-size:.7rem;color:var(--muted);margin:0 0 10px;line-height:1.4;">
+        Laat leeg zolang de kandidaat nog niet gesproken is. Zodra hier een tijdstip
+        staat, loopt de klok van 24 uur voor de zeven stappen.</p>
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Intake</p>
     </div>
     <div id="pipe-modal-bezoek-fields" style="display:none;">
