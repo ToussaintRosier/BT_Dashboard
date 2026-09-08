@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1116 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1121 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6377,7 +6377,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1116';
+const APP_VERSIE = '20260908-1121';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6399,6 +6399,11 @@ async function versieControle() {
     const nieuw = _versieUitTekst(await res.text());
     if (!nieuw || nieuw === APP_VERSIE) return;
     _versieGemeld = true;
+    // Hebben we voor déze versie al een keer herladen en draaien we nog steeds
+    // de oude? Dan niet nóg eens — dat wordt een lus. Wel de knop tonen, met
+    // uitleg (melding 08-09).
+    if (_versiePogingLees() === nieuw) { toonVersieBalk(true); return; }
+    _versiePogingZet(nieuw);
     _versieAutoBijwerken();
   } catch (_) { /* geen net, geen melding — volgende keer weer */ }
 }
@@ -6454,13 +6459,31 @@ function _toonVersieToast() {
   document.body.appendChild(t);
 }
 
-function toonVersieBalk() {
+// Onthouden naar wélke versie we zojuist hebben herladen. Draaien we daarna
+// nog steeds de oude, dan houdt iets anders het vast (de server, een
+// tussenliggende cache) en heeft nóg een keer herladen geen zin — dan krijg je
+// een lus waarin het scherm zichzelf blijft verversen.
+const VERSIE_POGING_SLEUTEL = 'bt_versie_poging';
+function _versiePogingLees() {
+  try { return sessionStorage.getItem(VERSIE_POGING_SLEUTEL) || ''; } catch (_) { return ''; }
+}
+function _versiePogingZet(v) {
+  try { sessionStorage.setItem(VERSIE_POGING_SLEUTEL, v); } catch (_) {}
+}
+function _versiePogingWis() {
+  try { sessionStorage.removeItem(VERSIE_POGING_SLEUTEL); } catch (_) {}
+}
+
+function toonVersieBalk(hardnekkig) {
   if (document.getElementById('versie-balk')) return;
   const balk = document.createElement('div');
   balk.className = 'versie-balk';
   balk.id = 'versie-balk';
   balk.innerHTML =
-    '<span>Er is een nieuwe versie van het dashboard.</span>' +
+    (hardnekkig
+      ? '<span>Er staat een nieuwe versie klaar, maar je browser blijft de oude tonen. ' +
+        'Probeer het nog eens, of ververs hard met Cmd+Shift+R.</span>'
+      : '<span>Er is een nieuwe versie van het dashboard.</span>') +
     '<button onclick="versieBijwerken()">Bijwerken</button>' +
     '<button class="later" onclick="document.getElementById(\'versie-balk\').remove()">Later</button>';
   document.body.appendChild(balk);
@@ -6476,13 +6499,28 @@ async function versieBijwerken() {
     }
     if (navigator.serviceWorker) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.update().catch(() => {})));
+      // Afmelden, niet bijwerken (08-09): een oude servicewerker mag het
+      // volgende verzoek niet meer onderscheppen. Bij het laden meldt de
+      // pagina hem vanzelf opnieuw aan, dus er gaat niets verloren.
+      await Promise.all(regs.map(r => r.unregister().catch(() => {})));
     }
   } catch (_) {}
-  location.reload();
+  // En herladen mét een unieke link. location.reload() vraagt hetzelfde adres
+  // opnieuw op, en dat mag uit de browsercache komen — dáárom kwam de melding
+  // wel maar de nieuwe versie niet. De versiecontrole zelf deed dit al goed.
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('v', String(Date.now()));
+    location.replace(u.toString());
+  } catch (_) {
+    location.reload();
+  }
 }
 
 function _versieWaakhond() {
+  // Zijn we aangekomen op de versie waarvoor we herlaadden? Dan is het slot
+  // niet meer nodig.
+  if (_versiePogingLees() === APP_VERSIE) _versiePogingWis();
   versieControle();
   // Bij terugkomen op het tabblad, bij het wegklikken ervan (dan is het juist
   // een rustig moment), en verder elke vijf minuten.
