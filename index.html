@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1453 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1536 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1320,6 +1320,35 @@
   .rldv-pil { display:inline-block; border-radius:5px; padding:2px 8px; font-size:.72rem; }
   .rldv-pil.open    { background:rgba(245,158,11,.2); border:1px solid rgba(245,158,11,.45); color:#f8d47a; }
   .rldv-pil.akkoord { background:rgba(14,159,110,.24); border:1px solid rgba(14,159,110,.5); color:#5fd6a8; }
+  .kand-rldv { font-size:.65rem; margin-top:2px; color:rgba(255,255,255,.6); text-align:left; }
+  .kand-rldv .ja  { color:#5fd6a8; }
+  .kand-rldv .nog { color:#f8d47a; }
+  /* Het checkvenster: alles links, in vaste kolommen. */
+  .rldv-badge { display:inline-block; background:rgba(244,203,60,.25); color:#f6e2a3;
+                border-radius:9px; padding:0 6px; font-size:.68rem; margin-left:4px; }
+  .rldv-check { text-align:left; max-width:560px; }
+  .rldv-check-kop { padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.12); }
+  .rldv-check-titel { color:#fff; font-size:1rem; }
+  .rldv-check-meta { display:grid; grid-template-columns:104px 1fr; gap:3px 10px; margin-top:7px; }
+  .rldv-check-meta .l { color:rgba(255,255,255,.45); font-size:.7rem; }
+  .rldv-check-meta .w { color:rgba(255,255,255,.85); font-size:.7rem; }
+  .rldv-check-lijst { max-height:220px; overflow:auto; margin-top:8px; }
+  .rldv-check-lijst table, .rldv-check-filters table { width:100%; border-collapse:collapse; }
+  .rldv-check th, .rldv-check td { text-align:left; padding:4px 6px 4px 0; font-size:.74rem; }
+  .rldv-check th { color:rgba(255,255,255,.42); font-weight:var(--w-normaal); }
+  .rldv-check tbody tr { border-top:1px solid rgba(255,255,255,.08); }
+  .rldv-check tbody tr.aan { background:rgba(14,159,110,.12); }
+  .rldv-vinkcel { width:28px; }
+  .rldv-vinkje { color:#5fd6a8; }
+  .rldv-leeg { display:inline-block; width:11px; height:11px; border-radius:3px;
+               border:1px solid rgba(255,255,255,.3); }
+  .rldv-check .rldv-sub { color:rgba(255,255,255,.5); }
+  .rldv-check .rldv-uit { color:rgba(255,255,255,.45); text-decoration:line-through; }
+  .rldv-nieuw { color:#5fd6a8; }
+  .rldv-weg   { color:#ffb3b3; }
+  .rldv-check-toevoeg { margin-top:10px; padding-top:9px; border-top:1px solid rgba(255,255,255,.12); }
+  .rldv-check-filters { margin-top:8px; max-height:220px; overflow:auto; }
+  .rldv-check-voet { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.12); }
   .kand-legenda { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:10px; }
   .kand-legenda span.rij { display:inline-flex; align-items:center; gap:6px;
                            color:rgba(255,255,255,.75); font-size:.76rem; }
@@ -3303,6 +3332,9 @@ let SALES_LEADS_CACHE = []; // Sales Leads: prospectlijst (RLDV), gedeeld door i
 // supabase/rldv_selecties.sql voor waarom de koppeling op kaart-id gaat.
 let RLDV_SELECTIES = [];
 let RLDV_TOOL = { kaartId: '', gekozen: new Set(), opmerking: '', bezig: false };
+// Welk tabblad in de tool, en welke selectie er in het checkvenster openstaat.
+let RLDV_SUBTAB = 'selectie';
+let RLDV_CHECK = null;   // { id, gekozen:Set, toevoegen:bool, bezig:bool }
 let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'beweging' | 'verslagen'
 let GESPREKSVERSLAGEN_CACHE = [];   // gespreksverslagen (verzoek 28-08)
 let GV_FORM = null;                 // null = dicht; {} = nieuw; {id} = bewerken
@@ -6407,7 +6439,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1453';
+const APP_VERSIE = '20260908-1536';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6795,7 +6827,7 @@ const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag', 'ka
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
   'mtNotuleOudeWijzig', 'mtNotuleOudeOpslaanKnop', 'mtNotuleVerwijder',
   'mtNotuleOpslaanKnop', 'mtNotuleWijzig', 'mtCoachOpslaan', 'mtCoachWijzig',
-  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'rldvSelectieOpslaan', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
+  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
 
 // Welk onderdeel hoort bij het scherm waar je nu naar kijkt.
 function _huidigOnderdeel() {
@@ -19517,6 +19549,7 @@ function renderKandidaten() {
         <div class="card-sub" style="font-weight:700;color:#fff;">Aanbiedingen: ${aanbTotal}</div>
         <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
         ${fasesTijdvak ? _kandKlokHtml(c) : ''}
+        ${fasesTijdvak ? _kandRldvHtml(c) : ''}
         ${fasesTijdvak ? _kandFasesHtml(c, magKandidatenWijzigen()) : statusBtns}
       </div>`;
   };
@@ -19725,6 +19758,22 @@ function kandAutoFases(c) {
   // (aanwijzing 09-09). Staat het nog in de toekomst, dan nog niet.
   if (uren !== null && uren >= 0) auto.set('intake', 'het intakegesprek is geweest');
   if (_kandAfsprakenVerzonden(c && c.naam)) auto.set('delen', 'afspraken verzonden');
+
+  // Uit de RLDV-tool (08-09). Ook deze worden afgeleid en niet opgeslagen:
+  // het zijn feiten die in rldv_selecties staan, en die op een tweede plek
+  // kopiëren zou betekenen dat ze uit elkaar kunnen gaan lopen.
+  const sel = c ? rldvSelectieVoorKaart(c.id) : null;
+  const aantal = rldvBedrijvenVan(sel).length;
+  if (aantal > 0) {
+    auto.set('rldv_sel', aantal + (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' geselecteerd');
+    if (rldvSelectieAkkoord(sel)) {
+      auto.set('rldv_check', 'akkoord' + (sel.akkoord_door ? ' van ' + sel.akkoord_door : ''));
+    }
+    // Aanbieden is klaar zodra er evenveel of meer aanbiedingen zijn ingevoerd
+    // als er bedrijven geselecteerd zijn.
+    const aanb = rldvAanbiedingenVoor(c.naam);
+    if (aanb >= aantal) auto.set('aanbieden', aanb + ' van ' + aantal + ' aangeboden');
+  }
   return auto;
 }
 
@@ -19767,6 +19816,20 @@ function kandKaartKleur(c) {
 
 // De regel met de intakedatum en de stand van de klok. Staat er geen datum,
 // dan zegt de kaart dat ook — anders lijkt het alsof de klok gewoon nog loopt.
+// De RLDV-regel op de kaart: hoeveel bedrijven er geselecteerd zijn, en of de
+// check al gedaan is. Staat er niets, dan staat er ook niets — een lege regel
+// zou alleen ruimte kosten.
+function _kandRldvHtml(c) {
+  const sel = rldvSelectieVoorKaart(c && c.id);
+  const aantal = rldvBedrijvenVan(sel).length;
+  if (!aantal) return '';
+  const aanb = rldvAanbiedingenVoor(c.naam);
+  const st = rldvCheckStand(sel);
+  return '<div class="kand-rldv">RLDV-selectie: ' + aantal +
+    (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' · ' + aanb + ' aangeboden' +
+    ' · <span class="' + (st.code === 'akkoord' ? 'ja' : 'nog') + '">' + escHtml(st.tekst) + '</span></div>';
+}
+
 function _kandKlokHtml(c) {
   const datum = kandIntakeTekst(c);
   if (!datum) {
@@ -21424,6 +21487,195 @@ function rldvPrint(selId) {
   win.print();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DE CHECK (verzoek 08-09)
+//
+// Een selectie heeft drie standen: check open, akkoord, of gewijzigd na
+// akkoord. Die derde is het belangrijkst — verandert de lijst nadat er
+// akkoord op gegeven is, dan vervalt dat akkoord. Een goedkeuring op een
+// lijst die niet meer bestaat zegt niets, en het vinkje Check RLDV op de
+// kandidaatkaart zou dan iets beweren dat niet klopt.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function rldvCheckStand(sel) {
+  if (!sel) return { code: 'open', tekst: 'check open', klasse: 'open' };
+  if (!sel.akkoord_op) return { code: 'open', tekst: 'check open', klasse: 'open' };
+  // Is er ná het akkoord nog gesleuteld? updated_at loopt dan vóór op
+  // akkoord_op. Een halve minuut speling, want het opslaan zet beide vlak na
+  // elkaar en klokken lopen niet gelijk.
+  const na = sel.updated_at && (new Date(sel.updated_at) - new Date(sel.akkoord_op)) > 30000;
+  if (na) return { code: 'gewijzigd', tekst: 'gewijzigd na akkoord', klasse: 'open' };
+  return { code: 'akkoord', klasse: 'akkoord',
+           tekst: 'akkoord · ' + new Date(sel.akkoord_op).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) +
+                  (sel.akkoord_door ? ', ' + sel.akkoord_door : '') };
+}
+
+function rldvSelectieAkkoord(sel) { return rldvCheckStand(sel).code === 'akkoord'; }
+
+function rldvKiesSubtab(tab) { RLDV_SUBTAB = tab; render(); }
+
+function rldvCheckOpen(selId) {
+  const sel = RLDV_SELECTIES.find(r => String(r.id) === String(selId));
+  if (!sel) return;
+  RLDV_CHECK = { id: sel.id, gekozen: new Set(rldvBedrijvenVan(sel).map(b => String(b.id))),
+                 toevoegen: false, bezig: false };
+  render();
+}
+
+function rldvCheckSluit() { RLDV_CHECK = null; crmKaartSluit(); render(); }
+
+function rldvCheckToggle(id) {
+  if (!RLDV_CHECK || !rldvMagChecken()) return;
+  const sleutel = String(id);
+  if (RLDV_CHECK.gekozen.has(sleutel)) RLDV_CHECK.gekozen.delete(sleutel);
+  else RLDV_CHECK.gekozen.add(sleutel);
+  render();
+}
+
+function rldvCheckToevoegen() {
+  if (!RLDV_CHECK) return;
+  RLDV_CHECK.toevoegen = !RLDV_CHECK.toevoegen;
+  render();
+}
+
+// Opslaan met of zonder akkoord. Bij akkoord worden akkoord_op en
+// akkoord_door gezet; bij alleen opslaan worden ze juist leeggemaakt, want de
+// lijst is dan veranderd en het oude akkoord slaat er niet meer op.
+async function rldvCheckOpslaan(metAkkoord) {
+  if (!RLDV_CHECK) return;
+  if (!eisWijzig('projecten')) return;
+  const sel = RLDV_SELECTIES.find(r => String(r.id) === String(RLDV_CHECK.id));
+  if (!sel || !supa) return;
+  const bedrijvenNu = [];
+  const bekend = new Map(rldvBedrijvenVan(sel).map(b => [String(b.id), b]));
+  for (const id of RLDV_CHECK.gekozen) {
+    if (bekend.has(id)) { bedrijvenNu.push(bekend.get(id)); continue; }
+    const b = SALES_LEADS_CACHE.find(x => String(x.id) === id);
+    if (b) bedrijvenNu.push({ id: b.id, naam: b.naam || '', vakgebied: (b.vakgebied || '').trim(),
+                              regio: (b.regio || '').trim(), status: (b.status || '').trim() });
+  }
+  if (!bedrijvenNu.length) { alert('Er moet minstens één bedrijf overblijven.'); return; }
+  bedrijvenNu.sort((a, b) => String(a.naam).localeCompare(String(b.naam), 'nl'));
+
+  RLDV_CHECK.bezig = true; render();
+  const nu = new Date().toISOString();
+  const velden = {
+    bedrijven: bedrijvenNu,
+    opmerking: (document.getElementById('rldv-check-opmerking')?.value || '').trim() || null,
+    akkoord_op:   metAkkoord ? nu : null,
+    akkoord_door: metAkkoord ? (CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '') : null,
+    updated_by: CURRENT_USER?.id || null, updated_at: nu,
+  };
+  const { data, error } = await supa.from('rldv_selecties').update(velden).eq('id', sel.id).select().single();
+  RLDV_CHECK.bezig = false;
+  if (error) {
+    meldFout(error.message, 'RLDV-check opslaan');
+    alert('Opslaan mislukt: ' + error.message);
+    render();
+    return;
+  }
+  const i = RLDV_SELECTIES.findIndex(r => String(r.id) === String(sel.id));
+  if (i >= 0) RLDV_SELECTIES[i] = data;
+  RLDV_CHECK = null;
+  crmKaartSluit();
+  render();
+}
+
+// Het venster. Alles links uitgelijnd in vaste kolommen; toevoegen gaat met
+// dezelfde filterbalk als in de tool, zodat er één manier van kiezen is.
+function rldvCheckHtml() {
+  const sel = RLDV_SELECTIES.find(r => String(r.id) === String(RLDV_CHECK.id));
+  if (!sel) return '<div class="rldv-check-kop">Deze selectie bestaat niet meer.</div>';
+  const mag = rldvMagChecken();
+  const stand = rldvCheckStand(sel);
+  const bekend = rldvBedrijvenVan(sel);
+  const bekendIds = new Set(bekend.map(b => String(b.id)));
+
+  const rij = (b, aan, uitLijst) =>
+    '<tr' + (mag ? ' onclick="rldvCheckToggle(\'' + escApos(String(b.id)) + '\')" style="cursor:pointer;"' : '') +
+    (aan ? ' class="aan"' : '') + '>' +
+    '<td class="rldv-vinkcel">' + (aan ? '<span class="rldv-vinkje">✓</span>' : '<span class="rldv-leeg"></span>') + '</td>' +
+    '<td' + (aan ? '' : ' class="rldv-uit"') + '>' + escHtml(b.naam || '') + '</td>' +
+    '<td class="rldv-sub">' + escHtml((b.vakgebied || '').trim()) + '</td>' +
+    '<td class="rldv-sub">' + escHtml((b.regio || '').trim()) + '</td>' +
+    '<td class="rldv-sub">' + escHtml((b.status || '').trim()) + '</td>' +
+    '<td class="rldv-sub">' + (uitLijst && aan ? '<span class="rldv-nieuw">toegevoegd</span>'
+                              : (!aan ? '<span class="rldv-weg">eruit gehaald</span>' : '')) + '</td></tr>';
+
+  const inLijst = bekend.map(b => rij(b, RLDV_CHECK.gekozen.has(String(b.id)), false)).join('');
+  const extra = [...RLDV_CHECK.gekozen].filter(id => !bekendIds.has(id))
+    .map(id => SALES_LEADS_CACHE.find(x => String(x.id) === id)).filter(Boolean)
+    .map(b => rij(b, true, true)).join('');
+
+  const toevoegLijst = RLDV_CHECK.toevoegen
+    ? slFilteredList().filter(b => !bekendIds.has(String(b.id)))
+        .map(b => rij(b, RLDV_CHECK.gekozen.has(String(b.id)), true)).join('')
+    : '';
+
+  return '<div class="rldv-check">' +
+    '<div class="rldv-check-kop">' +
+      '<div class="rldv-check-titel">RLDV-check — ' + escHtml(sel.kandidaat_naam || '') + '</div>' +
+      '<div class="rldv-check-meta">' +
+        '<span class="l">Gemaakt door</span><span class="w">' + escHtml(sel.aangemaakt_door || sel.bm_naam || '') + '</span>' +
+        '<span class="l">Op</span><span class="w">' + escHtml(new Date(sel.aangemaakt_op).toLocaleString('nl-NL')) + '</span>' +
+        '<span class="l">Aanbiedingen</span><span class="w">' + rldvAanbiedingenVoor(sel.kandidaat_naam) + ' ingevoerd</span>' +
+        '<span class="l">Stand</span><span class="w"><span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span></span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="rldv-check-lijst"><table class="rldv-tab">' +
+      '<colgroup><col style="width:28px;"><col><col style="width:118px;"><col style="width:100px;"><col style="width:84px;"><col style="width:92px;"></colgroup>' +
+      '<thead><tr><th></th><th>Bedrijf</th><th>Vakgebied</th><th>Regio</th><th>Status</th><th></th></tr></thead>' +
+      '<tbody>' + inLijst + extra + '</tbody></table></div>' +
+    (mag ? '<div class="rldv-check-toevoeg">' +
+      '<button class="bt-actieknop" onclick="rldvCheckToevoegen()">' +
+        (RLDV_CHECK.toevoegen ? 'Toevoegen sluiten' : '+ Bedrijven toevoegen') + '</button>' +
+      (RLDV_CHECK.toevoegen
+        ? '<div class="rldv-check-filters">' + slFilterBalkHtml() +
+          '<table class="rldv-tab"><colgroup><col style="width:28px;"><col><col style="width:118px;"><col style="width:100px;"><col style="width:84px;"><col style="width:92px;"></colgroup>' +
+          '<tbody>' + (toevoegLijst || '<tr><td colspan="6" class="rldv-sub" style="padding:10px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody></table></div>'
+        : '') +
+      '</div>' : '') +
+    '<div class="rldv-check-voet">' +
+      '<label class="rldv-label" for="rldv-check-opmerking">Opmerking (optioneel)</label>' +
+      '<textarea id="rldv-check-opmerking" class="veld-licht rldv-opmerking" rows="2"' +
+        (mag ? '' : ' disabled') + '>' + escHtml(sel.opmerking || '') + '</textarea>' +
+      '<div class="rldv-knoppen">' +
+        (mag ? '<button class="proj-save-btn" style="background:#0e9f6e;border-color:#0e9f6e;" ' +
+               'onclick="rldvCheckOpslaan(true)"' + (RLDV_CHECK.bezig ? ' disabled' : '') + '>Akkoord geven</button>' +
+               '<button class="bt-actieknop" onclick="rldvCheckOpslaan(false)"' + (RLDV_CHECK.bezig ? ' disabled' : '') + '>Alleen opslaan</button>'
+             : '<span class="rldv-sub">Alleen Toussaint en Yoël kunnen de check afronden.</span>') +
+        '<button class="bt-actieknop" onclick="rldvCheckSluit()">Sluiten</button>' +
+        '<span class="rldv-telling">' + RLDV_CHECK.gekozen.size + ' geselecteerd</span>' +
+      '</div>' +
+    '</div></div>';
+}
+
+// De lijst onder het tabblad Check.
+function rldvCheckLijstHtml() {
+  if (!RLDV_SELECTIES.length) {
+    return '<div class="norm-intro" style="text-align:left;">Nog geen selecties om te checken.</div>';
+  }
+  const rijen = RLDV_SELECTIES.map(r => {
+    const stand = rldvCheckStand(r);
+    const knop = stand.code === 'akkoord' ? 'Bekijken'
+               : stand.code === 'gewijzigd' ? 'Opnieuw checken' : 'Check uitvoeren';
+    return '<tr>' +
+      '<td>' + escHtml(r.kandidaat_naam || '') + '</td>' +
+      '<td>' + escHtml(new Date(r.aangemaakt_op).toLocaleString('nl-NL',
+        { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</td>' +
+      '<td>' + escHtml(r.aangemaakt_door || r.bm_naam || '') + '</td>' +
+      '<td>' + rldvBedrijvenVan(r).length + ' bedrijven</td>' +
+      '<td><span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span></td>' +
+      '<td><button class="bt-actieknop' + (stand.code === 'akkoord' ? '' : ' hoofd') + '" ' +
+          'onclick="rldvCheckOpen(\'' + escApos(String(r.id)) + '\')">' + knop + '</button></td>' +
+      '</tr>';
+  }).join('');
+  return '<div class="bt-venster"><table class="acc-table bt-lijst rldv-tab">' +
+    '<colgroup><col><col style="width:130px;"><col style="width:130px;"><col style="width:104px;"><col style="width:190px;"><col style="width:140px;"></colgroup>' +
+    '<thead><tr><th>Kandidaat</th><th>Gemaakt op</th><th>Door</th><th>Aantal</th><th>Stand</th><th></th></tr></thead>' +
+    '<tbody>' + rijen + '</tbody></table></div>';
+}
+
 // ── Het scherm ─────────────────────────────────────────────────────────────
 function renderRldvTool() {
   const mag  = magWijzigen('rldvtool');
@@ -21456,9 +21708,29 @@ function renderRldvTool() {
       '<td>' + escHtml((b.status || '').trim()) + '</td></tr>';
   }).join('');
 
+  const subTab = (key, label, aantal) =>
+    '<button class="bm-subtab-btn' + (RLDV_SUBTAB === key ? ' active' : '') + '" ' +
+    'onclick="rldvKiesSubtab(\'' + key + '\')">' + label +
+    (aantal ? ' <span class="rldv-badge">' + aantal + '</span>' : '') + '</button>';
+  const openCheck = RLDV_SELECTIES.filter(r => rldvCheckStand(r).code !== 'akkoord').length;
+  const tabbalk = '<div class="bm-subtabs" style="gap:0;margin-bottom:16px;">' +
+    subTab('selectie', 'Selectie maken', 0) + subTab('check', 'Check', openCheck) + '</div>';
+
+  // Het tabblad Check heeft zijn eigen inhoud; de rest van dit scherm gaat
+  // over het maken van een selectie.
+  if (RLDV_SUBTAB === 'check') {
+    document.getElementById('main').innerHTML = '<div>' +
+      '<div class="person-header"><div class="person-name">RLDV-tool</div>' +
+        '<div class="person-meta"><span class="meta-pill">' + openCheck + ' nog te checken</span></div></div>' +
+      tabbalk + rldvCheckLijstHtml() + '</div>';
+    _rldvVensterBijwerken();
+    return;
+  }
+
   document.getElementById('main').innerHTML = '<div>' +
     '<div class="person-header"><div class="person-name">RLDV-tool</div>' +
       '<div class="person-meta"><span class="meta-pill">' + SALES_LEADS_CACHE.length + ' bedrijven in RLDV</span></div></div>' +
+    tabbalk +
     '<div class="bt-venster rldv-kop">' +
       '<div class="rldv-kandrij">' + keuzelijst + kandRegel + '</div>' +
     '</div>' +
@@ -21486,6 +21758,25 @@ function renderRldvTool() {
     '</div>' +
     rldvHistorieHtml() +
   '</div>';
+  _rldvVensterBijwerken();
+}
+
+// Het checkvenster hangt buiten het scherm (crmKaartToon) en moet dus apart
+// opnieuw getekend worden. Het zoekveld houdt daarbij zijn cursor: zonder dat
+// zou typen in de filter na elke toetsaanslag de cursor kwijtraken.
+function _rldvVensterBijwerken() {
+  if (!RLDV_CHECK) return;
+  const actief = document.activeElement;
+  const id  = actief && actief.id;
+  const pos = actief && typeof actief.selectionStart === 'number' ? actief.selectionStart : null;
+  crmKaartToon(rldvCheckHtml());
+  if (id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.focus();
+      if (pos != null && el.setSelectionRange) { try { el.setSelectionRange(pos, pos); } catch (_) {} }
+    }
+  }
 }
 
 // De historie: alle selecties, nieuwste eerst, met de stand van de check.
@@ -21495,12 +21786,10 @@ function rldvHistorieHtml() {
   }
   const rijen = RLDV_SELECTIES.map(r => {
     const aantal = rldvBedrijvenVan(r).length;
-    const akkoord = !!r.akkoord_op;
-    const stand = akkoord
-      ? '<span class="rldv-pil akkoord">akkoord · ' +
-        escHtml(new Date(r.akkoord_op).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })) +
-        (r.akkoord_door ? ', ' + escHtml(r.akkoord_door) : '') + '</span>'
-      : '<span class="rldv-pil open">check open</span>';
+    // Eén plek die bepaalt hoe een stand heet (rldvCheckStand), zodat de
+    // historie en het tabblad Check nooit iets anders kunnen zeggen.
+    const st = rldvCheckStand(r);
+    const stand = '<span class="rldv-pil ' + st.klasse + '">' + escHtml(st.tekst) + '</span>';
     return '<tr>' +
       '<td>' + escHtml(r.kandidaat_naam || '') + '</td>' +
       '<td>' + escHtml(new Date(r.aangemaakt_op).toLocaleString('nl-NL',
@@ -21683,7 +21972,7 @@ function slFilterBalkHtml(extraKnoppen) {
                SL_FILTER_CP.length || SL_FILTER_STATUS.length || SL_FILTER_VOORW.length ||
                SL_FILTER_SC || SL_FILTER_MONTEUR || SL_FILTER_WVB || SL_FILTER_ENG || SL_FILTER_PM;
   return '<div class="filter-toolbar"><div class="bt-strook">' +
-    '<input type="text" class="filter-search-pill" placeholder="naam, vakgebied, regio, status…" ' +
+    '<input type="text" id="sl-zoekveld" class="filter-search-pill" placeholder="naam, vakgebied, regio, status…" ' +
       'value="' + escHtml(SL_SEARCH) + '" oninput="SL_SEARCH=this.value;clearTimeout(window._slST);window._slST=setTimeout(render,250)">' +
     slMsFilterHtml('vakgebied', 'vakgebied', o.vakgebied, SL_FILTER_VAKGEBIED) +
     slMsFilterHtml('regio', 'regio', o.regio, SL_FILTER_REGIO) +
