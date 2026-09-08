@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1155 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1337 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6381,7 +6381,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1155';
+const APP_VERSIE = '20260908-1337';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19627,12 +19627,13 @@ function _uitVeldTijd(waarde) {
 }
 
 // Hoeveel uur is het geleden dat de kandidaat gesproken is? null betekent:
-// nog geen intakedatum ingevuld, dus de klok loopt niet.
+// nog geen intakedatum ingevuld, dus de klok loopt niet. De uitkomst kan
+// negatief zijn — dan staat het gesprek nog gepland (09-09).
 function kandUrenSindsIntake(c) {
   if (!c || !c.intake_op) return null;
   const d = new Date(c.intake_op);
   if (isNaN(d)) return null;
-  return Math.max(0, (Date.now() - d.getTime()) / 3600000);
+  return (Date.now() - d.getTime()) / 3600000;
 }
 
 // "8 sep 09:30" — kort, want de ruimte op een kaartje is beperkt.
@@ -19645,15 +19646,19 @@ function kandIntakeTekst(c) {
          ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
-// De stand van de klok in woorden, voor achter de datum.
+// De stand van de klok in woorden, voor achter de datum. Telt OP vanaf het
+// intakegesprek (aanwijzing 09-09): "22 u sinds intake" zegt meer dan "nog
+// 2 u", want je wilt weten hoelang het al loopt, niet hoeveel je nog hebt.
 function kandKlokTekst(c) {
   const uren = kandUrenSindsIntake(c);
   if (uren === null) return '';
-  if (uren < KAND_UREN_GEEL) {
-    const over = Math.max(0, Math.round(KAND_UREN_GEEL - uren));
-    return over <= 1 ? 'nog minder dan 1 u' : 'nog ' + over + ' u';
+  if (uren < 0) {
+    // Het gesprek staat nog gepland.
+    const over = Math.max(1, Math.round(-uren));
+    return 'over ' + over + ' u';
   }
-  return Math.round(uren) + ' u open';
+  const u = Math.round(uren);
+  return (u === 1 ? '1 uur' : u + ' uur') + ' sinds intake';
 }
 
 // Zijn de afspraken met deze kandidaat verzonden? Dat staat al ergens: bij het
@@ -19669,10 +19674,24 @@ function _kandAfsprakenVerzonden(kandNaam) {
     !!(AFSPRAKEN_GEDEELD[String(r.id)] || {}).gepubliceerd);
 }
 
+// Welke fases gaan vanzelf, en waarom? Deze twee worden afgeleid en niet
+// opgeslagen: het zijn feiten die elders al vastliggen. Ze kopiëren zou
+// betekenen dat twee plekken hetzelfde moeten weten en uit elkaar kunnen
+// gaan lopen.
+function kandAutoFases(c) {
+  const auto = new Map();
+  const uren = kandUrenSindsIntake(c);
+  // Het intakegesprek is geweest zodra het ingevoerde tijdstip voorbij is
+  // (aanwijzing 09-09). Staat het nog in de toekomst, dan nog niet.
+  if (uren !== null && uren >= 0) auto.set('intake', 'het intakegesprek is geweest');
+  if (_kandAfsprakenVerzonden(c && c.naam)) auto.set('delen', 'afspraken verzonden');
+  return auto;
+}
+
 // De fases die tellen: handmatig afgevinkt plus wat vanzelf volgt.
 function kandFasesEffectief(c) {
   const set = new Set(kandFasesVan(c));
-  if (_kandAfsprakenVerzonden(c && c.naam)) set.add('delen');
+  kandAutoFases(c).forEach((_reden, sleutel) => set.add(sleutel));
   return KAND_FASES.map(f => f.sleutel).filter(k => set.has(k));
 }
 
@@ -19690,6 +19709,8 @@ function kandKaartKleur(c) {
   }
   const uren = kandUrenSindsIntake(c);
   if (uren === null) return { klasse: '', reden: 'Nog geen intakedatum ingevuld' };
+  // Staat het gesprek nog gepland, dan loopt de klok nog niet.
+  if (uren < 0) return { klasse: '', reden: 'Intake staat gepland — ' + kandKlokTekst(c) };
   const u = Math.round(uren);
   if (uren >= KAND_UREN_DONKERROOD) {
     return { klasse: 'kand-kleur-donkerrood', reden: u + ' uur na de intake, nog niet afgerond' };
@@ -19717,14 +19738,14 @@ function _kandKlokHtml(c) {
 
 function _kandFasesHtml(c, magWijzig) {
   const aan   = new Set(kandFasesEffectief(c));
-  const vanaf = _kandAfsprakenVerzonden(c && c.naam);   // 'delen' staat dan vast
+  const vanzelf = kandAutoFases(c);   // deze staan vast en zijn niet klikbaar
   const kleur = kandKaartKleur(c);
   const knoppen = KAND_FASES.map(f => {
     const isAan = aan.has(f.sleutel);
-    const auto  = f.sleutel === 'delen' && vanaf;
-    const klik  = magWijzig && !auto;
-    const tekst = escHtml(f.label + (auto ? ' — vanzelf: afspraken verzonden'
-                                          : (isAan ? ' — afgevinkt' : '')));
+    const reden = vanzelf.get(f.sleutel);
+    const klik  = magWijzig && !reden;
+    const tekst = escHtml(f.label + (reden ? ' — vanzelf: ' + reden
+                                           : (isAan ? ' — afgevinkt' : '')));
     return '<button class="kand-fase' + (isAan ? ' aan' : '') + '"' +
       (klik ? '' : ' disabled') +
       ' title="' + tekst + '" aria-label="' + escHtml(f.label) + '"' +
