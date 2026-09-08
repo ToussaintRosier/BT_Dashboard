@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1835 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1848 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6512,7 +6512,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1835';
+const APP_VERSIE = '20260908-1848';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22079,7 +22079,16 @@ function rldvKandTyp(waarde) {
   RLDV_TOOL.kandActief = 0;
   render();
 }
+// Het scherm wordt bij het openen en sluiten opnieuw getekend, en daarna zet
+// _rldvZoekTerug de cursor terug in het zoekveld. Dat veld is dan een nieuw
+// element, dus de browser vuurt opnieuw een focusmelding af — die komt van
+// het herstel zelf, niet de gebruiker. Zonder deze twee sloten riep die
+// melding rldvKandOpen weer aan, en tekende het scherm zichzelf eindeloos
+// opnieuw: de lijst kwam nooit in beeld (melding 09-09).
+let _RLDV_ZOEK_HERSTEL = false;
 function rldvKandOpen(aan) {
+  if (_RLDV_ZOEK_HERSTEL) return;
+  if (RLDV_TOOL.kandOpen === !!aan) return;
   RLDV_TOOL.kandOpen = !!aan;
   if (!aan) RLDV_TOOL.kandActief = 0;
   render();
@@ -22131,9 +22140,12 @@ function _rldvZoekTerug() {
   if (!RLDV_TOOL.kandOpen) return;
   const el = document.getElementById('rldv-kandzoek');
   if (!el) return;
-  el.focus();
-  const n = el.value.length;
-  try { el.setSelectionRange(n, n); } catch (_) {}
+  _RLDV_ZOEK_HERSTEL = true;
+  try {
+    el.focus();
+    const n = el.value.length;
+    try { el.setSelectionRange(n, n); } catch (_) {}
+  } finally { _RLDV_ZOEK_HERSTEL = false; }
 }
 
 // ── Het scherm ─────────────────────────────────────────────────────────────
