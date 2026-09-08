@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1738 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1835 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -669,7 +669,6 @@
   .proj-venster .lab { color:rgba(255,255,255,.55); font-size:.74rem; }
   .proj-venster .wrd-tekst { color:#fff; font-size:.8rem; }
   .proj-venster .wrd-leeg { color:rgba(255,255,255,.4); font-size:.76rem; }
-  .proj-venster .proj-contract-knoppen { display:none; }
   .proj-venster tr[id^="pr-contract-row-"] { display:table-row !important; background:transparent !important; }
   .proj-venster tr[id^="pr-contract-row-"] > td { padding:0 !important; }
   .proj-venster .voet { display:flex; align-items:center; gap:12px; margin-top:12px; padding-top:10px;
@@ -991,10 +990,15 @@
   .acc-table tbody tr:nth-child(even) { background:var(--card-alt); }
   .bt-lijst  tbody tr:nth-child(even):hover,
   .acc-table tbody tr:nth-child(even):hover { background:rgba(37,49,81,.07); }
+  /* Het checkvenster staat buiten .bt-venster, waar de streep alleen binnen
+     .bt-venster ongedaan werd gemaakt — daar gaf hij witte letters op
+     lichtblauw (melding 09-09). */
   .bt-venster .bt-lijst  tbody tr:nth-child(even),
   .bt-venster .acc-table tbody tr:nth-child(even),
   .bt-venster.bt-lijst   tbody tr:nth-child(even),
-  .bt-venster.acc-table  tbody tr:nth-child(even) { background:transparent; }
+  .bt-venster.acc-table  tbody tr:nth-child(even),
+  .rldv-check .acc-table tbody tr:nth-child(even),
+  .rldv-check .bt-lijst  tbody tr:nth-child(even) { background:transparent; }
   .bt-venster .bt-lijst  tbody tr:nth-child(even):hover,
   .bt-venster .acc-table tbody tr:nth-child(even):hover,
   .bt-venster.bt-lijst   tbody tr:nth-child(even):hover,
@@ -1367,10 +1371,20 @@
   .rldv-chip { background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff;
                border-radius:12px; padding:3px 11px; font-size:.74rem; cursor:pointer; font-family:inherit; }
   .rldv-chip.aan { background:rgba(232,116,0,.3); border-color:#E87400; }
-  .rldv-standrij.open      { border-left:3px solid #f59e0b; }
-  .rldv-standrij.akkoord   { border-left:3px solid #0e9f6e; }
-  .rldv-standrij.gewijzigd { border-left:3px solid #e05252; }
   .rldv-rond { color:#5fd6a8; }
+  .rldv-kaartraster { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px; }
+  .rldv-kaart { background:#364160; border-radius:10px; padding:11px 12px; text-align:left; }
+  .rldv-kaart.open      { border-left:4px solid #f59e0b; }
+  .rldv-kaart.akkoord   { border-left:4px solid #0e9f6e; }
+  .rldv-kaart.gewijzigd { border-left:4px solid #e05252; }
+  .rldv-kaart-naam { color:#fff; font-size:.86rem; margin-bottom:2px; }
+  .rldv-kaart-sub { color:rgba(255,255,255,.5); font-size:.72rem; margin-bottom:8px; }
+  .rldv-balkje { height:4px; border-radius:2px; background:rgba(255,255,255,.12); margin-top:4px; overflow:hidden; }
+  .rldv-balkje > span { display:block; height:4px; background:#E87400; }
+  .rldv-balkje > span.rond { background:#0e9f6e; }
+  .rldv-kaart-knop { margin-top:10px; width:100%; background:transparent; color:#fff; font-family:inherit;
+                     border:1px solid rgba(255,255,255,.3); border-radius:6px; padding:4px; font-size:.76rem; cursor:pointer; }
+  .rldv-kaart-knop.hoofd { background:#E87400; border-color:#E87400; }
   .rldv-kandleeg { color:rgba(255,255,255,.55); font-size:.78rem; padding:8px 10px; }
   /* Het checkvenster: alles links, in vaste kolommen. */
   .rldv-badge { display:inline-block; background:rgba(244,203,60,.25); color:#f6e2a3;
@@ -1391,6 +1405,9 @@
   .rldv-check th { color:rgba(255,255,255,.42); font-weight:var(--w-normaal); }
   .rldv-check tbody tr { border-top:1px solid rgba(255,255,255,.08); }
   .rldv-check tbody tr.aan { background:rgba(14,159,110,.12); }
+  .rldv-check .acc-table tbody tr:hover,
+  .rldv-check .acc-table tbody tr:nth-child(even):hover { background:rgba(255,255,255,.06); }
+  .rldv-check-sectie { color:rgba(255,255,255,.5); font-size:.72rem; margin:10px 0 4px; }
   .rldv-vinkcel { width:28px; }
   .rldv-vinkje { color:#5fd6a8; }
   .rldv-leeg { display:inline-block; width:11px; height:11px; border-radius:3px;
@@ -6495,7 +6512,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1738';
+const APP_VERSIE = '20260908-1835';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16118,14 +16135,21 @@ function getEvalMilestones(startDate) {
 
 // readonly=true → chips tonen maar niet klikbaar (Projecten-view)
 // hrmMode=true  → chips klikken via hrmEvalToggle (HRM/Backoffice view, met Salesforce popup)
-function _evalChips(src, id, milestones, checked, safeId, readonly, hrmMode) {
+// `donker`: dezelfde chips, maar met kleuren die op het donkere paneel van
+// het projectvenster leesbaar zijn (09-09).
+function _evalChips(src, id, milestones, checked, safeId, readonly, hrmMode, donker) {
   const today = new Date(); today.setHours(0,0,0,0);
   return milestones.map((m) => {
     const idx = m.idx ?? 0; // stabiele index voor opgeslagen vinkjes
     const due = m.date <= today, done = checked.includes(idx);
     const dStr = toISODate(m.date);
     let st, lbl;
-    if (done)     { st='background:#d1fae5;border-color:#0e9f6e;color:#065f46;';                 lbl='✓ '+m.label; }
+    if (donker) {
+      if (done)     { st='background:rgba(14,159,110,.22);border-color:rgba(14,159,110,.5);color:#5fd6a8;'; lbl='✓ '+m.label; }
+      else if (due) { st='background:rgba(245,158,11,.2);border-color:rgba(245,158,11,.45);color:#f8d47a;'; lbl='⚡ '+m.label; }
+      else          { st='background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);color:rgba(255,255,255,.55);'; lbl=m.label; }
+    }
+    else if (done)     { st='background:#d1fae5;border-color:#0e9f6e;color:#065f46;';                 lbl='✓ '+m.label; }
     else if (due) { st='background:#fef3c7;border-color:#d97706;color:#92400e;font-weight:700;'; lbl='⚡ '+m.label; }
     else          { st='background:#f9fafb;border-color:#e5e7eb;color:#9ca3af;';                 lbl=m.label; }
     const clickFn = hrmMode
@@ -16329,9 +16353,13 @@ function _projVensterRij() {
   const lijst = (window._projOvCache || {}).overzichtRanges || [];
   return lijst.find(x => x.source === PROJ_VENSTER.src && String(x.id) === String(PROJ_VENSTER.id)) || null;
 }
+// Staat dit project op dit moment in het venster?
+function _projVensterActief(src, id) {
+  return !!(PROJ_VENSTER && PROJ_VENSTER.src === src && String(PROJ_VENSTER.id) === String(id));
+}
 // Voor _refreshContractRow: staat het contract in een venster dat op slot is?
 function _projVensterAlleenLezen(src, id) {
-  return !!(PROJ_VENSTER && PROJ_VENSTER.src === src && String(PROJ_VENSTER.id) === String(id) && !PROJ_VENSTER.bewerk);
+  return _projVensterActief(src, id) && !PROJ_VENSTER.bewerk;
 }
 
 function projVensterOpen(src, id) {
@@ -16435,7 +16463,7 @@ function projVensterHtml() {
     const checked = projEvalLoad(src, id);
     const ms = getEvalMilestones(new Date(startStr));
     evalBlok = `<div id="pr-eval-row-${safeId}" data-start="${startStr}">` +
-      `<span id="pr-eval-chips-${safeId}" style="display:flex;gap:4px;flex-wrap:wrap;">${_evalChips(src, id, ms, checked, safeId, true, false)}</span></div>` +
+      `<span id="pr-eval-chips-${safeId}" style="display:flex;gap:4px;flex-wrap:wrap;">${_evalChips(src, id, ms, checked, safeId, true, false, true)}</span></div>` +
       '<div class="wrd-leeg" style="margin-top:8px;">Afvinken gebeurt onder HRM.</div>';
   }
 
@@ -16460,7 +16488,7 @@ function projVensterHtml() {
       '<div class="blok"><div class="proj-blokkop">EVALUATIEMOMENTEN</div>' + evalBlok + '</div>' +
     '</div>' +
     '<div class="blok"><table style="width:100%;border-collapse:collapse;"><tbody>' +
-      renderContractRow(src, id, 1, safeId, null, !PROJ_VENSTER.bewerk) +
+      renderContractRow(src, id, 1, safeId, null, !PROJ_VENSTER.bewerk, true) +
     '</tbody></table></div>' +
     '<div class="voet">' +
       `<span class="sub" id="pr-status-${safeId}"></span>` +
@@ -16477,7 +16505,7 @@ function _refreshContractRow(safeId) {
   const ncols = +tr.dataset.ncols;
   const wasVisible = tr.style.display !== 'none';
   const tmp = document.createElement('tbody');
-  tmp.innerHTML = renderContractRow(src, id, ncols, safeId, null, _projVensterAlleenLezen(src, id));
+  tmp.innerHTML = renderContractRow(src, id, ncols, safeId, null, _projVensterAlleenLezen(src, id), _projVensterActief(src, id));
   const newTr = tmp.firstElementChild;
   if (!newTr) return;
   if (wasVisible) newTr.style.display = '';
@@ -16485,7 +16513,7 @@ function _refreshContractRow(safeId) {
 }
 
 // ── Contract-veldenrij (uitvouwbaar, naast eval-rij) ─────────────────────────
-function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
+function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen, zonderKnoppen) {
   // Auto-detect gedeeld-info als niet meegegeven (bijv. bij _refreshContractRow)
   if (!gedeeldInfo) gedeeldInfo = (window._projGedeeldInfo || {})[String(id)] || null;
   const data    = projContractLoad(src, id);
@@ -16511,10 +16539,17 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
     const stIn  = `font-size:.72rem;line-height:1.35;padding:4px 8px;width:100%;`
                 + `box-sizing:border-box;border:1px solid var(--border);border-radius:5px;`
                 + `color-scheme:light;background:${bgCol};color:${frozen ? '#33415c' : '#16142e'};`;
+    // In het projectvenster staat dit blok op een donker paneel. Een lichtgrijs
+    // doosje leest daar als een invoerveld dat niet werkt; op slot is het
+    // gewoon tekst (keuze E1, 09-09).
+    const stLees = 'font-size:.78rem;line-height:1.35;padding:3px 0;color:#fff;';
+    const stTon  = alleenLezen ? stLees : stIn;
+    const toon = (tekst) => `<span style="${stTon}display:inline-block;">` +
+      (tekst && tekst !== '—' ? escHtml(tekst) : '<span class="wrd-leeg">—</span>') + '</span>';
 
     // Projectnr: voor excel-projecten altijd read-only (het is de DB-sleutel)
     if (f.key === 'projectnr' && src === 'excel') {
-      return `<span style="${stIn}display:inline-block;">${escHtml(val||'—')}</span>`;
+      return toon(val);
     }
 
     // Computed velden: altijd read-only span met id voor live-update
@@ -16532,7 +16567,9 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
         const num = val !== '' ? parseFloat(val) : null;
         display = num != null && num !== 0 ? '€ ' + num.toFixed(2) : '—';
       }
-      const stComp = `font-size:.6rem;padding:1px 4px;width:${f.w};box-sizing:border-box;border:1px solid #d1d5db;border-radius:3px;background:#f0f4ff;color:#374151;font-style:italic;`;
+      const stComp = alleenLezen
+        ? `font-size:.78rem;line-height:1.35;padding:3px 0;color:#9ec8f4;font-`
+        : `font-size:.6rem;padding:1px 4px;width:${f.w};box-sizing:border-box;border:1px solid #d1d5db;border-radius:3px;background:#f0f4ff;color:#374151;font-style:italic;`;
       return `<span id="pr-calc-${f.key}-${safeId}" style="${stComp}display:inline-block;">${escHtml(display)}</span>`;
     }
 
@@ -16542,7 +16579,7 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
       const pct = raw != null ? +(raw * 100).toFixed(6) : null;
       const dispPct = pct != null ? (+pct.toFixed(4)).toString().replace(/\.?0+$/, '') + ' %' : '—';
       const inpPct  = pct != null ? (+pct.toFixed(4)).toString().replace(/\.?0+$/, '') : '';
-      if (!editable) return `<span style="${stIn}display:inline-block;">${escHtml(dispPct)}</span>`;
+      if (!editable) return toon(dispPct);
       return `<input type="number" step="0.01" value="${escHtml(inpPct)}" placeholder="bijv. 1.92" title="Voer percentage in (bijv. 1.92)" onchange="projContractSet('${src}','${id}','comp',(this.value!==''?(parseFloat(this.value)/100).toString():''))" style="${stIn}">`;
     }
 
@@ -16551,7 +16588,7 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
       const num = val !== '' ? parseFloat(val) : null;
       const dispVal = num != null ? '€ ' + num.toFixed(2) : '—';
       const inpVal  = num != null ? num.toFixed(2) : '';
-      if (!editable) return `<span style="${stIn}display:inline-block;">${escHtml(dispVal)}</span>`;
+      if (!editable) return toon(dispVal);
       return `<input type="number" step="0.01" min="0" value="${escHtml(inpVal)}" placeholder="0.00" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
     }
 
@@ -16560,7 +16597,7 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
       const num = val !== '' ? parseFloat(val) : null;
       const dispVal = num != null ? (+num.toFixed(1)).toString() : '—';
       const inpVal  = num != null ? (+num.toFixed(1)).toString() : '';
-      if (!editable) return `<span style="${stIn}display:inline-block;">${escHtml(dispVal)}</span>`;
+      if (!editable) return toon(dispVal);
       return `<input type="number" step="0.5" min="0" value="${escHtml(inpVal)}" placeholder="0" onchange="projContractSet('${src}','${id}','${f.key}',this.value)" style="${stIn}">`;
     }
 
@@ -16569,7 +16606,7 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
       const num = val !== '' ? parseFloat(val) : null;
       const dispVal = num != null ? num.toFixed(2) : '—';
       const inpVal  = num != null ? num.toFixed(2) : '';
-      if (!editable) return `<span style="${stIn}display:inline-block;">${escHtml(dispVal)}</span>`;
+      if (!editable) return toon(dispVal);
       return `<input type="number" step="0.01" min="0" value="${escHtml(inpVal)}" placeholder="0.00" onchange="projContractSet('${src}','${id}','uren',this.value)" style="${stIn}">`;
     }
 
@@ -16579,12 +16616,12 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
       const pct = raw != null ? +(raw * 100).toFixed(6) : null;
       const dispPct = pct != null ? (+pct.toFixed(4)).toString().replace(/\.?0+$/, '') + ' %' : '—';
       const inpPct  = pct != null ? (+pct.toFixed(4)).toString().replace(/\.?0+$/, '') : '';
-      if (!editable) return `<span style="${stIn}display:inline-block;">${escHtml(dispPct)}</span>`;
+      if (!editable) return toon(dispPct);
       return `<input type="number" step="0.01" value="${escHtml(inpPct)}" placeholder="bijv. 28.85" title="Voer percentage in (bijv. 28.85)" onchange="projContractSet('${src}','${id}','marge_pct',(this.value!==''?(parseFloat(this.value)/100).toString():''))" style="${stIn}">`;
     }
 
     if (!editable) {
-      return `<span style="${stIn}display:inline-block;">${escHtml(val||'—')}</span>`;
+      return toon(val);
     }
     if (f.type === 'select') {
       const optsArr = [...(f.opts||[])];
@@ -16600,7 +16637,10 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen) {
   const cel = (f, i) => `<div><div class="lab">${f.label}</div><div class="wrd">${cells[i]}</div></div>`;
   const invulHtml = baseFields.map((f, i) => f.computed ? '' : cel(f, i)).join('');
   const rekenHtml = baseFields.map((f, i) => f.computed ? cel(f, i) : '').join('');
-  const btnHtml = canEdit ? `<div class="proj-contract-knoppen" style="display:flex;gap:8px;align-items:center;">
+  // In het projectvenster staat één stel knoppen bovenaan. Het via CSS
+  // verbergen werkte niet: dit blok heeft een inline display:flex en inline
+  // wint van een klasse — dus komt de knop er hier niet in (herstel 09-09).
+  const btnHtml = (canEdit && !zonderKnoppen) ? `<div class="proj-contract-knoppen" style="display:flex;gap:8px;align-items:center;">
       ${!frozen
         ? `<button onclick="projContractFreeze('${src}','${id}','${safeId}')" style="font-size:.68rem;padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">Opslaan</button>
            <button onclick="projContractAnnuleer('${src}','${id}','${safeId}')" style="font-size:.68rem;padding:3px 10px;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">Annuleren</button>`
@@ -21792,12 +21832,16 @@ function rldvCheckHtml() {
   const bekendIds = new Set(bekend.map(b => String(b.id)));
 
   // Dezelfde rij als in de tool en op het RLDV-scherm, met één kolom extra:
-  // wat er bij deze check verandert.
+  // wat er bij deze check verandert. Let op het verschil tussen de twee
+  // lijsten: in de toevoeglijst staan bedrijven die nooit in de selectie
+  // zaten, dus daar hoort geen "eruit gehaald" en geen doorhaling bij
+  // (melding 09-09).
   const rij = (b, aan, uitLijst) => rldvRijHtml(b, aan, {
     klik: mag ? 'rldvCheckToggle' : '',
-    doorhalen: true,
-    merk: uitLijst && aan ? '<span class="rldv-nieuw">toegevoegd</span>'
-        : (!aan ? '<span class="rldv-weg">eruit gehaald</span>' : ''),
+    doorhalen: !uitLijst,
+    merk: uitLijst
+      ? (aan ? '<span class="rldv-nieuw">toegevoegd</span>' : '')
+      : (aan ? '' : '<span class="rldv-weg">eruit gehaald</span>'),
   });
 
   const inLijst = bekend.map(b => rij(b, RLDV_CHECK.gekozen.has(String(b.id)), false)).join('');
@@ -21805,10 +21849,11 @@ function rldvCheckHtml() {
     .map(id => SALES_LEADS_CACHE.find(x => String(x.id) === id)).filter(Boolean)
     .map(b => rij(b, true, true)).join('');
 
-  const toevoegLijst = RLDV_CHECK.toevoegen
-    ? slFilteredList().filter(b => !bekendIds.has(String(b.id)))
-        .map(b => rij(b, RLDV_CHECK.gekozen.has(String(b.id)), true)).join('')
-    : '';
+  const toevoegBedrijven = RLDV_CHECK.toevoegen
+    ? slFilteredList().filter(b => !bekendIds.has(String(b.id))) : [];
+  const toevoegAantal = toevoegBedrijven.length;
+  const toevoegLijst = toevoegBedrijven
+    .map(b => rij(b, RLDV_CHECK.gekozen.has(String(b.id)), true)).join('');
 
   const wanneer = new Date(sel.aangemaakt_op).toLocaleString('nl-NL',
     { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -21821,6 +21866,8 @@ function rldvCheckHtml() {
         ' · ' + bekend.length + ' bedrijven · ' + rldvAanbiedingenVoor(sel.kandidaat_naam) + ' aanbiedingen ingevoerd' +
       '</div>' +
     '</div>' +
+    '<div class="rldv-check-sectie">In deze selectie · ' + bekend.length +
+      (bekend.length === 1 ? ' bedrijf' : ' bedrijven') + '</div>' +
     '<div class="rldv-check-lijst"><table class="acc-table rldv-tab">' +
       rldvKopHtml({ merkKop: true }) +
       '<tbody>' + inLijst + extra + '</tbody></table></div>' +
@@ -21828,7 +21875,8 @@ function rldvCheckHtml() {
       '<button class="bt-actieknop" onclick="rldvCheckToevoegen()">' +
         (RLDV_CHECK.toevoegen ? 'Toevoegen sluiten' : '+ Bedrijven toevoegen') + '</button>' +
       (RLDV_CHECK.toevoegen
-        ? '<div class="rldv-check-filters">' + slFilterBalkHtml() +
+        ? '<div class="rldv-check-sectie">Toevoegen · ' + toevoegAantal + ' na filter</div>' +
+          '<div class="rldv-check-filters">' + slFilterBalkHtml() +
           '<table class="acc-table rldv-tab">' + rldvKopHtml({ merkKop: true }) +
           '<tbody>' + (toevoegLijst || '<tr><td colspan="' + rldvKolomAantal(true) +
             '" class="rldv-sub" style="padding:10px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody></table></div>'
@@ -21868,6 +21916,13 @@ function rldvCheckChip(stand, label) {
     'onclick="rldvCheckFilter(\'' + stand + '\')">' + label + ' · ' + n + '</button>';
 }
 
+// Hoeveel procent van de geselecteerde bedrijven is aangeboden? Nul
+// bedrijven geeft nul — niet een deling door nul.
+function rldvBalkBreedte(aanb, aantal) {
+  if (!aantal) return 0;
+  return Math.min(100, Math.round((aanb / aantal) * 100));
+}
+
 function rldvCheckLijstHtml() {
   if (!RLDV_SELECTIES.length) {
     return '<div class="norm-intro" style="text-align:left;">Nog geen selecties om te checken.</div>';
@@ -21875,30 +21930,34 @@ function rldvCheckLijstHtml() {
   const chips = '<div class="rldv-chips">' +
     rldvCheckChip('alle', 'Alle') + rldvCheckChip('open', 'Open') +
     rldvCheckChip('gewijzigd', 'Gewijzigd na akkoord') + rldvCheckChip('akkoord', 'Akkoord') + '</div>';
-  const rijen = rldvCheckGefilterd().map(r => {
+  // Kaartjes (keuze C2, 09-09): per selectie één kaart, met een balkje dat
+  // laat zien hoeveel van de gekozen bedrijven al een aanbieding hebben.
+  const kaarten = rldvCheckGefilterd().map(r => {
     const stand  = rldvCheckStand(r);
     const aantal = rldvBedrijvenVan(r).length;
     const aanb   = rldvAanbiedingenVoor(r.kandidaat_naam);
+    const rond   = aanb >= aantal && aantal > 0;
+    const breed  = rldvBalkBreedte(aanb, aantal);
     const knop = stand.code === 'akkoord' ? 'Bekijken'
                : stand.code === 'gewijzigd' ? 'Opnieuw checken' : 'Check uitvoeren';
-    return '<tr class="rldv-standrij ' + stand.code + '">' +
-      '<td class="acc-td-left">' + escHtml(r.kandidaat_naam || '') + '</td>' +
-      '<td>' + escHtml(r.bm_naam || '') + '</td>' +
-      '<td>' + escHtml(new Date(r.aangemaakt_op).toLocaleString('nl-NL',
-        { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) +
-        (r.aangemaakt_door ? ' · ' + escHtml(r.aangemaakt_door) : '') + '</td>' +
-      '<td>' + aantal + '</td>' +
-      '<td class="' + (aanb >= aantal ? ' rldv-rond' : '') + '">' + aanb + ' van ' + aantal + '</td>' +
-      '<td><span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span></td>' +
-      '<td><button class="bt-actieknop' + (stand.code === 'akkoord' ? '' : ' hoofd') + '" ' +
-          'onclick="rldvCheckOpen(\'' + escApos(String(r.id)) + '\')">' + knop + '</button></td>' +
-      '</tr>';
+    const wanneer = new Date(r.aangemaakt_op).toLocaleString('nl-NL',
+      { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return '<div class="rldv-kaart ' + stand.code + '">' +
+      '<div class="rldv-kaart-naam">' + escHtml(r.kandidaat_naam || '') + '</div>' +
+      '<div class="rldv-kaart-sub">' + escHtml(r.bm_naam || '—') + ' · ' + escHtml(wanneer) +
+        (r.aangemaakt_door ? ' · ' + escHtml(r.aangemaakt_door) : '') + '</div>' +
+      '<span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span>' +
+      '<div class="rldv-kaart-sub" style="margin-top:9px;">' + aantal +
+        (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' · ' +
+        '<span class="' + (rond ? 'rldv-rond' : '') + '">' + aanb + ' van ' + aantal + ' aangeboden</span></div>' +
+      '<div class="rldv-balkje"><span class="' + (rond ? 'rond' : '') + '" style="width:' + breed + '%;"></span></div>' +
+      '<button class="rldv-kaart-knop' + (stand.code === 'akkoord' ? '' : ' hoofd') + '" ' +
+        'onclick="rldvCheckOpen(\'' + escApos(String(r.id)) + '\')">' + knop + '</button>' +
+      '</div>';
   }).join('');
-  return chips + '<div class="bt-venster"><table class="acc-table bt-lijst rldv-tab">' +
-    '<colgroup><col style="width:24%;"><col style="width:12%;"><col style="width:20%;"><col style="width:9%;"><col style="width:11%;"><col style="width:14%;"><col style="width:10%;"></colgroup>' +
-    '<thead><tr><th class="acc-th-left">Kandidaat</th><th>BM</th><th>Gemaakt</th><th>Bedrijven</th><th>Aangeboden</th><th>Stand</th><th></th></tr></thead>' +
-    '<tbody>' + (rijen || '<tr><td colspan="7" class="rldv-sub" style="padding:14px;">Geen selecties met deze stand.</td></tr>') +
-    '</tbody></table></div>';
+  return chips + (kaarten
+    ? '<div class="rldv-kaartraster">' + kaarten + '</div>'
+    : '<div class="norm-intro" style="text-align:left;">Geen selecties met deze stand.</div>');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
