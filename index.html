@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-0851 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-0901 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1281,6 +1281,12 @@
   .kand-fase.aan:disabled:hover { background:rgba(14,159,110,.28); color:#5fd6a8; }
   .kand-fase-uitleg { margin-top:6px; min-height:13px; font-size:.66rem;
                       color:rgba(255,255,255,.45); }
+  /* Kaartkleur op de kandidaatkaart. Bewust doorschijnend met een gekleurde
+     rand: de kaart is donker en de tekst wit, dus een lichte achtergrond zou
+     te weinig contrast geven. */
+  .kand-kleur-groen { background:rgba(14,159,110,.16);  border:2px solid #0e9f6e; }
+  .kand-kleur-geel  { background:rgba(245,158,11,.16);  border:2px solid #f59e0b; }
+  .kand-kleur-rood  { background:rgba(220,38,38,.18);   border:2px solid #e05252; }
   .kand-legenda { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:10px; }
   .kand-legenda span.rij { display:inline-flex; align-items:center; gap:6px;
                            color:rgba(255,255,255,.75); font-size:.76rem; }
@@ -6335,7 +6341,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-0851';
+const APP_VERSIE = '20260908-0901';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19338,6 +19344,10 @@ function renderKandidaten() {
       // stoplicht én hun kaartkleur, precies zoals ze waren (afspraak 07-09).
       const fasesTijdvak = _kandFaseTijdvak(c);
       const sc = fasesTijdvak ? null : (KAND_STATUS[c.kand_status] || null);
+      // Binnen het tijdvak bepaalt de kaart zichzelf: groen als alles af is,
+      // geel na een week, rood na twee (afspraak 08-09). Daarbuiten blijft het
+      // handmatige stoplicht leidend.
+      const kleurKlasse = fasesTijdvak ? kandKaartKleur(c).klasse : '';
       const cardStyle = sc
         ? `cursor:default;position:relative;background:${sc.bg};border:2px solid ${sc.border};`
         : 'cursor:default;position:relative;';
@@ -19353,7 +19363,7 @@ function renderKandidaten() {
           title="Kleur verwijderen"
           style="font-size:.7rem;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 5px;cursor:pointer;margin-left:2px;">✕</button>` : ''}
       </div>` : '';
-      return `<div class="pipe-card" style="${cardStyle}">
+      return `<div class="pipe-card ${kleurKlasse}" style="${cardStyle}">
         ${canExclude ? `<button class="kand-excl-btn" title="Uitsluiten van dit overzicht" onclick="kandidaatExcludeToggle('${escApos(c.bmNaam)}','${c.id}', true)">✕</button>` : ''}
         <div class="card-naam">${escHtml(c.naam)}</div>
         ${metaHtml}
@@ -19371,6 +19381,8 @@ function renderKandidaten() {
       const hay = [c.naam, c.functie, c.regio, c.salarisindicatie, c.notitie, c.bmNaam, c.reisbereidheid ? c.reisbereidheid + ' min' : ''].join(' ').toLowerCase();
       return hay.includes(kandQ);
     });
+    matchCards.sort((a, b) => String(a.naam || '').localeCompare(String(b.naam || ''), 'nl')
+                           || String(a.id).localeCompare(String(b.id)));
     const cardsHtml = matchCards.length
       ? matchCards.map(renderKandCard).join('')
       : `<div class="card-sub" style="color:var(--muted);padding:8px 0;">Geen kandidaten gevonden voor "${escHtml(KAND_SEARCH)}"</div>`;
@@ -19383,7 +19395,11 @@ function renderKandidaten() {
     </div>`;
   } else {
     weekSections = weeks.map(wk => {
-      const wkCards = allIntakeCards.filter(c => c.week === wk.week && c.jaar === wk.year);
+      // Op naam sorteren, zodat de volgorde voorspelbaar is en een kaartje
+      // nooit verspringt door een wijziging elders (08-09).
+      const wkCards = allIntakeCards.filter(c => c.week === wk.week && c.jaar === wk.year)
+        .sort((a, b) => String(a.naam || '').localeCompare(String(b.naam || ''), 'nl')
+                     || String(a.id).localeCompare(String(b.id)));
       const cardsHtml = wkCards.length ? wkCards.map(renderKandCard).join('') : `<div class="card-sub" style="color:var(--muted);padding:8px 0;">Geen intakes deze week</div>`;
       return `<div style="margin-bottom:22px;">
         <div class="section-title" style="font-size:.92rem;margin-bottom:8px;">
@@ -19413,12 +19429,6 @@ function renderKandidaten() {
     <div class="norm-intro">
       Alle kandidaten die BM's en managers de afgelopen 10 weken als Intake hebben ingevoerd, per week op een rij. Bewerken doe je op het Pipeline-bord van de betreffende medewerker.
       ${_kandLegendaHtml()}
-      ${isManager ? `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:.76rem;opacity:.75;">
-        <span style="font-weight:700;">Kleur (kaarten vóór week 36):</span>
-        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#0e9f6e;"></span> Afgerond</span>
-        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f59e0b;"></span> RLDV-actie</span>
-        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f97316;"></span> Nog 0</span>
-      </div>` : ''}
     </div>
     ${weekSections}
     ${canExclude && excludedCards.length ? `
@@ -19473,29 +19483,85 @@ function kandFasesVan(c) {
   return Array.from(new Set(ruw.map(String).filter(x => geldig.has(x))));
 }
 
+// Hoeveel hele weken staat deze kaart open? Gerekend vanaf de maandag van de
+// week waarin de intake staat, dus ook kloppend over de jaargrens heen.
+function _kandWekenOpen(c) {
+  if (!c || !c.jaar || !c.week) return 0;
+  const start = isoWeekStartDate(+c.jaar, +c.week);
+  const nu    = isoWeekStartDate(CUR.year, CUR.week);
+  if (!start || !nu) return 0;
+  return Math.max(0, Math.round((nu - start) / (7 * 24 * 3600 * 1000)));
+}
+
+// Zijn de afspraken met deze kandidaat verzonden? Dat staat al ergens: bij het
+// ITK-verslag op zijn naam hangt een rij in gedeelde_afspraken. Zodra die
+// gepubliceerd is, is de status 'verzonden' (of verder: akkoord / niet
+// akkoord). We leiden het af en schrijven het niet weg — anders zouden twee
+// plekken hetzelfde moeten weten en konden ze uit elkaar gaan lopen.
+function _kandAfsprakenVerzonden(kandNaam) {
+  const sleutel = _itkSleutel(kandNaam || '');
+  if (!sleutel) return false;
+  return (GESPREK_RECORDS || []).some(r =>
+    _itkSleutel(r.naam) === sleutel &&
+    !!(AFSPRAKEN_GEDEELD[String(r.id)] || {}).gepubliceerd);
+}
+
+// De fases die tellen: handmatig afgevinkt plus wat vanzelf volgt.
+function kandFasesEffectief(c) {
+  const set = new Set(kandFasesVan(c));
+  if (_kandAfsprakenVerzonden(c && c.naam)) set.add('delen');
+  return KAND_FASES.map(f => f.sleutel).filter(k => set.has(k));
+}
+
+// De kleur van de kaart. Alles af is groen en gaat vóór alles; anders bepaalt
+// de ouderdom de kleur (afspraak 08-09: een week geel, twee weken rood).
+const KAND_GEEL_WEKEN = 1;
+const KAND_ROOD_WEKEN = 2;
+function kandKaartKleur(c) {
+  const gedaan = kandFasesEffectief(c).length;
+  if (gedaan >= KAND_FASES.length) {
+    return { klasse: 'kand-kleur-groen', reden: 'Alle fases afgerond' };
+  }
+  const weken = _kandWekenOpen(c);
+  if (weken >= KAND_ROOD_WEKEN) {
+    return { klasse: 'kand-kleur-rood', reden: weken + ' weken open, nog niet afgerond' };
+  }
+  if (weken >= KAND_GEEL_WEKEN) {
+    return { klasse: 'kand-kleur-geel', reden: 'Een week open, nog niet afgerond' };
+  }
+  return { klasse: '', reden: '' };
+}
+
 function _kandFaseUitleg(tekst) {
   const el = document.getElementById('kand-fase-uitleg');
   if (el) el.textContent = tekst || '';
 }
 
 function _kandFasesHtml(c, magWijzig) {
-  const aan = new Set(kandFasesVan(c));
+  const aan   = new Set(kandFasesEffectief(c));
+  const vanaf = _kandAfsprakenVerzonden(c && c.naam);   // 'delen' staat dan vast
+  const kleur = kandKaartKleur(c);
   const knoppen = KAND_FASES.map(f => {
     const isAan = aan.has(f.sleutel);
-    const tekst = escHtml(f.label + (isAan ? ' — afgevinkt' : ''));
+    const auto  = f.sleutel === 'delen' && vanaf;
+    const klik  = magWijzig && !auto;
+    const tekst = escHtml(f.label + (auto ? ' — vanzelf: afspraken verzonden'
+                                          : (isAan ? ' — afgevinkt' : '')));
     return '<button class="kand-fase' + (isAan ? ' aan' : '') + '"' +
-      (magWijzig ? '' : ' disabled') +
+      (klik ? '' : ' disabled') +
       ' title="' + escHtml(f.label) + '" aria-label="' + escHtml(f.label) + '"' +
       ' aria-pressed="' + (isAan ? 'true' : 'false') + '"' +
       ' onmouseenter="_kandFaseUitleg(\'' + tekst + '\')" onmouseleave="_kandFaseUitleg(\'\')"' +
       ' onfocus="_kandFaseUitleg(\'' + tekst + '\')" onblur="_kandFaseUitleg(\'\')"' +
-      (magWijzig ? ' onclick="kandidaatFaseToggle(\'' + escApos(c.bmNaam) + '\',\'' + c.id + '\',\'' + f.sleutel + '\')"' : '') +
+      (klik ? ' onclick="kandidaatFaseToggle(\'' + escApos(c.bmNaam) + '\',\'' + c.id + '\',\'' + f.sleutel + '\')"' : '') +
       '><svg viewBox="0 0 24 24" aria-hidden="true">' + f.svg + '</svg>' +
       (isAan ? '<span class="kand-fase-vink" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 13 4 4 10-10"/></svg></span>' : '') +
       '</button>';
   }).join('');
+  const staat = aan.size + ' van ' + KAND_FASES.length + ' gedaan' +
+                (kleur.reden ? ' · ' + kleur.reden : '');
   return '<div class="kand-fases">' + knoppen + '</div>' +
-         '<div class="kand-fase-uitleg">' + aan.size + ' van ' + KAND_FASES.length + ' gedaan</div>';
+         '<div class="kand-fase-uitleg">' + escHtml(staat) + '</div>';
 }
 
 function _kandLegendaHtml() {
@@ -19649,7 +19715,12 @@ function _pipeCardFromRow(c) {
 async function pipeFetchAll() {
   if (!supa) return;
   // Eigen kaarten (via BM-specifieke RLS)
-  const { data, error } = await supa.from('pipeline_cards').select('*');
+  // Mét vaste volgorde (08-09): zonder order by mag Postgres de rijen in elke
+  // volgorde teruggeven, en een net bijgewerkte rij komt er meestal achteraan
+  // uit. Gevolg: vink je een fase af, dan sprong het kaartje naar een andere
+  // plek zodra de verversing binnenkwam.
+  const { data, error } = await supa.from('pipeline_cards').select('*')
+    .order('datum', { ascending: true }).order('id', { ascending: true });
   if (error) { console.error('Pipeline laden mislukt:', error); return; }
   const next = {};
   // Afgewezen kaarten horen niet in de pipeline (26-08). Wie op "niet akkoord"
@@ -19662,7 +19733,8 @@ async function pipeFetchAll() {
     next[c.bm_naam].push(_pipeCardFromRow(c));
   });
   // Akkoord-kaarten van alle BMs (zichtbaar via RLS-policy "Akkoord plaatsingen leesbaar voor iedereen")
-  const { data: akkoordData } = await supa.from('pipeline_cards').select('*').eq('goedkeuring', 'akkoord');
+  const { data: akkoordData } = await supa.from('pipeline_cards').select('*').eq('goedkeuring', 'akkoord')
+    .order('datum', { ascending: true }).order('id', { ascending: true });
   (akkoordData || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
     // Niet dubbel toevoegen als de BM al zichtbaar was via eigen kaarten
