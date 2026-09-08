@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260907-1753 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-0851 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1258,6 +1258,35 @@
                     background-repeat:no-repeat; background-position:right 9px center; }
   .one-keuze-knop:disabled { opacity:.45; cursor:default; }
   .one-plaats-knop:hover { background:#f8da6b; }
+  /* ── Fases op de kandidaatkaart (07-09) ──────────────────────────────── */
+  .kand-fases { display:flex; gap:3px; margin-top:8px; padding-top:7px;
+                border-top:1px solid var(--border); flex-wrap:wrap; }
+  .kand-fase { position:relative; width:26px; height:26px; border:0; padding:0;
+               border-radius:7px; background:transparent; color:rgba(255,255,255,.42);
+               display:inline-flex; align-items:center; justify-content:center;
+               cursor:pointer; flex-shrink:0; }
+  .kand-fase svg { width:16px; height:16px; fill:none; stroke:currentColor;
+                   stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .kand-fase:hover { background:rgba(255,255,255,.12); color:rgba(255,255,255,.75); }
+  /* Aangevinkt: het pictogram blijft staan, met een zachte groene waas eronder
+     en een klein vinkje in de hoek. */
+  .kand-fase.aan { background:rgba(14,159,110,.28); color:#5fd6a8; }
+  .kand-fase.aan:hover { background:rgba(14,159,110,.4); }
+  .kand-fase-vink { position:absolute; right:-1px; bottom:-1px; width:11px; height:11px;
+                    border-radius:50%; background:#0e9f6e; display:flex;
+                    align-items:center; justify-content:center; }
+  .kand-fase-vink svg { width:7px; height:7px; stroke:#fff; stroke-width:3.2; }
+  .kand-fase:disabled { cursor:default; }
+  .kand-fase:disabled:hover { background:transparent; color:rgba(255,255,255,.42); }
+  .kand-fase.aan:disabled:hover { background:rgba(14,159,110,.28); color:#5fd6a8; }
+  .kand-fase-uitleg { margin-top:6px; min-height:13px; font-size:.66rem;
+                      color:rgba(255,255,255,.45); }
+  .kand-legenda { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:10px; }
+  .kand-legenda span.rij { display:inline-flex; align-items:center; gap:6px;
+                           color:rgba(255,255,255,.75); font-size:.76rem; }
+  .kand-legenda svg { width:17px; height:17px; fill:none; stroke:rgba(255,255,255,.55);
+                      stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+
   .one-tag-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
   .one-tag-chip { display:inline-flex; align-items:center; gap:6px; background:rgba(143,182,240,.18);
                   color:#bcd4f7; border-radius:99px; padding:3px 6px 3px 11px; font-size:var(--t-xs); }
@@ -6306,7 +6335,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260907-1753';
+const APP_VERSIE = '20260908-0851';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19305,12 +19334,15 @@ function renderKandidaten() {
       // Aanbieden-kaartjes (van iedere BM, elke week) bij elkaar opgeteld en
       // hier eenmalig genoteerd, niet per match herhaald.
       const aanbTotal = aanbTotalByNaam[normName(c.naam)] || 0;
-      const sc = KAND_STATUS[c.kand_status] || null;
+      // Vanaf week 36 van 2026 tonen we de fases; oudere kaarten houden hun
+      // stoplicht én hun kaartkleur, precies zoals ze waren (afspraak 07-09).
+      const fasesTijdvak = _kandFaseTijdvak(c);
+      const sc = fasesTijdvak ? null : (KAND_STATUS[c.kand_status] || null);
       const cardStyle = sc
         ? `cursor:default;position:relative;background:${sc.bg};border:2px solid ${sc.border};`
         : 'cursor:default;position:relative;';
-      // Kleurknoppen (alleen voor managers)
-      const statusBtns = isManager ? `<div style="display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:7px;border-top:1px solid var(--border);">
+      // Kleurknoppen (alleen voor managers) — alleen nog op oudere kaarten.
+      const statusBtns = (isManager && !fasesTijdvak) ? `<div style="display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:7px;border-top:1px solid var(--border);">
         ${Object.entries(KAND_STATUS).map(([key, s]) => {
           const active = c.kand_status === key;
           return `<button onclick="kandidaatSetStatus('${escApos(c.bmNaam)}','${c.id}','${key}')"
@@ -19328,7 +19360,7 @@ function renderKandidaten() {
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
         <div class="card-sub" style="font-weight:700;color:#fff;">Aanbiedingen: ${aanbTotal}</div>
         <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
-        ${statusBtns}
+        ${fasesTijdvak ? _kandFasesHtml(c, magKandidatenWijzigen()) : statusBtns}
       </div>`;
   };
 
@@ -19380,12 +19412,13 @@ function renderKandidaten() {
     </div>
     <div class="norm-intro">
       Alle kandidaten die BM's en managers de afgelopen 10 weken als Intake hebben ingevoerd, per week op een rij. Bewerken doe je op het Pipeline-bord van de betreffende medewerker.
-      ${isManager ? `<span style="display:inline-flex;align-items:center;gap:10px;margin-left:16px;font-size:.8rem;">
-        <span style="font-weight:700;opacity:.8;">Kleur:</span>
+      ${_kandLegendaHtml()}
+      ${isManager ? `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:.76rem;opacity:.75;">
+        <span style="font-weight:700;">Kleur (kaarten vóór week 36):</span>
         <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#0e9f6e;"></span> Afgerond</span>
         <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f59e0b;"></span> RLDV-actie</span>
         <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f97316;"></span> Nog 0</span>
-      </span>` : ''}
+      </div>` : ''}
     </div>
     ${weekSections}
     ${canExclude && excludedCards.length ? `
@@ -19399,6 +19432,104 @@ function renderKandidaten() {
       </div>`).join('')}
     </div>` : ''}
   </div>`;
+}
+
+// ── Fases per kandidaat (verzoek 07-09) ─────────────────────────────────────
+// Eén lijst: sleutel, label en pictogram. Alles wat de fases tekent of opslaat
+// leest hieruit, zodat er nooit twee lijsten uit elkaar kunnen gaan lopen.
+const KAND_FASES = [
+  { sleutel: 'intake',    label: 'Intake',
+    svg: '<path d="M8 9h8M8 13h5"/><path d="M4 4h16v12H8l-4 4z"/>' },
+  { sleutel: 'delen',     label: 'Afspraken delen',
+    svg: '<circle cx="18" cy="5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="m8.1 10.8 7.8-4.6M8.1 13.2l7.8 4.6"/>' },
+  { sleutel: 'cv',        label: 'CV',
+    svg: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>' },
+  { sleutel: 'rldv_sel',  label: 'RLDV-selectie',
+    svg: '<path d="M4 6h9M4 11h6M4 16h5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="m19.2 18.2 2.3 2.3"/>' },
+  { sleutel: 'rldv_check',label: 'Check RLDV',
+    svg: '<path d="M9 3h6v3H9z"/><path d="M15 4.5h2A2 2 0 0 1 19 6.5V20a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/><path d="m9 13.5 2 2 4-4"/>' },
+  { sleutel: 'vervolg',   label: 'Vervolgafspraak',
+    svg: '<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15.5" r="1.5"/>' },
+  { sleutel: 'aanbieden', label: 'Aanbieden to do',
+    svg: '<path d="M21 3 10.5 13.5"/><path d="M21 3 14.5 21l-4-7.5L3 9.5z"/>' },
+];
+
+// Vanaf deze week staan de fases op de kaart. Alles daarvoor houdt het
+// stoplicht en zijn kaartkleur — afspraak 07-09: met terugwerkende kracht
+// vanaf week 36, de rest blijft zoals hij was.
+const KAND_FASE_VANAF = { jaar: 2026, week: 36 };
+
+function _kandFaseTijdvak(c) {
+  const jaar = +c.jaar || 0, week = +c.week || 0;
+  if (jaar !== KAND_FASE_VANAF.jaar) return jaar > KAND_FASE_VANAF.jaar;
+  return week >= KAND_FASE_VANAF.week;
+}
+
+// Wat er op een kaart is afgevinkt. Onbekende of dubbele sleutels vallen af,
+// zodat een handmatige aanpassing in de database niets kan breken.
+function kandFasesVan(c) {
+  const geldig = new Set(KAND_FASES.map(f => f.sleutel));
+  const ruw = Array.isArray(c && c.kand_fases) ? c.kand_fases : [];
+  return Array.from(new Set(ruw.map(String).filter(x => geldig.has(x))));
+}
+
+function _kandFaseUitleg(tekst) {
+  const el = document.getElementById('kand-fase-uitleg');
+  if (el) el.textContent = tekst || '';
+}
+
+function _kandFasesHtml(c, magWijzig) {
+  const aan = new Set(kandFasesVan(c));
+  const knoppen = KAND_FASES.map(f => {
+    const isAan = aan.has(f.sleutel);
+    const tekst = escHtml(f.label + (isAan ? ' — afgevinkt' : ''));
+    return '<button class="kand-fase' + (isAan ? ' aan' : '') + '"' +
+      (magWijzig ? '' : ' disabled') +
+      ' title="' + escHtml(f.label) + '" aria-label="' + escHtml(f.label) + '"' +
+      ' aria-pressed="' + (isAan ? 'true' : 'false') + '"' +
+      ' onmouseenter="_kandFaseUitleg(\'' + tekst + '\')" onmouseleave="_kandFaseUitleg(\'\')"' +
+      ' onfocus="_kandFaseUitleg(\'' + tekst + '\')" onblur="_kandFaseUitleg(\'\')"' +
+      (magWijzig ? ' onclick="kandidaatFaseToggle(\'' + escApos(c.bmNaam) + '\',\'' + c.id + '\',\'' + f.sleutel + '\')"' : '') +
+      '><svg viewBox="0 0 24 24" aria-hidden="true">' + f.svg + '</svg>' +
+      (isAan ? '<span class="kand-fase-vink" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 13 4 4 10-10"/></svg></span>' : '') +
+      '</button>';
+  }).join('');
+  return '<div class="kand-fases">' + knoppen + '</div>' +
+         '<div class="kand-fase-uitleg">' + aan.size + ' van ' + KAND_FASES.length + ' gedaan</div>';
+}
+
+function _kandLegendaHtml() {
+  return '<div class="kand-legenda">' + KAND_FASES.map(f =>
+    '<span class="rij"><svg viewBox="0 0 24 24" aria-hidden="true">' + f.svg + '</svg>' +
+    escHtml(f.label) + '</span>').join('') + '</div>';
+}
+
+// Aan- en uitvinken. Bewust GEEN managersslot zoals bij het stoplicht: een
+// fase afvinken hoort bij de BM die de kandidaat heeft ingevoerd. Moet dat
+// toch alleen voor managers, dan is dit de plek (isManagerLevel() erbij).
+async function kandidaatFaseToggle(bmNaam, cardId, sleutel) {
+  if (!eisWijzig('kandidaten')) return;
+  if (!KAND_FASES.some(f => f.sleutel === sleutel)) return;
+  const cards = pipeLoad(bmNaam);
+  const idx = cards.findIndex(c => String(c.id) === String(cardId));
+  if (idx === -1) return;
+  const nu = new Set(kandFasesVan(cards[idx]));
+  if (nu.has(sleutel)) nu.delete(sleutel); else nu.add(sleutel);
+  // Vaste volgorde bewaren, zodat de database er leesbaar uitziet.
+  const lijst = KAND_FASES.map(f => f.sleutel).filter(k => nu.has(k));
+  cards[idx] = { ...cards[idx], kand_fases: lijst };
+  pipeSave(bmNaam, cards);
+  render();
+  if (supa) {
+    const { error } = await supa.from('pipeline_cards')
+      .update({ kand_fases: lijst }).eq('id', cardId);
+    if (error) {
+      meldFout(error.message, 'kandidaatFaseToggle');
+      alert(/column .* does not exist/i.test(error.message || '')
+        ? 'De fases zijn nog niet aangemaakt in de database. Vraag de beheerder om supabase/kandidaat_fases.sql uit te voeren.'
+        : 'Opslaan mislukt: ' + error.message);
+    }
+  }
 }
 
 // Sluit (of herstelt) een kandidaat-kaart voor het Kandidaten-overzicht. Dit
@@ -19497,6 +19628,9 @@ function _pipeCardFromRow(c) {
     definitieve_einddatum: c.definitieve_einddatum || null,
     verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten,
     kand_status: c.kand_status || null, bm_naam: c.bm_naam,
+    // Zonder deze regel overleeft een afgevinkte fase geen verversing: deze
+    // lijst bepaalt welke kolommen uit de database de kaart in gaan (07-09).
+    kand_fases: Array.isArray(c.kand_fases) ? c.kand_fases : [],
     collega_initials: c.collega_initials || null,
     projectnr: c.projectnr || null,
     cao: c.cao || null, contractvorm: c.contractvorm || null,
