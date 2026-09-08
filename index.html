@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1536 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1659 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1323,10 +1323,23 @@
   .kand-rldv { font-size:.65rem; margin-top:2px; color:rgba(255,255,255,.6); text-align:left; }
   .kand-rldv .ja  { color:#5fd6a8; }
   .kand-rldv .nog { color:#f8d47a; }
+  /* De kandidaatkiezer: een zoekveld met een lijst eronder (09-09). De lijst
+     zweeft over de tabel heen, dus de rij eromheen staat op relative. */
+  .rldv-kandzoek { min-width:280px; }
+  .rldv-kandvak { position:relative; }
+  .rldv-kandlijst { position:absolute; left:0; right:0; top:38px; z-index:30;
+                    background:#2b3653; border:1px solid rgba(255,255,255,.18);
+                    border-radius:6px; overflow:auto; max-height:260px; text-align:left; }
+  .rldv-kandopt { color:#fff; font-size:.8rem; padding:6px 10px; cursor:pointer; }
+  .rldv-kandopt .bij { color:rgba(255,255,255,.5); }
+  .rldv-kandopt.aan { background:rgba(232,116,0,.22); }
+  .rldv-kandopt:hover { background:rgba(255,255,255,.08); }
+  .rldv-tref { color:#F4CB3C; }
+  .rldv-kandleeg { color:rgba(255,255,255,.55); font-size:.78rem; padding:8px 10px; }
   /* Het checkvenster: alles links, in vaste kolommen. */
   .rldv-badge { display:inline-block; background:rgba(244,203,60,.25); color:#f6e2a3;
                 border-radius:9px; padding:0 6px; font-size:.68rem; margin-left:4px; }
-  .rldv-check { text-align:left; max-width:560px; }
+  .rldv-check { text-align:left; max-width:880px; }
   .rldv-check-kop { padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.12); }
   .rldv-check-titel { color:#fff; font-size:1rem; }
   .rldv-check-meta { display:grid; grid-template-columns:104px 1fr; gap:3px 10px; margin-top:7px; }
@@ -3331,7 +3344,8 @@ let SALES_LEADS_CACHE = []; // Sales Leads: prospectlijst (RLDV), gedeeld door i
 // RLDV-tool (08-09): de opgeslagen selecties, nieuwste eerst. Zie
 // supabase/rldv_selecties.sql voor waarom de koppeling op kaart-id gaat.
 let RLDV_SELECTIES = [];
-let RLDV_TOOL = { kaartId: '', gekozen: new Set(), opmerking: '', bezig: false };
+let RLDV_TOOL = { kaartId: '', gekozen: new Set(), opmerking: '', bezig: false,
+                  zoek: '', kandOpen: false, kandActief: 0 };
 // Welk tabblad in de tool, en welke selectie er in het checkvenster openstaat.
 let RLDV_SUBTAB = 'selectie';
 let RLDV_CHECK = null;   // { id, gekozen:Set, toevoegen:bool, bezig:bool }
@@ -6439,7 +6453,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1536';
+const APP_VERSIE = '20260908-1659';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21354,6 +21368,12 @@ function rldvKiesKandidaat(kaartId) {
   RLDV_TOOL.kaartId = kaartId || '';
   RLDV_TOOL.gekozen = new Set();
   RLDV_TOOL.opmerking = '';
+  // De gekozen naam komt in het zoekveld te staan en de lijst gaat dicht,
+  // zodat je ziet wie er gekozen is zonder de lijst open te houden.
+  const gekozenKand = rldvKandidaten().find(k => String(k.id) === String(kaartId));
+  RLDV_TOOL.zoek = gekozenKand ? gekozenKand.naam : '';
+  RLDV_TOOL.kandOpen = false;
+  RLDV_TOOL.kandActief = 0;
   // Staat er al een selectie voor deze kandidaat? Begin daar dan mee, zodat
   // je aanvult in plaats van opnieuw begint.
   const sel = rldvSelectieVoorKaart(kaartId);
@@ -21591,16 +21611,14 @@ function rldvCheckHtml() {
   const bekend = rldvBedrijvenVan(sel);
   const bekendIds = new Set(bekend.map(b => String(b.id)));
 
-  const rij = (b, aan, uitLijst) =>
-    '<tr' + (mag ? ' onclick="rldvCheckToggle(\'' + escApos(String(b.id)) + '\')" style="cursor:pointer;"' : '') +
-    (aan ? ' class="aan"' : '') + '>' +
-    '<td class="rldv-vinkcel">' + (aan ? '<span class="rldv-vinkje">✓</span>' : '<span class="rldv-leeg"></span>') + '</td>' +
-    '<td' + (aan ? '' : ' class="rldv-uit"') + '>' + escHtml(b.naam || '') + '</td>' +
-    '<td class="rldv-sub">' + escHtml((b.vakgebied || '').trim()) + '</td>' +
-    '<td class="rldv-sub">' + escHtml((b.regio || '').trim()) + '</td>' +
-    '<td class="rldv-sub">' + escHtml((b.status || '').trim()) + '</td>' +
-    '<td class="rldv-sub">' + (uitLijst && aan ? '<span class="rldv-nieuw">toegevoegd</span>'
-                              : (!aan ? '<span class="rldv-weg">eruit gehaald</span>' : '')) + '</td></tr>';
+  // Dezelfde rij als in de tool en op het RLDV-scherm, met één kolom extra:
+  // wat er bij deze check verandert.
+  const rij = (b, aan, uitLijst) => rldvRijHtml(b, aan, {
+    klik: mag ? 'rldvCheckToggle' : '',
+    doorhalen: true,
+    merk: uitLijst && aan ? '<span class="rldv-nieuw">toegevoegd</span>'
+        : (!aan ? '<span class="rldv-weg">eruit gehaald</span>' : ''),
+  });
 
   const inLijst = bekend.map(b => rij(b, RLDV_CHECK.gekozen.has(String(b.id)), false)).join('');
   const extra = [...RLDV_CHECK.gekozen].filter(id => !bekendIds.has(id))
@@ -21623,16 +21641,16 @@ function rldvCheckHtml() {
       '</div>' +
     '</div>' +
     '<div class="rldv-check-lijst"><table class="rldv-tab">' +
-      '<colgroup><col style="width:28px;"><col><col style="width:118px;"><col style="width:100px;"><col style="width:84px;"><col style="width:92px;"></colgroup>' +
-      '<thead><tr><th></th><th>Bedrijf</th><th>Vakgebied</th><th>Regio</th><th>Status</th><th></th></tr></thead>' +
+      rldvKopHtml({ merkKop: true }) +
       '<tbody>' + inLijst + extra + '</tbody></table></div>' +
     (mag ? '<div class="rldv-check-toevoeg">' +
       '<button class="bt-actieknop" onclick="rldvCheckToevoegen()">' +
         (RLDV_CHECK.toevoegen ? 'Toevoegen sluiten' : '+ Bedrijven toevoegen') + '</button>' +
       (RLDV_CHECK.toevoegen
         ? '<div class="rldv-check-filters">' + slFilterBalkHtml() +
-          '<table class="rldv-tab"><colgroup><col style="width:28px;"><col><col style="width:118px;"><col style="width:100px;"><col style="width:84px;"><col style="width:92px;"></colgroup>' +
-          '<tbody>' + (toevoegLijst || '<tr><td colspan="6" class="rldv-sub" style="padding:10px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody></table></div>'
+          '<table class="rldv-tab">' + rldvKopHtml({ merkKop: true }) +
+          '<tbody>' + (toevoegLijst || '<tr><td colspan="' + rldvKolomAantal(true) +
+            '" class="rldv-sub" style="padding:10px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody></table></div>'
         : '') +
       '</div>' : '') +
     '<div class="rldv-check-voet">' +
@@ -21676,6 +21694,182 @@ function rldvCheckLijstHtml() {
     '<tbody>' + rijen + '</tbody></table></div>';
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DE GEDEELDE TABEL (verzoek 09-09)
+//
+// De tool en het checkvenster tonen dezelfde kolommen als het RLDV-scherm:
+// de vijf schuifjes, de contactpersoon, de status en of de voorwaarden
+// bekend zijn. Drie eigen tabellen zouden uit elkaar gaan lopen; dan kiest
+// iemand een bedrijf op grond van een kolom die ergens anders iets anders
+// zegt. Gewijzigd, Website en de knoppen komen niet mee: die horen bij
+// beheren, niet bij selecteren.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Een opgeslagen selectie bewaart maar vijf velden van een bedrijf (id, naam,
+// vakgebied, regio, status). De schuifjes en de contactpersoon staan daar dus
+// niet in. Daarom wordt de levende regel uit de RLDV-lijst gezocht, met de
+// bewaarde kopie als terugval voor een bedrijf dat inmiddels uit de lijst is.
+function rldvBedrijfNu(b) {
+  if (!b) return null;
+  const levend = SALES_LEADS_CACHE.find(x => String(x.id) === String(b.id));
+  return levend || b;
+}
+
+function rldvRijHtml(b, aan, opties) {
+  const o = opties || {};
+  const r = rldvBedrijfNu(b) || {};
+  const klik = o.klik
+    ? ' onclick="' + o.klik + '(\'' + escApos(String(b.id)) + '\')" style="cursor:pointer;"'
+    : '';
+  const klassen = ['rldv-rij'];
+  if (aan) klassen.push('aan');
+  if (r.voorwaarden_bekend === 'ja') klassen.push('acc-tier-top');
+
+  const schuifjes = SL_BOOL_FIELDS.map(([f]) =>
+    '<td><input type="checkbox" class="bt-schuif bt-schuif-klein bt-schuif-vast" ' +
+    (r[f] ? 'checked ' : '') + 'disabled aria-label="' +
+    escHtml(SL_BOOL_LABEL[f] || f) + ': ' + (r[f] ? 'ja' : 'nee') + '"></td>').join('');
+
+  const cp = r.contactpersoon
+    ? '<span class="acc-pill acc-pill-op">' + escHtml(r.contactpersoon) + '</span>'
+    : '<span class="acc-pill acc-pill-empty">—</span>';
+  const status = r.status
+    ? '<span class="badge ' + (r.status === 'Klant' ? 'badge-green'
+        : r.status === 'CP-bekend' ? 'badge-blue' : 'badge-grijs') + '">' + escHtml(r.status) + '</span>'
+    : '<span class="rldv-sub">—</span>';
+  const voorw = r.voorwaarden_bekend === 'ja'   ? '<span class="badge badge-green">Ja</span>'
+              : r.voorwaarden_bekend === 'nee'  ? '<span class="badge badge-red">Nee</span>'
+              : r.voorwaarden_bekend === 'ja/nee' ? '<span class="badge badge-yellow">Deels</span>'
+              : '<span class="rldv-sub">—</span>';
+  const leeg = v => v ? escHtml(v) : '<span class="rldv-sub">—</span>';
+
+  return '<tr class="' + klassen.join(' ') + '"' + klik + '>' +
+    '<td class="rldv-vinkcel">' + (aan ? '<span class="rldv-vinkje">✓</span>' : '<span class="rldv-leeg"></span>') + '</td>' +
+    '<td class="acc-td-left' + (aan ? '' : (o.doorhalen ? ' rldv-uit' : '')) + '">' + escHtml(r.naam || b.naam || '') + '</td>' +
+    '<td>' + leeg((r.vakgebied || '').trim()) + '</td>' +
+    '<td>' + leeg((r.regio || '').trim()) + '</td>' +
+    schuifjes +
+    '<td>' + cp + '</td>' +
+    '<td>' + status + '</td>' +
+    '<td>' + voorw + '</td>' +
+    (o.merk === undefined ? '' : '<td class="rldv-sub">' + o.merk + '</td>') +
+    '</tr>';
+}
+
+// De kopregel met dezelfde kolommen. Sorteerbaar in de tool; in het
+// checkvenster staat de volgorde vast, want daar gaat het om déze selectie.
+function rldvKopHtml(opties) {
+  const o = opties || {};
+  const th = (col, label, cls) => o.sorteerbaar
+    ? slThHtml(col, label, cls)
+    : '<th class="' + (cls || '') + '">' + escHtml(label) + '</th>';
+  return '<colgroup>' +
+      '<col style="width:26px;"><col><col style="width:112px;"><col style="width:88px;">' +
+      '<col style="width:30px;"><col style="width:30px;"><col style="width:30px;"><col style="width:30px;"><col style="width:30px;">' +
+      '<col style="width:52px;"><col style="width:86px;"><col style="width:74px;">' +
+      (o.merkKop === undefined ? '' : '<col style="width:88px;">') +
+    '</colgroup>' +
+    '<thead><tr>' +
+      '<th></th>' +
+      th('naam', 'Bedrijf', 'acc-th-left') +
+      th('vakgebied', 'Vakgebied') +
+      th('regio', 'Regio') +
+      SL_BOOL_FIELDS.map(([f, label]) => th(f, label)).join('') +
+      th('contactpersoon', 'CP') +
+      th('status', 'Status') +
+      th('voorwaarden_bekend', 'Voorwaarden') +
+      (o.merkKop === undefined ? '' : '<th></th>') +
+    '</tr></thead>';
+}
+function rldvKolomAantal(merk) { return merk ? 13 : 12; }
+
+// ── De kandidaatkiezer ─────────────────────────────────────────────────────
+// Een zoekveld in plaats van een keuzelijst: bij tientallen kandidaten is
+// scrollen naar de juiste naam trager dan drie letters typen (verzoek 09-09).
+function rldvKandLijst() {
+  const zoek = String(RLDV_TOOL.zoek || '').trim().toLowerCase();
+  const alle = rldvKandidaten();
+  if (!zoek) return alle;
+  return alle.filter(k => (String(k.naam || '') + ' ' + String(k.functie || '') + ' ' +
+                           String(k.bmNaam || '')).toLowerCase().includes(zoek));
+}
+
+// De gevonden letters oplichten. Staan er tekens in de zoekterm die in HTML
+// anders geschreven worden, dan schuift de plek op — dan liever niets
+// markeren dan de naam verminken.
+function rldvKandMarkeer(tekst) {
+  const zoek = String(RLDV_TOOL.zoek || '').trim();
+  const t = escHtml(tekst || '');
+  if (!zoek || escHtml(zoek) !== zoek) return t;
+  const i = t.toLowerCase().indexOf(zoek.toLowerCase());
+  if (i < 0) return t;
+  return t.slice(0, i) + '<span class="rldv-tref">' + t.slice(i, i + zoek.length) +
+         '</span>' + t.slice(i + zoek.length);
+}
+
+function rldvKandTyp(waarde) {
+  RLDV_TOOL.zoek = waarde;
+  RLDV_TOOL.kandOpen = true;
+  RLDV_TOOL.kandActief = 0;
+  render();
+}
+function rldvKandOpen(aan) {
+  RLDV_TOOL.kandOpen = !!aan;
+  if (!aan) RLDV_TOOL.kandActief = 0;
+  render();
+}
+function rldvKandToets(e) {
+  const lijst = rldvKandLijst();
+  if (e.key === 'ArrowDown') {
+    e.preventDefault(); RLDV_TOOL.kandOpen = true;
+    RLDV_TOOL.kandActief = Math.min(RLDV_TOOL.kandActief + 1, Math.max(lijst.length - 1, 0));
+    render(); return;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault(); RLDV_TOOL.kandActief = Math.max(RLDV_TOOL.kandActief - 1, 0);
+    render(); return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault(); const k = lijst[RLDV_TOOL.kandActief];
+    if (k) rldvKiesKandidaat(k.id);
+    return;
+  }
+  if (e.key === 'Escape') { RLDV_TOOL.kandOpen = false; render(); }
+}
+
+function rldvKandVakHtml(mag) {
+  const lijst = rldvKandLijst();
+  const opties = lijst.length
+    ? lijst.map((k, i) =>
+        '<div class="rldv-kandopt' + (i === RLDV_TOOL.kandActief ? ' aan' : '') + '" ' +
+        // mousedown komt vóór blur: met onclick zou het zoekveld eerst
+        // vervagen, het scherm opnieuw tekenen en de klik verdwijnen.
+        'onmousedown="rldvKiesKandidaat(\'' + escApos(String(k.id)) + '\')">' +
+        rldvKandMarkeer(k.naam) +
+        '<span class="bij"> — ' + escHtml((k.functie || '—') + ' · ' + k.bmNaam +
+          ' · week ' + k.week) + '</span></div>').join('')
+    : '<div class="rldv-kandleeg">Geen kandidaat gevonden.</div>';
+  return '<div class="rldv-kandvak">' +
+    '<input type="text" id="rldv-kandzoek" class="acc-text-input veld-licht rldv-kandzoek" ' +
+      'placeholder="Zoek een kandidaat…" value="' + escHtml(RLDV_TOOL.zoek || '') + '"' +
+      (mag ? '' : ' disabled') +
+      ' oninput="rldvKandTyp(this.value)" onkeydown="rldvKandToets(event)" ' +
+      'onfocus="rldvKandOpen(true)" onblur="rldvKandOpen(false)" autocomplete="off">' +
+    (RLDV_TOOL.kandOpen ? '<div class="rldv-kandlijst">' + opties + '</div>' : '') +
+    '</div>';
+}
+
+// Het zoekveld raakt zijn focus kwijt zodra het scherm opnieuw getekend wordt.
+// Zonder dit zou elke toetsaanslag de cursor uit het veld halen.
+function _rldvZoekTerug() {
+  if (!RLDV_TOOL.kandOpen) return;
+  const el = document.getElementById('rldv-kandzoek');
+  if (!el) return;
+  el.focus();
+  const n = el.value.length;
+  try { el.setSelectionRange(n, n); } catch (_) {}
+}
+
 // ── Het scherm ─────────────────────────────────────────────────────────────
 function renderRldvTool() {
   const mag  = magWijzigen('rldvtool');
@@ -21684,29 +21878,18 @@ function renderRldvTool() {
   const zichtbaar = slFilteredList();
   const gekozen = RLDV_TOOL.gekozen.size;
 
-  const keuzelijst = '<select class="acc-select veld-licht" style="min-width:260px;" ' +
-    'onchange="rldvKiesKandidaat(this.value)"' + (mag ? '' : ' disabled') + '>' +
-    '<option value="">— Kies een kandidaat —</option>' +
-    kandidaten.map(k => '<option value="' + escHtml(String(k.id)) + '"' +
-      (String(k.id) === String(RLDV_TOOL.kaartId) ? ' selected' : '') + '>' +
-      escHtml(k.naam + (k.functie ? ' — ' + k.functie : '')) + '</option>').join('') +
-    '</select>';
+  const keuzelijst = rldvKandVakHtml(mag);
 
   const kandRegel = kand
     ? '<span class="rldv-kandmeta">' + escHtml(kand.bmNaam) + ' · week ' + kand.week +
       ' · aanbiedingen: ' + rldvAanbiedingenVoor(kand.naam) + '</span>'
     : '<span class="rldv-kandmeta">Kies eerst een kandidaat; daarna kun je bedrijven aanvinken.</span>';
 
-  const rijen = zichtbaar.map(b => {
-    const aan = RLDV_TOOL.gekozen.has(String(b.id));
-    return '<tr class="rldv-rij' + (aan ? ' aan' : '') + '"' +
-      (mag && kand ? ' onclick="rldvToggleBedrijf(\'' + escApos(String(b.id)) + '\')" style="cursor:pointer;"' : '') + '>' +
-      '<td class="rldv-vink">' + (aan ? btActie('opslaan') ? '✓' : '✓' : '') + '</td>' +
-      '<td>' + escHtml(b.naam || '') + '</td>' +
-      '<td>' + escHtml((b.vakgebied || '').trim()) + '</td>' +
-      '<td>' + escHtml((b.regio || '').trim()) + '</td>' +
-      '<td>' + escHtml((b.status || '').trim()) + '</td></tr>';
-  }).join('');
+  // Dezelfde rijen als op het RLDV-scherm, en in dezelfde volgorde: de
+  // sortering van dat scherm telt hier ook (slSorteer).
+  const rijen = slSorteer(zichtbaar).map(b =>
+    rldvRijHtml(b, RLDV_TOOL.gekozen.has(String(b.id)),
+                { klik: (mag && kand) ? 'rldvToggleBedrijf' : '' })).join('');
 
   const subTab = (key, label, aantal) =>
     '<button class="bm-subtab-btn' + (RLDV_SUBTAB === key ? ' active' : '') + '" ' +
@@ -21723,6 +21906,7 @@ function renderRldvTool() {
       '<div class="person-header"><div class="person-name">RLDV-tool</div>' +
         '<div class="person-meta"><span class="meta-pill">' + openCheck + ' nog te checken</span></div></div>' +
       tabbalk + rldvCheckLijstHtml() + '</div>';
+    _rldvZoekTerug();
     _rldvVensterBijwerken();
     return;
   }
@@ -21741,9 +21925,9 @@ function renderRldvTool() {
         '<span class="rldv-telling">' + gekozen + ' geselecteerd · ' + zichtbaar.length + ' na filter</span>' +
       '</div>' +
       '<table class="acc-table bt-lijst rldv-tab">' +
-        '<colgroup><col style="width:30px;"><col><col style="width:140px;"><col style="width:120px;"><col style="width:96px;"></colgroup>' +
-        '<thead><tr><th></th><th>Bedrijf</th><th>Vakgebied</th><th>Regio</th><th>Status</th></tr></thead>' +
-        '<tbody>' + (rijen || '<tr><td colspan="5" style="text-align:left;color:var(--muted);padding:18px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody>' +
+        rldvKopHtml({ sorteerbaar: true }) +
+        '<tbody>' + (rijen || '<tr><td colspan="' + rldvKolomAantal(false) +
+          '" style="text-align:left;color:var(--muted);padding:18px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody>' +
       '</table>' +
       (mag && kand ? '<div class="rldv-voet">' +
         '<label for="rldv-opmerking" class="rldv-label">Opmerking (optioneel)</label>' +
@@ -21758,6 +21942,7 @@ function renderRldvTool() {
     '</div>' +
     rldvHistorieHtml() +
   '</div>';
+  _rldvZoekTerug();
   _rldvVensterBijwerken();
 }
 
@@ -21907,10 +22092,34 @@ function slResetFilters() {
   render();          // zie slToggleMultiFilter (08-09)
 }
 
+// Eén sorteermotor voor het RLDV-scherm, de RLDV-tool en het checkvenster
+// (09-09). Drie eigen tabellen zouden uit elkaar gaan lopen; dan kiest iemand
+// een bedrijf op grond van een kolom die ergens anders iets anders zegt.
+function slSorteer(lijst) {
+  return lijst.slice().sort((a, b) => {
+    let av = a[SL_SORT_COL], bv = b[SL_SORT_COL];
+    if (typeof av === 'boolean') { av = av ? 1 : 0; bv = bv ? 1 : 0; }
+    if (av == null) av = ''; if (bv == null) bv = '';
+    const cmp = (typeof av === 'number' && typeof bv === 'number') ? av - bv : String(av).localeCompare(String(bv), 'nl');
+    return cmp * SL_SORT_DIR;
+  });
+}
+
+// Eén klikbare kopcel, met de pijl van de actieve kolom.
+function slThHtml(col, label, cls) {
+  const actief = SL_SORT_COL === col;
+  const pijl = actief ? (SL_SORT_DIR === 1 ? ' \u2191' : ' \u2193') : '';
+  return '<th class="' + (cls || '') + '" style="cursor:pointer;user-select:none;white-space:nowrap;' +
+    (actief ? 'color:var(--primary);' : '') + '" onclick="slSetSort(\'' + col + '\')" ' +
+    'title="Sorteren op ' + escHtml(label) + '">' + escHtml(label) + pijl + '</th>';
+}
+
 function slSetSort(col) {
   if (SL_SORT_COL === col) SL_SORT_DIR *= -1;
   else { SL_SORT_COL = col; SL_SORT_DIR = 1; }
-  renderAccounts();
+  // Sorteren op de RLDV-tool hoort de RLDV-tool opnieuw te tekenen, niet
+  // Accountmanagement — anders springt het scherm weg onder je handen.
+  render();
 }
 
 function kamSetSort(col) {
@@ -22175,18 +22384,11 @@ function renderSalesLeadsHtml(subTabBtns) {
   const voorwOptions     = [...new Set(list.map(s => (s.voorwaarden_bekend||'').trim()).filter(Boolean))].sort();
 
   const filtered = slFilteredList();
-  const sorted = filtered.slice().sort((a, b) => {
-    let av = a[SL_SORT_COL], bv = b[SL_SORT_COL];
-    if (typeof av === 'boolean') { av = av ? 1 : 0; bv = bv ? 1 : 0; }
-    if (av == null) av = ''; if (bv == null) bv = '';
-    const cmp = (typeof av === 'number' && typeof bv === 'number') ? av - bv : String(av).localeCompare(String(bv), 'nl');
-    return cmp * SL_SORT_DIR;
-  });
-  const slTh = (col, label, cls) => {
-    const active = SL_SORT_COL === col;
-    const arrow = active ? (SL_SORT_DIR === 1 ? ' ↑' : ' ↓') : '';
-    return `<th class="${cls||''}" style="cursor:pointer;user-select:none;white-space:nowrap;${active?'color:var(--primary);':''}" onclick="slSetSort('${col}')" title="Sorteren op ${label}">${escHtml(label)}${arrow}</th>`;
-  };
+  // Sorteren en de kopcellen staan sinds 09-09 buiten dit scherm (slSorteer,
+  // slThHtml), zodat de RLDV-tool exact hetzelfde doet; dit is nog een
+  // doorgeefluik.
+  const sorted = slSorteer(filtered);
+  const slTh = (col, label, cls) => slThHtml(col, label, cls);
 
   // Checkbox-dropdownpaneel voor multi-select filters (vakgebied/regio/
   // contactpersoon/status/voorwaarden) — meerdere opties per kolom mogelijk.
