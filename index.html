@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260908-1848 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260908-1855 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4304,6 +4304,7 @@ const BT_ICONEN = {
   records:     '<path d="M8 3h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9.5 8h5M9.5 11.5h5M9.5 15h3"/>',
   // MT-acties: een lijstje met vinkjes. Leende eerst het pictogram van
   // Records, en dan staan er twee identieke regels in het menu.
+  rldvcheck:   '<path d="M4 7h9M4 12h9M4 17h5"/><path d="M15.5 15.5l2 2 4-4"/>',
   mtacties:    '<path d="M4 6.5l1.6 1.6L9 4.7"/><path d="M4 12.5l1.6 1.6L9 10.7"/><path d="M4 18.5l1.6 1.6L9 16.7"/><path d="M12 6.5h8M12 12.5h8M12 18.5h5"/>',
   management:  '<path d="M3 21h18M5 21V10M19 21V10M12 3l8 5H4z"/>',
   team:        '<path d="M3 20h18M6.5 20v-6M11 20V8M15.5 20v-4M20 20V5"/>',
@@ -6512,7 +6513,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260908-1848';
+const APP_VERSIE = '20260908-1855';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6828,6 +6829,10 @@ function rechtSjabloon(g) {
     medewerkers:  'wijzig',                       // je eigen kaart mag je altijd bijwerken
     team:         w(zwaar),
     projecten:    w(vinkje || rol === 'backoffice'),
+    // De RLDV-Check hoort bij Projecten: wie de projecten mag zien, ziet ook
+    // welke selecties nog nagekeken moeten worden. Het akkoord zelf blijft
+    // aan het wijzigrecht op Projecten hangen (rldvMagChecken).
+    rldvcheck:    w(vinkje || rol === 'backoffice'),
     // Let op: dit volgt de pagina en niet het oude menu. De zijbalk toonde
     // Financieel aan iedereen behalve een BM, maar de pagina stuurde alles wat
     // geen manager of backoffice was meteen door naar Accountmanagement. Een KAM
@@ -7025,6 +7030,8 @@ const ONDERDELEN = [
   { sleutel:'mtacties',    label:'MT-Overleg',              groep:'Management',
     uitleg:'OM-Team: de actielijst en de notulen per week. En de strategie om na te lezen.' },
   { sleutel:'hrm',         label:'HRM/Backoffice',          groep:'Management' },
+  { sleutel:'rldvcheck',   label:'RLDV-Check',              groep:'Management',
+    uitleg:'Dezelfde lijst als het tabblad Check in de RLDV-tool, als eigen pagina.' },
   { sleutel:'cvgen',       label:'CV-generator',            groep:'Tools' },
   { sleutel:'plaatsing',   label:'Matchmaker',              groep:'Tools' },
   { sleutel:'rldvtool',    label:'RLDV-tool',               groep:'Tools',
@@ -7123,7 +7130,7 @@ function renderTabs() {
         </div>
       </div>`)}
       <!-- Submenu's alfabetisch op naam (afspraak 19-08); hoofdthema's houden hun vaste volgorde. -->
-      ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
+      ${miGroep(['projecten','financieel','comrap','records','hrm','rldvcheck'], `<div class="sidebar-cat">
         <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
@@ -7134,6 +7141,7 @@ function renderTabs() {
           ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-Overleg</button>`) : ''}
           ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
+          ${mi('rldvcheck', `<button class="sidebar-item ${currentTab==='rldvcheck'?'active':''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-Check</button>`)}
           ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
                sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -7186,7 +7194,7 @@ function renderTabs() {
         ${/* Onderaan (aanwijzing 20-08): eerst de mensen, dan de optelsom. */''}
         ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}</div>
     </div>`)}
-    ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
+    ${miGroep(['projecten','financieel','comrap','records','hrm','rldvcheck'], `<div class="sidebar-cat">
       <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         ${btCatLabel('management','Management')}
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
@@ -7197,6 +7205,7 @@ function renderTabs() {
         ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-Overleg</button>`) : ''}
         ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
         ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
+        ${mi('rldvcheck', `<button class="sidebar-item ${currentTab==='rldvcheck'?'active':''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-Check</button>`)}
         ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
              sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
         ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -8945,7 +8954,7 @@ _versieWaakhond();
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
 const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
-                      'rldvtool'];
+                      'rldvtool', 'rldvcheck'];
 
 function _tabSleutel() {
   const uid = CURRENT_USER && CURRENT_USER.id;
@@ -9023,7 +9032,7 @@ function _kiesStartTab() {
   }
   currentTab = hersteld;
   if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
-  else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
+  else if (['financieel','hrm','comrap','projecten','records','mtacties','rldvcheck'].includes(hersteld)) managementOpen = true;
   else if (['cvgen','plaatsing','gesprek','bezoek','rldvtool'].includes(hersteld)) toolsOpen = true;
 }
 
@@ -9038,7 +9047,7 @@ function selectTab(i) {
   if ((typeof i === 'number' && i < BMS.length) || i === 'team') medewerkersOpen = true;
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek' || i === 'rldvtool') toolsOpen = true;
-  if (i === 'records') managementOpen = true;
+  if (i === 'records' || i === 'rldvcheck') managementOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
@@ -9955,6 +9964,7 @@ function _renderKern() {
   if (currentTab === 'cvgen') { renderCvGenerator(); return; }
   if (currentTab === 'plaatsing') { renderPlaatsing(); return; }
   if (currentTab === 'rldvtool')  { renderRldvTool(); return; }
+  if (currentTab === 'rldvcheck') { renderRldvCheckScherm(); return; }
   if (currentTab === 'gesprek') { renderGesprek(); return; }
   if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
   if (currentTab === 'beheer') { if (isBeheerder()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
@@ -21903,6 +21913,12 @@ function rldvCheckHtml() {
 // open staat zonder de kaart te openen.
 function rldvCheckFilter(stand) { RLDV_CHECK_FILTER = stand; render(); }
 
+// Hoeveel selecties wachten nog op een check? Eén telling voor de badge in
+// de tool en voor de kop van de pagina onder Management.
+function rldvCheckOpenAantal() {
+  return RLDV_SELECTIES.filter(r => rldvCheckStand(r).code !== 'akkoord').length;
+}
+
 function rldvCheckGefilterd() {
   const f = RLDV_CHECK_FILTER;
   if (f !== 'open' && f !== 'gewijzigd' && f !== 'akkoord') return RLDV_SELECTIES.slice();
@@ -22148,6 +22164,21 @@ function _rldvZoekTerug() {
   } finally { _RLDV_ZOEK_HERSTEL = false; }
 }
 
+// De RLDV-Check als eigen pagina onder Management (verzoek 09-09). Dit is
+// geen kopie van het tabblad Check: het is letterlijk dezelfde functie op
+// dezelfde lijst. Twee kopieën zouden vroeg of laat verschillende standen
+// laten zien, en dan is niet te zeggen welke klopt. RLDV_SELECTIES loopt via
+// realtime mee, dus beide plekken zijn altijd even actueel.
+function renderRldvCheckScherm() {
+  const open = rldvCheckOpenAantal();
+  document.getElementById('main').innerHTML = '<div>' +
+    '<div class="person-header"><div class="person-name">RLDV-Check</div>' +
+      '<div class="person-meta"><span class="meta-pill">' + open + ' nog te checken</span>' +
+      '<span class="meta-pill">' + RLDV_SELECTIES.length + ' selecties</span></div></div>' +
+    rldvCheckLijstHtml() + '</div>';
+  _rldvVensterBijwerken();
+}
+
 // ── Het scherm ─────────────────────────────────────────────────────────────
 function renderRldvTool() {
   const mag  = magWijzigen('rldvtool');
@@ -22173,7 +22204,7 @@ function renderRldvTool() {
     '<button class="bm-subtab-btn' + (RLDV_SUBTAB === key ? ' active' : '') + '" ' +
     'onclick="rldvKiesSubtab(\'' + key + '\')">' + label +
     (aantal ? ' <span class="rldv-badge">' + aantal + '</span>' : '') + '</button>';
-  const openCheck = RLDV_SELECTIES.filter(r => rldvCheckStand(r).code !== 'akkoord').length;
+  const openCheck = rldvCheckOpenAantal();
   const tabbalk = '<div class="bm-subtabs" style="gap:0;margin-bottom:16px;">' +
     subTab('selectie', 'Selectie maken', 0) + subTab('check', 'Check', openCheck) + '</div>';
 
