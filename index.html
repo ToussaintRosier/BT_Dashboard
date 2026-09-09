@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1207 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1216 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -792,6 +792,21 @@
                border:1px solid rgba(255,255,255,.22); border-radius:8px;
                background:rgba(255,255,255,.07); }
   .bt-strook > *:not(:first-child) { border-left:1px solid rgba(255,255,255,.16); }
+  /* De actieknop, waar hij ook staat. Hij was alleen gestyled BINNEN
+     .filter-toolbar; overal daarbuiten — de RLDV-tool, het checkvenster, de
+     historie — viel hij terug op de standaardknop van de browser: een wit
+     doosje met een donkere rand (melding 09-09). */
+  .bt-actieknop {
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+    padding:6px 13px; font-size:.78rem; font-family:inherit; border-radius:7px;
+    cursor:pointer; background:transparent; border:1px solid rgba(255,255,255,.3);
+    color:#fff; font-weight:var(--w-normaal); }
+  .bt-actieknop:hover { background:rgba(255,255,255,.12); }
+  .bt-actieknop:disabled { opacity:.5; cursor:default; }
+  /* Eén knop per groep mag opvallen: degene die iets afrondt of aanmaakt. */
+  .bt-actieknop.hoofd { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .bt-actieknop.hoofd:hover { background:#d06800; border-color:#d06800; }
+
   /* De losse knoppen naast de strook: even hoog, zelfde ronding. */
   .filter-toolbar .proj-save-btn,
   .filter-toolbar .btn-secondary,
@@ -1459,7 +1474,20 @@
   .rldv-nieuw { color:#5fd6a8; }
   .rldv-weg   { color:#ffb3b3; }
   .rldv-check-toevoeg { margin-top:10px; padding-top:9px; border-top:1px solid rgba(255,255,255,.12); }
-  .rldv-check-filters { margin-top:8px; max-height:220px; overflow:auto; }
+  /* Keuze J3 (09-09): een strook die het paneel eronder aankondigt en er open
+     aan vastzit. Gestippeld als hij dicht is, doorlopend geel als hij openstaat. */
+  .rldv-toevoegstrook { display:flex; align-items:center; gap:9px; width:100%;
+                        box-sizing:border-box; text-align:left; font-family:inherit;
+                        background:rgba(255,255,255,.05); border:1px dashed rgba(255,255,255,.28);
+                        border-radius:8px; padding:10px 14px; color:#fff; font-size:.82rem;
+                        cursor:pointer; }
+  .rldv-toevoegstrook:hover { background:rgba(255,255,255,.09); }
+  .rldv-toevoegstrook.open { background:rgba(244,203,60,.12); border:1px solid rgba(244,203,60,.45); border-radius:8px 8px 0 0; color:#F4CB3C; }
+  .rldv-toevoegstrook .teken { font-size:1rem; line-height:1; color:#F4CB3C; }
+  .rldv-toevoegstrook .telling { margin-left:auto; color:rgba(255,255,255,.5); font-size:.74rem; }
+  .rldv-check-filters { margin-top:0; max-height:220px; overflow:auto;
+                        border:1px solid rgba(244,203,60,.45); border-top:none;
+                        border-radius:0 0 8px 8px; padding:10px 12px; }
   .rldv-check-voet { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.12); }
   .kand-legenda { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:10px; }
   .kand-legenda span.rij { display:inline-flex; align-items:center; gap:6px;
@@ -6555,7 +6583,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1207';
+const APP_VERSIE = '20260909-1216';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22003,11 +22031,15 @@ function rldvCheckHtml() {
       rldvKopHtml({ merkKop: true }) +
       '<tbody>' + inLijst + extra + '</tbody></table></div>' +
     (mag ? '<div class="rldv-check-toevoeg">' +
-      '<button class="bt-actieknop" onclick="rldvCheckToevoegen()">' +
-        (RLDV_CHECK.toevoegen ? 'Toevoegen sluiten' : '+ Bedrijven toevoegen') + '</button>' +
+      '<button type="button" class="rldv-toevoegstrook' + (RLDV_CHECK.toevoegen ? ' open' : '') + '" ' +
+        'onclick="rldvCheckToevoegen()">' +
+        '<span class="teken">' + (RLDV_CHECK.toevoegen ? '−' : '+') + '</span>' +
+        '<span>' + (RLDV_CHECK.toevoegen ? 'Toevoegen sluiten' : 'Bedrijven toevoegen') + '</span>' +
+        '<span class="telling">' + toevoegAantal +
+          (RLDV_CHECK.toevoegen ? ' na filter ▴' : ' beschikbaar ▾') + '</span>' +
+      '</button>' +
       (RLDV_CHECK.toevoegen
-        ? '<div class="rldv-check-sectie">Toevoegen · ' + toevoegAantal + ' na filter</div>' +
-          '<div class="rldv-check-filters">' + slFilterBalkHtml() +
+        ? '<div class="rldv-check-filters">' + slFilterBalkHtml() +
           '<table class="acc-table rldv-tab">' + rldvKopHtml({ merkKop: true }) +
           '<tbody>' + (toevoegLijst || '<tr><td colspan="' + rldvKolomAantal(true) +
             '" class="rldv-sub" style="padding:10px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody></table></div>'
