@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-0922 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1052 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1386,6 +1386,7 @@
                      border:1px solid rgba(255,255,255,.3); border-radius:6px; padding:4px; font-size:.76rem; cursor:pointer; }
   .rldv-kaart-knop.hoofd { background:#E87400; border-color:#E87400; }
   .rldv-kandleeg { color:rgba(255,255,255,.55); font-size:.78rem; padding:8px 10px; }
+  .rldv-kandreden { color:#f8d47a; font-size:.74rem; margin-top:5px; max-width:520px; line-height:1.45; }
   /* Het checkvenster: alles links, in vaste kolommen. */
   .rldv-badge { display:inline-block; background:rgba(244,203,60,.25); color:#f6e2a3;
                 border-radius:9px; padding:0 6px; font-size:.68rem; margin-left:4px; }
@@ -6513,7 +6514,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-0922';
+const APP_VERSIE = '20260909-1052';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21559,19 +21560,53 @@ function rldvMagChecken() { return magWijzigen('projecten'); }
 
 // Alle kandidaten waarvoor een selectie te maken is: de intakekaarten van de
 // laatste tien weken, dezelfde verzameling als het Kandidaten-overzicht.
+// Jaar en week in één getal, zodat er over de jaargrens heen te vergelijken
+// valt: 2026 week 50 (202650) komt vóór 2027 week 2 (202702).
+function _rldvWeekWaarde(jaar, week) { return (+jaar || 0) * 100 + (+week || 0); }
+
+// Waar de kiezer uit put (herzien 09-09).
+//
+// Eerst stond hier: alleen kaarten in de fase Intake, uit de laatste tien
+// weken. Twee dingen liepen daar stuk. Een kandidaat die al verder staat (CV,
+// Aanbieden) viel eruit, terwijl je juist voor die kandidaat bedrijven wilt
+// selecteren. En de database laat een collega alleen zijn eigen kaarten zien
+// (plus de akkoord-kaarten van iedereen); wie in die tien weken geen eigen
+// intake had, kreeg een lege lijst — en dat ziet eruit als "ik mag geen naam
+// invullen" (melding 09-09, Robin).
+//
+// Nu: alles wat je mag zien uit de laatste 26 weken, ongeacht de fase, met
+// Intake vooraan. Eén kandidaat komt één keer voor; staat er zowel een
+// intakekaart als een latere kaart, dan telt de intakekaart, want daar hangt
+// de selectie logisch aan.
+const RLDV_KAND_WEKEN = 26;
 function rldvKandidaten() {
-  const weken = getKandidatenWeeks();
-  const inBeeld = new Set(weken.map(w => w.year + '-' + w.week));
-  const uit = [];
+  const terug = new Date(+TODAY - RLDV_KAND_WEKEN * 7 * 86400000);
+  const w = isoWeek(terug);
+  const grens = _rldvWeekWaarde(w.year, w.week);
+  const perNaam = new Map();
   for (const bm of bmsMetCijfers()) {
     for (const c of pipeLoad(bm.naam)) {
-      if (c.stage !== 'Intake' || c.verwijderd_op || c.kandidaten_uitgesloten) continue;
-      if (!inBeeld.has(c.jaar + '-' + c.week)) continue;
-      uit.push({ id: c.id, naam: c.naam, functie: c.functie || '', bmNaam: bm.naam,
-                 week: c.week, jaar: c.jaar });
+      if (c.verwijderd_op || c.kandidaten_uitgesloten) continue;
+      const naam = String(c.naam || '').trim();
+      if (!naam) continue;
+      if (_rldvWeekWaarde(c.jaar, c.week) < grens) continue;
+      const kaart = { id: c.id, naam, functie: c.functie || '', bmNaam: bm.naam,
+                      week: c.week, jaar: c.jaar, stage: c.stage || '' };
+      const sleutel = naam.toLowerCase() + '|' + bm.naam;
+      const eerder = perNaam.get(sleutel);
+      if (!eerder) { perNaam.set(sleutel, kaart); continue; }
+      // De intakekaart wint; anders de meest recente.
+      const beter = (kaart.stage === 'Intake' && eerder.stage !== 'Intake')
+        || (kaart.stage === 'Intake') === (eerder.stage === 'Intake')
+           && _rldvWeekWaarde(kaart.jaar, kaart.week) > _rldvWeekWaarde(eerder.jaar, eerder.week);
+      if (beter) perNaam.set(sleutel, kaart);
     }
   }
-  return uit.sort((a, b) => String(a.naam || '').localeCompare(String(b.naam || ''), 'nl'));
+  return [...perNaam.values()].sort((a, b) => {
+    const ai = a.stage === 'Intake' ? 0 : 1, bi = b.stage === 'Intake' ? 0 : 1;
+    if (ai !== bi) return ai - bi;
+    return String(a.naam).localeCompare(String(b.naam), 'nl');
+  });
 }
 
 function rldvKandidaatVan(kaartId) {
@@ -22171,7 +22206,8 @@ function rldvKandLijst() {
   const alle = rldvKandidaten();
   if (!zoek) return alle;
   return alle.filter(k => (String(k.naam || '') + ' ' + String(k.functie || '') + ' ' +
-                           String(k.bmNaam || '')).toLowerCase().includes(zoek));
+                           String(k.bmNaam || '') + ' ' + String(k.stage || ''))
+                          .toLowerCase().includes(zoek));
 }
 
 // De gevonden letters oplichten. Staan er tekens in de zoekterm die in HTML
@@ -22226,8 +22262,29 @@ function rldvKandToets(e) {
   if (e.key === 'Escape') { RLDV_TOOL.kandOpen = false; render(); }
 }
 
+// Waarom kun je hier geen kandidaat kiezen? Twee heel verschillende oorzaken
+// zien er op het scherm precies hetzelfde uit: geen wijzigrecht, of er staat
+// geen enkele kandidaat in de fase Intake van de laatste tien weken. Eén
+// functie bepaalt het, en het scherm schrijft het op — anders kost elke
+// melding een ronde heen en weer (melding 09-09, Robin).
+function rldvKandReden(mag) {
+  if (!mag) return 'geenrecht';
+  if (!rldvKandidaten().length) return 'geenkandidaten';
+  return '';
+}
+
 function rldvKandVakHtml(mag) {
   const lijst = rldvKandLijst();
+  const reden = rldvKandReden(mag);
+  const uitleg =
+    reden === 'geenrecht'
+      ? 'Je mag de RLDV-tool wel bekijken, maar niet wijzigen. Vraag de beheerder om ' +
+        'Beheer → Rechten → RLDV-tool voor jou op wijzigen te zetten.'
+    : reden === 'geenkandidaten'
+      ? 'Er staat geen enkele kandidaat op je pipelinebord in de laatste 26 weken. ' +
+        'De kiezer put daaruit — maak eerst een kaart aan, of vraag de collega van wie ' +
+        'de kandidaat is om de selectie te maken.'
+    : '';
   const opties = lijst.length
     ? lijst.map((k, i) =>
         '<div class="rldv-kandopt' + (i === RLDV_TOOL.kandActief ? ' aan' : '') + '" ' +
@@ -22235,8 +22292,8 @@ function rldvKandVakHtml(mag) {
         // vervagen, het scherm opnieuw tekenen en de klik verdwijnen.
         'onmousedown="rldvKiesKandidaat(\'' + escApos(String(k.id)) + '\')">' +
         rldvKandMarkeer(k.naam) +
-        '<span class="bij"> — ' + escHtml((k.functie || '—') + ' · ' + k.bmNaam +
-          ' · week ' + k.week) + '</span></div>').join('')
+        '<span class="bij"> — ' + escHtml((k.functie || '—') + ' · ' + (k.stage || '—') +
+          ' · ' + k.bmNaam + ' · week ' + k.week) + '</span></div>').join('')
     : '<div class="rldv-kandleeg">Geen kandidaat gevonden.</div>';
   return '<div class="rldv-kandvak">' +
     '<input type="text" id="rldv-kandzoek" class="acc-text-input veld-licht rldv-kandzoek" ' +
@@ -22245,6 +22302,7 @@ function rldvKandVakHtml(mag) {
       ' oninput="rldvKandTyp(this.value)" onkeydown="rldvKandToets(event)" ' +
       'onfocus="rldvKandOpen(true)" onblur="rldvKandOpen(false)" autocomplete="off">' +
     (RLDV_TOOL.kandOpen ? '<div class="rldv-kandlijst">' + opties + '</div>' : '') +
+    (uitleg ? '<div class="rldv-kandreden">' + uitleg + '</div>' : '') +
     '</div>';
 }
 
