@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1102 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1109 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6516,7 +6516,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1102';
+const APP_VERSIE = '20260909-1109';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -6884,6 +6884,9 @@ function rechtVoor(gebruiker, sleutel) {
   if (gebruiker.naam === BEHEERDER_NAAM) return 'wijzig';
   // Beheer zelf hangt aan die ene naam en is voor niemand anders te krijgen.
   if (ONDERDELEN_VAST.includes(sleutel)) return 'geen';
+  // En wat voor iedereen openstaat, staat open — ook als er ooit een regel in
+  // de matrix is gezet (besluit 09-09).
+  if (ONDERDELEN_OPEN.includes(sleutel)) return 'wijzig';
   const rij = RECHTEN_RIJEN.find(r => r.naam === gebruiker.naam && r.sleutel === sleutel);
   if (rij) return rij.stand;
   return rechtSjabloon(gebruiker)[sleutel] || 'geen';
@@ -7051,6 +7054,14 @@ const ONDERDELEN = [
 // jezelf met één klik buiten de deur en is de enige weg terug via de database —
 // en daar kan niet iedereen bij.
 const ONDERDELEN_VAST = ['beheer'];
+// Onderdelen die voor iedereen openstaan en niet per persoon dicht kunnen.
+// De RLDV-tool staat hier sinds 09-09 in: collega's konden de kandidaatnaam
+// niet kiezen omdat één regel in de matrix het zoekveld op slot zette, en
+// iedereen moet de tool volledig kunnen gebruiken — van naam kiezen tot en
+// met opslaan. De algemene schakelaar onder Onderdelen blijft wél gelden;
+// daarmee zet je hem voor iedereen tegelijk uit. Het akkoord op een selectie
+// is een ander recht en blijft aan Projecten hangen (rldvMagChecken).
+const ONDERDELEN_OPEN = ['rldvtool'];
 
 let ONDERDELEN_UIT = new Set();   // uitsluitend wat uitdrukkelijk uit staat
 let ONDERDELEN_RIJEN = [];        // de rijen zelf, voor de reden in het scherm
@@ -7851,6 +7862,11 @@ function renderBeheerRechten() {
     // genegeerd worden — en de indruk wekken dat je het kunt afnemen.
     if (c.gebruiker.naam === BEHEERDER_NAAM) {
       return `<td class="cel vast" title="${escHtml(c.naam)} houdt altijd alles; dat is niet af te vinken."><span class="ja">✓</span></td>`;
+    }
+    // Een onderdeel dat voor iedereen openstaat, is hier niet af te vinken —
+    // anders wekt de matrix de indruk dat het wél kan (09-09).
+    if (ONDERDELEN_OPEN.includes(r.sleutel)) {
+      return `<td class="cel vast" title="${escHtml(r.label)} staat voor iedereen open; gebruik Onderdelen om hem voor het hele team uit te zetten."><span class="ja">✓</span></td>`;
     }
     return `<td class="cel klik" title="${escHtml(c.naam)} · ${escHtml(r.label)}: ${_RR_WOORD[stand]}${eigen ? '' : ' (uit de rol)'}"
       onclick="zetRecht('${escApos(c.gebruiker.naam)}','${r.sleutel}','${volgende}')"
