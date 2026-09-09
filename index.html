@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1201 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1207 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -668,6 +668,34 @@
   .proj-venster .rij { display:grid; grid-template-columns:120px 1fr; gap:6px 10px; align-items:center; margin-bottom:5px; }
   .proj-venster .lab { color:rgba(255,255,255,.55); font-size:.74rem; }
   .proj-venster .wrd-tekst { color:#fff; font-size:.8rem; }
+  /* Keuze H2 (09-09): alles als regels — label links, waarde rechts, dun
+     lijntje. Groter dan het contractblok van vroeger, dat op 72% stond. */
+  .proj-venster .rij { display:flex; justify-content:space-between; align-items:center; gap:10px;
+                       grid-template-columns:none; padding:7px 0; margin:0;
+                       border-bottom:1px solid rgba(255,255,255,.08); }
+  .proj-venster .rij .wrd { flex:0 0 55%; text-align:right; }
+  .proj-venster .rij .wrd input, .proj-venster .rij .wrd select { width:100%; box-sizing:border-box; }
+  .proj-venster .lab, .proj-venster .proj-raster .lab { font-size:13px; color:rgba(255,255,255,.65); margin:0; }
+  .proj-venster .wrd-tekst, .proj-venster .proj-raster .wrd { font-size:14px; color:#fff; }
+  .proj-venster .proj-raster .wrd > span { font-size:14px !important; padding:0 !important; }
+  .proj-venster .proj-blokkop { font-size:.8rem; letter-spacing:.06em; margin-bottom:4px; }
+  .proj-venster .proj-raster { grid-template-columns:1fr 1fr; gap:0 24px; }
+  .proj-venster .proj-raster > div { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.08); }
+  .proj-venster .proj-raster .wrd { flex:0 0 55%; text-align:right; }
+  .proj-venster .proj-raster .wrd > input, .proj-venster .proj-raster .wrd > select { text-align:left; }
+  /* Berekend: één strook, in blauw. De algemene regel kleurt pr-calc-spans
+     donkergrijs (voor het lichte blok van vroeger); hier is dat donker op
+     donker en dus onzichtbaar (melding 09-09). */
+  .proj-venster .proj-raster-berekend { display:flex; flex-wrap:wrap; gap:6px 22px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.12); }
+  .proj-venster .proj-raster-berekend > div { border:none; padding:0; gap:6px; }
+  .proj-venster .proj-raster-berekend .wrd { flex:none; text-align:left; }
+  .proj-venster .proj-raster span[id^="pr-calc-"] { color:#9ec8f4 !important; -webkit-text-fill-color:#9ec8f4;
+                                                    background:transparent !important; border:none !important; width:auto !important; }
+  .eval-lijst { display:grid; grid-template-columns:1fr 1fr; gap:2px 14px; }
+  .eval-regel { font-size:13px; padding:3px 0; }
+  .eval-regel.af { color:#5fd6a8; }
+  .eval-regel.open { color:#f8d47a; }
+  .eval-regel.later { color:rgba(255,255,255,.5); }
   .proj-venster .wrd-leeg { color:rgba(255,255,255,.4); font-size:.76rem; }
   .proj-venster tr[id^="pr-contract-row-"] { display:table-row !important; background:transparent !important; }
   .proj-venster tr[id^="pr-contract-row-"] > td { padding:0 !important; }
@@ -6527,7 +6555,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1201';
+const APP_VERSIE = '20260909-1207';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16504,7 +16532,7 @@ function projVensterHtml() {
     const checked = projEvalLoad(src, id);
     const ms = getEvalMilestones(new Date(startStr));
     evalBlok = `<div id="pr-eval-row-${safeId}" data-start="${startStr}">` +
-      `<span id="pr-eval-chips-${safeId}" style="display:flex;gap:4px;flex-wrap:wrap;">${_evalChips(src, id, ms, checked, safeId, true, false, true)}</span></div>` +
+      `<span id="pr-eval-chips-${safeId}">${_evalLijstHtml(ms, checked)}</span></div>` +
       '<div class="wrd-leeg" style="margin-top:8px;">Afvinken gebeurt onder HRM.</div>';
   }
 
@@ -16609,7 +16637,7 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen, zon
         display = num != null && num !== 0 ? '€ ' + num.toFixed(2) : '—';
       }
       const stComp = alleenLezen
-        ? `font-size:.78rem;line-height:1.35;padding:3px 0;color:#9ec8f4;font-`
+        ? `font-size:.78rem;line-height:1.35;padding:3px 0;color:#9ec8f4;`
         : `font-size:.6rem;padding:1px 4px;width:${f.w};box-sizing:border-box;border:1px solid #d1d5db;border-radius:3px;background:#f0f4ff;color:#374151;font-style:italic;`;
       return `<span id="pr-calc-${f.key}-${safeId}" style="${stComp}display:inline-block;">${escHtml(display)}</span>`;
     }
@@ -16692,7 +16720,7 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen, zon
       <div class="proj-blokkop">CONTRACT${frozen?' — opgeslagen':''}</div>
       <div class="proj-raster">${invulHtml}</div>
       ${rekenHtml ? `<div class="proj-blokkop">BEREKEND</div>
-      <div class="proj-raster" style="margin-bottom:${btnHtml ? '12px' : '0'};">${rekenHtml}</div>` : ''}
+      <div class="proj-raster proj-raster-berekend" style="margin-bottom:${btnHtml ? '12px' : '0'};">${rekenHtml}</div>` : ''}
       ${btnHtml}
     </td>
   </tr>`;
@@ -22059,6 +22087,22 @@ function _rldvFoutTekst(error) {
            'supabase/rldv_rechten.sql te draaien.';
   }
   return 'Opslaan mislukt: ' + m;
+}
+
+// Evaluatiemomenten als lijst in het projectvenster (keuze H2, 09-09):
+// ✓ af, ⚡ verstreken en nog open, ○ nog niet aan de beurt. Groter en met
+// kleur, want de chips waren grijs op grijs.
+function _evalLijstHtml(milestones, checked) {
+  const vandaag = new Date(); vandaag.setHours(0, 0, 0, 0);
+  return '<div class="eval-lijst">' + milestones.map(m => {
+    const idx = m.idx ?? 0;
+    const af = checked.includes(idx);
+    const open = !af && m.date <= vandaag;
+    const titel = ' title="' + toISODate(m.date) + '"';
+    if (af)   return '<div class="eval-regel af">✓ ' + m.label + '</div>'.replace('">', '"' + titel + '>');
+    if (open) return '<div class="eval-regel open">⚡ ' + m.label + '</div>'.replace('">', '"' + titel + '>');
+    return '<div class="eval-regel later">○ ' + m.label + '</div>'.replace('">', '"' + titel + '>');
+  }).join('') + '</div>';
 }
 
 // De knop op de kaart. Eerst naar het scherm, dan het venster: het venster
