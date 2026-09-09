@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1216 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1329 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6583,7 +6583,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1216';
+const APP_VERSIE = '20260909-1329';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14438,7 +14438,18 @@ function toonTagMelding(p) {
 // de database. Kaarten tonen wat er is en verwijzen door.
 // ════════════════════════════════════════════════════════════════════════════
 
-function crmKaartToon(html, klasse) {
+// Wat er moet gebeuren zodra het venster sluit — hoe je ook sluit. Zonder
+// dit bleef bij het klikken naast het venster (of Escape) in het geheugen
+// staan dát er een check openstond, terwijl hij van het scherm verdween. En
+// omdat _rldvVensterBijwerken het venster bij elke tekening opnieuw opbouwt
+// zolang RLDV_CHECK gevuld is, kwam het venster vanzelf terug zodra je later
+// weer naar RLDV-Check ging (melding 09-09).
+let _CRM_BIJ_SLUITEN = null;
+
+function crmKaartToon(html, klasse, bijSluiten) {
+  // Een kaart vervangen is geen sluiten: de opruimtaak hoort dan niet af te
+  // gaan, anders wist het bijwerken van het venster de check die je bekijkt.
+  _CRM_BIJ_SLUITEN = null;
   crmKaartSluit();
   const laag = document.createElement('div');
   laag.className = 'crm-laag';
@@ -14449,11 +14460,15 @@ function crmKaartToon(html, klasse) {
   laag.addEventListener('click', (e) => { if (e.target === laag) crmKaartSluit(); });
   document.body.appendChild(laag);
   document.addEventListener('keydown', _crmEsc);
+  _CRM_BIJ_SLUITEN = bijSluiten || null;
 }
 function _crmEsc(e) { if (e.key === 'Escape') crmKaartSluit(); }
 function crmKaartSluit() {
   document.getElementById('crm-laag')?.remove();
   document.removeEventListener('keydown', _crmEsc);
+  const opruimen = _CRM_BIJ_SLUITEN;
+  _CRM_BIJ_SLUITEN = null;
+  if (opruimen) { try { opruimen(); } catch (_) {} }
 }
 
 // Zweefkaartje: één element dat meebeweegt; inhoud komt per aanroep.
@@ -16466,7 +16481,7 @@ function projVensterOpen(src, id) {
 function projVensterSluit() { PROJ_VENSTER = null; crmKaartSluit(); }
 function projVensterTeken() {
   if (!PROJ_VENSTER) return;
-  crmKaartToon(projVensterHtml(), 'crm-kaart-breed');
+  crmKaartToon(projVensterHtml(), 'crm-kaart-breed', () => { PROJ_VENSTER = null; });
 }
 
 function projVensterWijzig() {
@@ -22600,7 +22615,7 @@ function _rldvVensterBijwerken() {
   const actief = document.activeElement;
   const id  = actief && actief.id;
   const pos = actief && typeof actief.selectionStart === 'number' ? actief.selectionStart : null;
-  crmKaartToon(rldvCheckHtml(), 'crm-kaart-breed');
+  crmKaartToon(rldvCheckHtml(), 'crm-kaart-breed', () => { RLDV_CHECK = null; });
   if (id) {
     const el = document.getElementById(id);
     if (el) {
