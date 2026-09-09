@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1132 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1201 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1366,6 +1366,12 @@
   .rldv-kandopt.aan { background:rgba(232,116,0,.22); }
   .rldv-kandopt:hover { background:rgba(255,255,255,.08); }
   .rldv-tref { color:#F4CB3C; }
+  /* Eerdere selecties (keuze F1, 09-09) */
+  .rldv-histpil { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .rldv-histlink { background:none; border:none; padding:0; font-family:inherit;
+                   color:#9ec8f4; font-size:.76rem; cursor:pointer; }
+  .rldv-histlink:hover { text-decoration:underline; }
+  .rldv-histpunt { color:rgba(255,255,255,.25); margin:0 6px; }
   /* Tabblad Check (voorstel C) */
   .rldv-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .rldv-chip { background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff;
@@ -1400,9 +1406,14 @@
      wit op wit. Hier expliciet doorzichtig met lichte tekst. */
   .rldv-check thead th { background:transparent; color:rgba(255,255,255,.5); }
   .rldv-check-lijst { max-height:46vh; overflow:auto; margin-top:8px; }
-  .rldv-check-voetrij { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
-  .rldv-check-voetrij .rldv-opmerkingvak { flex:1; min-width:220px; }
-  .rldv-check-voetrij .rldv-knoppen { margin-top:0; }
+  .rldv-check-voetrij { display:grid; grid-template-columns:1fr 220px; gap:16px; align-items:start; }
+  @media (max-width:760px) { .rldv-check-voetrij { grid-template-columns:1fr; } }
+  .rldv-veld-donker { background:#2b3653; border:1px solid rgba(255,255,255,.18); color:#fff; }
+  .rldv-beslis .rldv-telling { color:rgba(255,255,255,.6); font-size:.74rem; margin-bottom:7px; display:block; }
+  .rldv-beslis .rldv-telling b { color:#fff; font-weight:var(--w-normaal); }
+  .rldv-beslis button { width:100%; display:block; margin-bottom:6px; }
+  .rldv-sluitrij { text-align:center; margin-top:2px; }
+  .rldv-sluitlink { width:auto !important; display:inline !important; margin:0 !important; }
   .rldv-check-lijst table, .rldv-check-filters table { width:100%; border-collapse:collapse; }
   .rldv-check th, .rldv-check td { text-align:left; padding:4px 6px 4px 0; font-size:.74rem; }
   .rldv-check th { color:rgba(255,255,255,.42); font-weight:var(--w-normaal); }
@@ -6516,7 +6527,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1132';
+const APP_VERSIE = '20260909-1201';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21974,18 +21985,26 @@ function rldvCheckHtml() {
             '" class="rldv-sub" style="padding:10px;">Geen bedrijven gevonden met deze filters.</td></tr>') + '</tbody></table></div>'
         : '') +
       '</div>' : '') +
+    // De voet in twee kolommen (keuze G2, 09-09): links de opmerking, rechts
+    // de beslissing als één blok. Het veld was een witte bak in een donker
+    // venster; nu donker met een lichte rand. Sluiten is een tekstlink — dat
+    // gooit niets weg en hoort niet even zwaar te wegen als Akkoord geven.
     '<div class="rldv-check-voet"><div class="rldv-check-voetrij">' +
       '<div class="rldv-opmerkingvak">' +
       '<label class="rldv-label" for="rldv-check-opmerking">Opmerking (optioneel)</label>' +
-      '<textarea id="rldv-check-opmerking" class="veld-licht rldv-opmerking" rows="2"' +
+      '<textarea id="rldv-check-opmerking" class="rldv-opmerking rldv-veld-donker" rows="3"' +
+        ' placeholder="Bijvoorbeeld: waarom deze selectie"' +
         (mag ? '' : ' disabled') + '>' + escHtml(sel.opmerking || '') + '</textarea></div>' +
-      '<div class="rldv-knoppen">' +
+      '<div class="rldv-beslis">' +
+        '<div class="rldv-telling"><b>' + RLDV_CHECK.gekozen.size + '</b>' +
+          (RLDV_CHECK.gekozen.size === 1 ? ' bedrijf' : ' bedrijven') + ' geselecteerd</div>' +
         (mag ? '<button class="proj-save-btn" style="background:#0e9f6e;border-color:#0e9f6e;" ' +
                'onclick="rldvCheckOpslaan(true)"' + (RLDV_CHECK.bezig ? ' disabled' : '') + '>Akkoord geven</button>' +
                '<button class="bt-actieknop" onclick="rldvCheckOpslaan(false)"' + (RLDV_CHECK.bezig ? ' disabled' : '') + '>Alleen opslaan</button>'
-             : '<span class="rldv-sub">Alleen Toussaint en Yoël kunnen de check afronden.</span>') +
-        '<button class="bt-actieknop" onclick="rldvCheckSluit()">Sluiten</button>' +
-        '<span class="rldv-telling">' + RLDV_CHECK.gekozen.size + ' geselecteerd</span>' +
+             : '<div class="rldv-sub" style="margin-bottom:8px;">Alleen Toussaint en Yoël kunnen de check afronden.</div>') +
+        '<div class="rldv-sluitrij">' +
+          '<button type="button" class="rldv-histlink rldv-sluitlink" onclick="rldvCheckSluit()">Sluiten</button>' +
+        '</div>' +
       '</div>' +
     '</div></div></div>';
 }
@@ -22272,7 +22291,7 @@ function rldvKandTyp(waarde) {
   RLDV_TOOL.zoek = waarde;
   RLDV_TOOL.kandOpen = true;
   RLDV_TOOL.kandActief = 0;
-  render();
+  _rldvTekenStil();
 }
 // Het scherm wordt bij het openen en sluiten opnieuw getekend, en daarna zet
 // _rldvZoekTerug de cursor terug in het zoekveld. Dat veld is dan een nieuw
@@ -22281,6 +22300,21 @@ function rldvKandTyp(waarde) {
 // melding rldvKandOpen weer aan, en tekende het scherm zichzelf eindeloos
 // opnieuw: de lijst kwam nooit in beeld (melding 09-09).
 let _RLDV_ZOEK_HERSTEL = false;
+
+// Het scherm opnieuw tekenen zonder dat de kiezer zichzelf sluit (herstel
+// 09-09). Bij het tekenen wordt het zoekveld — dat de focus heeft — uit de
+// pagina gehaald en vervangen. Chrome vuurt dan een blur af op het
+// verwijderde veld; Safari doet dat niet. Die blur kwam bij rldvKandBlur
+// terecht en sloot de lijst 150 ms later: even zichtbaar, dan weg, en de
+// volgende toetsaanslag ging nergens heen. Op de Mac van Toussaint (Safari)
+// gebeurde dat nooit; bij collega's op Chrome elke keer. Daarom staat de
+// herstelvlag nu aan tijdens het HELE tekenen, niet alleen bij de cursor.
+function _rldvTekenStil() {
+  _RLDV_ZOEK_HERSTEL = true;
+  try { render(); }
+  finally { _RLDV_ZOEK_HERSTEL = false; }
+}
+
 // Sluiten na blur, met een korte vertraging: een keuze die onderweg is
 // (pointerdown op een naam) komt dan eerst aan. Is er gekozen, dan staat de
 // lijst al dicht en doet dit niets meer.
@@ -22294,25 +22328,25 @@ function rldvKandOpen(aan) {
   if (RLDV_TOOL.kandOpen === !!aan) return;
   RLDV_TOOL.kandOpen = !!aan;
   if (!aan) RLDV_TOOL.kandActief = 0;
-  render();
+  _rldvTekenStil();
 }
 function rldvKandToets(e) {
   const lijst = rldvKandLijst();
   if (e.key === 'ArrowDown') {
     e.preventDefault(); RLDV_TOOL.kandOpen = true;
     RLDV_TOOL.kandActief = Math.min(RLDV_TOOL.kandActief + 1, Math.max(lijst.length - 1, 0));
-    render(); return;
+    _rldvTekenStil(); return;
   }
   if (e.key === 'ArrowUp') {
     e.preventDefault(); RLDV_TOOL.kandActief = Math.max(RLDV_TOOL.kandActief - 1, 0);
-    render(); return;
+    _rldvTekenStil(); return;
   }
   if (e.key === 'Enter') {
     e.preventDefault(); const k = lijst[RLDV_TOOL.kandActief];
     if (k) rldvKiesKandidaat(k.id);
     return;
   }
-  if (e.key === 'Escape') { RLDV_TOOL.kandOpen = false; render(); }
+  if (e.key === 'Escape') { RLDV_TOOL.kandOpen = false; _rldvTekenStil(); }
 }
 
 // Waarom kun je hier geen kandidaat kiezen? Twee heel verschillende oorzaken
@@ -22380,12 +22414,15 @@ function _rldvZoekTerug() {
   if (!RLDV_TOOL.kandOpen) return;
   const el = document.getElementById('rldv-kandzoek');
   if (!el) return;
+  // Draait dit binnen _rldvTekenStil, dan staat de vlag al aan en moet hij
+  // daarna aan blijven — dus de oude stand bewaren, niet blind uitzetten.
+  const eerder = _RLDV_ZOEK_HERSTEL;
   _RLDV_ZOEK_HERSTEL = true;
   try {
     el.focus();
     const n = el.value.length;
     try { el.setSelectionRange(n, n); } catch (_) {}
-  } finally { _RLDV_ZOEK_HERSTEL = false; }
+  } finally { _RLDV_ZOEK_HERSTEL = eerder; }
 }
 
 // De RLDV-Check als eigen pagina onder Management (verzoek 09-09). Dit is
@@ -22507,22 +22544,33 @@ function rldvHistorieHtml() {
     // Eén plek die bepaalt hoe een stand heet (rldvCheckStand), zodat de
     // historie en het tabblad Check nooit iets anders kunnen zeggen.
     const st = rldvCheckStand(r);
-    const stand = '<span class="rldv-pil ' + st.klasse + '">' + escHtml(st.tekst) + '</span>';
+    const stand = '<span class="rldv-pil rldv-histpil ' + st.klasse + '">' + escHtml(st.tekst) + '</span>';
+    const id = escApos(String(r.id));
     return '<tr>' +
-      '<td>' + escHtml(r.kandidaat_naam || '') + '</td>' +
-      '<td>' + escHtml(new Date(r.aangemaakt_op).toLocaleString('nl-NL',
+      '<td class="acc-td-left">' + escHtml(r.kandidaat_naam || '') + '</td>' +
+      '<td class="acc-td-left">' + escHtml(new Date(r.aangemaakt_op).toLocaleString('nl-NL',
         { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</td>' +
-      '<td>' + escHtml(r.aangemaakt_door || r.bm_naam || '') + '</td>' +
-      '<td>' + aantal + ' bedrijven</td>' +
-      '<td>' + stand + '</td>' +
-      '<td><button class="bt-actieknop" onclick="rldvExportCsv(\'' + escApos(String(r.id)) + '\')">CSV</button>' +
-          '<button class="bt-actieknop" onclick="rldvPrint(\'' + escApos(String(r.id)) + '\')">Afdrukken</button></td>' +
-      '</tr>';
+      '<td class="acc-td-left">' + escHtml(r.aangemaakt_door || r.bm_naam || '') + '</td>' +
+      '<td class="acc-td-left">' + aantal + ' bedrijven</td>' +
+      '<td class="acc-td-left">' + stand + '</td>' +
+      // Tekstlinks in plaats van twee knopdoosjes die aan elkaar plakken;
+      // het blijven knoppen, zodat een schermlezer ze ook als knop leest.
+      '<td class="acc-td-left">' +
+        '<button type="button" class="rldv-histlink" onclick="rldvExportCsv(\'' + id + '\')">CSV</button>' +
+        '<span class="rldv-histpunt">·</span>' +
+        '<button type="button" class="rldv-histlink" onclick="rldvPrint(\'' + id + '\')">Afdrukken</button>' +
+      '</td></tr>';
   }).join('');
   return '<div class="section-title" style="margin-top:20px;text-align:left;">Eerdere selecties (' + RLDV_SELECTIES.length + ')</div>' +
+    // Vaste percentages (keuze F1, 09-09). De naamkolom had geen breedte en
+    // slokte alle overgebleven ruimte op, waardoor de rest naar rechts schoof
+    // en de standpil werd afgeknipt.
     '<div class="bt-venster"><table class="acc-table bt-lijst rldv-tab">' +
-    '<colgroup><col><col style="width:130px;"><col style="width:130px;"><col style="width:104px;"><col style="width:170px;"><col style="width:150px;"></colgroup>' +
-    '<thead><tr><th>Kandidaat</th><th>Gemaakt op</th><th>Door</th><th>Aantal</th><th>Check</th><th></th></tr></thead>' +
+    '<colgroup><col style="width:22%;"><col style="width:14%;"><col style="width:16%;">' +
+    '<col style="width:11%;"><col style="width:22%;"><col style="width:15%;"></colgroup>' +
+    '<thead><tr><th class="acc-th-left">Kandidaat</th><th class="acc-th-left">Gemaakt op</th>' +
+    '<th class="acc-th-left">Door</th><th class="acc-th-left">Aantal</th>' +
+    '<th class="acc-th-left">Check</th><th class="acc-th-left"></th></tr></thead>' +
     '<tbody>' + rijen + '</tbody></table></div>';
 }
 
