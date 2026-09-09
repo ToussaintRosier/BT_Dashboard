@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1052 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1102 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1387,6 +1387,8 @@
   .rldv-kaart-knop.hoofd { background:#E87400; border-color:#E87400; }
   .rldv-kandleeg { color:rgba(255,255,255,.55); font-size:.78rem; padding:8px 10px; }
   .rldv-kandreden { color:#f8d47a; font-size:.74rem; margin-top:5px; max-width:520px; line-height:1.45; }
+  .rldv-kandwaarsch { color:#f8d47a; font-size:.72rem; margin-top:5px; max-width:520px; line-height:1.45; }
+  .rldv-kandvrij { border-top:1px solid rgba(255,255,255,.14); color:#F4CB3C; }
   /* Het checkvenster: alles links, in vaste kolommen. */
   .rldv-badge { display:inline-block; background:rgba(244,203,60,.25); color:#f6e2a3;
                 border-radius:9px; padding:0 6px; font-size:.68rem; margin-left:4px; }
@@ -3404,7 +3406,7 @@ let SALES_LEADS_CACHE = []; // Sales Leads: prospectlijst (RLDV), gedeeld door i
 // supabase/rldv_selecties.sql voor waarom de koppeling op kaart-id gaat.
 let RLDV_SELECTIES = [];
 let RLDV_TOOL = { kaartId: '', gekozen: new Set(), opmerking: '', bezig: false,
-                  zoek: '', kandOpen: false, kandActief: 0 };
+                  zoek: '', kandOpen: false, kandActief: 0, vrijeNaam: '' };
 // Welk tabblad in de tool, en welke selectie er in het checkvenster openstaat.
 let RLDV_SUBTAB = 'selectie';
 let RLDV_CHECK_FILTER = 'alle';   // tabblad Check: alle | open | gewijzigd | akkoord
@@ -6514,7 +6516,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1052';
+const APP_VERSIE = '20260909-1102';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21610,7 +21612,31 @@ function rldvKandidaten() {
 }
 
 function rldvKandidaatVan(kaartId) {
-  return rldvKandidaten().find(k => String(k.id) === String(kaartId)) || null;
+  const uitLijst = rldvKandidaten().find(k => String(k.id) === String(kaartId));
+  if (uitLijst) return uitLijst;
+  // Zelf ingetypt (09-09). De database laat een collega alleen zijn eigen
+  // kaarten zien, dus staat de kandidaat van een ander niet in de lijst — en
+  // wie zelf geen kaarten heeft, ziet niets. Dan moet je hem kunnen typen.
+  const vrij = String(RLDV_TOOL.vrijeNaam || '').trim();
+  if (!vrij) return null;
+  const nu = isoWeek(TODAY);
+  return { id: null, naam: vrij, functie: '',
+           bmNaam: (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || '',
+           week: nu.week, jaar: nu.year, stage: '' };
+}
+
+// Wat je typte gebruiken als naam. Twee letters is de ondergrens: één letter
+// is bijna altijd een typefout onderweg.
+function rldvKiesVrijeNaam() {
+  const naam = String(RLDV_TOOL.zoek || '').trim();
+  if (naam.length < 2) return;
+  RLDV_TOOL.vrijeNaam = naam;
+  RLDV_TOOL.kaartId = '';
+  RLDV_TOOL.gekozen = new Set();
+  RLDV_TOOL.opmerking = '';
+  RLDV_TOOL.kandOpen = false;
+  RLDV_TOOL.kandActief = 0;
+  render();
 }
 
 // Hoeveel aanbiedingen staan er voor deze kandidaat? Alle Aanbieden-kaartjes
@@ -21637,6 +21663,7 @@ function rldvKiesKandidaat(kaartId) {
   // De gekozen naam komt in het zoekveld te staan en de lijst gaat dicht,
   // zodat je ziet wie er gekozen is zonder de lijst open te houden.
   const gekozenKand = rldvKandidaten().find(k => String(k.id) === String(kaartId));
+  RLDV_TOOL.vrijeNaam = '';          // een kaart uit de lijst gaat vóór (09-09)
   RLDV_TOOL.zoek = gekozenKand ? gekozenKand.naam : '';
   RLDV_TOOL.kandOpen = false;
   RLDV_TOOL.kandActief = 0;
@@ -21701,7 +21728,7 @@ async function rldvSelectieOpslaan() {
 
   RLDV_TOOL.bezig = true; render();
   const rij = {
-    kaart_id: kand.id, kandidaat_naam: kand.naam, bm_naam: kand.bmNaam,
+    kaart_id: kand.id || null, kandidaat_naam: kand.naam, bm_naam: kand.bmNaam,
     bedrijven, filters: _rldvHuidigeFilters(),
     opmerking: (document.getElementById('rldv-opmerking')?.value || '').trim() || null,
     aangemaakt_door: CURRENT_USER?.naam || CURRENT_USER?.bm_naam || '',
@@ -22295,13 +22322,26 @@ function rldvKandVakHtml(mag) {
         '<span class="bij"> — ' + escHtml((k.functie || '—') + ' · ' + (k.stage || '—') +
           ' · ' + k.bmNaam + ' · week ' + k.week) + '</span></div>').join('')
     : '<div class="rldv-kandleeg">Geen kandidaat gevonden.</div>';
+  // Staat de kandidaat niet in de lijst, dan mag je hem intypen. Zonder deze
+  // uitweg is de tool onbruikbaar voor wie zelf geen kaarten heeft (09-09).
+  const getypt = String(RLDV_TOOL.zoek || '').trim();
+  const vrijHtml = (mag && getypt.length >= 2)
+    ? '<div class="rldv-kandopt rldv-kandvrij" onmousedown="rldvKiesVrijeNaam()">' +
+      'Gebruik “' + escHtml(getypt) + '” als naam' +
+      '<span class="bij"> — staat niet op een pipelinekaart</span></div>'
+    : '';
   return '<div class="rldv-kandvak">' +
     '<input type="text" id="rldv-kandzoek" class="acc-text-input veld-licht rldv-kandzoek" ' +
       'placeholder="Zoek een kandidaat…" value="' + escHtml(RLDV_TOOL.zoek || '') + '"' +
       (mag ? '' : ' disabled') +
       ' oninput="rldvKandTyp(this.value)" onkeydown="rldvKandToets(event)" ' +
       'onfocus="rldvKandOpen(true)" onblur="rldvKandOpen(false)" autocomplete="off">' +
-    (RLDV_TOOL.kandOpen ? '<div class="rldv-kandlijst">' + opties + '</div>' : '') +
+    (RLDV_TOOL.kandOpen ? '<div class="rldv-kandlijst">' + opties + vrijHtml + '</div>' : '') +
+    (RLDV_TOOL.vrijeNaam
+      ? '<div class="rldv-kandwaarsch">Deze selectie hangt niet aan een pipelinekaart. ' +
+        'Het vinkje Check RLDV op de kandidaatkaart blijft daardoor leeg; kies waar het kan ' +
+        'een naam uit de lijst.</div>'
+      : '') +
     (uitleg ? '<div class="rldv-kandreden">' + uitleg + '</div>' : '') +
     '</div>';
 }
