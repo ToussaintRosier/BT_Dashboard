@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1125 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1129 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6516,7 +6516,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1125';
+const APP_VERSIE = '20260909-1129';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21620,7 +21620,12 @@ function rldvKandidaten() {
       if (beter) perNaam.set(sleutel, kaart);
     }
   }
+  // Nieuwste bovenaan (verzoek 09-09): de tool wordt vlak na een intake
+  // gebruikt, dus de kandidaat van deze week hoort niet onder de A te staan.
+  // Binnen dezelfde week eerst Intake, dan op naam.
   return [...perNaam.values()].sort((a, b) => {
+    const wa = _rldvWeekWaarde(a.jaar, a.week), wb = _rldvWeekWaarde(b.jaar, b.week);
+    if (wa !== wb) return wb - wa;
     const ai = a.stage === 'Intake' ? 0 : 1, bi = b.stage === 'Intake' ? 0 : 1;
     if (ai !== bi) return ai - bi;
     return String(a.naam).localeCompare(String(b.naam), 'nl');
