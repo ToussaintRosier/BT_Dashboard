@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1329 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1420 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -736,17 +736,31 @@
   .proj-del-btn { background:#fff; color:#e02424; border:1px solid #e02424; border-radius:6px; padding:5px 12px; font-size:.78rem; font-weight:700; cursor:pointer; }
   .proj-del-btn:hover { background:#e02424; color:#fff; }
   .acc-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
-  /* ── Witte invoervelden op een donker paneel (herstel 28-08) ────────────
-     Staat een Mac in donkere modus, dan kleurt Safari invoervelden zélf donker
-     in — ook als wij het veld wit maken. De getypte tekst werd daardoor wit op
-     wit. `color-scheme:light` vertelt de browser dat dit lichte velden zijn;
-     -webkit-text-fill-color zet de tekstkleur vast waar `color` niet volstaat.
-     Dit is de vijfde keer dat onzichtbare tekst is gemeld — vandaar één regel
-     voor alles wat een witte achtergrond heeft, in plaats van per veld. */
+  /* ── Witte invoervelden op een donker paneel ───────────────────────────
+     Staat een Mac in donkere modus, dan kleurt de browser invoervelden zélf
+     in en zet de tekstkleur op wit — ook als wij het veld wit maken. De
+     `color` in de stijl van het veld helpt daar niet tegen: de browser
+     gebruikt -webkit-text-fill-color, en die wint. Het veld is dan wit met
+     witte letters, en ook de grijze hulptekst verdwijnt, want die kleur leidt
+     de browser van dezelfde waarde af.
+
+     Dit is de zevende melding hierover (09-09: Nieuw gespreksverslag onder
+     Accountmanagement). De zes ervoor zijn steeds beantwoord met nóg een
+     klasse aan het lijstje hieronder — en bij het volgende nieuwe scherm was
+     het weer raak. Daarom herkent de regel het veld nu aan zijn eigen stijl:
+     staat er een witte achtergrond in het style-attribuut, dan geldt hij, ook
+     als niemand eraan gedacht heeft. Het lijstje met klassen blijft ernaast
+     staan voor de velden die hun witte achtergrond uit een klasse halen. */
+  input[style*="background:#fff"], select[style*="background:#fff"], textarea[style*="background:#fff"],
+  input[style*="background: #fff"], select[style*="background: #fff"], textarea[style*="background: #fff"],
   .veld-licht, .acc-text-input, .acc-score-input, .acc-select,
   .proj-raster input, .proj-raster select, .proj-raster textarea,
   .pipe-modal input, .pipe-modal select, .pipe-modal textarea {
     color-scheme:light; color:#16142e; -webkit-text-fill-color:#16142e; }
+  input[style*="background:#fff"]::placeholder,
+  textarea[style*="background:#fff"]::placeholder,
+  input[style*="background: #fff"]::placeholder,
+  textarea[style*="background: #fff"]::placeholder,
   .veld-licht::placeholder, .acc-text-input::placeholder,
   .proj-raster input::placeholder, .pipe-modal input::placeholder,
   .pipe-modal textarea::placeholder {
@@ -754,7 +768,7 @@
   /* Ook de opties in een keuzelijst: die tekent het besturingssysteem los van
      het vak eromheen, dus zonder deze regel bleven Regio en Reisbereidheid
      wit-op-wit (melding 08-09 — de zesde over onzichtbare tekst). */
-  .pipe-modal select option { color:#16142e; background:#fff; }
+  select[style*="background:#fff"] option, .veld-licht option, .pipe-modal select option { color:#16142e; background:#fff; }
   .acc-text-input { width:100%; border:1px solid var(--border); border-radius:6px; padding:4px 5px; font-size:.76rem; color:var(--text); background:#fff; box-sizing:border-box; }
   .acc-select { border:1px solid var(--border); border-radius:6px; padding:6px 9px; font-size:.82rem; background:#fff; color:var(--text); cursor:pointer; width:130px; box-sizing:border-box; }
   .acc-select-pill { height:26px; border:1.5px solid var(--border); border-radius:13px; padding:0 26px 0 12px; font-size:.76rem; background:var(--card); color:var(--text); cursor:pointer; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; outline:none; }
@@ -1449,6 +1463,19 @@
      wit op wit. Hier expliciet doorzichtig met lichte tekst. */
   .rldv-check thead th { background:transparent; color:rgba(255,255,255,.5); }
   .rldv-check-lijst { max-height:46vh; overflow:auto; margin-top:8px; }
+  /* Keuze optie 2 (09-09): de uitgangspunten van de kandidaat als vaste kolom
+     naast de bedrijvenlijst. Je beoordeelt anders een rij namen zonder
+     maatstaf, en hij blijft staan terwijl je door de lijst scrolt. */
+  .rldv-check-kolommen { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:14px; align-items:start; }
+  @media (max-width:860px) { .rldv-check-kolommen { grid-template-columns:1fr; } }
+  .rldv-uitg { border-left:1px solid rgba(255,255,255,.14); padding-left:12px; margin-top:10px; }
+  .rldv-uitg-kop { color:rgba(255,255,255,.5); font-size:.72rem; margin-bottom:7px; }
+  .rldv-uitg-bron { display:block; color:rgba(255,255,255,.35); font-size:.68rem; margin-top:2px; }
+  .rldv-uitg-lijst { max-height:46vh; overflow:auto; }
+  .rldv-uitg-lab { color:rgba(255,255,255,.45); font-size:.68rem; }
+  .rldv-uitg-wrd { color:#fff; font-size:.76rem; line-height:1.45; margin-bottom:8px; white-space:pre-wrap; }
+  .rldv-uitg-wrd.niet { color:#ffb3b3; }
+  .rldv-uitg-leeg { color:rgba(255,255,255,.5); font-size:.72rem; line-height:1.5; }
   .rldv-check-voetrij { display:grid; grid-template-columns:1fr 220px; gap:16px; align-items:start; }
   @media (max-width:760px) { .rldv-check-voetrij { grid-template-columns:1fr; } }
   .rldv-veld-donker { background:#2b3653; border:1px solid rgba(255,255,255,.18); color:#fff; }
@@ -6583,7 +6610,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1329';
+const APP_VERSIE = '20260909-1420';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12925,6 +12952,10 @@ function _startOpnamesPreload() {
 // Ververst alleen het deel van het scherm dat opnames toont
 function _hertekenNaOpnames() {
   try {
+    // Het checkvenster toont de uitgangspunten uit de gespreksverslagen. Die
+    // komen na het inloggen binnen; stond het venster toen al open, dan bleef
+    // die kolom anders leeg (09-09).
+    _rldvVensterBijwerken();
     if (currentTab === 'gesprek')      { renderGesprek(); return; }
     if (currentTab === 'bezoek')       { renderBezoekRecorder(); return; }
     if (currentTab === 'records')      { renderRecords(); return; }
@@ -21997,6 +22028,100 @@ async function rldvCheckOpslaan(metAkkoord) {
 
 // Het venster. Alles links uitgelijnd in vaste kolommen; toevoegen gaat met
 // dezelfde filterbalk als in de tool, zodat er één manier van kiezen is.
+// ═══════════════════════════════════════════════════════════════════════════
+// DE UITGANGSPUNTEN VAN DE KANDIDAAT IN HET CHECKVENSTER (keuze optie 2, 09-09)
+//
+// Ze staan al ergens: in het blok UITGANGSPUNTEN dat "Afspraken delen" uit de
+// ITK-analyse opbouwt. Twee bronnen, in deze volgorde:
+//   1 · de tekst die de collega werkelijk met de kandidaat deelde — die kan
+//       hij bewerkt hebben, en dán is dát de afspraak;
+//   2 · anders rechtstreeks de analyse.
+// Het venster zegt erbij welke van de twee je ziet, en zegt het ook als er
+// niets is: een lege plek laat je raden of er niets is of dat er iets misging.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Haalt het blok UITGANGSPUNTEN uit een gedeelde afsprakentekst. De koppen zijn
+// hele regels in hoofdletters; de eerstvolgende sluit het blok af.
+function _rldvUitgUitTekst(tekst) {
+  const regels = String(tekst == null ? '' : tekst).split('\n');
+  const start = regels.findIndex(r => r.trim().toUpperCase() === 'UITGANGSPUNTEN');
+  if (start < 0) return [];
+  const uit = [];
+  for (let i = start + 1; i < regels.length; i++) {
+    const r = regels[i].trim();
+    if (!r) continue;
+    if (r.indexOf(':') < 0 && r.length > 3 && r === r.toUpperCase()
+        && /^[A-Z0-9 ()/\u00c0-\u00dd-]+$/.test(r)) break;
+    const dp = r.indexOf(':');
+    uit.push(dp > 0 ? [r.slice(0, dp).trim(), r.slice(dp + 1).trim()] : ['', r]);
+  }
+  return uit;
+}
+
+// Dezelfde zes velden en dezelfde terugvallen als _afsprakenUitAnalyse; lege
+// velden laat hij weg.
+function _rldvUitgUitAnalyse(rec) {
+  const hw = (rec && rec.result && rec.result.hardeWensen) || {};
+  return [
+    ['Soort functie',          hw.soortFunctie || hw.functie],
+    ['Vakgebied',              hw.vakgebied || hw.regio],
+    ['Wel belangrijk',         hw.welWensen || hw.werktijden],
+    ['Niet (uitsluitingen)',   hw.nietWensen],
+    ['Overige uitgangspunten', hw.uitgangspunten || hw.overige],
+    ['Belang van Brightech',   hw.brightechBelang],
+  ].filter(p => p[1] && String(p[1]).trim()).map(p => [p[0], String(p[1]).trim()]);
+}
+
+// Het gespreksverslag dat bij deze naam hoort. De lijst staat op nieuwste
+// eerst, dus de eerste treffer is het laatste gesprek.
+function rldvVerslagVan(naam) {
+  const zoek = String(naam == null ? '' : naam).trim().toLowerCase();
+  if (!zoek) return null;
+  const lijst = (typeof GESPREK_RECORDS !== 'undefined' && GESPREK_RECORDS) || [];
+  return lijst.find(r => String(r.naam || '').trim().toLowerCase() === zoek) || null;
+}
+
+// Vier uitkomsten: 'gedeeld', 'analyse', 'leeg' (wel een verslag, geen
+// uitgangspunten) en 'geen-verslag'.
+function rldvUitgangspunten(sel) {
+  const rec = rldvVerslagVan(sel && sel.kandidaat_naam);
+  if (!rec) return { bron: 'geen-verslag', regels: [], rec: null };
+  const bak = (typeof AFSPRAKEN_GEDEELD !== 'undefined' && AFSPRAKEN_GEDEELD) || {};
+  const gedeeld = bak[String(rec.id)];
+  if (gedeeld && gedeeld.afspraken) {
+    const regels = _rldvUitgUitTekst(gedeeld.afspraken);
+    // Haalde de collega het blok uit zijn tekst, dan is de analyse nog altijd
+    // beter dan een lege kolom.
+    if (regels.length) return { bron: 'gedeeld', regels, rec };
+  }
+  const regels = _rldvUitgUitAnalyse(rec);
+  return { bron: regels.length ? 'analyse' : 'leeg', regels, rec };
+}
+
+function rldvUitgHtml(sel) {
+  const u = rldvUitgangspunten(sel);
+  const bron = u.bron === 'gedeeld' ? 'uit Afspraken delen'
+             : u.bron === 'analyse' ? 'uit de ITK-analyse' : '';
+  let body;
+  if (u.bron === 'geen-verslag') {
+    body = '<div class="rldv-uitg-leeg">Geen ITK-verslag gevonden op deze naam. ' +
+           'Staat het gesprek onder een andere schrijfwijze, dan vindt hij het niet.</div>';
+  } else if (!u.regels.length) {
+    body = '<div class="rldv-uitg-leeg">Dit verslag bevat geen uitgangspunten.</div>';
+  } else {
+    body = '<div class="rldv-uitg-lijst">' + u.regels.map(function (p) {
+      const lab = p[0], wrd = p[1];
+      return (lab ? '<div class="rldv-uitg-lab">' + escHtml(lab) + '</div>' : '') +
+        '<div class="rldv-uitg-wrd' + (/^niet/i.test(lab) ? ' niet' : '') + '">' +
+        escHtml(wrd) + '</div>';
+    }).join('') + '</div>';
+  }
+  return '<div class="rldv-uitg">' +
+    '<div class="rldv-uitg-kop">Uitgangspunten' +
+      (bron ? '<span class="rldv-uitg-bron">' + bron + '</span>' : '') + '</div>' +
+    body + '</div>';
+}
+
 function rldvCheckHtml() {
   const sel = RLDV_SELECTIES.find(r => String(r.id) === String(RLDV_CHECK.id));
   if (!sel) return '<div class="rldv-check-kop">Deze selectie bestaat niet meer.</div>';
@@ -22040,11 +22165,13 @@ function rldvCheckHtml() {
         ' · ' + bekend.length + ' bedrijven · ' + rldvAanbiedingenVoor(sel.kandidaat_naam) + ' aanbiedingen ingevoerd' +
       '</div>' +
     '</div>' +
-    '<div class="rldv-check-sectie">In deze selectie · ' + bekend.length +
-      (bekend.length === 1 ? ' bedrijf' : ' bedrijven') + '</div>' +
-    '<div class="rldv-check-lijst"><table class="acc-table rldv-tab">' +
-      rldvKopHtml({ merkKop: true }) +
-      '<tbody>' + inLijst + extra + '</tbody></table></div>' +
+    '<div class="rldv-check-kolommen"><div>' +
+      '<div class="rldv-check-sectie">In deze selectie · ' + bekend.length +
+        (bekend.length === 1 ? ' bedrijf' : ' bedrijven') + '</div>' +
+      '<div class="rldv-check-lijst"><table class="acc-table rldv-tab">' +
+        rldvKopHtml({ merkKop: true }) +
+        '<tbody>' + inLijst + extra + '</tbody></table></div>' +
+    '</div>' + rldvUitgHtml(sel) + '</div>' +
     (mag ? '<div class="rldv-check-toevoeg">' +
       '<button type="button" class="rldv-toevoegstrook' + (RLDV_CHECK.toevoegen ? ' open' : '') + '" ' +
         'onclick="rldvCheckToevoegen()">' +
@@ -23234,7 +23361,7 @@ function renderGespreksverslagenHtml(subTabBtns) {
     // Bij bewerken uit de lijst; bij nieuw uit GV_FORM zelf, zodat de +knop
     // vanuit het bezoekenoverzicht klant en datum kan meegeven.
     const g = GV_FORM.id ? (GESPREKSVERSLAGEN_CACHE.find(x => String(x.id) === String(GV_FORM.id)) || {}) : GV_FORM;
-    const inp = 'style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:.84rem;background:#fff;color:var(--text);font-family:inherit;"';
+    const inp = 'class="veld-licht" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:.84rem;background:#fff;color:var(--text);font-family:inherit;"';
     formHtml = `<div class="bt-venster werk-blad" style="margin-bottom:14px;">
       <div class="pva-blok" style="margin-top:0;">${GV_FORM.id ? 'Verslag bewerken' : 'Nieuw gespreksverslag'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;">
