@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1109 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260909-1118 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6516,7 +6516,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1109';
+const APP_VERSIE = '20260909-1118';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22279,6 +22279,14 @@ function rldvKandTyp(waarde) {
 // melding rldvKandOpen weer aan, en tekende het scherm zichzelf eindeloos
 // opnieuw: de lijst kwam nooit in beeld (melding 09-09).
 let _RLDV_ZOEK_HERSTEL = false;
+// Sluiten na blur, met een korte vertraging: een keuze die onderweg is
+// (pointerdown op een naam) komt dan eerst aan. Is er gekozen, dan staat de
+// lijst al dicht en doet dit niets meer.
+function rldvKandBlur() {
+  if (_RLDV_ZOEK_HERSTEL) return;
+  setTimeout(() => rldvKandOpen(false), 150);
+}
+
 function rldvKandOpen(aan) {
   if (_RLDV_ZOEK_HERSTEL) return;
   if (RLDV_TOOL.kandOpen === !!aan) return;
@@ -22331,9 +22339,11 @@ function rldvKandVakHtml(mag) {
   const opties = lijst.length
     ? lijst.map((k, i) =>
         '<div class="rldv-kandopt' + (i === RLDV_TOOL.kandActief ? ' aan' : '') + '" ' +
-        // mousedown komt vóór blur: met onclick zou het zoekveld eerst
-        // vervagen, het scherm opnieuw tekenen en de klik verdwijnen.
-        'onmousedown="rldvKiesKandidaat(\'' + escApos(String(k.id)) + '\')">' +
+        // pointerdown komt op elk apparaat vóór de focuswissel. Met mousedown
+        // ging het alleen met een muis goed: bij een tik op een tablet is de
+        // volgorde anders — eerst blur, dan wordt de lijst opnieuw getekend
+        // en verdwijnt hij, en de tik landt op niets (melding 09-09).
+        'onpointerdown="rldvKiesKandidaat(\'' + escApos(String(k.id)) + '\')">' +
         rldvKandMarkeer(k.naam) +
         '<span class="bij"> — ' + escHtml((k.functie || '—') + ' · ' + (k.stage || '—') +
           ' · ' + k.bmNaam + ' · week ' + k.week) + '</span></div>').join('')
@@ -22342,7 +22352,7 @@ function rldvKandVakHtml(mag) {
   // uitweg is de tool onbruikbaar voor wie zelf geen kaarten heeft (09-09).
   const getypt = String(RLDV_TOOL.zoek || '').trim();
   const vrijHtml = (mag && getypt.length >= 2)
-    ? '<div class="rldv-kandopt rldv-kandvrij" onmousedown="rldvKiesVrijeNaam()">' +
+    ? '<div class="rldv-kandopt rldv-kandvrij" onpointerdown="rldvKiesVrijeNaam()">' +
       'Gebruik “' + escHtml(getypt) + '” als naam' +
       '<span class="bij"> — staat niet op een pipelinekaart</span></div>'
     : '';
@@ -22351,7 +22361,7 @@ function rldvKandVakHtml(mag) {
       'placeholder="Zoek een kandidaat…" value="' + escHtml(RLDV_TOOL.zoek || '') + '"' +
       (mag ? '' : ' disabled') +
       ' oninput="rldvKandTyp(this.value)" onkeydown="rldvKandToets(event)" ' +
-      'onfocus="rldvKandOpen(true)" onblur="rldvKandOpen(false)" autocomplete="off">' +
+      'onfocus="rldvKandOpen(true)" onblur="rldvKandBlur()" autocomplete="off">' +
     (RLDV_TOOL.kandOpen ? '<div class="rldv-kandlijst">' + opties + vrijHtml + '</div>' : '') +
     (RLDV_TOOL.vrijeNaam
       ? '<div class="rldv-kandwaarsch">Deze selectie hangt niet aan een pipelinekaart. ' +
