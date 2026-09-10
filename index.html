@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260910-0810 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260910-0831 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -243,7 +243,11 @@
   select { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:7px 12px; border-radius:8px; font-size:.85rem; cursor:pointer; }
   select option { color:#111; background:#fff; }
   .app-layout { display:flex; align-items:flex-start; }
-  .sidebar { width:230px; flex-shrink:0; background:#253151; border-right:1px solid rgba(255,255,255,.1); padding:10px 10px 18px; min-height:calc(100vh - 60px); position:sticky; top:60px; }
+  /* De menubalk wordt steeds langer (aanwijzing 10-09): niet hoger dan het
+     venster, en scrollen als het niet past — anders zie je op een klein
+     scherm de onderste niet. */
+  .sidebar { width:230px; flex-shrink:0; background:#253151; border-right:1px solid rgba(255,255,255,.1); padding:10px 10px 18px; min-height:calc(100vh - 60px); position:sticky; top:60px; box-sizing:border-box; max-height:calc(100vh - 60px); overflow-y:auto; }
+  .sidebar-teller { display:inline-block; background:#E87400; color:#fff; font-size:.66rem; padding:1px 7px; border-radius:10px; margin-left:6px; }
   .sidebar-cat { margin-bottom:4px; border-top:1px solid rgba(255,255,255,.08); padding-top:6px; }
   .sidebar-cat:first-child { border-top:none; padding-top:0; }
   .sidebar-cat-btn { width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; background:none; border:none; padding:10px 12px; font-weight:700; font-size:.83rem; letter-spacing:.2px; color:#fff; cursor:pointer; border-radius:8px; transition:background .15s; }
@@ -1436,6 +1440,21 @@
   .rldv-chip.aan { background:rgba(232,116,0,.3); border-color:#E87400; }
   .rldv-rond { color:#5fd6a8; }
   .rldv-kaartraster { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px; }
+  /* Keuze K2 (10-09): één regel per check. */
+  .rldv-rijen { display:flex; flex-direction:column; gap:6px; }
+  .rldv-rij { display:grid; grid-template-columns:4px 1.4fr 1.2fr 1fr 1.3fr 130px 24px; gap:12px; align-items:center;
+              background:#364160; border-radius:8px; padding:8px 10px; text-align:left; }
+  .rldv-rij-strook { width:4px; height:30px; border-radius:2px; background:rgba(255,255,255,.2); }
+  .rldv-rij.open .rldv-rij-strook { background:#f59e0b; }
+  .rldv-rij.akkoord .rldv-rij-strook { background:#0e9f6e; }
+  .rldv-rij.gewijzigd .rldv-rij-strook { background:#e05252; }
+  .rldv-rij-naam { color:#fff; font-size:.86rem; }
+  .rldv-rij-sub { color:rgba(255,255,255,.5); font-size:.72rem; }
+  .rldv-rij .rldv-kaart-knop { margin-top:0; }
+  .rldv-rij .rldv-balkje { margin-top:3px; height:3px; }
+  .rldv-rij-x { position:static; }
+  @media (max-width:900px) { .rldv-rij { grid-template-columns:4px 1fr 1fr 24px; }
+                             .rldv-rij > :nth-child(3), .rldv-rij > :nth-child(5) { display:none; } }
   .rldv-kaart { background:#364160; border-radius:10px; padding:11px 12px; text-align:left; position:relative; }
   .rldv-kaart-x { position:absolute; top:6px; right:8px; background:none; border:none; padding:2px 4px;
                   font-size:1rem; line-height:1; color:rgba(255,255,255,.45); cursor:pointer; font-family:inherit; }
@@ -2112,6 +2131,25 @@
   /* ── CRM-laag (28-08): één popup-basis voor alle infokaarten ─────────────
      Eén laag, altijd hetzelfde gedrag: klik ernaast of Esc sluit hem. De
      meldingen (z 9500) blijven erboven; de dagstart (9999) boven alles. */
+  /* Het checkmeldingsvenster (keuze M2, 10-09). Onder de CRM-laag (9400), zodat
+     het checkvenster erbovenop kan komen als je op "Check nu" klikt. */
+  .rldv-meld-laag { position:fixed; inset:0; z-index:9300; background:rgba(20,27,48,.6);
+                    display:flex; align-items:center; justify-content:center; padding:20px; }
+  .rldv-meld-venster { background:#364160; border:1px solid rgba(255,255,255,.14); border-radius:12px;
+                       padding:18px 20px; max-width:480px; width:100%; text-align:left;
+                       box-shadow:0 16px 48px rgba(0,0,0,.45); }
+  .rldv-meld-kop { display:flex; align-items:center; gap:10px; }
+  .rldv-meld-tel { color:rgba(255,255,255,.5); font-size:.74rem; }
+  .rldv-meld-titel { color:#F4CB3C; font-size:.72rem; letter-spacing:.4px; text-transform:uppercase; margin-top:12px; }
+  .rldv-meld-naam { color:#fff; font-size:1.35rem; margin-top:2px; }
+  .rldv-meld-meta { color:rgba(255,255,255,.6); font-size:.8rem; margin-top:3px; }
+  .rldv-meld-sub { color:rgba(255,255,255,.45); font-size:.74rem; margin-top:12px; }
+  .rldv-meld-lijst { color:#fff; font-size:.82rem; line-height:1.6; margin-top:3px; }
+  .rldv-meld-rest { color:rgba(255,255,255,.45); }
+  .rldv-meld-knoppen { display:flex; gap:8px; margin-top:16px; }
+  .rldv-meld-knop { flex:0 0 auto; background:transparent; color:#fff; font-family:inherit; font-size:.86rem;
+                    border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:10px 16px; cursor:pointer; }
+  .rldv-meld-knop.hoofd { flex:1; background:#E87400; border-color:#E87400; }
   .crm-laag { position:fixed; inset:0; z-index:9400; background:rgba(20,27,48,.55);
               display:flex; align-items:center; justify-content:center; padding:20px; }
   .crm-kaart { background:#253151; border:1px solid rgba(255,255,255,.14);
@@ -4382,6 +4420,7 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
 let medewerkersOpen = true;
 let managementOpen = false;
 let toolsOpen = false;
+let kandidatenOpen = false;   // keuze T2 (10-09): Kandidaten klapt uit
 let sidebarOpen = false;
 // Welk sub-tabblad ('kpis' of 'plan') op de huidige medewerkerpagina actief is.
 let bmSubTab = 'kpis';
@@ -6614,7 +6653,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260910-0810';
+const APP_VERSIE = '20260910-0831';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7242,7 +7281,7 @@ function renderTabs() {
         </div>
       </div>`)}
       <!-- Submenu's alfabetisch op naam (afspraak 19-08); hoofdthema's houden hun vaste volgorde. -->
-      ${miGroep(['projecten','financieel','comrap','records','hrm','rldvcheck'], `<div class="sidebar-cat">
+      ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
         <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
@@ -7253,7 +7292,6 @@ function renderTabs() {
           ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-Overleg</button>`) : ''}
           ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
-          ${mi('rldvcheck', `<button class="sidebar-item ${currentTab==='rldvcheck'?'active':''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-Check</button>`)}
           ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
                sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -7262,11 +7300,9 @@ function renderTabs() {
       ${mi('accounts', `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('accounts')}Accountmanagement</span></button>
       </div>`)}
-      ${mi('kandidaten', `<div class="sidebar-cat">
-        <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('kandidaten')}Kandidaten</span></button>
-      </div>`)}
-      ${miGroep(['cvgen','plaatsing','gesprek','bezoek','rldvtool'], `<div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek'||currentTab==='rldvtool')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
+      ${_sidebarKandidatenHtml()}
+      ${miGroep(['cvgen','plaatsing','gesprek','bezoek'], `<div class="sidebar-cat">
+        <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
           ${btCatLabel('tools','Tools')}
           <span class="sidebar-caret ${toolsOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
@@ -7275,7 +7311,6 @@ function renderTabs() {
           ${mi('cvgen', `<button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">${btIcon('cvgen')}CV-generator</button>`)}
           ${mi('gesprek', `<button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">${btIcon('recorder')}ITK-Recorder</button>`)}
           ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
-          ${mi('rldvtool', `<button class="sidebar-item ${currentTab==='rldvtool'?'active':''}" onclick="selectTab('rldvtool')">${btIcon('rldvtool')}RLDV-tool</button>`)}
         </div>
       </div>`)}
       ${isBeheerder() ? `<div class="sidebar-cat">
@@ -7306,7 +7341,7 @@ function renderTabs() {
         ${/* Onderaan (aanwijzing 20-08): eerst de mensen, dan de optelsom. */''}
         ${mi('team', `<button class="sidebar-item ${currentTab==='team'?'active':''}" onclick="selectTab('team')">${btIcon('team')}Team Resultaten</button>`)}</div>
     </div>`)}
-    ${miGroep(['projecten','financieel','comrap','records','hrm','rldvcheck'], `<div class="sidebar-cat">
+    ${miGroep(['projecten','financieel','comrap','records','hrm'], `<div class="sidebar-cat">
       <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='hrm'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         ${btCatLabel('management','Management')}
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
@@ -7317,7 +7352,6 @@ function renderTabs() {
         ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-Overleg</button>`) : ''}
         ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
         ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
-        ${mi('rldvcheck', `<button class="sidebar-item ${currentTab==='rldvcheck'?'active':''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-Check</button>`)}
         ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
              sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
         ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -7326,11 +7360,9 @@ function renderTabs() {
     ${mi('accounts', `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='accounts'?'active-cat':''}" onclick="selectTab('accounts')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('accounts')}Accountmanagement</span></button>
     </div>`)}
-    ${mi('kandidaten', `<div class="sidebar-cat">
-      <button class="sidebar-cat-btn ${currentTab==='kandidaten'?'active-cat':''}" onclick="selectTab('kandidaten')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('kandidaten')}Kandidaten</span></button>
-    </div>`)}
-    ${miGroep(['cvgen','plaatsing','gesprek','bezoek','rldvtool'], `<div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek'||currentTab==='rldvtool')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
+    ${_sidebarKandidatenHtml()}
+    ${miGroep(['cvgen','plaatsing','gesprek','bezoek'], `<div class="sidebar-cat">
+      <div class="sidebar-cat-btn ${(currentTab==='cvgen'||currentTab==='plaatsing'||currentTab==='gesprek'||currentTab==='bezoek')?'active-cat':''}" style="cursor:pointer;" onclick="toggleTools(event)">
         ${btCatLabel('tools','Tools')}
         <span class="sidebar-caret ${toolsOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
@@ -7339,7 +7371,6 @@ function renderTabs() {
         ${mi('cvgen', `<button class="sidebar-item ${currentTab==='cvgen'?'active':''}" onclick="selectTab('cvgen')">${btIcon('cvgen')}CV-generator</button>`)}
         ${mi('gesprek', `<button class="sidebar-item ${currentTab==='gesprek'?'active':''}" onclick="selectTab('gesprek')">${btIcon('recorder')}ITK-Recorder</button>`)}
         ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
-        ${mi('rldvtool', `<button class="sidebar-item ${currentTab==='rldvtool'?'active':''}" onclick="selectTab('rldvtool')">${btIcon('rldvtool')}RLDV-tool</button>`)}
       </div>
     </div>`)}
     ${isBeheerder() ? `<div class="sidebar-cat">
@@ -7361,6 +7392,33 @@ function toggleTools(event) {
   if (event) event.stopPropagation();
   toolsOpen = !toolsOpen;
   renderTabs();
+}
+function toggleKandidaten(event) {
+  if (event) event.stopPropagation();
+  kandidatenOpen = !kandidatenOpen;
+  renderTabs();
+}
+
+// Kandidaten als uitklapkopje (keuze T2, 10-09): Overzicht, RLDV-tool en
+// RLDV-check horen bij elkaar — de tool maakt de selectie, de check keurt
+// hem, het overzicht laat zien hoe ver de kandidaat is. Eén stuk zijbalk voor
+// beide varianten, zodat ze niet uit elkaar kunnen lopen. Het label gaat naar
+// het overzicht, het pijltje klapt alleen open en dicht (zoals Medewerkers).
+function _sidebarKandidatenHtml() {
+  const erin = currentTab === 'kandidaten' || currentTab === 'rldvtool' || currentTab === 'rldvcheck';
+  const open = magZien('rldvcheck') ? rldvCheckOpenAantal() : 0;
+  return miGroep(['kandidaten', 'rldvtool', 'rldvcheck'], `<div class="sidebar-cat">
+    <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleKandidaten(event)">
+      ${/* Staat het overzicht uit, dan klapt het label alleen open (test_onderdelen). */''}
+      <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="${magZien('kandidaten') ? "selectTab('kandidaten'); event.stopPropagation();" : "toggleKandidaten(event);"}">${btIcon('kandidaten')}Kandidaten</span>
+      <span class="sidebar-caret ${kandidatenOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
+    </div>
+    <div class="sidebar-sub" style="display:${kandidatenOpen ? 'flex' : 'none'};">
+      ${mi('kandidaten', `<button class="sidebar-item ${currentTab === 'kandidaten' ? 'active' : ''}" onclick="selectTab('kandidaten')">${btIcon('overzicht')}Overzicht</button>`)}
+      ${mi('rldvtool', `<button class="sidebar-item ${currentTab === 'rldvtool' ? 'active' : ''}" onclick="selectTab('rldvtool')">${btIcon('rldvtool')}RLDV-tool</button>`)}
+      ${mi('rldvcheck', `<button class="sidebar-item ${currentTab === 'rldvcheck' ? 'active' : ''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-check${open ? ' <span class="sidebar-teller">' + open + '</span>' : ''}</button>`)}
+    </div>
+  </div>`);
 }
 // Klikken op het label "Medewerkers" gaat altijd naar het rankingoverzicht
 // terug, ook als je al op de pagina van een individuele medewerker staat —
@@ -9149,8 +9207,9 @@ function _kiesStartTab() {
   }
   currentTab = hersteld;
   if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
-  else if (['financieel','hrm','comrap','projecten','records','mtacties','rldvcheck'].includes(hersteld)) managementOpen = true;
-  else if (['cvgen','plaatsing','gesprek','bezoek','rldvtool'].includes(hersteld)) toolsOpen = true;
+  else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
+  else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
+  else if (['kandidaten','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
 }
 
 function selectTab(i) {
@@ -9163,8 +9222,9 @@ function selectTab(i) {
   _tabOnthoud(i);
   if ((typeof i === 'number' && i < BMS.length) || i === 'team') medewerkersOpen = true;
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
-  if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek' || i === 'rldvtool') toolsOpen = true;
-  if (i === 'records' || i === 'rldvcheck') managementOpen = true;
+  if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
+  if (i === 'records') managementOpen = true;
+  if (i === 'kandidaten' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
@@ -13032,7 +13092,7 @@ async function loadProfileAndStart() {
   setTimeout(() => {
     try { weekafsluitingCheck(); } catch (_) {}
     try { _crmMeldingenCheck(); } catch (_) {}
-    try { rldvMeldingenCheck(); } catch (_) {}
+    try { rldvMeldingenCheck({ bijInloggen: true }); } catch (_) {}
   }, 1500);
   _dagstartWaakhond();
   subscribeRealtime();
@@ -13427,6 +13487,11 @@ function _dagstartWaakhond() {
 const DAGSTART_TEAMOVERZICHT = ['Toussaint Rosier', 'Yoël Bronckers', 'Charlotte Gigase'];
 const TEDOEN_REACTIE_DAGEN  = 5;    // pas nabellen als er zoveel dagen niets komt
 const TEDOEN_VERLOOP_DAGEN  = 5;    // waarschuwen als de link binnen zoveel dagen vervalt
+// Een kandidaat die drie weken na het gesprek nog geen afspraken kreeg, krijgt
+// ze ook niet meer (aanwijzing 10-09). Hem elke ochtend blijven noemen duwt de
+// verse gevallen uit het zicht. Vanaf deze grens valt hij uit de lijst; het
+// verslag zelf blijft gewoon bestaan.
+const TEDOEN_GEDEELD_MAX_DAGEN = 21;
 
 function _tedoenDagenGeleden(iso) {
   const d = new Date(iso);
@@ -13457,8 +13522,8 @@ function tedoenLijst() {
     const wie = allesZien ? (rec.recorder_naam || '') : '';
 
     if (!gedeeld || !gedeeld.gepubliceerd) {
-      // Vanaf de dag ná het gesprek, en blijven tonen tot het gedaan is.
-      if (dagen >= 1) uit.nietGedeeld.push({ rec, dagen, wie });
+      // Vanaf de dag ná het gesprek, tot de grens van drie weken.
+      if (dagen >= 1 && dagen < TEDOEN_GEDEELD_MAX_DAGEN) uit.nietGedeeld.push({ rec, dagen, wie });
       continue;
     }
     if (!gedeeld.akkoord_keuze) {
@@ -22378,20 +22443,118 @@ function rldvCheckVanuitMelding(id) {
   rldvCheckOpen(id);
 }
 
-function rldvMeldKaart(sel, code) {
+// ═══════════════════════════════════════════════════════════════════════════
+// DE CHECKMELDING ALS VENSTER (keuze M2, 10-09)
+//
+// Het kaartje rechtsonder was te makkelijk te missen. Nu een venster midden
+// in beeld, met de eerste bedrijven erbij. "Straks" legt hem tien minuten
+// weg; daarna komt hij vanzelf terug, en ook bij het opnieuw openen van het
+// dashboard — zolang er een check open staat. Een níeuwe selectie komt altijd
+// meteen, ook binnen die tien minuten: dat is nieuws, geen herinnering.
+// ═══════════════════════════════════════════════════════════════════════════
+const RLDV_STRAKS_MS = 10 * 60 * 1000;
+const RLDV_STRAKS_SLEUTEL = 'bt_rldv_straks';
+let _rldvStraksWekker = null;
+
+// Tot wanneer "Straks" geldt (tijdstip in ms), of 0.
+function _rldvStraksTot() {
+  try { return +localStorage.getItem(RLDV_STRAKS_SLEUTEL) || 0; } catch (_) { return 0; }
+}
+
+// Eén wekker voor het moment dat Straks afloopt; een eerdere wekker gaat weg.
+function _rldvStraksPlan() {
+  const over = _rldvStraksTot() - Date.now();
+  if (_rldvStraksWekker) { clearTimeout(_rldvStraksWekker); _rldvStraksWekker = null; }
+  if (over <= 0) return;
+  _rldvStraksWekker = setTimeout(() => { _rldvStraksWekker = null; rldvMeldingenCheck(); }, over);
+}
+
+function rldvMeldStraks() {
+  try { localStorage.setItem(RLDV_STRAKS_SLEUTEL, String(Date.now() + RLDV_STRAKS_MS)); } catch (_) {}
+  rldvMeldVensterSluit();
+  _rldvStraksPlan();
+}
+
+// Nu checken: het venster dicht en de check open. Straks blijft tien minuten
+// staan, zodat hij terugkomt als de check tóch niet afgemaakt wordt.
+function rldvMeldNu(id) {
+  try { localStorage.setItem(RLDV_STRAKS_SLEUTEL, String(Date.now() + RLDV_STRAKS_MS)); } catch (_) {}
+  rldvMeldVensterSluit();
+  _rldvStraksPlan();
+  rldvCheckVanuitMelding(String(id));
+}
+
+function rldvMeldVensterHtml(sel, wachtend) {
+  const stand = rldvCheckStand(sel);
+  const bedrijven = rldvBedrijvenVan(sel);
+  const eerste = bedrijven.slice(0, 7).map(b => escHtml(b.naam || '')).join(', ');
+  const rest = bedrijven.length - 7;
+  const wanneer = sel.aangemaakt_op ? new Date(sel.aangemaakt_op).toLocaleString('nl-NL',
+    { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const meta = [sel.bm_naam ? 'kandidaat van ' + escHtml(sel.bm_naam) : '',
+                sel.aangemaakt_door ? 'door ' + escHtml(sel.aangemaakt_door) : '',
+                escHtml(wanneer)].filter(Boolean).join(' · ');
+  return '<div class="rldv-meld-kop">' +
+      '<span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span>' +
+      '<span class="rldv-meld-tel">1 van ' + wachtend + ' wachtend</span>' +
+    '</div>' +
+    '<div class="rldv-meld-titel">RLDV-check nodig</div>' +
+    '<div class="rldv-meld-naam">' + escHtml(sel.kandidaat_naam || '') + '</div>' +
+    '<div class="rldv-meld-meta">' + meta + '</div>' +
+    '<div class="rldv-meld-sub">' + bedrijven.length + (bedrijven.length === 1 ? ' bedrijf' : ' bedrijven') +
+      (bedrijven.length > 7 ? ', o.a.' : '') + '</div>' +
+    '<div class="rldv-meld-lijst">' + eerste +
+      (rest > 0 ? ' <span class="rldv-meld-rest">en ' + rest + ' meer</span>' : '') + '</div>' +
+    '<div class="rldv-meld-knoppen">' +
+      '<button class="rldv-meld-knop hoofd" onclick="rldvMeldNu(\'' + escApos(String(sel.id)) + '\')">Check nu uitvoeren</button>' +
+      '<button class="rldv-meld-knop" onclick="rldvMeldStraks()">Straks</button>' +
+    '</div>';
+}
+
+// Een eigen laag, los van het CRM-/checkvenster: die twee mogen tegelijk
+// bestaan (je klikt op "Check nu" en het checkvenster komt erbovenop).
+function rldvMeldVensterToon(sel, wachtend) {
+  rldvMeldVensterSluit();
+  const laag = document.createElement('div');
+  laag.className = 'rldv-meld-laag';
+  laag.id = 'rldv-meld-laag';
+  laag.innerHTML = '<div class="rldv-meld-venster" role="dialog" aria-modal="true">' + rldvMeldVensterHtml(sel, wachtend) + '</div>';
+  document.body.appendChild(laag);
+}
+function rldvMeldVensterSluit() {
+  const el = document.getElementById('rldv-meld-laag');
+  if (el) el.remove();
+}
+
+// ── De eigenaar hoort het zodra de check akkoord is (verzoek 10-09) ────────
+// Alleen de collega van wie de kandidaat is (bm_naam op de selectie): die kan
+// dan gaan aanbieden. Niet wie zelf het akkoord gaf — je meldt iemand niet wat
+// hij net deed. Het tijdstip van het akkoord zit in de sleutel, dus een nieuw
+// akkoord na een wijziging meldt opnieuw.
+function rldvMeldAkkoordNodig(sel) {
+  if (!sel || !CURRENT_USER) return false;
+  if (rldvCheckStand(sel).code !== 'akkoord') return false;
+  const ik = String(CURRENT_USER.bm_naam || CURRENT_USER.naam || '').trim();
+  const naam = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '').trim();
+  if (!ik) return false;
+  if (String(sel.bm_naam || '').trim() !== ik) return false;
+  const gever = String(sel.akkoord_door || '').trim();
+  if (gever && (gever === ik || gever === naam)) return false;
+  return true;
+}
+
+function rldvMeldAkkoordKaart(sel) {
   const bak = _meldingBak();
   const kaart = document.createElement('div');
   kaart.className = 'melding';
   const aantal = rldvBedrijvenVan(sel).length;
-  const titel = code === 'gewijzigd' ? 'RLDV-selectie gewijzigd na akkoord' : 'Nieuwe RLDV-selectie';
-  const kleur = code === 'gewijzigd' ? '#ffb3b3' : '#F4CB3C';
   kaart.innerHTML = `
     <div class="melding-tekst">
-      <div class="t" style="color:${kleur};">${titel}</div>
+      <div class="t" style="color:#5fd6a8;">RLDV-check akkoord — je kunt aanbieden</div>
       <div class="s">${escHtml(sel.kandidaat_naam || '')} · ${aantal}${aantal === 1 ? ' bedrijf' : ' bedrijven'}` +
-        (sel.aangemaakt_door ? ` · door ${escHtml(sel.aangemaakt_door)}` : '') + `</div>
+        (sel.akkoord_door ? ` · akkoord van ${escHtml(sel.akkoord_door)}` : '') + `</div>
       <div class="k">
-        <button class="melding-knop" data-open="1">Check uitvoeren</button>
+        <button class="melding-knop" data-open="1">Naar kandidaten</button>
         <button class="melding-knop" data-weg="1">Later</button>
       </div>
     </div>
@@ -22399,23 +22562,48 @@ function rldvMeldKaart(sel, code) {
   const weg = () => { kaart.classList.add('uit'); setTimeout(() => kaart.remove(), 250); };
   kaart.addEventListener('click', (e) => {
     if (e.target.closest('[data-weg]')) { weg(); return; }
-    if (e.target.closest('[data-open]')) { weg(); rldvCheckVanuitMelding(String(sel.id)); }
+    if (e.target.closest('[data-open]')) { weg(); selectTab('kandidaten'); }
   });
   bak.appendChild(kaart);
 }
 
 // Loopt de selecties na. Draait bij het inloggen én bij elke realtime-melding
 // over rldv_selecties: anders glipt er een selectie langs die is opgeslagen
-// terwijl je niet ingelogd was.
-function rldvMeldingenCheck() {
-  if (!CURRENT_USER || !rldvMagChecken()) return;
+// terwijl je niet ingelogd was. Twee publieken, los van elkaar: wie de check
+// doet hoort van nieuwe en gewijzigde selecties; de eigenaar van de kandidaat
+// hoort van het akkoord.
+function rldvMeldingenCheck(opties) {
+  if (!CURRENT_USER) return;
+  const bijInloggen = !!(opties && opties.bijInloggen);
+
+  // ── De checkers: één venster voor alles wat open staat ──────────────────
+  if (rldvMagChecken()) {
+    const wachtend = RLDV_SELECTIES.filter(sel => rldvMeldNodig(sel));
+    if (!wachtend.length) {
+      rldvMeldVensterSluit();
+    } else {
+      // Iets nieuws erbij? Dan meteen, ook binnen Straks.
+      let nieuw = false;
+      for (const sel of wachtend) {
+        const sleutel = rldvMeldSleutel(sel, rldvMeldNodig(sel));
+        if (!_crmGezien(sleutel)) { _crmOnthoud(sleutel); nieuw = true; }
+      }
+      const straks = _rldvStraksTot();
+      if (nieuw || bijInloggen || Date.now() >= straks) {
+        wachtend.sort((a, b) => String(b.aangemaakt_op || '').localeCompare(String(a.aangemaakt_op || '')));
+        rldvMeldVensterToon(wachtend[0], wachtend.length);
+      } else {
+        _rldvStraksPlan();
+      }
+    }
+  }
+
+  // ── De eigenaar: een kaartje zodra zijn kandidaat akkoord heeft ─────────
   for (const sel of RLDV_SELECTIES) {
-    const code = rldvMeldNodig(sel);
-    if (!code) continue;
-    const sleutel = rldvMeldSleutel(sel, code);
-    if (_crmGezien(sleutel)) continue;
-    _crmOnthoud(sleutel);
-    rldvMeldKaart(sel, code);
+    if (rldvMeldAkkoordNodig(sel)) {
+      const sleutel = rldvMeldSleutel(sel, 'akkoord') + '|' + String(sel.akkoord_op || '');
+      if (!_crmGezien(sleutel)) { _crmOnthoud(sleutel); rldvMeldAkkoordKaart(sel); }
+    }
   }
 }
 
@@ -22423,6 +22611,31 @@ function rldvMeldingenCheck() {
 // de tool en voor de kop van de pagina onder Management.
 function rldvCheckOpenAantal() {
   return RLDV_SELECTIES.filter(r => rldvCheckStand(r).code !== 'akkoord').length;
+}
+
+// De pipelinekaart bij een selectie, waar hij ook staat (bij welke BM ook).
+function rldvKaartVan(kaartId) {
+  if (!kaartId) return null;
+  for (const bm of bmsMetCijfers()) {
+    const c = pipeLoad(bm.naam).find(x => String(x.id) === String(kaartId));
+    if (c) return c;
+  }
+  return null;
+}
+
+// Het moment van de intake (ms). Geen kaart of geen intakedatum: dan het
+// moment waarop de selectie gemaakt is — dat ligt er altijd vlak na.
+function _rldvIntakeMoment(sel) {
+  const kaart = rldvKaartVan(sel && sel.kaart_id);
+  const t = kaart && kaart.intake_op ? Date.parse(kaart.intake_op) : NaN;
+  if (!isNaN(t)) return t;
+  const s = Date.parse((sel && sel.aangemaakt_op) || '');
+  return isNaN(s) ? 0 : s;
+}
+
+// Meest recente intake bovenaan (keuze K2, 10-09).
+function rldvCheckGesorteerd() {
+  return rldvCheckGefilterd().slice().sort((a, b) => _rldvIntakeMoment(b) - _rldvIntakeMoment(a));
 }
 
 function rldvCheckGefilterd() {
@@ -22452,12 +22665,12 @@ function rldvCheckLijstHtml() {
   const chips = '<div class="rldv-chips">' +
     rldvCheckChip('alle', 'Alle') + rldvCheckChip('open', 'Open') +
     rldvCheckChip('gewijzigd', 'Gewijzigd na akkoord') + rldvCheckChip('akkoord', 'Akkoord') + '</div>';
-  // Kaartjes (keuze C2, 09-09): per selectie één kaart, met een balkje dat
-  // laat zien hoeveel van de gekozen bedrijven al een aanbieding hebben.
-  // Weghalen mag alleen wie de check ook mag afronden: dit is het zwaarste
-  // wat je met een selectie kunt doen (verzoek 09-09).
+  // Eén regel per check (keuze K2, 10-09; daarvoor kaartjes, keuze C2), de
+  // kandidaat met de meest recente intake bovenaan. Weghalen mag alleen wie
+  // de check ook mag afronden: dit is het zwaarste wat je met een selectie
+  // kunt doen (verzoek 09-09).
   const magWeg = rldvMagChecken();
-  const kaarten = rldvCheckGefilterd().map(r => {
+  const kaarten = rldvCheckGesorteerd().map(r => {
     const stand  = rldvCheckStand(r);
     const aantal = rldvBedrijvenVan(r).length;
     const aanb   = rldvAanbiedingenVoor(r.kandidaat_naam);
@@ -22467,23 +22680,27 @@ function rldvCheckLijstHtml() {
                : stand.code === 'gewijzigd' ? 'Opnieuw checken' : 'Check uitvoeren';
     const wanneer = new Date(r.aangemaakt_op).toLocaleString('nl-NL',
       { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    return '<div class="rldv-kaart ' + stand.code + '">' +
-      (magWeg ? '<button class="rldv-kaart-x" title="Deze check verwijderen" aria-label="Verwijderen" ' +
-        'onclick="rldvSelectieVerwijder(\'' + escApos(String(r.id)) + '\')">&times;</button>' : '') +
-      '<div class="rldv-kaart-naam">' + escHtml(r.kandidaat_naam || '') + '</div>' +
-      '<div class="rldv-kaart-sub">' + escHtml(r.bm_naam || '—') + ' · ' + escHtml(wanneer) +
-        (r.aangemaakt_door ? ' · ' + escHtml(r.aangemaakt_door) : '') + '</div>' +
-      '<span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span>' +
-      '<div class="rldv-kaart-sub" style="margin-top:9px;">' + aantal +
-        (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' · ' +
-        '<span class="' + (rond ? 'rldv-rond' : '') + '">' + aanb + ' van ' + aantal + ' aangeboden</span></div>' +
-      '<div class="rldv-balkje"><span class="' + (rond ? 'rond' : '') + '" style="width:' + breed + '%;"></span></div>' +
+    const kaart = rldvKaartVan(r.kaart_id);
+    const intake = kaart && kaart.intake_op ? kandIntakeTekst(kaart) : '';
+    return '<div class="rldv-rij ' + stand.code + '">' +
+      '<div class="rldv-rij-strook"></div>' +
+      '<div class="rldv-rij-naam">' + escHtml(r.kandidaat_naam || '') +
+        (intake ? '<div class="rldv-rij-sub">' + escHtml(intake) + '</div>' : '') + '</div>' +
+      '<div class="rldv-rij-sub">' + escHtml(r.bm_naam || '—') + ' · ' + escHtml(wanneer) +
+        (r.aangemaakt_door && r.aangemaakt_door !== r.bm_naam ? '<br>door ' + escHtml(r.aangemaakt_door) : '') + '</div>' +
+      '<div><span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) +
+        (stand.code === 'akkoord' && r.akkoord_door ? ' · ' + escHtml(String(r.akkoord_door).split(' ')[0]) : '') + '</span></div>' +
+      '<div class="rldv-rij-sub">' + aantal + (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' · ' +
+        '<span class="' + (rond ? 'rldv-rond' : '') + '">' + aanb + ' aangeboden</span>' +
+        '<div class="rldv-balkje"><span class="' + (rond ? 'rond' : '') + '" style="width:' + breed + '%;"></span></div></div>' +
       '<button class="rldv-kaart-knop' + (stand.code === 'akkoord' ? '' : ' hoofd') + '" ' +
         'onclick="rldvCheckOpen(\'' + escApos(String(r.id)) + '\')">' + knop + '</button>' +
+      (magWeg ? '<button class="rldv-kaart-x rldv-rij-x" title="Deze check verwijderen" aria-label="Verwijderen" ' +
+        'onclick="rldvSelectieVerwijder(\'' + escApos(String(r.id)) + '\')">&times;</button>' : '<span></span>') +
       '</div>';
   }).join('');
   return chips + (kaarten
-    ? '<div class="rldv-kaartraster">' + kaarten + '</div>'
+    ? '<div class="rldv-rijen">' + kaarten + '</div>'
     : '<div class="norm-intro" style="text-align:left;">Geen selecties met deze stand.</div>');
 }
 
