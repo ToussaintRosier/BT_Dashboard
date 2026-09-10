@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260909-1430 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260910-0810 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1479,6 +1479,7 @@
   .rldv-uitg-wrd { color:#fff; font-size:.76rem; line-height:1.45; margin-bottom:8px; white-space:pre-wrap; }
   .rldv-uitg-wrd.niet { color:#ffb3b3; }
   .rldv-uitg-leeg { color:rgba(255,255,255,.5); font-size:.72rem; line-height:1.5; }
+  .rldv-uitg-sub  { color:rgba(255,255,255,.4); margin-top:6px; }
   .rldv-check-voetrij { display:grid; grid-template-columns:1fr 220px; gap:16px; align-items:start; }
   @media (max-width:760px) { .rldv-check-voetrij { grid-template-columns:1fr; } }
   .rldv-veld-donker { background:#2b3653; border:1px solid rgba(255,255,255,.18); color:#fff; }
@@ -6613,7 +6614,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260909-1430';
+const APP_VERSIE = '20260910-0810';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22103,13 +22104,58 @@ function _rldvUitgUitAnalyse(rec) {
   ].filter(p => p[1] && String(p[1]).trim()).map(p => [p[0], String(p[1]).trim()]);
 }
 
+// Namen vergelijkbaar maken vóór het vergelijken (melding 10-09). De naam op
+// de pipelinekaart en de naam op het verslag zijn twee keer met de hand
+// ingetypt; hoofdletters, accenten, harde en dubbele spaties en leestekens
+// horen dan geen verschil te maken. Een andere letter wél.
+function _rldvNaamSleutel(naam) {
+  return String(naam == null ? '' : naam)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Hoeveel tekens twee namen uit elkaar liggen (Levenshtein), voor de buurt.
+function _rldvAfstand(a, b) {
+  a = String(a); b = String(b);
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let vorige = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const rij = [i];
+    for (let j = 1; j <= b.length; j++) {
+      rij[j] = Math.min(vorige[j] + 1, rij[j - 1] + 1, vorige[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    vorige = rij;
+  }
+  return vorige[b.length];
+}
+
+function _rldvVerslagLijst() {
+  return (typeof GESPREK_RECORDS !== 'undefined' && GESPREK_RECORDS) || [];
+}
+
 // Het gespreksverslag dat bij deze naam hoort. De lijst staat op nieuwste
 // eerst, dus de eerste treffer is het laatste gesprek.
 function rldvVerslagVan(naam) {
-  const zoek = String(naam == null ? '' : naam).trim().toLowerCase();
+  const zoek = _rldvNaamSleutel(naam);
   if (!zoek) return null;
-  const lijst = (typeof GESPREK_RECORDS !== 'undefined' && GESPREK_RECORDS) || [];
-  return lijst.find(r => String(r.naam || '').trim().toLowerCase() === zoek) || null;
+  return _rldvVerslagLijst().find(r => _rldvNaamSleutel(r.naam) === zoek) || null;
+}
+
+// Wat er wél in de buurt komt als de naam niet gevonden is: dezelfde
+// achternaam, of hooguit twee tekens verschil. Alleen om te tonen — er wordt
+// nooit vanzelf een ander verslag gekozen, want verkeerde uitgangspunten bij
+// een check zijn erger dan geen.
+function rldvVerslagBuurt(naam, max) {
+  const zoek = _rldvNaamSleutel(naam);
+  if (!zoek) return [];
+  const achter = zoek.split(' ').pop();
+  return _rldvVerslagLijst().filter(r => {
+    const k = _rldvNaamSleutel(r.naam);
+    if (!k || k === zoek) return false;
+    return (achter.length > 2 && k.split(' ').includes(achter)) || _rldvAfstand(k, zoek) <= 2;
+  }).slice(0, max || 3);
 }
 
 // Vier uitkomsten: 'gedeeld', 'analyse', 'leeg' (wel een verslag, geen
@@ -22135,8 +22181,22 @@ function rldvUitgHtml(sel) {
              : u.bron === 'analyse' ? 'uit de ITK-analyse' : '';
   let body;
   if (u.bron === 'geen-verslag') {
-    body = '<div class="rldv-uitg-leeg">Geen ITK-verslag gevonden op deze naam. ' +
-           'Staat het gesprek onder een andere schrijfwijze, dan vindt hij het niet.</div>';
+    // Zeggen wat er niet te zien is (10-09): zijn er überhaupt verslagen
+    // binnen, en welke namen komen in de buurt? Zo is het verschil tussen
+    // "niet geladen" en "andere schrijfwijze" in één oogopslag te zien.
+    const naam   = String((sel && sel.kandidaat_naam) || '');
+    const aantal = _rldvVerslagLijst().length;
+    const buurt  = aantal ? rldvVerslagBuurt(naam, 3) : [];
+    body = '<div class="rldv-uitg-leeg">Geen ITK-verslag gevonden op "' + escHtml(naam) + '".' +
+      (aantal
+        ? '<div class="rldv-uitg-sub">' + aantal + ' ITK-verslagen geladen.</div>' +
+          (buurt.length
+            ? '<div class="rldv-uitg-sub">Wel in de buurt: ' + buurt.map(r =>
+                escHtml(r.naam || '') + (r.datum ? ' (' + escHtml(r.datum) + ')' : '')).join(', ') + '.</div>'
+            : '<div class="rldv-uitg-sub">Geen naam die erop lijkt.</div>')
+        : '<div class="rldv-uitg-sub">Er zijn nog geen ITK-verslagen geladen — dan ligt het niet aan de naam, ' +
+          'maar aan het laden of de rechten.</div>') +
+      '</div>';
   } else if (!u.regels.length) {
     body = '<div class="rldv-uitg-leeg">Dit verslag bevat geen uitgangspunten.</div>';
   } else {
