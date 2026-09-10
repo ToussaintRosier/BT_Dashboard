@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260910-0831 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260910-0837 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1440,21 +1440,22 @@
   .rldv-chip.aan { background:rgba(232,116,0,.3); border-color:#E87400; }
   .rldv-rond { color:#5fd6a8; }
   .rldv-kaartraster { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px; }
-  /* Keuze K2 (10-09): één regel per check. */
-  .rldv-rijen { display:flex; flex-direction:column; gap:6px; }
-  .rldv-rij { display:grid; grid-template-columns:4px 1.4fr 1.2fr 1fr 1.3fr 130px 24px; gap:12px; align-items:center;
+  /* Keuze K2 (10-09): één regel per check. Heet bewust niet .rldv-rij: dat is
+     de tabelrij van de tool, en een rasterregel daarop brak de tabel (10-09). */
+  .rldv-lijst { display:flex; flex-direction:column; gap:6px; }
+  .rldv-lijstrij { display:grid; grid-template-columns:4px 1.4fr 1.2fr 1fr 1.3fr 130px 24px; gap:12px; align-items:center;
               background:#364160; border-radius:8px; padding:8px 10px; text-align:left; }
-  .rldv-rij-strook { width:4px; height:30px; border-radius:2px; background:rgba(255,255,255,.2); }
-  .rldv-rij.open .rldv-rij-strook { background:#f59e0b; }
-  .rldv-rij.akkoord .rldv-rij-strook { background:#0e9f6e; }
-  .rldv-rij.gewijzigd .rldv-rij-strook { background:#e05252; }
-  .rldv-rij-naam { color:#fff; font-size:.86rem; }
-  .rldv-rij-sub { color:rgba(255,255,255,.5); font-size:.72rem; }
-  .rldv-rij .rldv-kaart-knop { margin-top:0; }
-  .rldv-rij .rldv-balkje { margin-top:3px; height:3px; }
-  .rldv-rij-x { position:static; }
-  @media (max-width:900px) { .rldv-rij { grid-template-columns:4px 1fr 1fr 24px; }
-                             .rldv-rij > :nth-child(3), .rldv-rij > :nth-child(5) { display:none; } }
+  .rldv-lijstrij-strook { width:4px; height:30px; border-radius:2px; background:rgba(255,255,255,.2); }
+  .rldv-lijstrij.open .rldv-lijstrij-strook { background:#f59e0b; }
+  .rldv-lijstrij.akkoord .rldv-lijstrij-strook { background:#0e9f6e; }
+  .rldv-lijstrij.gewijzigd .rldv-lijstrij-strook { background:#e05252; }
+  .rldv-lijstrij-naam { color:#fff; font-size:.86rem; }
+  .rldv-lijstrij-sub { color:rgba(255,255,255,.5); font-size:.72rem; }
+  .rldv-lijstrij .rldv-kaart-knop { margin-top:0; }
+  .rldv-lijstrij .rldv-balkje { margin-top:3px; height:3px; }
+  .rldv-lijstrij-x { position:static; }
+  @media (max-width:900px) { .rldv-lijstrij { grid-template-columns:4px 1fr 1fr 24px; }
+                             .rldv-lijstrij > :nth-child(3), .rldv-lijstrij > :nth-child(5) { display:none; } }
   .rldv-kaart { background:#364160; border-radius:10px; padding:11px 12px; text-align:left; position:relative; }
   .rldv-kaart-x { position:absolute; top:6px; right:8px; background:none; border:none; padding:2px 4px;
                   font-size:1rem; line-height:1; color:rgba(255,255,255,.45); cursor:pointer; font-family:inherit; }
@@ -6653,7 +6654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260910-0831';
+const APP_VERSIE = '20260910-0837';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22682,25 +22683,25 @@ function rldvCheckLijstHtml() {
       { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const kaart = rldvKaartVan(r.kaart_id);
     const intake = kaart && kaart.intake_op ? kandIntakeTekst(kaart) : '';
-    return '<div class="rldv-rij ' + stand.code + '">' +
-      '<div class="rldv-rij-strook"></div>' +
-      '<div class="rldv-rij-naam">' + escHtml(r.kandidaat_naam || '') +
-        (intake ? '<div class="rldv-rij-sub">' + escHtml(intake) + '</div>' : '') + '</div>' +
-      '<div class="rldv-rij-sub">' + escHtml(r.bm_naam || '—') + ' · ' + escHtml(wanneer) +
+    return '<div class="rldv-lijstrij ' + stand.code + '">' +
+      '<div class="rldv-lijstrij-strook"></div>' +
+      '<div class="rldv-lijstrij-naam">' + escHtml(r.kandidaat_naam || '') +
+        (intake ? '<div class="rldv-lijstrij-sub">' + escHtml(intake) + '</div>' : '') + '</div>' +
+      '<div class="rldv-lijstrij-sub">' + escHtml(r.bm_naam || '—') + ' · ' + escHtml(wanneer) +
         (r.aangemaakt_door && r.aangemaakt_door !== r.bm_naam ? '<br>door ' + escHtml(r.aangemaakt_door) : '') + '</div>' +
       '<div><span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) +
         (stand.code === 'akkoord' && r.akkoord_door ? ' · ' + escHtml(String(r.akkoord_door).split(' ')[0]) : '') + '</span></div>' +
-      '<div class="rldv-rij-sub">' + aantal + (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' · ' +
+      '<div class="rldv-lijstrij-sub">' + aantal + (aantal === 1 ? ' bedrijf' : ' bedrijven') + ' · ' +
         '<span class="' + (rond ? 'rldv-rond' : '') + '">' + aanb + ' aangeboden</span>' +
         '<div class="rldv-balkje"><span class="' + (rond ? 'rond' : '') + '" style="width:' + breed + '%;"></span></div></div>' +
       '<button class="rldv-kaart-knop' + (stand.code === 'akkoord' ? '' : ' hoofd') + '" ' +
         'onclick="rldvCheckOpen(\'' + escApos(String(r.id)) + '\')">' + knop + '</button>' +
-      (magWeg ? '<button class="rldv-kaart-x rldv-rij-x" title="Deze check verwijderen" aria-label="Verwijderen" ' +
+      (magWeg ? '<button class="rldv-kaart-x rldv-lijstrij-x" title="Deze check verwijderen" aria-label="Verwijderen" ' +
         'onclick="rldvSelectieVerwijder(\'' + escApos(String(r.id)) + '\')">&times;</button>' : '<span></span>') +
       '</div>';
   }).join('');
   return chips + (kaarten
-    ? '<div class="rldv-rijen">' + kaarten + '</div>'
+    ? '<div class="rldv-lijst">' + kaarten + '</div>'
     : '<div class="norm-intro" style="text-align:left;">Geen selecties met deze stand.</div>');
 }
 
