@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260910-0849 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260910-0858 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4387,6 +4387,13 @@ const CHART_TEKST  = 'rgba(255,255,255,.45)';
 let _chartVingers = {};
 
 function makeChart(id, labels, datasets, type='line', opts={}) {
+  // Kwam de grafiekbibliotheek niet mee (CDN geblokkeerd of haperend; drie
+  // keer in het logboek, 03/04-09), dan slaat de grafiek over met één
+  // melding in plaats van het hele scherm te breken.
+  if (typeof Chart === 'undefined') {
+    meldFout('grafiekbibliotheek niet geladen', 'makeChart', 'Chart.js ontbreekt; grafiek ' + id + ' overgeslagen');
+    return;
+  }
   destroyChart(id);
   const ctx = document.getElementById(id)?.getContext('2d');
   if (!ctx) return;
@@ -6668,7 +6675,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260910-0849';
+const APP_VERSIE = '20260910-0858';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12858,9 +12865,32 @@ function meldFout(melding, plek, detail) {
   } catch (_) { /* zie regel 1: het vangnet breekt nooit iets */ }
 }
 
+// Een fout "op regel 1" komt uit een onclick-attribuut: dat wordt pas
+// vertaald op het moment van klikken, en de browser zegt er niet bij welke
+// knop het was. Daarom onthoudt het dashboard de laatste aangeklikte (of
+// gewijzigde) knop — een kort stukje van het element zelf — en zet dat bij
+// zo'n fout in het logboek (10-09: "missing ) after argument list", vier
+// keer, drie collega's, en niemand wist waar).
+let _LAATSTE_KLIK = '';
+function _onthoudKlik(ev) {
+  try {
+    const el = ev.target && ev.target.closest
+      && ev.target.closest('[onclick],[onchange],[oninput],[onpointerdown],[onmousedown]');
+    if (el) _LAATSTE_KLIK = String(el.outerHTML || '').slice(0, 300);
+  } catch (_) {}
+}
+document.addEventListener('pointerdown', _onthoudKlik, true);
+document.addEventListener('change', _onthoudKlik, true);
+
 // Bron 1: fouten in gewone code die nergens gevangen worden.
 window.onerror = function (melding, bron, regel, kolom, e) {
-  meldFout(melding, 'window.onerror @ regel ' + regel, e && e.stack);
+  const _m = String(melding || '');
+  // Ruis van browserextensies (10-09): EmptyRanges is een Safari-extensie,
+  // niet dit bestand.
+  if (/EmptyRanges|tabs:outgoing|No Listener/i.test(_m)) return false;
+  let detail = e && e.stack;
+  if (regel <= 1 && _LAATSTE_KLIK) detail = 'laatste klik: ' + _LAATSTE_KLIK + (detail ? '\n' + detail : '');
+  meldFout(melding, 'window.onerror @ regel ' + regel, detail);
   return false;   // de fout blijft ook gewoon in de console verschijnen
 };
 
@@ -13835,7 +13865,7 @@ function subscribeRealtime() {
               () => _rtVerzamel(tabel));
   }
   kanaal
-    .subscribe((status) => {
+    .subscribe((status, err) => {
       // De bewaking. Een weggevallen kanaal is onzichtbaar: alles lijkt te
       // werken, er komt alleen niets meer binnen. Daarom na een halve minuut
       // opnieuw aansluiten; in de tussentijd vangt het stille verversen (elke
@@ -13868,9 +13898,11 @@ function subscribeRealtime() {
         // Eén melding per sessie, zonder pogingnummer in de tekst: met het
         // nummer erin was elke poging een nieuwe regel in het logboek, en dan
         // krijg je 22 meldingen over één storing.
+        // Mét de reden van de server (10-09): die noemt de tabel die niet in
+        // de publicatie staat — precies wat 111 logboekregels niet zeiden.
         if (_REALTIME_POGINGEN === 3) {
           meldFout('realtime-kanaal blijft wegvallen', 'subscribeRealtime',
-                   'laatste status: ' + status);
+                   'laatste status: ' + status + (err && err.message ? ' · ' + err.message : ''));
         }
         // Oplopend wachten: 5, 10, 20, 40 seconden, daarna elke minuut.
         const wacht = Math.min(60000, 5000 * Math.pow(2, _REALTIME_POGINGEN - 1));
