@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260910-0837 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260910-0846 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1485,7 +1485,21 @@
   /* De algemene tabelkop (thead th) is wit; buiten het donkere paneel werd dat
      wit op wit. Hier expliciet doorzichtig met lichte tekst. */
   .rldv-check thead th { background:transparent; color:rgba(255,255,255,.5); }
-  .rldv-check-lijst { max-height:46vh; overflow:auto; margin-top:8px; }
+  .rldv-check-lijst { max-height:calc(100vh - 330px); overflow:auto; margin-top:8px; }
+  .rldv-check-lijst thead th { position:sticky; top:0; background:#253151; z-index:1; }
+  /* L2 + S1 (10-09): letterblokjes voor de functies, stip + tekst voor status
+     en voorwaarden. Geldt op alle drie de schermen (gedeelde rij). */
+  .rldv-functies { white-space:nowrap; }
+  .rldv-fchip { display:inline-block; font-size:.66rem; padding:1px 6px; border-radius:5px; margin-right:3px; line-height:1.5; }
+  .rldv-fchip.aan { background:rgba(14,159,110,.25); color:#7fdcb4; }
+  .rldv-fchip.uit { background:rgba(255,255,255,.06); color:rgba(255,255,255,.3); }
+  .rldv-stip { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; }
+  .rldv-stip.klant { background:#0e9f6e; }
+  .rldv-stip.cp { background:#9ec8f4; }
+  .rldv-stip.prospect { background:rgba(255,255,255,.4); }
+  .rldv-stip.ja { background:#0e9f6e; }
+  .rldv-stip.nee { background:#e05252; }
+  .rldv-stip.deels { background:#f59e0b; }
   /* Keuze optie 2 (09-09): de uitgangspunten van de kandidaat als vaste kolom
      naast de bedrijvenlijst. Je beoordeelt anders een rij namen zonder
      maatstaf, en hij blijft staan terwijl je door de lijst scrolt. */
@@ -1494,7 +1508,7 @@
   .rldv-uitg { border-left:1px solid rgba(255,255,255,.14); padding-left:12px; margin-top:10px; }
   .rldv-uitg-kop { color:rgba(255,255,255,.5); font-size:.72rem; margin-bottom:7px; }
   .rldv-uitg-bron { display:block; color:rgba(255,255,255,.35); font-size:.68rem; margin-top:2px; }
-  .rldv-uitg-lijst { max-height:46vh; overflow:auto; }
+  .rldv-uitg-lijst { max-height:calc(100vh - 330px); overflow:auto; }
   .rldv-uitg-lab { color:rgba(255,255,255,.45); font-size:.68rem; }
   .rldv-uitg-wrd { color:#fff; font-size:.76rem; line-height:1.45; margin-bottom:8px; white-space:pre-wrap; }
   .rldv-uitg-wrd.niet { color:#ffb3b3; }
@@ -1509,7 +1523,7 @@
   .rldv-sluitrij { text-align:center; margin-top:2px; }
   .rldv-sluitlink { width:auto !important; display:inline !important; margin:0 !important; }
   .rldv-check-lijst table, .rldv-check-filters table { width:100%; border-collapse:collapse; }
-  .rldv-check th, .rldv-check td { text-align:left; padding:4px 6px 4px 0; font-size:.74rem; }
+  .rldv-check th, .rldv-check td { text-align:left; padding:7px 8px 7px 0; font-size:.8rem; white-space:nowrap; }
   .rldv-check th { color:rgba(255,255,255,.42); font-weight:var(--w-normaal); }
   .rldv-check tbody tr { border-top:1px solid rgba(255,255,255,.08); }
   .rldv-check tbody tr.aan { background:rgba(14,159,110,.12); }
@@ -6654,7 +6668,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260910-0837';
+const APP_VERSIE = '20260910-0846';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22736,21 +22750,20 @@ function rldvRijHtml(b, aan, opties) {
   if (aan) klassen.push('aan');
   if (r.voorwaarden_bekend === 'ja') klassen.push('acc-tier-top');
 
-  const schuifjes = SL_BOOL_FIELDS.map(([f]) =>
-    '<td><input type="checkbox" class="bt-schuif bt-schuif-klein bt-schuif-vast" ' +
-    (r[f] ? 'checked ' : '') + 'disabled aria-label="' +
-    escHtml(SL_BOOL_LABEL[f] || f) + ': ' + (r[f] ? 'ja' : 'nee') + '"></td>').join('');
+  // Keuze L2 (10-09): één kolom met letterblokjes in plaats van vijf
+  // schuifjes; keuze S1: status en voorwaarden als stip + tekst, want de pil
+  // "CP-bekend" werd afgekapt in de smalle cel.
+  const functies = '<td class="rldv-functies">' + _rldvFunctieChips(r) + '</td>';
 
   const cp = r.contactpersoon
     ? '<span class="acc-pill acc-pill-op">' + escHtml(r.contactpersoon) + '</span>'
     : '<span class="acc-pill acc-pill-empty">—</span>';
   const status = r.status
-    ? '<span class="badge ' + (r.status === 'Klant' ? 'badge-green'
-        : r.status === 'CP-bekend' ? 'badge-blue' : 'badge-grijs') + '">' + escHtml(r.status) + '</span>'
+    ? _rldvStipTekst(r.status === 'Klant' ? 'klant' : r.status === 'CP-bekend' ? 'cp' : 'prospect', r.status)
     : '<span class="rldv-sub">—</span>';
-  const voorw = r.voorwaarden_bekend === 'ja'   ? '<span class="badge badge-green">Ja</span>'
-              : r.voorwaarden_bekend === 'nee'  ? '<span class="badge badge-red">Nee</span>'
-              : r.voorwaarden_bekend === 'ja/nee' ? '<span class="badge badge-yellow">Deels</span>'
+  const voorw = r.voorwaarden_bekend === 'ja'     ? _rldvStipTekst('ja', 'Ja')
+              : r.voorwaarden_bekend === 'nee'    ? _rldvStipTekst('nee', 'Nee')
+              : r.voorwaarden_bekend === 'ja/nee' ? _rldvStipTekst('deels', 'Deels')
               : '<span class="rldv-sub">—</span>';
   const leeg = v => v ? escHtml(v) : '<span class="rldv-sub">—</span>';
 
@@ -22759,7 +22772,7 @@ function rldvRijHtml(b, aan, opties) {
     '<td class="acc-td-left' + (aan ? '' : (o.doorhalen ? ' rldv-uit' : '')) + '">' + escHtml(r.naam || b.naam || '') + '</td>' +
     '<td>' + leeg((r.vakgebied || '').trim()) + '</td>' +
     '<td>' + leeg((r.regio || '').trim()) + '</td>' +
-    schuifjes +
+    functies +
     '<td>' + cp + '</td>' +
     '<td>' + status + '</td>' +
     '<td>' + voorw + '</td>' +
@@ -22769,30 +22782,47 @@ function rldvRijHtml(b, aan, opties) {
 
 // De kopregel met dezelfde kolommen. Sorteerbaar in de tool; in het
 // checkvenster staat de volgorde vast, want daar gaat het om déze selectie.
+// De vijf functies als letterblokjes (L2): SC · Mont · WVB · ENG · PM.
+const RLDV_FUNCTIE_KORT = { sc: 'SC', monteur: 'Mont', wvb: 'WVB', eng: 'ENG', pm: 'PM' };
+function _rldvFunctieChips(r) {
+  return SL_BOOL_FIELDS.map(([f]) =>
+    '<span class="rldv-fchip ' + (r[f] ? 'aan' : 'uit') + '" title="' +
+    escHtml(SL_BOOL_LABEL[f] || f) + ': ' + (r[f] ? 'ja' : 'nee') + '">' +
+    escHtml(RLDV_FUNCTIE_KORT[f] || f) + '</span>').join('');
+}
+// Stip + tekst (S1): de kleur in de stip, de tekst gewoon leesbaar.
+function _rldvStipTekst(soort, tekst) {
+  return '<span class="rldv-stip ' + soort + '"></span>' + escHtml(tekst);
+}
+
 function rldvKopHtml(opties) {
   const o = opties || {};
   const th = (col, label, cls) => o.sorteerbaar
     ? slThHtml(col, label, cls)
     : '<th class="' + (cls || '') + '">' + escHtml(label) + '</th>';
+  // Sinds L2 (10-09) zeven kolommen: de functies delen er één. Zonder merk
+  // tellen de breedtes op tot 100; het merk krijgt er 8 bij en de naam levert
+  // die in.
   return '<colgroup>' +
-      '<col style="width:26px;"><col style="width:22%;"><col style="width:13%;"><col style="width:11%;">' +
-      '<col style="width:5%;"><col style="width:5%;"><col style="width:5%;"><col style="width:5%;"><col style="width:5%;">' +
-      '<col style="width:7%;"><col style="width:11%;"><col style="width:9%;">' +
-      (o.merkKop === undefined ? '' : '<col style="width:9%;">') +
+      '<col style="width:26px;"><col style="width:' + (o.merkKop === undefined ? 24 : 16) + '%;">' +
+      '<col style="width:18%;"><col style="width:12%;">' +
+      '<col style="width:20%;">' +
+      '<col style="width:6%;"><col style="width:11%;"><col style="width:9%;">' +
+      (o.merkKop === undefined ? '' : '<col style="width:8%;">') +
     '</colgroup>' +
     '<thead><tr>' +
       '<th></th>' +
       th('naam', 'Bedrijf', 'acc-th-left') +
       th('vakgebied', 'Vakgebied') +
       th('regio', 'Regio') +
-      SL_BOOL_FIELDS.map(([f, label]) => th(f, label)).join('') +
+      '<th>Functies</th>' +
       th('contactpersoon', 'CP') +
       th('status', 'Status') +
       th('voorwaarden_bekend', 'Voorwaarden') +
       (o.merkKop === undefined ? '' : '<th></th>') +
     '</tr></thead>';
 }
-function rldvKolomAantal(merk) { return merk ? 13 : 12; }
+function rldvKolomAantal(merk) { return merk ? 9 : 8; }
 
 // ── De kandidaatkiezer ─────────────────────────────────────────────────────
 // Een zoekveld in plaats van een keuzelijst: bij tientallen kandidaten is
