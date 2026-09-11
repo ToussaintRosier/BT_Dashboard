@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260910-0858 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260911-0826 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1550,7 +1550,10 @@
   .rldv-toevoegstrook.open { background:rgba(244,203,60,.12); border:1px solid rgba(244,203,60,.45); border-radius:8px 8px 0 0; color:#F4CB3C; }
   .rldv-toevoegstrook .teken { font-size:1rem; line-height:1; color:#F4CB3C; }
   .rldv-toevoegstrook .telling { margin-left:auto; color:rgba(255,255,255,.5); font-size:.74rem; }
-  .rldv-check-filters { margin-top:0; max-height:220px; overflow:auto;
+  /* Ruimte om toe te voegen (11-09): de toevoeglijst tot bijna de hele
+     hoogte; de selectielijst en de uitgangspunten schuiven dan in. */
+  .rldv-check.toevoegen-open .rldv-check-lijst, .rldv-check.toevoegen-open .rldv-uitg-lijst { max-height:24vh; }
+  .rldv-check-filters { margin-top:0; max-height:calc(100vh - 380px); overflow:auto;
                         border:1px solid rgba(244,203,60,.45); border-top:none;
                         border-radius:0 0 8px 8px; padding:10px 12px; }
   .rldv-check-voet { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.12); }
@@ -1939,6 +1942,10 @@
   .ms-dropdown-panel { position:absolute; top:calc(100% + 6px); left:0; z-index:60; background:var(--card); border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,.15); padding:6px; min-width:210px; max-height:260px; overflow-y:auto; }
   .ms-dropdown-panel label { display:flex; align-items:center; gap:7px; padding:5px 8px; font-size:.82rem; border-radius:4px; cursor:pointer; white-space:nowrap; }
   .ms-dropdown-panel label:hover { background:var(--bg); }
+  /* Op een donker paneel (checkvenster, RLDV-tool) was het paneel wit met
+     witte tekst erin (melding 11-09). */
+  .rldv-check .ms-dropdown-panel, .bt-venster .ms-dropdown-panel { background:#2b3653; border-color:rgba(255,255,255,.2); color:#fff; }
+  .rldv-check .ms-dropdown-panel label:hover, .bt-venster .ms-dropdown-panel label:hover { background:rgba(255,255,255,.08); }
   .ms-dropdown-actions { display:flex; justify-content:flex-end; padding:2px 4px 6px; border-bottom:1px solid var(--border); margin-bottom:4px; }
   .ms-dropdown-actions button { background:none; border:none; color:var(--primary); font-size:.74rem; font-weight:700; cursor:pointer; padding:2px 4px; }
   .proj-overview-row.overdue { background:#fef2f2; border-radius:8px; padding:8px 10px; margin:2px 0; border-bottom:1px solid #fecaca; }
@@ -6675,7 +6682,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260910-0858';
+const APP_VERSIE = '20260911-0826';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22338,7 +22345,7 @@ function rldvCheckHtml() {
 
   const wanneer = new Date(sel.aangemaakt_op).toLocaleString('nl-NL',
     { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return '<div class="rldv-check">' +
+  return '<div class="rldv-check' + (RLDV_CHECK.toevoegen ? ' toevoegen-open' : '') + '">' +
     '<div class="rldv-check-kop">' +
       '<div class="rldv-check-titel">RLDV-check — ' + escHtml(sel.kandidaat_naam || '') +
         '<span class="rldv-pil ' + stand.klasse + '">' + escHtml(stand.tekst) + '</span></div>' +
@@ -23092,12 +23099,41 @@ function renderRldvTool() {
 // Het checkvenster hangt buiten het scherm (crmKaartToon) en moet dus apart
 // opnieuw getekend worden. Het zoekveld houdt daarbij zijn cursor: zonder dat
 // zou typen in de filter na elke toetsaanslag de cursor kwijtraken.
+// Wat er niet mag verspringen als het venster opnieuw getekend wordt
+// (melding 11-09): de scrollstand van de lijsten en van het venster zelf,
+// en welke filterkeuzelijst open stond. Zonder dit sprong bij elk vinkje
+// alles terug naar boven en klapte de keuzelijst dicht.
+function _rldvVensterStand() {
+  const laag = document.getElementById('crm-laag');
+  const stand = { scroll: {}, open: [] };
+  if (!laag) return stand;
+  for (const sel of ['.rldv-check-lijst', '.rldv-check-filters', '.rldv-uitg-lijst', '.crm-kaart']) {
+    const el = laag.querySelectorAll(sel)[0];
+    if (el && el.scrollTop) stand.scroll[sel] = el.scrollTop;
+  }
+  const alle = Array.from(laag.querySelectorAll('details'));
+  for (const d of laag.querySelectorAll('details[open]')) stand.open.push(alle.indexOf(d));
+  return stand;
+}
+function _rldvVensterHerstel(stand) {
+  const laag = document.getElementById('crm-laag');
+  if (!laag || !stand) return;
+  const alle = Array.from(laag.querySelectorAll('details'));
+  for (const i of stand.open || []) if (alle[i]) alle[i].open = true;
+  for (const sel of Object.keys(stand.scroll || {})) {
+    const el = laag.querySelectorAll(sel)[0];
+    if (el) el.scrollTop = stand.scroll[sel];
+  }
+}
+
 function _rldvVensterBijwerken() {
   if (!RLDV_CHECK) return;
   const actief = document.activeElement;
   const id  = actief && actief.id;
   const pos = actief && typeof actief.selectionStart === 'number' ? actief.selectionStart : null;
+  const stand = _rldvVensterStand();
   crmKaartToon(rldvCheckHtml(), 'crm-kaart-breed', () => { RLDV_CHECK = null; });
+  _rldvVensterHerstel(stand);
   if (id) {
     const el = document.getElementById(id);
     if (el) {
