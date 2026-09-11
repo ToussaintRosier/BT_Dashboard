@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260911-0845 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260911-0858 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6686,7 +6686,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260911-0845';
+const APP_VERSIE = '20260911-0858';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7081,7 +7081,7 @@ const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag', 'ka
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
   'mtNotuleOudeWijzig', 'mtNotuleOudeOpslaanKnop', 'mtNotuleVerwijder',
   'mtNotuleOpslaanKnop', 'mtNotuleWijzig', 'mtCoachOpslaan', 'mtCoachWijzig',
-  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projVensterWijzig', 'projVensterOpslaan', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'rldvSelectieVerwijder', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
+  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projVensterWijzig', 'projVensterOpslaan', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'kandidaatFaseZet', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'rldvSelectieVerwijder', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
 
 // Welk onderdeel hoort bij het scherm waar je nu naar kijkt.
 function _huidigOnderdeel() {
@@ -24436,12 +24436,75 @@ async function cvGenDownloadWoordCv() {
 
     CV_GEN.statusMsg = '✅ Word-CV gedownload.';
     logGebruik('cvgen', 1);
+    // Staat de naam op een kandidaatkaart, dan gaat de fase CV daar aan
+    // (verzoek 11-09). Los van de download: mislukt dít, dan is het CV er toch.
+    try {
+      const gezet = await cvGenMarkeerCvFase(CV_GEN.velden.naam);
+      if (gezet === true) CV_GEN.statusMsg += ' Fase "CV" staat aan op de kandidaatkaart.';
+    } catch (_) {}
   } catch (e) {
     CV_GEN.statusMsg = `❌ Word-CV samenstellen mislukt: ${escHtml(String(e?.message || e))}`;
   } finally {
     CV_GEN.busyDownload = false;
     render();
   }
+}
+
+// Dezelfde lijst als de RLDV-tool: intakekaarten van de laatste 26 weken,
+// van alle collega's. De browser laat hem zien zodra je in het veld typt.
+function _cvGenKandLijstHtml() {
+  let lijst = [];
+  try { lijst = rldvKandidaten(); } catch (_) { lijst = []; }
+  return '<datalist id="cvgen-kand-lijst">' + lijst.map(k =>
+    '<option value="' + escHtml(k.naam) + '">' +
+    escHtml([k.functie, k.bmNaam].filter(Boolean).join(' · ')) + '</option>').join('') + '</datalist>';
+}
+
+// Staat de naam op een kaart uit die lijst, dan gaat de fase CV aan (het
+// pictogram op het Kandidaten-overzicht wordt groen). Een vrij getypte naam
+// doet niets. Geeft true (gezet), false (stond al / niet gelukt) of null
+// (geen kaart gevonden).
+async function cvGenMarkeerCvFase(naam) {
+  const sleutel = _rldvNaamSleutel(naam);
+  if (!sleutel) return null;
+  let lijst = [];
+  try { lijst = rldvKandidaten(); } catch (_) { return null; }
+  const k = lijst.find(x => x.id && _rldvNaamSleutel(x.naam) === sleutel);
+  if (!k) return null;
+  return kandidaatFaseZet(k.bmNaam, k.id, 'cv');
+}
+
+// Een fase aanzetten (nooit uit), ook op de kaart van een collega. Eerst via
+// de databasefunctie bt_kand_fase_zet (die mag over de schrijfregel heen);
+// bestaat die nog niet, dan de gewone weg — die werkt alleen voor je eigen
+// kaart. Stil bij geen recht: dit is een bijwerking van een export, geen
+// handeling waar je een melding bij wilt.
+async function kandidaatFaseZet(bmNaam, cardId, sleutel) {
+  if (!magWijzigen('kandidaten')) return null;
+  if (!KAND_FASES.some(f => f.sleutel === sleutel)) return null;
+  const cards = pipeLoad(bmNaam);
+  const idx = cards.findIndex(c => String(c.id) === String(cardId));
+  if (idx === -1) return null;
+  const nu = new Set(kandFasesVan(cards[idx]));
+  if (nu.has(sleutel)) return false;
+  nu.add(sleutel);
+  const lijst = KAND_FASES.map(f => f.sleutel).filter(k => nu.has(k));
+  cards[idx] = { ...cards[idx], kand_fases: lijst };
+  _KAND_FASE_ONDERWEG.set(String(cardId), { lijst, tot: Date.now() + KAND_FASE_ONDERWEG_MS });
+  pipeSave(bmNaam, cards);
+  render();
+  if (!supa) return true;
+  let { error } = await supa.rpc('bt_kand_fase_zet', { p_kaart: cardId, p_fase: sleutel });
+  if (error && /does not exist|42883/i.test(String(error.message || error.code || ''))) {
+    ({ error } = await supa.from('pipeline_cards').update({ kand_fases: lijst }).eq('id', cardId));
+  }
+  if (error) {
+    const r = _KAND_FASE_ONDERWEG.get(String(cardId));
+    if (r && r.lijst === lijst) _KAND_FASE_ONDERWEG.delete(String(cardId));
+    meldFout(error.message, 'kandidaatFaseZet');
+    return false;
+  }
+  return true;
 }
 
 function cvGenNieuwCv() {
@@ -24569,7 +24632,14 @@ function renderCvGenerator() {
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:10px;">Stap 1 — Kandidaatgegevens</div>
       <div class="plan-grid">
         <div>
-          ${kleinField('Naam', 'naam')}
+          ${/* Naam uit de kandidatenlijst óf vrij getypt (verzoek 11-09): een
+               keuzelijst achter het tekstveld, niet in plaats ervan. */''}
+          <div class="plan-field"><div class="plan-field-title">Naam</div>
+            <input type="text" class="acc-text-input" id="cvgen-naam" list="cvgen-kand-lijst" autocomplete="off"
+                   placeholder="Kies uit de lijst of typ een nieuwe naam"
+                   value="${escHtml(v.naam||'')}" onchange="cvGenSetVeld('naam', this.value)">
+            ${_cvGenKandLijstHtml()}
+          </div>
           ${kleinField('Woonplaats', 'woonplaats')}
         </div>
         <div>
