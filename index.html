@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260911-0858 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260911-0913 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3375,6 +3375,19 @@
 
   /* Charts lager */
   .chart-wrap { height: 200px; }
+  /* Maandgemiddelde onder de projectenlijn (M1, 11-09). */
+  .proj-mtegels { display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:6px; margin-top:12px; }
+  .proj-mtegel { background:rgba(255,255,255,.05); border:1px solid transparent; border-radius:8px; padding:7px 4px; text-align:center; }
+  .proj-mtegel-maand { color:rgba(255,255,255,.5); font-size:.68rem; }
+  .proj-mtegel-gem { color:#fff; font-size:1.05rem; line-height:1.3; margin-top:1px; }
+  .proj-mtegel-verschil { font-size:.68rem; color:rgba(255,255,255,.4); margin-top:1px; }
+  .proj-mtegel-verschil.min { color:#f3a3a3; }
+  .proj-mtegel-verschil.plus { color:#7fdcb4; }
+  .proj-mtegel.nu { border-color:rgba(244,203,60,.5); background:rgba(244,203,60,.1); }
+  .proj-mtegel.nu .proj-mtegel-maand { color:#F4CB3C; }
+  .proj-mtegel.toekomst { background:rgba(255,255,255,.03); }
+  .proj-mtegel.toekomst .proj-mtegel-gem { color:rgba(255,255,255,.4); }
+  @media (max-width:900px) { .proj-mtegels { grid-template-columns:repeat(6, minmax(0,1fr)); } }
 
   /* Modals: bijna volledig scherm */
   .pipe-modal { width: calc(100vw - 28px) !important; max-width: none !important; max-height: 88vh; overflow-y: auto; padding: 20px 18px; }
@@ -4423,6 +4436,7 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
   charts[id] = new Chart(ctx, {
     type,
     data: { labels, datasets: sets },
+    plugins: Array.isArray(opts.plugins) ? opts.plugins : [],
     options: {
       responsive: true, maintainAspectRatio: false,
       // Zelfde gegevens als zojuist: meteen neerzetten. Anders de gewone,
@@ -4440,10 +4454,15 @@ function makeChart(id, labels, datasets, type='line', opts={}) {
       },
       scales: {
         x: { grid: { display: false }, border: { color: CHART_AS },
-             ticks: { font: { size: 10 }, color: CHART_TEKST } },
-        y: { beginAtZero: true, border: { display: false },
+             ticks: Object.assign({ font: { size: 10 }, color: CHART_TEKST },
+               // Eigen labels (G1, 11-09): maandnamen in plaats van 52 weken.
+               opts.xTick ? { autoSkip: false, maxRotation: 0,
+                              callback: function (v, i) { return opts.xTick(i, this.getLabelForValue(v)); } } : {}) },
+        y: Object.assign({ beginAtZero: opts.yMin == null, border: { display: false },
              grid: { color: CHART_RASTER, drawTicks: false },
-             ticks: { font: { size: 10 }, color: CHART_TEKST, maxTicksLimit: 5, padding: 8 } }
+             ticks: { font: { size: 10 }, color: CHART_TEKST, maxTicksLimit: 5, padding: 8 } },
+             // Een as die begint waar de cijfers zitten (G1, 11-09).
+             opts.yMin != null ? { min: opts.yMin } : {})
       }
     }
   });
@@ -6686,7 +6705,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260911-0858';
+const APP_VERSIE = '20260911-0913';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9090,10 +9109,12 @@ function projChartApplyZoom() {
   const z = window._projYZoom;
 
   if (z === 0) {
-    // Volledig terug naar auto
-    chart.options.scales.y.min = 0;
+    // Terug naar auto — sinds G1 (11-09) is dat de as die begint waar de
+    // cijfers zitten, niet bij 0.
+    const auto = window._projYAuto || 0;
+    chart.options.scales.y.min = auto;
     chart.options.scales.y.max = undefined;
-    chart.options.scales.y.beginAtZero = true;
+    chart.options.scales.y.beginAtZero = auto === 0;
   } else {
     // Bereken data-maximum over alle datasets
     let dataMax = 0;
@@ -16929,6 +16950,114 @@ function renderContractRow(src, id, nCols, safeId, gedeeldInfo, alleenLezen, zon
 
 // Telt per ISO-week van een jaar hoeveel projecten actief zijn. Stopt bij
 // verwijderd_op of bij een definitieve einddatum (localStorage).
+// ── Projectenlijn G1 + maandgemiddelde M1 (akkoord 11-09) ─────────────────
+const PROJ_MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+
+// In welke maand valt ISO-week w van dit jaar? Die van zijn donderdag.
+function _projWeekMaand(year, w) {
+  const d = isoWeekStartDate(year, w);
+  d.setUTCDate(d.getUTCDate() + 3);
+  return d.getUTCMonth();
+}
+
+// De x-as: alleen de eerste week van elke maand krijgt een naam.
+function projWeekMaandLabels(year) {
+  const uit = []; let vorige = -1;
+  for (let w = 1; w <= 52; w++) {
+    const m = _projWeekMaand(year, w);
+    uit.push(m !== vorige ? PROJ_MAANDEN[m] : '');
+    vorige = m;
+  }
+  return uit;
+}
+
+// De ondergrens van de y-as: tien onder het laagste punt, afgerond op tien,
+// nooit onder nul. Zo zit de lijn in het midden in plaats van in de onderste
+// helft boven een lege vlakte.
+function projLijnYMin(counts, begroot) {
+  const alles = [].concat(counts || [], begroot || []).filter(v => v != null && isFinite(v));
+  if (!alles.length) return 0;
+  return Math.max(0, Math.floor((Math.min.apply(null, alles) - 10) / 10) * 10);
+}
+
+// Gemiddelde stand per maand, met twee decimalen. nuWeek = de ISO-week van
+// vandaag; de maand daarvan is "nu", alles erna is toekomst (prognose).
+function projMaandGemiddelden(year, counts, begroot, nuWeek) {
+  const nuMaand = nuWeek ? _projWeekMaand(year, nuWeek) : -1;
+  const per = Array.from({ length: 12 }, (_, m) => ({ maand: m, naam: PROJ_MAANDEN[m], weken: [], tel: [], beg: [] }));
+  for (let w = 1; w <= 52; w++) {
+    const m = _projWeekMaand(year, w);
+    per[m].weken.push(w);
+    const c = counts && counts[w - 1];
+    if (c != null && isFinite(c)) per[m].tel.push(+c);
+    const b = begroot && begroot[w - 1];
+    if (b != null && isFinite(b)) per[m].beg.push(+b);
+  }
+  const gem = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  return per.map(x => {
+    const g = gem(x.tel), b = gem(x.beg);
+    const v = (g != null && b != null) ? g - b : null;
+    return { maand: x.maand, naam: x.naam, weken: x.weken,
+             gemGetal: g, gem: g == null ? null : g.toFixed(2),
+             begroot: b == null ? null : b.toFixed(2),
+             verschil: v == null ? null : v.toFixed(2),
+             nu: x.maand === nuMaand, toekomst: nuMaand >= 0 && x.maand > nuMaand };
+  });
+}
+
+function projMaandTegelsHtml(maanden) {
+  const nl = (s) => String(s).replace('.', ',').replace('-', '−');
+  return '<div class="proj-mtegels">' + maanden.map(m =>
+    '<div class="proj-mtegel' + (m.nu ? ' nu' : m.toekomst ? ' toekomst' : '') + '">' +
+      '<div class="proj-mtegel-maand">' + escHtml(m.naam) + (m.nu ? ' ·' : '') + '</div>' +
+      '<div class="proj-mtegel-gem">' + (m.gem == null ? '—' : nl(m.gem)) + '</div>' +
+      (m.toekomst
+        ? '<div class="proj-mtegel-verschil">prognose</div>'
+        : m.verschil == null
+          ? '<div class="proj-mtegel-verschil">geen begroting</div>'
+          : '<div class="proj-mtegel-verschil ' + (+m.verschil < 0 ? 'min' : 'plus') + '">' +
+            (+m.verschil > 0 ? '+' : '') + nl(m.verschil) + '</div>') +
+    '</div>').join('') + '</div>';
+}
+
+// De vandaag-lijn, de gedempte toekomst en de twee getallen erbij — een eigen
+// tekening op de grafiek (geen extra bibliotheek).
+function _projVandaagPlugin(nuIdx, standNu, begrootNu) {
+  return {
+    id: 'projVandaag',
+    beforeDatasetsDraw(chart) {
+      if (nuIdx == null || nuIdx < 0) return;
+      const { ctx, chartArea: a, scales } = chart;
+      const x = scales.x.getPixelForValue(nuIdx);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.18)';
+      ctx.fillRect(x, a.top, a.right - x, a.bottom - a.top);
+      ctx.restore();
+    },
+    afterDatasetsDraw(chart) {
+      if (nuIdx == null || nuIdx < 0) return;
+      const { ctx, chartArea: a, scales } = chart;
+      const x = scales.x.getPixelForValue(nuIdx);
+      ctx.save();
+      ctx.strokeStyle = '#F4CB3C'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = '11px sans-serif'; ctx.textBaseline = 'top';
+      ctx.fillStyle = '#F4CB3C';
+      ctx.fillText('vandaag · W' + (nuIdx + 1), x + 5, a.top + 2);
+      if (standNu != null) {
+        ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
+        ctx.fillText(String(standNu), x + 6, scales.y.getPixelForValue(standNu) - 14);
+      }
+      if (begrootNu != null) {
+        ctx.fillStyle = '#E87400'; ctx.font = '12px sans-serif';
+        ctx.fillText('begroot ' + begrootNu, x + 6, scales.y.getPixelForValue(begrootNu) - 14);
+      }
+      ctx.restore();
+    },
+  };
+}
+
 function countActiveProjectsPerWeek(year) {
   const ranges = getCombinedProjectRanges();
   const counts = [];
@@ -19728,6 +19857,7 @@ function renderPrognose() {
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chartProjLine"></canvas></div>
+      ${projMaandTegelsHtml(projMaandGemiddelden(year, projLineCounts, begroteLijn, year === isoWeek(TODAY).year ? isoWeek(TODAY).week : (year < isoWeek(TODAY).year ? 53 : 0)))}
     </div>
 
     <!-- Starters goedkeuring -->
@@ -19936,12 +20066,24 @@ function renderPrognose() {
   setTimeout(() => {
     const prognoseLijn   = getPrognoseStopperLijnPerWeek(year);
     const heeftPrognose  = prognoseLijn.some(v => v !== null);
+    // G1 (11-09): vandaag als index in de 52 weken van dít jaar; in een ander
+    // jaar is er geen vandaag-lijn.
+    const nuW   = isoWeek(TODAY);
+    const nuIdx = nuW.year === year ? nuW.week - 1 : (year < nuW.year ? 51 : -1);
     const datasets = [
-      { label: 'Actieve projecten', data: projLineCounts, borderColor: '#1a56db', backgroundColor: '#1a56db22', fill: true, tension: .3, pointRadius: 2, borderWidth: 2 },
-      { label: 'Begrote lijn', data: begroteLijn, borderColor: '#E87400', borderDash: [5,4], pointRadius: 0, borderWidth: 2, fill: false },
+      { label: 'Actieve projecten', data: projLineCounts, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,.15)', fill: true, tension: .3, pointRadius: 0, pointHitRadius: 8, borderWidth: 2.5,
+        segment: { borderDash: (c) => c.p0DataIndex >= nuIdx ? [5, 4] : undefined } },
+      { label: 'Begrote lijn', data: begroteLijn, borderColor: '#E87400', borderDash: [6,4], pointRadius: 0, borderWidth: 2, fill: false },
     ];
     if (heeftPrognose) datasets.push({ label: 'Prognose stoppers', data: prognoseLijn, borderColor: '#EAB308', borderDash: [4,3], pointRadius: 0, borderWidth: 1.5, fill: false });
-    makeChart('chartProjLine', wkLabels, datasets, 'line', { legend: begroteLijn.some(v => v !== null) || heeftPrognose });
+    const maandLabels = projWeekMaandLabels(year);
+    window._projYAuto = projLijnYMin(projLineCounts, begroteLijn);
+    makeChart('chartProjLine', wkLabels, datasets, 'line', {
+      legend: begroteLijn.some(v => v !== null) || heeftPrognose,
+      yMin: projLijnYMin(projLineCounts, begroteLijn),
+      xTick: (i) => maandLabels[i],
+      plugins: [_projVandaagPlugin(nuIdx, nuIdx >= 0 ? projLineCounts[nuIdx] : null, nuIdx >= 0 ? begroteLijn[nuIdx] : null)],
+    });
     if (isBeheerder()) bonusFiltApply();
   }, 50);
 }
