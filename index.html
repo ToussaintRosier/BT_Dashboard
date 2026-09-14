@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260911-1251 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260914-0756 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6706,7 +6706,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260911-1251';
+const APP_VERSIE = '20260914-0756';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -30618,10 +30618,9 @@ function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
   if (toStage !== 'Aanbieden') delete card.aanb;
   pipeSave(bmNaam, cards);
   render();
-  if (supa) supa.from('pipeline_cards')
+  if (supa) _pipeSchrijf('kaart verplaatsen', supa.from('pipeline_cards')
     .update({ stage: toStage, week: toWeek, jaar: toJaar, aanb: card.aanb ?? null, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
-    .eq('id', cardId)
-    .then(({error}) => { if (error) console.error('Kaart verplaatsen mislukt:', error); });
+    .eq('id', cardId), bmNaam);
 }
 
 // ── Add / bewerk card modal (zelfde modal, cardId bepaalt de modus) ──────────
@@ -30768,8 +30767,8 @@ async function pipeConfirmAdd() {
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
     if (supa) {
-      const { error } = await supa.from('pipeline_cards').update(updatePayload).eq('id', cardId);
-      if (error) { alert('Kandidaat wijzigen mislukt: ' + error.message); return; }
+      const ok = await _pipeSchrijf('kandidaat wijzigen', supa.from('pipeline_cards').update(updatePayload).eq('id', cardId), bmNaam);
+      if (!ok) return;
     }
     const cards = pipeLoad(bmNaam);
     const card  = cards.find(c => c.id === cardId);
@@ -30798,7 +30797,17 @@ async function pipeConfirmAdd() {
     const { data, error } = await supa.from('pipeline_cards')
       .insert(insertPayload)
       .select().single();
-    if (error) { alert('Kandidaat toevoegen mislukt: ' + error.message); return; }
+    if (error) {
+      // PGRST116 na een insert: de rij ís opgeslagen, maar de leesregel laat
+      // hem voor jou niet terugkomen (kaart van een collega). Dan is er niets
+      // verloren — alleen niet zichtbaar tot de rechten kloppen (14-09).
+      const nietTerug = error.code === 'PGRST116' || /JSON object requested/i.test(error.message || '');
+      meldFout('kandidaat toevoegen mislukt: ' + error.message, 'pipeline', 'bord van ' + bmNaam + ' · door ' + (CURRENT_USER?.naam || '?'));
+      alert(nietTerug
+        ? 'De kandidaat is wel opgeslagen, maar jij mag de kaart van ' + bmNaam + ' niet teruglezen. Hij verschijnt zodra de rechten kloppen — meld dit bij de beheerder.'
+        : 'Kandidaat toevoegen mislukt: ' + error.message);
+      return;
+    }
     newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
   } else {
     newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie };
@@ -30816,6 +30825,40 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') pipeCloseModal();
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHRIJVEN OP EEN PIPELINEKAART: NOOIT MEER STIL MISLUKKEN (14-09)
+//
+// Melding van een collega: "intakes verdwijnen einde dag" en "de twee
+// aanbiedingen van Mike zie ik niet". Wat er kón gebeuren: het scherm paste
+// de kaart meteen aan en stuurde de wijziging daarna naar de database met
+// alleen een console.error als het misging — en niemand kijkt in de console.
+// Erger: weigert de databaseregel (RLS) een wijziging, dan geeft Supabase
+// géén fout maar werkt hij nul rijen bij. Het scherm toonde dan de hele dag
+// iets wat nergens was opgeslagen, tot de verversing de werkelijkheid
+// terugzette.
+//
+// Daarom loopt elke schrijfactie op een kaart nu hierlangs: een fout gaat
+// naar het logboek én naar de gebruiker, "nul rijen" telt ook als fout, en in
+// beide gevallen wordt de werkelijke stand meteen opgehaald zodat het scherm
+// nooit iets toont dat niet bestaat.
+// ═══════════════════════════════════════════════════════════════════════════
+async function _pipeSchrijf(wat, vraag, bmNaam) {
+  let fout = '';
+  try {
+    const { data, error } = await vraag.select('id');
+    if (error) fout = String(error.message || error);
+    else if (!data || !data.length) fout = 'de database heeft niets opgeslagen (nul rijen bijgewerkt)';
+  } catch (e) { fout = String((e && e.message) || e); }
+  if (!fout) return true;
+  meldFout(wat + ' mislukt: ' + fout, 'pipeline', 'bord van ' + (bmNaam || '?') + ' · door ' + ((CURRENT_USER && CURRENT_USER.naam) || '?'));
+  alert('Niet opgeslagen: ' + wat + ' op het bord van ' + (bmNaam || '?') + '.\n\n' + fout +
+        '\n\nMeestal betekent dit dat je geen recht hebt om een kaart van een collega te wijzigen. ' +
+        'Het scherm haalt nu de werkelijke stand op; meld dit bij de beheerder met de naam van de kandidaat.');
+  try { await pipeFetchAll(); } catch (_) {}
+  render();
+  return false;
+}
+
 // ── Update aanbieden count ────────────────────────────────────────────────────
 function pipeUpdateAanb(bmNaam, cardId, value) {
   if (!eisWijzig('medewerkers')) return;
@@ -30825,10 +30868,9 @@ function pipeUpdateAanb(bmNaam, cardId, value) {
   if (!card) return;
   card.aanb = parseInt(value, 10) || 0;
   pipeSave(bmNaam, cards);
-  if (supa) supa.from('pipeline_cards')
+  if (supa) _pipeSchrijf('aanbiedingen bijwerken', supa.from('pipeline_cards')
     .update({ aanb: card.aanb, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
-    .eq('id', cardId)
-    .then(({error}) => { if (error) console.error('Aanbod bijwerken mislukt:', error); });
+    .eq('id', cardId), bmNaam);
 }
 
 // ── Aantal aanbiedingen: één stapje op of neer ────────────────────────────────
@@ -30851,10 +30893,9 @@ function pipeUpdateGesprek(bmNaam, cardId, value) {
   if (!card) return;
   card.gesprek = value ? parseInt(value, 10) : null;
   pipeSave(bmNaam, cards);
-  if (supa) supa.from('pipeline_cards')
+  if (supa) _pipeSchrijf('gesprek bijwerken', supa.from('pipeline_cards')
     .update({ gesprek: card.gesprek, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() })
-    .eq('id', cardId)
-    .then(({error}) => { if (error) console.error('Gesprek bijwerken mislukt:', error); });
+    .eq('id', cardId), bmNaam);
 }
 
 // ── Delete card ───────────────────────────────────────────────────────────────
@@ -30863,8 +30904,7 @@ function pipeDelete(bmNaam, cardId) {
   if (!canEdit(bmNaam)) return;
   pipeSave(bmNaam, pipeLoad(bmNaam).filter(c => c.id !== cardId));
   render();
-  if (supa) supa.from('pipeline_cards').delete().eq('id', cardId)
-    .then(({error}) => { if (error) console.error('Kaart verwijderen mislukt:', error); });
+  if (supa) _pipeSchrijf('kaart verwijderen', supa.from('pipeline_cards').delete().eq('id', cardId), bmNaam);
 }
 
 </script>
