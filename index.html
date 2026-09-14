@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260914-0756 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260914-0947 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6706,7 +6706,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260914-0756';
+const APP_VERSIE = '20260914-0947';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20657,6 +20657,30 @@ function _pipeCardFromRow(c) {
     marge_pw: c.marge_pw ?? null, eju: c.eju || null };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ALLE RIJEN OPHALEN, OOK VOORBIJ DE 1000 (14-09)
+//
+// Supabase geeft op één select maximaal 1000 rijen terug. De back-upfunctie
+// wist dat al; de pipeline niet. Zodra pipeline_cards de 1000 passeerde,
+// vielen er kaarten van het scherm — en omdat de sortering op `datum` een
+// tekst is ("11-9-2026"), verschoof het met elke nieuwe kaart wélke er
+// wegvielen. Dat was "vanmiddag ingevoerd, einde dag verdwenen" (melding
+// collega 14-09): de kaart stond er, het scherm kreeg hem alleen niet.
+//
+// maakVraag() bouwt telkens een verse vraag (een gebruikte vraag kun je niet
+// opnieuw sturen); hier komt alleen range() achter.
+// ═══════════════════════════════════════════════════════════════════════════
+async function _alleRijen(maakVraag) {
+  let alles = [], van = 0;
+  for (;;) {
+    const { data, error } = await maakVraag().range(van, van + 999);
+    if (error) return { data: alles, error };
+    alles = alles.concat(data || []);
+    if (!data || data.length < 1000) return { data: alles, error: null };
+    van += 1000;
+  }
+}
+
 // Haalt alle pipeline-kaarten op uit de database.
 // De RLS-basisregel geeft elke BM eigen kaarten + een extra policy geeft
 // iedereen leesrecht op akkoord-kaarten (voor het Projecten-overzicht).
@@ -20667,9 +20691,9 @@ async function pipeFetchAll() {
   // volgorde teruggeven, en een net bijgewerkte rij komt er meestal achteraan
   // uit. Gevolg: vink je een fase af, dan sprong het kaartje naar een andere
   // plek zodra de verversing binnenkwam.
-  const { data, error } = await supa.from('pipeline_cards').select('*')
-    .order('datum', { ascending: true }).order('id', { ascending: true });
-  if (error) { console.error('Pipeline laden mislukt:', error); return; }
+  const { data, error } = await _alleRijen(() => supa.from('pipeline_cards').select('*')
+    .order('datum', { ascending: true }).order('id', { ascending: true }));
+  if (error) { meldFout('pipeline laden mislukt: ' + (error.message || error), 'pipeFetchAll'); console.error('Pipeline laden mislukt:', error); return; }
   const next = {};
   // Afgewezen kaarten horen niet in de pipeline (26-08). Wie op "niet akkoord"
   // klikte zag de kaart zelf direct verdwijnen, maar de rij wordt in de
@@ -20681,8 +20705,8 @@ async function pipeFetchAll() {
     next[c.bm_naam].push(_pipeCardFromRow(c));
   });
   // Akkoord-kaarten van alle BMs (zichtbaar via RLS-policy "Akkoord plaatsingen leesbaar voor iedereen")
-  const { data: akkoordData } = await supa.from('pipeline_cards').select('*').eq('goedkeuring', 'akkoord')
-    .order('datum', { ascending: true }).order('id', { ascending: true });
+  const { data: akkoordData } = await _alleRijen(() => supa.from('pipeline_cards').select('*').eq('goedkeuring', 'akkoord')
+    .order('datum', { ascending: true }).order('id', { ascending: true }));
   (akkoordData || []).forEach(c => {
     if (!next[c.bm_naam]) next[c.bm_naam] = [];
     // Niet dubbel toevoegen als de BM al zichtbaar was via eigen kaarten
@@ -30687,7 +30711,31 @@ function pipeOpenEditModal(bmNaam, cardId) {
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
 }
 function pipeCloseModal() { document.getElementById('pipe-modal').classList.remove('open'); }
+// ═══════════════════════════════════════════════════════════════════════════
+// SLOT OP "TOEVOEGEN" (14-09): één handeling, één kaart.
+//
+// In de database stonden 27 groepen dubbele kaarten. Negen paren liggen minder
+// dan een minuut uit elkaar, één paar 262 milliseconden. De oorzaak: het
+// wegschrijven is async en het venster blijft open tot het antwoord binnen
+// is. Een tweede klik in die tussentijd — of Enter op de knop, want dan vuurt
+// de Enter-luisteraar van het venster én de klik van de knop zelf — startte
+// een tweede insert. Nu staat er een slot: zolang de eerste aanroep loopt,
+// doet een tweede niets. Het slot gaat altijd weer open, ook na een fout.
+// ═══════════════════════════════════════════════════════════════════════════
+let _PIPE_TOEVOEGEN_BEZIG = false;
 async function pipeConfirmAdd() {
+  if (!eisWijzig('medewerkers')) return;
+  if (_PIPE_TOEVOEGEN_BEZIG) return;
+  _PIPE_TOEVOEGEN_BEZIG = true;
+  const knop = document.getElementById('pipe-modal-ok-btn');
+  if (knop) knop.disabled = true;
+  try { await _pipeConfirmAddInner(); }
+  finally {
+    _PIPE_TOEVOEGEN_BEZIG = false;
+    if (knop) knop.disabled = false;
+  }
+}
+async function _pipeConfirmAddInner() {
   if (!eisWijzig('medewerkers')) return;
   const naam = document.getElementById('pipe-modal-naam').value.trim();
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
