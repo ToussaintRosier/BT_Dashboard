@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1053 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1056 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -7230,7 +7230,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1053';
+const APP_VERSIE = '20260915-1056';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26503,10 +26503,15 @@ async function _laadTranscriptsAchtergrond(type) {
   _transcriptsBezig++;
   toonBezig('Opnames ophalen…');
   try {
-    const { data, error } = await supa.from('verslagen').select('id, transcript').in('id', ids);
-    if (error || !data) return;
+    // In stukken van 100 (15-09): honderden ids in één .in() maken de vraag te
+    // lang, en die faalde stil — waarna alle intakes uit Coaching bleven.
     const perId = {};
-    data.forEach(r => { perId[String(r.id)] = r.transcript || ''; });
+    for (let i = 0; i < ids.length; i += 100) {
+      const deel = ids.slice(i, i + 100);
+      const { data, error } = await supa.from('verslagen').select('id, transcript').in('id', deel);
+      if (error) { _meldStil('transcripties ophalen (' + type + ', ' + deel.length + ' stuks)', error); continue; }
+      (data || []).forEach(r => { perId[String(r.id)] = r.transcript || ''; });
+    }
     lijst.forEach(r => {
       if (Object.prototype.hasOwnProperty.call(perId, String(r.id))) {
         r.transcript = perId[String(r.id)];
@@ -26547,7 +26552,11 @@ async function loadGesprekRecordsFromDb() {
       // Fase 1 haalt geen transcripties op. Behoud wat we al hadden; de rest
       // wordt hierna op de achtergrond aangevuld.
       transcript: r.transcript ?? lok?.transcript ?? '',
-      heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
+      // Zonder lokale kopie: "waarschijnlijk wel", fase 2 zegt het zeker. De
+      // oude regel (lok?.heeftTranscript ?? !!lok?.transcript ?? true) kwam bij
+      // een verse opname op false uit — !!undefined is false, niet leeg — en
+      // daarmee verdween elke nieuwe intake uit Coaching (15-09).
+      heeftTranscript: r.transcript ? true : (lok ? (lok.heeftTranscript ?? !!lok.transcript) : true),
     };
   });
   // Verslagen die alleen in deze browser bestaan (de server-opslag was destijds
@@ -26603,7 +26612,11 @@ async function loadBezoekRecordsFromDb() {
       recorder_naam_server: r.meta?.recorder_naam || '',
       result: _bezoekResultOverrides[String(r.id)] ?? r.result,
       transcript: r.transcript ?? lok?.transcript ?? '',
-      heeftTranscript: r.transcript ? true : (lok?.heeftTranscript ?? !!lok?.transcript ?? true),
+      // Zonder lokale kopie: "waarschijnlijk wel", fase 2 zegt het zeker. De
+      // oude regel (lok?.heeftTranscript ?? !!lok?.transcript ?? true) kwam bij
+      // een verse opname op false uit — !!undefined is false, niet leeg — en
+      // daarmee verdween elke nieuwe intake uit Coaching (15-09).
+      heeftTranscript: r.transcript ? true : (lok ? (lok.heeftTranscript ?? !!lok.transcript) : true),
     };
   });
   // Samenvoegen op het vaste nummer (02-09) — zie _verslagenSamenvoegen.
