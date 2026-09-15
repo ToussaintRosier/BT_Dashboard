@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1107 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1114 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2460,18 +2460,25 @@
   .cc-stip.orange { background:#F4CB3C; } .cc-stip.green { background:#0e9f6e; }
   .cc-pil { margin-left:auto; flex-shrink:0; font-size:.64rem; border-radius:9px; padding:1px 7px; background:rgba(255,255,255,.1); color:rgba(255,255,255,.75); white-space:nowrap; }
   .cc-nr { color:#F4CB3C; font-size:.74rem; width:14px; flex-shrink:0; margin-top:1px; }
-  .cc-rij { display:flex; align-items:center; gap:10px; padding:7px 6px; border-bottom:1px solid rgba(255,255,255,.08); font-size:.8rem; }
-  .cc-rij:last-child { border-bottom:none; }
-  .cc-rij:hover { background:rgba(255,255,255,.04); }
-  .cc-rij .d { color:rgba(255,255,255,.5); width:52px; flex-shrink:0; font-size:.74rem; }
-  .cc-rij .naam { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff; }
-  .cc-chip { font-size:.64rem; border-radius:5px; padding:1px 6px; font-weight:var(--w-nadruk); flex-shrink:0; }
+  /* Opnames als tabel met vaste kolommen (15-09): alles recht onder elkaar,
+     knoppen altijd zichtbaar en per rij op dezelfde plek — een knop die niet
+     van toepassing is laat zijn plek leeg, zodat de rest niet opschuift. */
+  .cc-tabel { width:100%; border-collapse:collapse; table-layout:fixed; font-size:.8rem; }
+  .cc-tabel th { font-size:.64rem; font-weight:var(--w-normaal); color:rgba(255,255,255,.4); text-align:left; padding:2px 6px 6px; }
+  .cc-tabel td { padding:7px 6px; border-top:1px solid rgba(255,255,255,.08); vertical-align:middle; }
+  .cc-tabel tr.cc-rij:hover td { background:rgba(255,255,255,.04); }
+  .cc-tabel td.d { color:rgba(255,255,255,.5); font-size:.74rem; white-space:nowrap; }
+  .cc-tabel td.naam { color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cc-chip { font-size:.64rem; border-radius:5px; padding:1px 6px; font-weight:var(--w-nadruk); }
   .cc-chip.itk { background:rgba(244,203,60,.2); color:#F4CB3C; } .cc-chip.bzk { background:rgba(158,200,244,.2); color:#9ec8f4; }
   .cc-status { font-size:.72rem; color:#7fdcb4; white-space:nowrap; } .cc-status.n { color:rgba(255,255,255,.45); }
-  .cc-acties { display:flex; gap:4px; opacity:0; transition:opacity .15s; }
-  .cc-rij:hover .cc-acties, .cc-rij:focus-within .cc-acties { opacity:1; }
-  .cc-acties .crm-knop { font-size:.7rem; padding:3px 9px; }
+  .cc-afspr { font-size:.66rem; border-radius:9px; padding:1px 7px; white-space:nowrap; }
+  .cc-afspr.akkoord { background:rgba(14,159,110,.2); color:#7fdcb4; } .cc-afspr.gedeeld { background:rgba(244,203,60,.15); color:#F4CB3C; }
+  .cc-afspr.geen { color:rgba(255,255,255,.3); }
+  .cc-acties { display:grid; grid-template-columns:76px 76px 44px; gap:4px; justify-content:end; }
+  .cc-acties .crm-knop { font-size:.7rem; padding:3px 0; text-align:center; width:100%; }
   .cc-acties .crm-knop.weg { border-color:rgba(224,82,82,.5); color:#ffb3b3; }
+  .cc-acties .leeg { display:block; }
   .cc-res { padding:10px 8px 6px; border-bottom:1px solid rgba(255,255,255,.08); }
   .cc-res-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
   .cc-res-vak { border-radius:8px; padding:9px 11px; font-size:.78rem; line-height:1.55; }
@@ -2481,7 +2488,7 @@
   .cc-res-vak.ontw { background:rgba(158,200,244,.12); } .cc-res-vak.ontw .k { color:#9ec8f4; }
   .cc-res-vraag { margin-top:8px; font-size:.78rem; color:rgba(255,255,255,.8); background:rgba(255,255,255,.05); border-radius:8px; padding:8px 11px; }
   .cc-leeg { color:rgba(255,255,255,.55); font-size:.8rem; padding:10px 4px; line-height:1.5; }
-  @media (max-width:768px) { .cc-tegels, .cc-twee, .cc-res-grid { grid-template-columns:1fr; } .cc-acties { opacity:1; } .cc-funnel { flex-wrap:wrap; } }
+  @media (max-width:768px) { .cc-tegels, .cc-twee, .cc-res-grid { grid-template-columns:1fr; } .cc-funnel { flex-wrap:wrap; } .cc-tabel .kol-afspr, .cc-tabel .kol-status { display:none; } }
   .detail-section { background:var(--card); border-radius:var(--radius); border:1px solid var(--border); padding:20px; margin-bottom:16px; }
   .detail-section h3 { font-size:1rem; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
 
@@ -7282,7 +7289,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1107';
+const APP_VERSIE = '20260915-1114';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16201,32 +16208,41 @@ function renderBmCoachingTab(bm) {
     const status = cr && cr.loading ? '<span class="cc-status">analyseren…</span>'
                  : cr && cr.result ? '<span class="cc-status">geanalyseerd</span>'
                  : cr && cr.error  ? '<span class="cc-status" style="color:#ffb3b3;">fout</span>'
-                 : '<span class="cc-status n">nog niet geanalyseerd</span>';
-    return `<div class="cc-rij" title="${escHtml(rec.datum)}">
-        <span class="d">${escHtml(datumKort(rec.datum))}</span>
-        <span class="cc-chip ${type}">${type === 'itk' ? 'ITK' : 'BZK'}</span>
-        <span class="naam">${escHtml(title)}</span>
-        ${type === 'itk' ? _afsprakenBadge(rec.id) : ''}
-        ${status}
-        <span class="cc-acties">
-          ${!cr ? `<button class="crm-knop goed" onclick="${fnAnalyse}">Analyseer</button>` : ''}
-          ${type === 'itk' ? `<button class="crm-knop" onclick="afsprakenDelen('${rec.id}')" title="Afspraken delen met de kandidaat via QR-code">Afspraken</button>` : ''}
-          ${cr && !cr.loading && cr.result ? `<button class="crm-knop" onclick="mailCoachAnalyse('${rec.id}','${type}')">Mailen</button>` : ''}
-          ${isManagerLevel() ? `<button class="crm-knop weg" onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" title="Verwijder opname">Weg</button>` : ''}
-        </span>
-      </div>
-      ${cr && !cr.loading && cr.result ? `<div class="cc-res"><div class="cc-res-grid">
+                 : '<span class="cc-status n">nog niet</span>';
+    // Afspraken: de status als klein label; de knop opent de afspraken die
+    // gemaakt zijn (en waar ze nog niet gedeeld zijn: het deelvenster).
+    const ag = type === 'itk' ? (AFSPRAKEN_GEDEELD[String(rec.id)] || null) : null;
+    const afspr = type !== 'itk' ? '<span class="cc-afspr geen">—</span>'
+                : !ag || !ag.gepubliceerd ? '<span class="cc-afspr geen">—</span>'
+                : ag.akkoord_op ? '<span class="cc-afspr akkoord" title="Kandidaat heeft de afspraken bevestigd">akkoord</span>'
+                : '<span class="cc-afspr gedeeld" title="Gedeeld, nog niet bevestigd">gedeeld</span>';
+    const leeg = '<span class="leeg"></span>';
+    return `<tr class="cc-rij" title="${escHtml(rec.datum)}">
+        <td class="d">${escHtml(datumKort(rec.datum))}</td>
+        <td><span class="cc-chip ${type}">${type === 'itk' ? 'ITK' : 'BZK'}</span></td>
+        <td class="naam">${escHtml(title)}</td>
+        <td class="kol-afspr">${afspr}</td>
+        <td class="kol-status">${status}</td>
+        <td><span class="cc-acties">
+          ${!cr ? `<button class="crm-knop goed" onclick="${fnAnalyse}">Analyseer</button>` : leeg}
+          ${type === 'itk' ? `<button class="crm-knop" onclick="afsprakenDelen('${rec.id}')" title="De afspraken uit dit gesprek bekijken en delen">Afspraken</button>` : leeg}
+          ${isManagerLevel() ? `<button class="crm-knop weg" onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" title="Verwijder opname">Weg</button>` : leeg}
+        </span></td>
+      </tr>
+      ${cr && !cr.loading && cr.result ? `<tr><td colspan="6" class="cc-res"><div class="cc-res-grid">
           <div class="cc-res-vak goed"><div class="k">Wat ging goed</div>${escHtml(cr.result.goedGedaan || '—')}</div>
           <div class="cc-res-vak beter"><div class="k">Wat kan beter</div>${escHtml(cr.result.kanBeter || '—')}</div>
           <div class="cc-res-vak ontw"><div class="k">Ontwikkelpunt</div>${escHtml(cr.result.ontwikkelpunt || '—')}</div>
-        </div>${cr.result.gespreksagenda ? `<div class="cc-res-vraag"><strong>Coachingsvraag:</strong> ${escHtml(cr.result.gespreksagenda)}</div>` : ''}</div>` : ''}
-      ${cr && !cr.loading && cr.error ? `<div class="cc-res" style="color:#ffb3b3;font-size:.78rem;">${escHtml(cr.error)}</div>` : ''}`;
+        </div>${cr.result.gespreksagenda ? `<div class="cc-res-vraag"><strong>Coachingsvraag:</strong> ${escHtml(cr.result.gespreksagenda)}</div>` : ''}</td></tr>` : ''}
+      ${cr && !cr.loading && cr.error ? `<tr><td colspan="6" class="cc-res" style="color:#ffb3b3;font-size:.78rem;">${escHtml(cr.error)}</td></tr>` : ''}`;
   };
   const opnamesHtml = totalBm === 0
     ? (_opnamesPreloadBezig
         ? `<div class="cc-leeg">Opnames worden geladen…</div>`
         : `<div class="cc-leeg">Geen opnames toegewezen aan ${voornaam}.${totalAll > 0 ? ' Er zijn wel ' + totalAll + ' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (Recente records → Toewijzen).' : ' Maak een opname via de ITK- of BZK-Recorder.'}</div>`)
-    : gesprekMet.slice(0, 5).map(x => recRij(x, 'itk')).join('') + bezoekMet.slice(0, 5).map(x => recRij(x, 'bzk')).join('');
+    : `<table class="cc-tabel"><colgroup><col style="width:58px"><col style="width:46px"><col><col class="kol-afspr" style="width:80px"><col class="kol-status" style="width:96px"><col style="width:216px"></colgroup>
+        <thead><tr><th>datum</th><th>type</th><th>opname</th><th class="kol-afspr">afspraken</th><th class="kol-status">analyse</th><th></th></tr></thead>
+        <tbody>${gesprekMet.slice(0, 5).map(x => recRij(x, 'itk')).join('') + bezoekMet.slice(0, 5).map(x => recRij(x, 'bzk')).join('')}</tbody></table>`;
 
   return `
     <div class="norm-intro">
