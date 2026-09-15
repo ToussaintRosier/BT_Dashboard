@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1335 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1352 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -7326,7 +7326,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1335';
+const APP_VERSIE = '20260915-1352';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16773,6 +16773,13 @@ function weekBefore(year, week) {
   return isoWeek(new Date(+start - 7 * 86400000));
 }
 
+// Datum voor het scherm: 2026-08-20 → 20-08-2026 (15-09). Wat geen datum is
+// blijft staan zoals het was; leeg blijft leeg.
+function datumNL(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : String(s);
+}
 function toISODate(d) {
   if (!d) return null;
   const dt = (d instanceof Date) ? d : new Date(d);
@@ -17408,7 +17415,8 @@ function projVensterHtml() {
   const leeg     = '<span class="wrd-leeg">—</span>';
 
   // Op slot: tekst. Bewerken: het invoerveld dat de lijst vroeger had.
-  const veld = (id, waarde, invoer) => PROJ_VENSTER.bewerk ? invoer : '<span class="wrd-tekst">' + (waarde ? escHtml(waarde) : leeg) + '</span>';
+  const datumIsDatum = (id) => id === 'start' || id === 'eind' || id === 'defn' || id === 'prog';
+  const veld = (id, waarde, invoer) => PROJ_VENSTER.bewerk ? invoer : '<span class="wrd-tekst">' + (waarde ? escHtml(datumIsDatum(id) ? datumNL(waarde) : waarde) : leeg) + '</span>';
   const containerId = `pr-collega-${safeId}`;
   const projectBlok =
     '<div class="rij"><div class="lab">Opdrachtgever</div><div class="wrd">' +
@@ -18637,8 +18645,8 @@ function bonusFiltApply() {
       (vb ? '' : `<div class="bonus-buiten" title="Kies een verdeling om dit project mee te laten tellen">telt niet mee</div>`);
     function fmtNL(s) {
       if (!s || s === '—') return '—';
-      const d = new Date(s); if (isNaN(d)) return s;
-      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      const iso = toISODate(s); if (!iso) return s;
+      return datumNL(iso);   // DD-MM-JJJJ, zoals overal in Projecten (15-09)
     }
     let row = TD(`<strong>${escHtml(r.naam)}</strong>`);
     if (cols.start   !== false) row += TD(fmtNL(r.start));
@@ -18842,10 +18850,10 @@ function buildProjRow(r, canEditProj, nuVoorOverdue, nCols) {
     ${statusCel}<td style="padding:7px 8px;overflow:hidden;"><div class="bt-hoofd" style="display:flex;align-items:center;gap:6px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${r.naam}</span>${alertSpan}${suffixHtml}</div></td>
     ${cel(escHtml(r.opdrachtgever || ''))}
     <td style="padding:5px 8px;text-align:left;white-space:nowrap;">${_collegaCirkels(collega) || leeg}</td>
-    ${cel(startStr)}
-    ${cel(toISODate(r.eind) || '', overdue ? '#ff8080' : '')}
-    ${cel(defnVal, defnVal ? '#6ee7b7' : '')}
-    ${cel(progVal, progVal ? '#fcd34d' : '')}
+    ${cel(datumNL(startStr))}
+    ${cel(datumNL(toISODate(r.eind) || ''), overdue ? '#ff8080' : '')}
+    ${cel(datumNL(defnVal), defnVal ? '#6ee7b7' : '')}
+    ${cel(datumNL(progVal), progVal ? '#fcd34d' : '')}
     <td style="padding:5px 8px;text-align:center;color:rgba(255,255,255,.45);">›</td>
   </tr>`;
 }
