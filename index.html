@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1715 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1723 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1330,7 +1330,13 @@
      een invoerveld. */
   .one-ber-kop .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .one-ber-kop .s { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .one-ber-kop > div:first-child { min-width:0; flex:1; }
+  .one-ber-kop .tx { min-width:0; flex:1; }
+  .one-ber-ikoon { width:32px; height:32px; border-radius:7px; border:1px solid rgba(255,255,255,.22); background:transparent; color:rgba(255,255,255,.75);
+                   display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex-shrink:0; }
+  .one-ber-ikoon:hover { background:rgba(255,255,255,.08); color:#fff; }
+  .one-ber-ikoon.rood { color:#ffb3b3; border-color:rgba(224,82,82,.45); }
+  .one-ber-ikoon svg, .one-ber-naamknop svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .one-ber-naamknop { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; }
   .one-ber-kop .knoppen { display:flex; gap:6px; flex-shrink:0; }
   .one-ber-naamknop { background:transparent; border:1px solid rgba(158,200,244,.4); color:#9ec8f4; border-radius:6px;
                       padding:3px 8px; font-family:inherit; font-size:.7rem; cursor:pointer; white-space:nowrap; }
@@ -6602,18 +6608,16 @@ function _oneBerDraadHtml() {
   }).join('');
 
   const concept = ONE_BER_CONCEPT[g.id] || '';
+  const svgGroep = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M21.5 19a5 5 0 0 0-6-4.5"/></svg>';
+  const svgWeg   = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+  // KA (15-09): één knop Groep (naam + deelnemers in één venster) en een
+  // klein prullenbak-icoon; naam en deelnemersregel kappen af, de knoppen
+  // blijven altijd binnen het paneel.
   const kopKnoppen = '<div class="knoppen">' +
-    (g.is_groep ? '<button class="one-ber-naamknop" title="Groepsnaam wijzigen" onclick="oneGesprekHernoem(\'' + g.id + '\')">✎ naam</button>' +
-                  '<button class="one-ber-naamknop" title="Deelnemers toevoegen of weghalen" onclick="oneDeelnemersVenster(\'' + g.id + '\')">Deelnemers</button>' : '') +
-    '<button class="crm-knop" style="font-size:.7rem;padding:4px 9px;" title="Alleen bij jou weg; de ander houdt de berichten" onclick="oneGesprekVerlaten(\'' + g.id + '\')">Verwijderen</button></div>';
-  const kopHtml = ONE_BER_HERNOEM === String(g.id)
-    ? '<div class="one-ber-kop"><div class="one-ber-naamveld">' +
-        '<input type="text" id="one-ber-naam-invoer" maxlength="60" value="' + escHtml(g.titel || '') + '" placeholder="Naam van de groep"' +
-        ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();oneGesprekHernoemOpslaan(\'' + g.id + '\');}if(event.key===\'Escape\'){oneGesprekHernoem(null);}">' +
-        '<button class="crm-knop opslaan" onclick="oneGesprekHernoemOpslaan(\'' + g.id + '\')">Opslaan</button>' +
-        '<button class="crm-knop" onclick="oneGesprekHernoem(null)">Annuleren</button></div></div>'
-    : '<div class="one-ber-kop"><span class="one-ber-av" style="background:' + (g.is_groep ? '#7FD1AE' : _oneAvatarKleur(oneGesprekNaam(g))) + ';">' + escHtml(_oneInitialen(oneGesprekNaam(g))) + '</span>' +
-      '<div><div class="t" title="' + escHtml(oneGesprekNaam(g)) + '">' + escHtml(oneGesprekNaam(g)) + '</div>' +
+    (g.is_groep ? '<button class="one-ber-naamknop" title="Naam en deelnemers van de groep" onclick="oneDeelnemersVenster(\'' + g.id + '\')">' + svgGroep + 'Groep</button>' : '') +
+    '<button class="one-ber-ikoon rood" title="Verwijderen bij jou — de ander houdt de berichten" aria-label="Gesprek bij jou verwijderen" onclick="oneGesprekVerlaten(\'' + g.id + '\')">' + svgWeg + '</button></div>';
+  const kopHtml = '<div class="one-ber-kop"><span class="one-ber-av" style="background:' + (g.is_groep ? '#7FD1AE' : _oneAvatarKleur(oneGesprekNaam(g))) + ';">' + escHtml(_oneInitialen(oneGesprekNaam(g))) + '</span>' +
+      '<div class="tx"><div class="t" title="' + escHtml(oneGesprekNaam(g)) + '">' + escHtml(oneGesprekNaam(g)) + '</div>' +
       '<div class="s">' + sub + '</div></div>' + kopKnoppen + '</div>';
 
   return '<div class="one-ber-draadkaart">' + kopHtml +
@@ -6650,8 +6654,14 @@ function oneDeelnemersVenster(gid) {
     ? kandidaten.map(p => rij(p.naam, p.id, mag ? '<button class="one-dn-knop bij" title="Toevoegen" onclick="oneDeelnemerToevoegen(\'' + gid + '\',\'' + p.id + '\')">+</button>' : '')).join('')
     : '<div class="one-ber-leeg" style="padding:6px;">' + (zoek ? 'Niemand gevonden.' : 'Iedereen zit er al in.') + '</div>';
   crmKaartToon(`
-    <h4>Deelnemers · ${escHtml(oneGesprekNaam(g))}</h4>
-    <div class="crm-sub">Wijzigingen gelden direct voor iedereen in de groep. Jezelf haal je weg met Verwijderen in het gesprek.</div>
+    <h4>Groep · ${escHtml(oneGesprekNaam(g))}</h4>
+    <div class="crm-sub">Wijzigingen gelden direct voor iedereen in de groep. Jezelf haal je weg met het prullenbakje in het gesprek.</div>
+    <div class="crm-kop">Naam</div>
+    <div class="one-ber-naamveld">
+      <input type="text" id="one-ber-naam-invoer" maxlength="60" value="${escHtml(g.titel || '')}" placeholder="Naam van de groep"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();oneGesprekHernoemOpslaan('${gid}');}">
+      <button class="crm-knop opslaan" onclick="oneGesprekHernoemOpslaan('${gid}')">Opslaan</button>
+    </div>
     <div class="crm-kop">In de groep · ${leden.length}</div>
     <div class="one-dn-lijst">${ledenHtml}</div>
     <div class="crm-kop">Toevoegen</div>
@@ -6692,8 +6702,8 @@ function _oneBerBewaar(gid, tekst) { ONE_BER_CONCEPT[gid] = tekst; }
 
 // ── Groepsnaam (15-09) ───────────────────────────────────────────────────────
 function oneGesprekHernoem(gid) {
-  ONE_BER_HERNOEM = gid ? String(gid) : null;
-  renderOne();
+  // Sinds KA (15-09) zit het naamveld in het groepsvenster.
+  if (gid) oneDeelnemersVenster(gid);
   const inp = document.getElementById('one-ber-naam-invoer');
   if (inp) { inp.focus(); inp.select(); }
 }
@@ -6713,6 +6723,7 @@ async function oneGesprekHernoemOpslaan(gid) {
   if (g) g.titel = titel || null;
   ONE_BER_HERNOEM = null;
   renderOne();
+  if (document.getElementById('crm-laag')) oneDeelnemersVenster(gid);   // venster blijft open, met de nieuwe naam
 }
 
 // ── Emoji-kiezer (15-09) ────────────────────────────────────────────────────
@@ -7557,7 +7568,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1715';
+const APP_VERSIE = '20260915-1723';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
