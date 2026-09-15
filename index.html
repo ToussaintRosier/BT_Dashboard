@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1050 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1053 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6251,8 +6251,11 @@ async function loadOneBerichten() {
     return;
   }
   ONE_BER_BESCHIKBAAR = true;
-  ONE_GESPREKKEN = g.data || [];
   ONE_LEDEN      = l.data || [];
+  // Alleen gesprekken waar je zelf in zit (15-09). De leesregel laat de maker
+  // een gesprek ook zien nadat hij het verliet — nodig op het moment van
+  // aanmaken — maar in de lijst hoort het dan niet meer.
+  ONE_GESPREKKEN = (g.data || []).filter(x => ONE_LEDEN.some(l2 => String(l2.gesprek_id) === String(x.id) && l2.user_id === ONE_MIJN_ID));
   ONE_BERICHTEN  = (b.data || []).slice().reverse();      // oudste eerst
   const nu = new Date();
   ONE_PROFIELEN  = (pr.data || [])
@@ -6372,7 +6375,7 @@ function _oneBerDraadHtml() {
   return '<div class="one-ber-draadkaart">' +
     '<div class="one-ber-kop"><div><div class="t">' + escHtml(oneGesprekNaam(g)) + '</div>' +
       '<div class="s">' + sub + '</div></div>' +
-      '<button class="crm-knop" style="font-size:.7rem;padding:4px 9px;" onclick="oneGesprekVerlaten(\'' + g.id + '\')">Verlaten</button></div>' +
+      '<button class="crm-knop" style="font-size:.7rem;padding:4px 9px;" title="Alleen bij jou weg; de ander houdt de berichten" onclick="oneGesprekVerlaten(\'' + g.id + '\')">Verwijderen</button></div>' +
     '<div class="one-ber-draad" id="one-ber-draad">' +
       (draad || '<div class="one-ber-leeg">Nog geen berichten. Schrijf de eerste.</div>') +
     '</div>' +
@@ -6528,7 +6531,11 @@ async function oneGesprekVerlaten(gid) {
   if (!eisWijzig('one')) return;
   if (!supa) return;
   const g = ONE_GESPREKKEN.find(x => String(x.id) === String(gid));
-  if (!confirm('Gesprek met ' + oneGesprekNaam(g) + ' verlaten? Je ziet de berichten dan niet meer.')) return;
+  // Weg bij jou, niet bij de ander (15-09). Pas als de laatste deelnemer het
+  // verwijdert, ruimt de database het gesprek zelf op (one_berichten_v2.sql).
+  const anderen = _oneBerAnderen(gid).map(x => x.naam.split(' ')[0]);
+  if (!confirm('Gesprek met ' + oneGesprekNaam(g) + ' bij jou verwijderen?\n\n' +
+      (anderen.length ? anderen.join(', ') + ' houdt de berichten tot ' + (anderen.length === 1 ? 'die' : 'zij') + ' het ook verwijder' + (anderen.length === 1 ? 't' : 'en') + '.' : 'Je bent de laatste deelnemer; het gesprek verdwijnt dan helemaal.'))) return;
   _echoVanZelf('one_gesprek_leden');
   const { error } = await supa.from('one_gesprek_leden').delete().eq('gesprek_id', gid).eq('user_id', ONE_MIJN_ID);
   if (error) { meldFout('gesprek verlaten mislukt: ' + error.message, 'one_berichten'); alert('Niet gelukt: ' + error.message); return; }
@@ -7223,7 +7230,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1050';
+const APP_VERSIE = '20260915-1053';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
