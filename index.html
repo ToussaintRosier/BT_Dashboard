@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1032 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1050 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1352,6 +1352,20 @@
                              border-radius:8px; padding:8px 10px; font-family:inherit; font-size:.83rem;
                              resize:none; min-height:38px; max-height:120px; }
   .one-ber-invoer textarea::placeholder { color:rgba(255,255,255,.4); }
+  /* Emoji-knop en -paneel bij het invoerveld (15-09). */
+  .one-ber-emoji-knop { width:36px; height:36px; flex-shrink:0; background:#253151; border:1px solid rgba(255,255,255,.14);
+                        border-radius:8px; font-size:18px; line-height:1; cursor:pointer; padding:0; }
+  .one-ber-emoji-knop:hover, .one-ber-emoji-knop.open { border-color:#F4CB3C; }
+  .one-ber-invoer { position:relative; }
+  .one-ber-emoji { position:absolute; bottom:calc(100% + 6px); left:0; z-index:5; background:#1c2440;
+                   border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:8px;
+                   display:grid; grid-template-columns:repeat(8, 34px); gap:2px;
+                   box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .one-ber-emoji button { background:transparent; border:none; border-radius:6px; font-size:20px; line-height:1;
+                          padding:6px 0; cursor:pointer; }
+  .one-ber-emoji button:hover { background:rgba(255,255,255,.12); }
+  .one-ber-emoji .hint { grid-column:1 / -1; font-size:.68rem; color:rgba(255,255,255,.55); padding:6px 4px 1px;
+                         border-top:1px solid rgba(255,255,255,.1); margin-top:4px; }
   .one-ber-verstuur { background:#F4CB3C; color:#3a2f00; border:none; border-radius:8px;
                       padding:9px 14px; font-family:inherit; font-size:.8rem; font-weight:var(--w-nadruk);
                       cursor:pointer; white-space:nowrap; }
@@ -6363,6 +6377,7 @@ function _oneBerDraadHtml() {
       (draad || '<div class="one-ber-leeg">Nog geen berichten. Schrijf de eerste.</div>') +
     '</div>' +
     '<div class="one-ber-invoer">' +
+      '<button class="one-ber-emoji-knop" id="one-ber-emoji-knop" type="button" title="Emoji kiezen" aria-label="Emoji kiezen" onclick="oneEmojiToggle(event)">🙂</button>' +
       '<textarea id="one-ber-invoer" rows="1" placeholder="Typ een bericht… (Enter = versturen, Shift+Enter = nieuwe regel)"' +
       ' onkeydown="oneBerichtToets(event,\'' + g.id + '\')" oninput="_oneBerBewaar(\'' + g.id + '\', this.value)">' + escHtml(concept) + '</textarea>' +
       '<button class="one-ber-verstuur" id="one-ber-verstuur" onclick="oneBerichtVerstuur(\'' + g.id + '\')">Versturen</button>' +
@@ -6370,6 +6385,54 @@ function _oneBerDraadHtml() {
 }
 
 function _oneBerBewaar(gid, tekst) { ONE_BER_CONCEPT[gid] = tekst; }
+
+// ── Emoji-kiezer (15-09) ────────────────────────────────────────────────────
+// Een vast rijtje van zestien, geen zoekfunctie: dat is wat je negen van de
+// tien keer wilt. Voor de rest staat de sneltoets van het systeem erbij.
+const ONE_EMOJIS = ['👍','👏','😀','😂','😉','🙏','💪','🔥','✅','❌','❤️','🎉','👀','🤔','☕','🚀'];
+function oneEmojiToggle(e) {
+  if (e) e.stopPropagation();
+  const bestaand = document.getElementById('one-ber-emoji');
+  if (bestaand) { oneEmojiSluit(); return; }
+  const rij = document.querySelector('.one-ber-invoer');
+  if (!rij) return;
+  const paneel = document.createElement('div');
+  paneel.className = 'one-ber-emoji'; paneel.id = 'one-ber-emoji';
+  paneel.setAttribute('role', 'dialog'); paneel.setAttribute('aria-label', 'Emoji kiezen');
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+  paneel.innerHTML = ONE_EMOJIS.map(x => '<button type="button" data-emoji="' + x + '">' + x + '</button>').join('') +
+    '<div class="hint">Meer: ' + (mac ? 'Ctrl+Cmd+spatie' : 'Win+.') + ' in het tekstveld</div>';
+  paneel.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const b = ev.target.closest('[data-emoji]');
+    if (b) oneEmojiPlaats(b.getAttribute('data-emoji'));
+  });
+  rij.appendChild(paneel);
+  const knop = document.getElementById('one-ber-emoji-knop'); if (knop) knop.classList.add('open');
+  setTimeout(() => {
+    document.addEventListener('click', oneEmojiSluit, { once: true });
+    document.addEventListener('keydown', _oneEmojiEsc);
+  }, 0);
+}
+function _oneEmojiEsc(ev) { if (ev.key === 'Escape') oneEmojiSluit(); }
+function oneEmojiSluit() {
+  const p = document.getElementById('one-ber-emoji'); if (p) p.remove();
+  const knop = document.getElementById('one-ber-emoji-knop'); if (knop) knop.classList.remove('open');
+  document.removeEventListener('keydown', _oneEmojiEsc);
+}
+// Op de plek van de cursor, niet achteraan: wie midden in een zin zit, wil
+// hem daar. Daarna de cursor erachter en het veld weer in beeld.
+function oneEmojiPlaats(emoji) {
+  const t = document.getElementById('one-ber-invoer');
+  if (!t) return;
+  const van = t.selectionStart ?? t.value.length, tot = t.selectionEnd ?? van;
+  t.value = t.value.slice(0, van) + emoji + t.value.slice(tot);
+  const pos = van + emoji.length;
+  if (ONE_GESPREK_ACTIEF) ONE_BER_CONCEPT[ONE_GESPREK_ACTIEF] = t.value;
+  oneEmojiSluit();
+  t.focus();
+  try { t.setSelectionRange(pos, pos); } catch (_) {}
+}
 function _oneBerNaRender() {
   const d = document.getElementById('one-ber-draad');
   if (d) d.scrollTop = d.scrollHeight;
@@ -7160,7 +7223,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1032';
+const APP_VERSIE = '20260915-1050';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
