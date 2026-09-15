@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1118 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1335 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2493,6 +2493,39 @@
   .cc-res-vraag { margin-top:8px; font-size:.78rem; color:rgba(255,255,255,.8); background:rgba(255,255,255,.05); border-radius:8px; padding:8px 11px; }
   .cc-leeg { color:rgba(255,255,255,.55); font-size:.8rem; padding:10px 4px; line-height:1.5; }
   @media (max-width:768px) { .cc-tegels, .cc-twee, .cc-res-grid { grid-template-columns:1fr; } .cc-funnel { flex-wrap:wrap; } .cc-tabel .kol-afspr, .cc-tabel .kol-status { display:none; } }
+  /* Performance-analyse P3 (akkoord 15-09): laatste analyse centraal links,
+     nieuwe analyse maken klein rechts; donkere huisstijl. */
+  .ag { background:#253151; border-radius:var(--radius-groot); padding:16px 18px; color:rgba(255,255,255,.88); }
+  .ag-twee { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:10px; }
+  .ag-kaart { background:#364160; border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:12px 14px; }
+  .ag-kop { font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.5); margin-bottom:8px; }
+  .ag-kopregel { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .ag-kopregel .ag-kop { margin:0; }
+  .ag-select { width:100%; box-sizing:border-box; background:#253151; color:#fff; border:1px solid rgba(255,255,255,.14);
+               border-radius:8px; padding:8px 10px; font-family:inherit; font-size:.82rem; color-scheme:dark; }
+  .ag-select.klein { width:auto; font-size:.74rem; padding:4px 8px; }
+  .ag-drop { border:1.5px dashed rgba(244,203,60,.45); border-radius:10px; padding:16px 10px; text-align:center; cursor:pointer;
+             background:rgba(244,203,60,.04); margin-top:8px; }
+  .ag-drop:hover, .ag-drop.over { background:rgba(244,203,60,.1); border-color:#F4CB3C; }
+  .ag-drop .t { font-size:.82rem; color:#fff; } .ag-drop .s { font-size:.7rem; color:rgba(255,255,255,.5); margin-top:2px; }
+  .ag-preview { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; margin-top:8px; background:#253151; }
+  .ag-preview img { display:block; max-width:100%; max-height:160px; object-fit:contain; margin:0 auto; }
+  .ag-preview .r { display:flex; justify-content:space-between; align-items:center; padding:5px 8px; font-size:.7rem; color:rgba(255,255,255,.6); }
+  .ag-knop { width:100%; margin-top:8px; background:#F4CB3C; color:#3a2f00; border:none; border-radius:8px; padding:9px 12px;
+             font-family:inherit; font-size:.82rem; font-weight:var(--w-nadruk); cursor:pointer; }
+  .ag-knop:disabled { background:rgba(255,255,255,.08); color:rgba(255,255,255,.4); cursor:default; }
+  .ag-hint { font-size:.68rem; color:rgba(255,255,255,.45); margin-top:6px; text-align:center; }
+  .ag-tekst { font-size:.85rem; line-height:1.7; color:rgba(255,255,255,.88); }
+  .ag-tekst h1, .ag-tekst h2, .ag-tekst h3 { color:#F4CB3C; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; margin:12px 0 4px; font-weight:var(--w-nadruk); }
+  .ag-tekst strong { color:#fff; }
+  .ag-leeg { color:rgba(255,255,255,.6); font-size:.84rem; line-height:1.65; padding:14px 6px; }
+  .ag-leeg strong { color:#fff; }
+  .ag-acties { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; align-items:center; }
+  .ag-acties .crm-knop { font-size:.7rem; padding:4px 10px; }
+  .ag-wacht { display:flex; align-items:center; gap:10px; color:#F4CB3C; font-size:.84rem; padding:20px 6px; }
+  .ag-wacht .bol { width:14px; height:14px; border-radius:50%; border:2px solid rgba(244,203,60,.3); border-top-color:#F4CB3C; animation:ag-draai .9s linear infinite; }
+  @keyframes ag-draai { to { transform:rotate(360deg); } }
+  @media (max-width:768px) { .ag-twee { grid-template-columns:1fr; } }
   .detail-section { background:var(--card); border-radius:var(--radius); border:1px solid var(--border); padding:20px; margin-bottom:16px; }
   .detail-section h3 { font-size:1rem; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
 
@@ -7293,7 +7326,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1118';
+const APP_VERSIE = '20260915-1335';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16521,12 +16554,69 @@ async function analyseerAgenda(bmNaam) {
     if (data.error) throw new Error(data.error);
     st.loading = false;
     st.result = data.analyse || '(Geen analyse ontvangen)';
+    st.resultJaar = selYear; st.resultWeek = selWeek; st.resultOp = new Date().toISOString();
+    st.gekozenId = null;
+    const rij = await _agendaAnalyseBewaar(bmNaam, selYear, selWeek, st.result);
+    if (rij) st.geschiedenis = [rij].concat(st.geschiedenis || []);
   } catch(err) {
     st.loading = false;
     st.error = err.message;
   }
 
   document.getElementById('bm-subtab-content').innerHTML = renderAgendaAnalyse(bm);
+}
+
+// ── Analyses bewaren en terughalen (P3, 15-09) ──────────────────────────────
+// De uitkomst stond alleen in het geheugen van de browser; nu gaat hij naar
+// agenda_analyses (supabase/agenda_analyses.sql). Ontbreekt die tabel nog,
+// dan werkt het scherm gewoon, alleen zonder "eerdere".
+async function _agendaAnalyseBewaar(bmNaam, jaar, week, analyse) {
+  if (!supa || !CURRENT_USER || !analyse) return null;
+  if (!canEdit(bmNaam) && !magWijzigen('medewerkers')) return null;
+  const { data, error } = await supa.from('agenda_analyses')
+    .insert({ bm_naam: bmNaam, jaar, week, tekst: analyse, created_by: CURRENT_USER.id }).select().single();
+  if (error) {
+    if (!/does not exist|42P01/i.test(String(error.message || error.code || ''))) _meldStil('analyse bewaren', error);
+    return null;
+  }
+  return data;
+}
+async function _agendaGeschiedenisLaad(bm) {
+  const st = AGENDA_STATE[bm.naam] || (AGENDA_STATE[bm.naam] = {});
+  if (!supa || st.geschiedenisBezig) return;
+  st.geschiedenisBezig = true;
+  try {
+    const { data, error } = await supa.from('agenda_analyses').select('*')
+      .eq('bm_naam', bm.naam).order('created_at', { ascending: false }).limit(20);
+    if (error) {
+      st.geschiedenis = [];
+      st.geschiedenisTabelMist = /does not exist|42P01/i.test(String(error.message || error.code || ''));
+      if (!st.geschiedenisTabelMist) _meldStil('analyses ophalen', error);
+    } else { st.geschiedenis = data || []; st.geschiedenisTabelMist = false; }
+  } finally {
+    st.geschiedenisBezig = false;
+    st.geschiedenisGeladen = true;
+  }
+  const el = document.getElementById('bm-subtab-content');
+  if (el && bmSubTab === 'agenda' && typeof currentTab === 'number' && BMS[currentTab] && BMS[currentTab].naam === bm.naam) el.innerHTML = renderAgendaAnalyse(bm);
+}
+// Welke analyse staat links: de net gemaakte, anders de gekozen, anders de nieuwste.
+function _agendaGetoond(st) {
+  if (st.result) return { tekst: st.result, jaar: st.resultJaar, week: st.resultWeek, created_at: st.resultOp || new Date().toISOString(), vers: true };
+  const lijst = st.geschiedenis || [];
+  if (!lijst.length) return null;
+  return lijst.find(x => String(x.id) === String(st.gekozenId)) || lijst[0];
+}
+function agendaKies(bmNaam, id) {
+  const st = AGENDA_STATE[bmNaam] || (AGENDA_STATE[bmNaam] = {});
+  st.gekozenId = id; st.result = null; st.error = null;
+  const bm = BMS.find(b => b.naam === bmNaam);
+  const el = document.getElementById('bm-subtab-content');
+  if (bm && el) el.innerHTML = renderAgendaAnalyse(bm);
+}
+function _agendaDatumKort(iso) {
+  const d = new Date(iso); if (isNaN(d)) return '';
+  return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 }
 
 function agendaToggleInfo(bmNaam) {
@@ -16538,6 +16628,7 @@ function agendaToggleInfo(bmNaam) {
 
 function agendaPrint(bmNaam) {
   const st = AGENDA_STATE[bmNaam];
+  if (st && !st.result) { const g = _agendaGetoond(st); if (g) st.result = g.tekst; }
   if (!st || !st.result) return;
   const win = window.open('', '_blank');
   if (!win) { alert('Sta pop-ups toe om te kunnen printen.'); return; }
@@ -16557,6 +16648,7 @@ function agendaPrint(bmNaam) {
 
 function agendaWordExport(bmNaam) {
   const st = AGENDA_STATE[bmNaam];
+  if (st && !st.result) { const g = _agendaGetoond(st); if (g) st.result = g.tekst; }
   if (!st || !st.result) return;
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -16583,6 +16675,9 @@ function renderAgendaAnalyse(bm) {
   const safeId = bm.naam.replace(/\s+/g,'_');
   if (!AGENDA_STATE[bm.naam]) AGENDA_STATE[bm.naam] = {};
   const st = AGENDA_STATE[bm.naam];
+  if (!st.geschiedenisGeladen && !st.geschiedenisBezig) _agendaGeschiedenisLaad(bm);
+  const naamE = escHtml(bm.naam);
+  const voornaam = escHtml(bm.naam.split(' ')[0]);
 
   // Recente weken voor de week-selector
   const bmRows = RAW.filter(r => r.naam === bm.naam)
@@ -16590,113 +16685,69 @@ function renderAgendaAnalyse(bm) {
     .slice(0, 12);
   const defaultKey = bmRows[0] ? `${bmRows[0].jaar}-${bmRows[0].week}` : `${CUR.year}-${CUR.week}`;
   const selectedKey = st.selectedWeekKey || defaultKey;
-
   const weekOptions = bmRows.map(r => {
     const key = `${r.jaar}-${r.week}`;
-    return `<option value="${key}" ${key===selectedKey?'selected':''}>${'W' + r.week + ' ' + r.jaar}</option>`;
-  }).join('');
+    return `<option value="${key}" ${key===selectedKey?'selected':''}>W${r.week} · ${r.jaar}</option>`;
+  }).join('') || `<option value="${defaultKey}">W${CUR.week} · ${CUR.year}</option>`;
 
-  // ℹ️-knop met uitklapbare beschrijving
-  const infoBlock = `
-    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
-      <button onclick="agendaToggleInfo('${escHtml(bm.naam)}')"
-              title="${st.showInfo ? 'Verberg uitleg' : 'Toon uitleg'}"
-              style="flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--muted);background:none;
-                     cursor:pointer;font-size:.8rem;color:var(--muted);line-height:1;padding:0;
-                     ${st.showInfo ? 'background:var(--muted);color:#fff;' : ''}">ℹ</button>
-      ${st.showInfo ? `<div style="font-size:.83rem;color:var(--muted);line-height:1.55;">
-        Upload een screenshot van de Outlook-weekagenda van <strong>${escHtml(bm.naam.split(' ')[0])}</strong>.
-        Claude analyseert de agenda-structuur en combineert dit met de KPI-prestaties en conversieratio's
-        — zo wordt zichtbaar of er sprake is van een kwantiteits- of kwaliteitsprobleem.
-      </div>` : ''}
-    </div>`;
+  // ── Links: de analyse ───────────────────────────────────────────────────
+  const getoond = _agendaGetoond(st);
+  const lijst = st.geschiedenis || [];
+  const eerdere = lijst.length > 1 || (lijst.length === 1 && st.result)
+    ? `<select class="ag-select klein" onchange="agendaKies('${naamE}', this.value)" title="Eerdere analyses">
+         <option value="">Eerdere analyses…</option>
+         ${lijst.map(x => `<option value="${x.id}" ${!st.result && String(x.id) === String(st.gekozenId) ? 'selected' : ''}>W${x.week} · ${x.jaar} — ${escHtml(_agendaDatumKort(x.created_at))}</option>`).join('')}
+       </select>` : '';
+  let linksHtml;
+  if (st.loading) {
+    linksHtml = `<div class="ag-kop">Performance-analyse · ${voornaam}</div>
+      <div class="ag-wacht"><span class="bol"></span>Analyseren… dit duurt 10 tot 20 seconden.</div>`;
+  } else if (getoond) {
+    const wanneer = getoond.vers ? 'zojuist' : escHtml(_agendaDatumKort(getoond.created_at));
+    linksHtml = `<div class="ag-kopregel"><div class="ag-kop">Performance-analyse · W${getoond.week} · ${getoond.jaar} · ${wanneer}</div>${eerdere}</div>
+      <div class="ag-tekst">${simpleMarkdown(getoond.tekst)}</div>
+      <div class="ag-acties">
+        <button class="crm-knop" onclick="agendaPrint('${naamE}')">Print / PDF</button>
+        <button class="crm-knop" onclick="agendaWordExport('${naamE}')">Word</button>
+      </div>`;
+  } else {
+    linksHtml = `<div class="ag-kopregel"><div class="ag-kop">Performance-analyse · ${voornaam}</div>${eerdere}</div>
+      <div class="ag-leeg"><strong>Nog geen analyse voor ${voornaam}.</strong><br>
+        Upload rechts een screenshot van de Outlook-weekagenda en kies de week. De analyse legt de agenda naast de
+        KPI's en conversieratio's van die week — zo wordt zichtbaar of het een kwantiteits- of een kwaliteitsprobleem is.
+        ${st.geschiedenisTabelMist ? '<br><span style="color:#F4CB3C;">Analyses worden nog niet bewaard: draai <code>supabase/agenda_analyses.sql</code>.</span>' : ''}</div>`;
+  }
+  const errorHtml = st.error ? `<div style="margin-top:10px;color:#ffb3b3;font-size:.8rem;">Fout: ${escHtml(st.error)}</div>` : '';
 
-  // Upload zone of preview
-  const dropZone = `
-    <div style="border:2px dashed var(--border);border-radius:var(--radius);padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;"
-         ondragover="event.preventDefault();this.style.background='#f0f6ff';this.style.borderColor='var(--accent)';"
-         ondragleave="this.style.background='';this.style.borderColor='var(--border)';"
-         ondrop="event.preventDefault();this.style.background='';this.style.borderColor='var(--border)';var f=event.dataTransfer.files[0];if(f)onAgendaFileSelected('${escHtml(bm.naam)}',f);"
+  // ── Rechts: nieuwe analyse ──────────────────────────────────────────────
+  const dropZone = st.imagePreview
+    ? `<div class="ag-preview"><img src="${st.imagePreview}" alt="Agenda">
+         <div class="r"><span>${escHtml(st.imageName || 'agenda.png')}</span>
+           <button class="crm-knop" style="font-size:.66rem;padding:2px 7px;" onclick="agendaClearImage('${naamE}')">Weg</button></div></div>
+       <div class="ag-hint" style="cursor:pointer;" onclick="document.getElementById('agenda-file-${safeId}').click();">andere afbeelding kiezen</div>`
+    : `<div class="ag-drop"
+         ondragover="event.preventDefault();this.classList.add('over');"
+         ondragleave="this.classList.remove('over');"
+         ondrop="event.preventDefault();this.classList.remove('over');var f=event.dataTransfer.files[0];if(f)onAgendaFileSelected('${naamE}',f);"
          onclick="document.getElementById('agenda-file-${safeId}').click();">
-      <div style="font-size:2.4rem;margin-bottom:8px;">📅</div>
-      <div style="font-weight:600;color:var(--text);margin-bottom:4px;">Agenda-screenshot uploaden</div>
-      <div style="font-size:.83rem;color:var(--muted);">Klik of sleep een Outlook-screenshot hierheen<br><span style="color:#94a3b8;">PNG · JPG · WEBP</span></div>
-      <input type="file" id="agenda-file-${safeId}" accept="image/*" style="display:none;"
-             onchange="onAgendaFileSelected('${escHtml(bm.naam)}',this.files[0]);">
-    </div>`;
-
-  const previewHtml = st.imagePreview ? `
-    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;">
-      <img src="${st.imagePreview}" alt="Agenda preview"
-           style="max-width:100%;max-height:300px;display:block;object-fit:contain;background:#f8f9fa;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-top:1px solid var(--border);font-size:.82rem;">
-        <span style="color:var(--muted);">${escHtml(st.imageName||'agenda.png')}</span>
-        <button class="btn-secondary" style="font-size:.76rem;padding:3px 10px;"
-                onclick="agendaClearImage('${escHtml(bm.naam)}')">✕ Verwijder</button>
-      </div>
-    </div>
-    <div style="text-align:center;margin-bottom:10px;">
-      <span style="font-size:.8rem;color:var(--muted);cursor:pointer;"
-            onclick="document.getElementById('agenda-file2-${safeId}').click();">Andere afbeelding kiezen</span>
-      <input type="file" id="agenda-file2-${safeId}" accept="image/*" style="display:none;"
-             onchange="onAgendaFileSelected('${escHtml(bm.naam)}',this.files[0]);">
-    </div>` : '';
-
+         <div class="t">Agenda-screenshot</div><div class="s">klik of sleep · Outlook, één week · PNG · JPG · WEBP</div></div>`;
   const canAnalyse = !!st.imageB64 && !st.loading;
-  const analyseBtn = `
-    <button class="${canAnalyse?'btn-primary':'btn-secondary'}" style="width:100%;margin-top:4px;"
-            ${canAnalyse?'':'disabled'}
-            onclick="analyseerAgenda('${escHtml(bm.naam)}')">
-      ${st.loading ? 'Analyseren… (10–20 sec)' : 'Analyseer agenda + KPI\'s'}
-    </button>`;
-
-  const resultHtml = st.result ? `
-    <div style="margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);">
-        <span style="font-weight:700;font-size:.88rem;color:var(--text);">Performance-Analyse — ${escHtml(bm.naam)}</span>
-        <div style="display:flex;gap:6px;">
-          <button class="btn-secondary" style="font-size:.75rem;padding:4px 10px;"
-                  onclick="agendaPrint('${escHtml(bm.naam)}')">Print</button>
-          <button class="btn-secondary" style="font-size:.75rem;padding:4px 10px;"
-                  onclick="agendaPrint('${escHtml(bm.naam)}')">PDF</button>
-          <button class="btn-secondary" style="font-size:.75rem;padding:4px 10px;"
-                  onclick="agendaWordExport('${escHtml(bm.naam)}')">Word</button>
-        </div>
-      </div>
-      <div style="padding:18px 20px;font-size:.87rem;line-height:1.75;color:var(--text);background:var(--card);">
-        ${simpleMarkdown(st.result)}
-      </div>
-    </div>` : '';
-
-  const errorHtml = st.error ? `
-    <div style="margin-top:12px;">${btStatusHtml(`❌ Fout: ${escHtml(st.error)}`)}</div>` : '';
+  const rechtsHtml = `<div class="ag-kop">Nieuwe analyse</div>
+    <select class="ag-select" onchange="agendaSelectWeek('${naamE}',this.value)">${weekOptions}</select>
+    ${dropZone}
+    <input type="file" id="agenda-file-${safeId}" accept="image/*" style="display:none;" onchange="onAgendaFileSelected('${naamE}',this.files[0]);">
+    <button class="ag-knop" ${canAnalyse ? '' : 'disabled'} onclick="analyseerAgenda('${naamE}')">${st.loading ? 'Analyseren…' : 'Analyseer agenda + KPI\'s'}</button>
+    <div class="ag-hint">${canAnalyse ? '10–20 seconden · wordt bewaard' : st.loading ? 'even geduld' : 'eerst een screenshot'}</div>`;
 
   return `
-    <div style="max-width:620px;margin:0 auto;padding-top:4px;">
-    <div class="plan-col nieuw">
-
-      ${infoBlock}
-
-      <div style="margin-bottom:16px;">
-        <label style="font-size:.8rem;font-weight:700;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">
-          Week voor KPI-vergelijking
-        </label>
-        <select style="padding:7px 12px;border:1px solid var(--border);border-radius:6px;font-size:.87rem;background:#fff;color:#1e293b;"
-                onchange="agendaSelectWeek('${escHtml(bm.naam)}',this.value)">
-          ${weekOptions || `<option value="${defaultKey}">W${CUR.week} ${CUR.year}</option>`}
-        </select>
+    <div class="ag">
+      <div class="ag-twee">
+        <div class="ag-kaart">${linksHtml}${errorHtml}</div>
+        <div class="ag-kaart">${rechtsHtml}</div>
       </div>
-
-      ${previewHtml || dropZone}
-      ${analyseBtn}
-      ${errorHtml}
-      ${resultHtml}
-    </div>
-    </div>
-  `;
+    </div>`;
 }
 
-// ── Prognose Panel ────────────────────────────────────────────────────────────
 const JAAR_DOEL_AMBITIEUS = 103;
 const NORM_NEW_BM = 12;          // 1 starter per maand = 12 per jaar
 const NORM_NEW_BM_PER_MONTH = 1; // norm: 1 starter per maand per nieuwe medewerker
