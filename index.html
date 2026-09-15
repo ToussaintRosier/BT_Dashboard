@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1352 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1357 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2114,18 +2114,32 @@
   /* .sub heeft geen algemene stijl; buiten de plekken die hem zelf opmaken
      erft hij de paginatekst en wordt hij veel te groot. Hier de maat en kleur
      die de rest van de kaart ook gebruikt. */
-  .starters-blok .sub { font-size:.8rem; color:var(--muted); }
-  .starters-blok .goedkeur-btn { border-color:var(--border); color:var(--text); }
-  .starters-blok .goedkeur-btn:hover { background:var(--hover); color:var(--text); }
-  /* Hetzelfde voor de initialen-chips: die worden per stuk opgebouwd met
-     doorschijnend wit, en dat is op een lichte kaart niet te zien. */
-  .starters-blok [onclick^="projCollegaToggle"] {
-    border-color:var(--border) !important; color:var(--text) !important;
-  }
-  .starters-blok [onclick^="projCollegaToggle"][style*="rgba(255,255,255,.18)"] {
-    background:var(--primary-light) !important; border-color:var(--primary) !important;
-    color:var(--primary) !important; font-weight:700;
-  }
+  /* Starters-goedkeuring S1 (akkoord 15-09): donker blok, één slanke regel
+     per kandidaat, knoppen rechts op een vaste plek. De lichte overschrij-
+     vingen van vroeger (lichte kaart) zijn weg: chips en knoppen zijn voor
+     het donker gemaakt en staan nu weer op het donker. */
+  .starters-blok .sub { font-size:.8rem; color:rgba(255,255,255,.55); }
+  .st-blok { background:#364160; border:1px solid rgba(255,255,255,.07); border-radius:var(--radius-groot); padding:6px 14px; margin-bottom:16px; }
+  .st-tel { display:inline-block; background:#E87400; color:#fff; border-radius:9px; padding:0 7px; font-size:.68rem; font-weight:var(--w-nadruk); margin-left:8px; vertical-align:middle; }
+  .st-leeg { display:flex; align-items:center; gap:10px; color:rgba(255,255,255,.6); font-size:.82rem; padding:8px 2px; }
+  .st-leeg .v { width:20px; height:20px; border-radius:50%; border:1.5px solid #7fdcb4; color:#7fdcb4; display:flex; align-items:center; justify-content:center; font-size:.7rem; flex-shrink:0; }
+  .st-rij { display:grid; grid-template-columns:minmax(150px,1.2fr) minmax(0,1.6fr) auto auto; gap:12px; align-items:center;
+            padding:8px 2px; border-bottom:1px solid rgba(255,255,255,.08); font-size:.8rem; }
+  .st-rij:last-child { border-bottom:none; }
+  .st-rij .naam { color:#fff; font-weight:var(--w-nadruk); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .st-rij .info { color:rgba(255,255,255,.55); font-size:.76rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .st-rij .chips { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .st-rij .chips .bm { font-size:.66rem; color:rgba(255,255,255,.45); margin-right:2px; }
+  .st-rij .acties { display:flex; gap:4px; justify-content:flex-end; white-space:nowrap; }
+  .st-pil { font-size:.64rem; border-radius:9px; padding:1px 7px; font-weight:var(--w-normaal); }
+  .st-pil.gedeeld { background:rgba(14,159,110,.2); color:#7fdcb4; }
+  .st-pil.half { background:rgba(244,203,60,.15); color:#F4CB3C; }
+  .st-eis { grid-column:1 / -1; font-size:.72rem; color:#F4CB3C; display:flex; align-items:center; gap:5px; margin-top:-4px; }
+  .st-blok .goedkeur-btn { padding:4px 10px; font-size:.72rem; }
+  .st-blok .goedkeur-btn.ok { background:#0e9f6e; border-color:#0e9f6e; color:#fff; }
+  .st-blok .goedkeur-btn.nee { border-color:rgba(224,82,82,.5); color:#ffb3b3; }
+  .st-blok .goedkeur-btn.weg { border-color:rgba(255,255,255,.25); color:rgba(255,255,255,.7); }
+  @media (max-width:768px) { .st-rij { grid-template-columns:1fr; gap:6px; } .st-rij .acties { justify-content:flex-start; } }
   .goedkeur-btn.akkoord { border-color:#0e9f6e; background:#0e9f6e; color:#fff; }
   .goedkeur-btn.niet-akkoord { border-color:#e02424; background:#e02424; color:#fff; }
   .btn-secondary { display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:7px 14px; font-size:.82rem; font-weight:700; cursor:pointer; }
@@ -7326,7 +7340,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1352';
+const APP_VERSIE = '20260915-1357';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20546,108 +20560,67 @@ function renderPrognose() {
       ${projMaandTegelsHtml(projMaandGemiddelden(year, projLineCounts, begroteLijn, year === isoWeek(TODAY).year ? isoWeek(TODAY).week : (year < isoWeek(TODAY).year ? 53 : 0)))}
     </div>
 
-    <!-- Starters goedkeuring -->
-    <div class="section-title">Starters-goedkeuring${btUitlegKnop('starters')}</div>
-    <div class="chart-card starters-blok" style="padding:${starterCards.length ? '10px 14px' : '26px 14px'};">
+    <!-- Starters goedkeuring (S1, 15-09) -->
+    <div class="section-title">Starters-goedkeuring${btUitlegKnop('starters')}${starterCards.length ? '<span class="st-tel">' + starterCards.length + '</span>' : ''}</div>
+    <div class="st-blok starters-blok">
       ${starterCards.length === 0 ? `
-      <div style="text-align:center;">
-        <svg viewBox="0 0 24 24" aria-hidden="true"
-             style="width:22px;height:22px;stroke:#9aa3b4;fill:none;stroke-width:1.7;
-                    stroke-linecap:round;stroke-linejoin:round;margin-bottom:6px;">
-          <circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.6 2.6L16 9.7"/>
-        </svg>
-        <div style="font-size:.85rem;color:var(--text);">Niets te beoordelen</div>
-        <div style="font-size:.76rem;color:var(--muted);margin-top:2px;">Er staan geen kandidaten in fase Starter.</div>
-      </div>` : (() => {
+      <div class="st-leeg"><span class="v">✓</span>Niets te beoordelen — er staan geen kandidaten in fase Starter.</div>` : (() => {
         const { pairs, singles, halfPlaatsingen } = getGedeeldPairs(starterCards);
-        // Deze kaarten liggen in een .chart-card, en die is licht. De knoppen
-        // en de initialen-chips erin zijn ooit voor de donkere pagina gemaakt
-        // (witte letters); daarvoor staat hieronder een lichte variant.
-        const cs = `border:1px solid var(--border);border-radius:8px;padding:10px 14px;` +
-                   `margin-bottom:8px;background:var(--card);`;
-        const pairCards = pairs.map(([c1, c2]) => {
+        const leegTxt = '<span style="color:rgba(255,255,255,.3);">—</span>';
+        const pairRows = pairs.map(([c1, c2]) => {
           const cid1 = `gc-collega-${String(c1.id).replace(/[^a-zA-Z0-9]/g,'')}`;
           const cid2 = `gc-collega-${String(c2.id).replace(/[^a-zA-Z0-9]/g,'')}`;
           const chips1 = _collegaChips('pipeline', c1.id, projCollegaLoad('pipeline', c1.id), cid1);
           const chips2 = _collegaChips('pipeline', c2.id, projCollegaLoad('pipeline', c2.id), cid2);
-          const ini1 = bmInitialen(c1.bmNaam), ini2 = bmInitialen(c2.bmNaam);
           const btns = canEditProj
-            ? `<button class="goedkeur-btn" style="background:#0e9f6e;color:#fff;border:none;" onclick="pipeSetGedeeldAkkoord('${c1.bmNaam}','${c1.id}','${c2.bmNaam}','${c2.id}')">Gedeeld akkoord → 1 project</button>
-               <button class="goedkeur-btn" style="margin-left:6px;" onclick="pipeSetGedeeldNietAkkoord('${c1.bmNaam}','${c1.id}','${c2.bmNaam}','${c2.id}')">Niet akkoord</button>`
+            ? `<button class="goedkeur-btn ok" onclick="pipeSetGedeeldAkkoord('${c1.bmNaam}','${c1.id}','${c2.bmNaam}','${c2.id}')">Gedeeld akkoord</button>
+               <button class="goedkeur-btn nee" onclick="pipeSetGedeeldNietAkkoord('${c1.bmNaam}','${c1.id}','${c2.bmNaam}','${c2.id}')">Niet akkoord</button>`
             : '<span class="sub">Alleen-lezen</span>';
-          return `<div style="${cs}border-left:4px solid #0e9f6e;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-              <strong>${escHtml(c1.naam)}</strong>
-              <span style="background:#dcfce7;color:#166534;font-size:.65rem;padding:1px 8px;border-radius:10px;font-weight:600;">Gedeeld 2× 0,5</span>
-              <span style="font-size:.75rem;color:var(--muted);">${c1.opdrachtgever?escHtml(c1.opdrachtgever):'—'}</span>
-            </div>
-            <div style="display:flex;gap:24px;margin-bottom:10px;flex-wrap:wrap;">
-              <div>
-                <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px;">${escHtml(c1.bmNaam)} <span style="font-weight:700;color:var(--text);">(${ini1})</span></div>
-                <div id="${cid1}">${chips1}</div>
-              </div>
-              <div>
-                <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px;">${escHtml(c2.bmNaam)} <span style="font-weight:700;color:var(--text);">(${ini2})</span></div>
-                <div id="${cid2}">${chips2}</div>
-              </div>
-            </div>
-            <div>${btns}</div>
+          return `<div class="st-rij">
+            <div class="naam">${escHtml(c1.naam)} <span class="st-pil gedeeld">gedeeld 2× 0,5</span></div>
+            <div class="info" title="${escHtml(c1.opdrachtgever || '')}">${c1.opdrachtgever ? escHtml(c1.opdrachtgever) : leegTxt} · ${escHtml(c1.bmNaam)} + ${escHtml(c2.bmNaam)}</div>
+            <div class="chips"><span><span class="bm">${escHtml(bmInitialen(c1.bmNaam))}</span><span id="${cid1}">${chips1}</span></span>
+                               <span><span class="bm">${escHtml(bmInitialen(c2.bmNaam))}</span><span id="${cid2}">${chips2}</span></span></div>
+            <div class="acties">${btns}</div>
           </div>`;
         });
-        const singleCards = singles.map(c => {
+        const singleRows = singles.map(c => {
           const cid = `gc-collega-${String(c.id).replace(/[^a-zA-Z0-9]/g,'')}`;
           const gekozen = projCollegaLoad('pipeline', c.id);
           const chips = _collegaChips('pipeline', c.id, gekozen, cid);
-          // De voorwaarde staat op de kaart in plaats van boven de lijst, en
-          // alleen zolang er nog niemand is aangevinkt. Staat het al goed, dan
-          // is de regel een herinnering aan iets wat je net gedaan hebt.
+          // De voorwaarde staat op de regel, en alleen zolang er nog niemand
+          // is aangevinkt.
           const eisHtml = (canEditProj && !(gekozen && gekozen.length))
-            ? `<div style="display:flex;align-items:center;gap:5px;font-size:.72rem;color:#92400e;
-                           margin-top:6px;padding-top:6px;border-top:1px solid #eef0f4;">
-                 ${btActie('plan')}Kies eerst de betrokken collega's; daarna kun je akkoord geven.
-               </div>`
+            ? `<div class="st-eis">${btActie('plan')}Kies eerst de betrokken collega's; daarna kun je akkoord geven.</div>`
             : '';
           const btns = canEditProj
-            ? `<button class="goedkeur-btn" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">Akkoord</button>
-               <button class="goedkeur-btn" style="margin-left:4px;" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">Niet akkoord</button>`
+            ? `<button class="goedkeur-btn ok" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','akkoord')">Akkoord</button>
+               <button class="goedkeur-btn nee" onclick="pipeSetGoedkeuring('${c.bmNaam}','${c.id}','niet_akkoord')">Niet akkoord</button>`
             : '<span class="sub">Alleen-lezen</span>';
-          return `<div style="${cs}">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <strong>${escHtml(c.naam)}</strong>
-              <span style="font-size:.75rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}${c.gedeeld?' <span style="background:#fee2e2;color:#991b1b;font-size:.65rem;padding:1px 6px;border-radius:10px;">gedeeld 0,5</span>':''}</span>
-              <div id="${cid}" style="flex:1;min-width:100px;">${chips}</div>
-              <div style="white-space:nowrap;">${btns}</div>
-            </div>
+          return `<div class="st-rij">
+            <div class="naam">${escHtml(c.naam)}${c.gedeeld ? ' <span class="st-pil half">0,5 zonder partner</span>' : ''}</div>
+            <div class="info" title="${escHtml(c.opdrachtgever || '')}">${c.opdrachtgever ? escHtml(c.opdrachtgever) : leegTxt} · ${escHtml(c.bmNaam)}</div>
+            <div class="chips" id="${cid}">${chips}</div>
+            <div class="acties">${btns}</div>
             ${eisHtml}
           </div>`;
         });
-        // Halve plaatsingen: gedeeld=true maar nog geen matching partner
-        const halfCards = halfPlaatsingen.map(c => {
+        // Halve plaatsingen: gedeeld=true maar nog geen matching partner. Er
+        // is een knop om hem weg te halen, anders blijft hij eeuwig hangen.
+        const halfRows = halfPlaatsingen.map(c => {
           const cid = `gc-collega-${String(c.id).replace(/[^a-zA-Z0-9]/g,'')}`;
           const chips = _collegaChips('pipeline', c.id, projCollegaLoad('pipeline', c.id), cid);
-          // Een halve plaatsing kan hier blijven hangen zolang de tweede helft
-          // uitblijft — bij een afgeketste plaatsing dus voor altijd. Er was
-          // geen knop om hem weg te halen; nu wel.
           const wegBtn = canEditProj
-            ? `<button title="Deze halve plaatsing verwijderen"
-                 onclick="pipeVerwijderHalve('${escApos(c.bmNaam)}','${c.id}','${escApos(c.naam)}')"
-                 style="margin-left:auto;background:transparent;border:1px solid var(--border);
-                        color:var(--muted);border-radius:6px;padding:2px 9px;font-size:.85rem;
-                        line-height:1.2;cursor:pointer;">✕</button>`
-            : '';
-          return `<div style="${cs}border-left:4px solid #f59e0b;background:#fffbeb;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-              <strong>${escHtml(c.naam)}</strong>
-              <span style="background:#fef3c7;color:#92400e;font-size:.65rem;padding:1px 8px;border-radius:10px;font-weight:600;">½ plaatsing · wacht op 2e 0,5</span>
-              <span style="font-size:.75rem;color:var(--muted);">${c.opdrachtgever?escHtml(c.opdrachtgever):'—'}</span>
-              <span style="font-size:.72rem;color:var(--muted);">BM: ${escHtml(c.bmNaam)}</span>
-              ${wegBtn}
-            </div>
-            <div id="${cid}" style="margin-bottom:6px;">${chips}</div>
-            <div style="font-size:.72rem;color:#92400e;font-style:italic;">Akkoord is pas mogelijk zodra een tweede BM een 0,5 plaatsing met identieke naam aanmaakt.</div>
+            ? `<button class="goedkeur-btn weg" title="Deze halve plaatsing verwijderen" onclick="pipeVerwijderHalve('${escApos(c.bmNaam)}','${c.id}','${escApos(c.naam)}')">Weg</button>`
+            : '<span class="sub">Alleen-lezen</span>';
+          return `<div class="st-rij">
+            <div class="naam">${escHtml(c.naam)} <span class="st-pil half">halve plaatsing</span></div>
+            <div class="info" title="${escHtml(c.opdrachtgever || '')}">${c.opdrachtgever ? escHtml(c.opdrachtgever) : leegTxt} · ${escHtml(c.bmNaam)} · wacht tot een tweede BM een 0,5 met dezelfde naam aanmaakt</div>
+            <div class="chips" id="${cid}">${chips}</div>
+            <div class="acties">${wegBtn}</div>
           </div>`;
         });
-        return [...pairCards, ...singleCards, ...halfCards].join('');
+        return [...pairRows, ...singleRows, ...halfRows].join('');
       })()}
     </div>
 
