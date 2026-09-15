@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260915-1357 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260915-1707 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1316,7 +1316,30 @@
                   color:#fff; font-family:inherit; cursor:pointer; }
   .one-ber-item:hover { background:rgba(255,255,255,.06); }
   .one-ber-item.actief { background:#253151; }
-  .one-ber-item .n { font-size:.82rem; display:block; }
+  .one-ber-item .n { font-size:.82rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .one-ber-item .n.zonder { color:rgba(255,255,255,.7); }
+  /* Groepsnaam bovenin (15-09): wijzigen met het potloodje; de kop wordt dan
+     een invoerveld. */
+  .one-ber-kop .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .one-ber-kop .s { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .one-ber-kop > div:first-child { min-width:0; flex:1; }
+  .one-ber-kop .knoppen { display:flex; gap:6px; flex-shrink:0; }
+  .one-ber-naamknop { background:transparent; border:1px solid rgba(158,200,244,.4); color:#9ec8f4; border-radius:6px;
+                      padding:3px 8px; font-family:inherit; font-size:.7rem; cursor:pointer; white-space:nowrap; }
+  .one-ber-naamknop:hover { background:rgba(158,200,244,.12); }
+  .one-ber-naamveld { display:flex; gap:6px; align-items:center; flex:1; min-width:0; }
+  .one-ber-naamveld input { flex:1; min-width:0; background:#253151; color:#fff; border:1px solid #F4CB3C; border-radius:8px;
+                            padding:6px 10px; font-family:inherit; font-size:.9rem; font-weight:var(--w-nadruk); }
+  .one-ber-naamveld .crm-knop { font-size:.7rem; padding:4px 9px; }
+  .one-ber-naamveld .crm-knop.opslaan { background:#F4CB3C; border-color:#F4CB3C; color:#3a2f00; }
+  /* Icoon boven Brightech ONE in de menubalk zolang er ongelezen berichten
+     zijn (15-09). */
+  .sidebar-berichten { width:100%; display:flex; align-items:center; gap:8px; background:rgba(232,116,0,.16);
+                       border:1px solid rgba(232,116,0,.5); color:#fff; border-radius:8px; padding:7px 12px;
+                       font-family:inherit; font-size:.78rem; font-weight:var(--w-nadruk); cursor:pointer; margin-bottom:6px; text-align:left; }
+  .sidebar-berichten:hover { background:rgba(232,116,0,.28); }
+  .sidebar-berichten svg { width:16px; height:16px; fill:none; stroke:#F4CB3C; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  .sidebar-berichten .n { margin-left:auto; background:#E87400; border-radius:9px; padding:0 7px; font-size:.68rem; }
   .one-ber-item .l { font-size:.7rem; color:rgba(255,255,255,.55); display:block; white-space:nowrap;
                      overflow:hidden; text-overflow:ellipsis; }
   .one-ber-item .m { flex:1; min-width:0; }
@@ -6340,6 +6363,8 @@ function _oneKaartHtml(p, sinds) {
 let ONE_GESPREKKEN = [], ONE_LEDEN = [], ONE_BERICHTEN = [], ONE_PROFIELEN = [];
 let ONE_GESPREK_ACTIEF = null;
 let ONE_WEERGAVE = 'feed';           // 'feed' | 'message' — de twee hoofdtabbladen
+let ONE_BER_HERNOEM = null;          // id van de groep waarvan de naam nu bewerkt wordt
+let _ONE_BER_LOGIN_GEMELD = false;   // het kaartje bij inloggen: één keer per sessie
 let ONE_BER_BESCHIKBAAR = true;      // false zolang de tabellen er nog niet zijn
 let ONE_BER_CONCEPT = {};            // getypte tekst per gesprek, overleeft hertekenen
 let _ONE_BER_GEMELD = null;          // ids waarvoor al een kaartje is getoond
@@ -6374,8 +6399,52 @@ async function loadOneBerichten() {
     .map(x => ({ id: x.id, naam: String(x.naam || x.bm_naam).trim() }))
     .sort((a, c) => a.naam.localeCompare(c.naam));
   // Eerste keer: alles wat er al staat is "gemeld" — anders krijg je bij het
-  // inloggen een kaartje voor elk oud bericht.
-  if (_ONE_BER_GEMELD === null) _ONE_BER_GEMELD = new Set(ONE_BERICHTEN.map(x => String(x.id)));
+  // inloggen een kaartje voor elk oud bericht. Wél één kaartje voor wat er
+  // ongelezen ligt (15-09): anders zag je bij binnenkomst alleen het getal.
+  if (_ONE_BER_GEMELD === null) {
+    _ONE_BER_GEMELD = new Set(ONE_BERICHTEN.map(x => String(x.id)));
+    if (!_ONE_BER_LOGIN_GEMELD) { _ONE_BER_LOGIN_GEMELD = true; if (oneBerichtenOngelezen() > 0) toonBerichtLoginMelding(); }
+  }
+}
+// Eén kaartje bij binnenkomst: "3 ongelezen berichten · Mike (2), Hele team (1)".
+function toonBerichtLoginMelding() {
+  const per = ONE_GESPREKKEN.map(g => ({ g, n: oneGesprekOngelezen(g) })).filter(x => x.n > 0);
+  if (!per.length) return;
+  const totaal = per.reduce((s, x) => s + x.n, 0);
+  const bak = _meldingBak();
+  const kaart = document.createElement('div');
+  kaart.className = 'melding';
+  kaart.style.borderLeftColor = '#F4CB3C';
+  kaart.innerHTML = `
+    <div class="melding-tekst">
+      <div class="t">${totaal} ongelezen bericht${totaal === 1 ? '' : 'en'}</div>
+      <div class="s">${escHtml(per.slice(0, 4).map(x => oneGesprekNaam(x.g) + ' (' + x.n + ')').join(', '))}${per.length > 4 ? ' …' : ''}</div>
+      <div class="k">
+        <button class="melding-knop" data-open="1">Openen</button>
+        <button class="melding-knop" data-weg="1">Later</button>
+      </div>
+    </div>
+    <button class="melding-x" data-weg="1" aria-label="Melding sluiten">&times;</button>`;
+  const weg = () => { kaart.classList.add('uit'); setTimeout(() => kaart.remove(), 250); };
+  kaart.addEventListener('click', (e) => {
+    if (e.target.closest('[data-weg]')) { weg(); return; }
+    if (e.target.closest('[data-open]')) { weg(); oneGesprekOpen(per[0].g.id); }
+  });
+  bak.appendChild(kaart);
+}
+// Icoon boven Brightech ONE in de menubalk, zolang er ongelezen berichten
+// zijn; verdwijnt zodra ze gelezen zijn (15-09).
+function oneBerichtIcoonHtml() {
+  const n = oneBerichtenOngelezen();
+  if (!n) return '';
+  return '<button class="sidebar-berichten" onclick="oneNaarBerichten()" title="Naar je berichten">' +
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>' +
+    (n === 1 ? 'Nieuw bericht' : 'Nieuwe berichten') + '<span class="n">' + n + '</span></button>';
+}
+function oneNaarBerichten() {
+  const eerste = ONE_GESPREKKEN.find(g => oneGesprekOngelezen(g) > 0) || ONE_GESPREKKEN[0];
+  if (eerste) oneGesprekOpen(eerste.id);
+  else { ONE_WEERGAVE = 'message'; selectTab('one'); }
 }
 
 function _oneBerLedenVan(gid)  { return ONE_LEDEN.filter(x => String(x.gesprek_id) === String(gid)); }
@@ -6384,10 +6453,13 @@ function _oneBerAnderen(gid)   { return _oneBerLedenVan(gid).filter(x => x.user_
 function _oneBerVan(gid)       { return ONE_BERICHTEN.filter(x => String(x.gesprek_id) === String(gid)); }
 function oneGesprekNaam(g) {
   if (!g) return '';
-  if (g.is_groep) return g.titel || _oneBerAnderen(g.id).map(x => x.naam).join(', ') || 'Groep';
+  // Een groep zonder naam heet naar de voornamen van de anderen (15-09); de
+  // lijst en de kop kappen dat af, zodat het één regel blijft.
+  if (g.is_groep) return (g.titel || '').trim() || _oneBerAnderen(g.id).map(x => String(x.naam || '').split(' ')[0]).join(', ') || 'Groep';
   const ander = _oneBerAnderen(g.id)[0];
   return ander ? ander.naam : (g.titel || 'Gesprek');
 }
+function _oneGesprekZonderNaam(g) { return !!(g && g.is_groep && !(g.titel || '').trim()); }
 // Ongelezen: van een ander, na mijn leesstand, niet verwijderd.
 function oneGesprekOngelezen(g) {
   const lid = _oneBerMijnLid(g.id);
@@ -6433,7 +6505,8 @@ function oneBerichtenHtml() {
     return '<button class="one-ber-item' + (String(g.id) === String(ONE_GESPREK_ACTIEF) ? ' actief' : '') +
       '" onclick="oneGesprekOpen(\'' + g.id + '\')">' +
       '<span class="one-ber-av" style="background:' + kleur + ';">' + escHtml(g.is_groep ? 'GR' : _oneInitialen(naam)) + '</span>' +
-      '<span class="m"><span class="n">' + escHtml(naam) + '</span><span class="l">' + escHtml(regel) + '</span></span>' +
+      '<span class="m"><span class="n' + (_oneGesprekZonderNaam(g) ? ' zonder' : '') + '">' + escHtml(naam) + '</span><span class="l">' +
+        (_oneGesprekZonderNaam(g) ? 'nog geen naam · ' : '') + escHtml(regel) + '</span></span>' +
       (ong ? '<span class="one-ber-tel">' + ong + '</span>'
            : '<span class="w">' + escHtml(laatste ? _oneWanneer(laatste.created_at) : '') + '</span>') +
       '</button>';
@@ -6454,7 +6527,7 @@ function _oneBerDraadHtml() {
   }
   const anderen = _oneBerAnderen(g.id);
   const sub = g.is_groep
-    ? anderen.map(x => x.naam).concat(['jij']).join(', ')
+    ? escHtml(anderen.map(x => String(x.naam || '').split(' ')[0]).concat(['jij']).join(', '))
     : 'alleen jij en ' + escHtml(anderen[0] ? anderen[0].naam.split(' ')[0] : 'de ander') + ' zien dit';
   const berichten = _oneBerVan(g.id);
   let vorigeDag = '';
@@ -6483,9 +6556,17 @@ function _oneBerDraadHtml() {
 
   const concept = ONE_BER_CONCEPT[g.id] || '';
   return '<div class="one-ber-draadkaart">' +
-    '<div class="one-ber-kop"><div><div class="t">' + escHtml(oneGesprekNaam(g)) + '</div>' +
-      '<div class="s">' + sub + '</div></div>' +
-      '<button class="crm-knop" style="font-size:.7rem;padding:4px 9px;" title="Alleen bij jou weg; de ander houdt de berichten" onclick="oneGesprekVerlaten(\'' + g.id + '\')">Verwijderen</button></div>' +
+    (ONE_BER_HERNOEM === String(g.id)
+      ? '<div class="one-ber-kop"><div class="one-ber-naamveld">' +
+          '<input type="text" id="one-ber-naam-invoer" maxlength="60" value="' + escHtml(g.titel || '') + '" placeholder="Naam van de groep"' +
+          ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();oneGesprekHernoemOpslaan(\'' + g.id + '\');}if(event.key===\'Escape\'){oneGesprekHernoem(null);}">' +
+          '<button class="crm-knop opslaan" onclick="oneGesprekHernoemOpslaan(\'' + g.id + '\')">Opslaan</button>' +
+          '<button class="crm-knop" onclick="oneGesprekHernoem(null)">Annuleren</button></div></div>'
+      : '<div class="one-ber-kop"><div><div class="t" title="' + escHtml(oneGesprekNaam(g)) + '">' + escHtml(oneGesprekNaam(g)) + '</div>' +
+        '<div class="s">' + sub + '</div></div>' +
+        '<div class="knoppen">' +
+        (g.is_groep ? '<button class="one-ber-naamknop" title="Groepsnaam wijzigen" onclick="oneGesprekHernoem(\'' + g.id + '\')">✎ naam</button>' : '') +
+        '<button class="crm-knop" style="font-size:.7rem;padding:4px 9px;" title="Alleen bij jou weg; de ander houdt de berichten" onclick="oneGesprekVerlaten(\'' + g.id + '\')">Verwijderen</button></div></div>') +
     '<div class="one-ber-draad" id="one-ber-draad">' +
       (draad || '<div class="one-ber-leeg">Nog geen berichten. Schrijf de eerste.</div>') +
     '</div>' +
@@ -6498,6 +6579,31 @@ function _oneBerDraadHtml() {
 }
 
 function _oneBerBewaar(gid, tekst) { ONE_BER_CONCEPT[gid] = tekst; }
+
+// ── Groepsnaam (15-09) ───────────────────────────────────────────────────────
+function oneGesprekHernoem(gid) {
+  ONE_BER_HERNOEM = gid ? String(gid) : null;
+  renderOne();
+  const inp = document.getElementById('one-ber-naam-invoer');
+  if (inp) { inp.focus(); inp.select(); }
+}
+async function oneGesprekHernoemOpslaan(gid) {
+  if (!eisWijzig('one')) return;
+  if (!supa) return;
+  const inp = document.getElementById('one-ber-naam-invoer');
+  const titel = String((inp && inp.value) || '').trim().slice(0, 60);
+  _echoVanZelf('one_gesprekken');
+  const { data, error } = await supa.from('one_gesprekken').update({ titel: titel || null }).eq('id', gid).select('id');
+  if (error || !data || !data.length) {
+    meldFout('groepsnaam opslaan mislukt: ' + (error ? error.message : 'nul rijen'), 'one_berichten');
+    alert('Niet opgeslagen: ' + (error ? error.message : 'je bent geen lid van dit gesprek.'));
+    return;
+  }
+  const g = ONE_GESPREKKEN.find(x => String(x.id) === String(gid));
+  if (g) g.titel = titel || null;
+  ONE_BER_HERNOEM = null;
+  renderOne();
+}
 
 // ── Emoji-kiezer (15-09) ────────────────────────────────────────────────────
 // Een vast rijtje van zestien, geen zoekfunctie: dat is wat je negen van de
@@ -6570,6 +6676,7 @@ async function _oneBerMarkeerGelezen(gid) {
   if (!lid) return;
   const nu = new Date().toISOString();
   lid.gelezen_tot = nu;
+  if (document.getElementById('sidebar')) renderTabs();   // icoon en teller weg zodra gelezen
   if (!supa) return;
   _echoVanZelf('one_gesprek_leden');
   const { error } = await supa.from('one_gesprek_leden').update({ gelezen_tot: nu })
@@ -7340,7 +7447,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260915-1357';
+const APP_VERSIE = '20260915-1707';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -7730,7 +7837,7 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel) !== 'geen
 // Alles wat een gebruiker kan aanklikken en wat daarna iets verandert. Wordt
 // gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
 const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag', 'kamNieuwVerslag',
-  'oneBerichtVerstuur', 'oneBerichtVerwijder', 'oneGesprekMaak', 'oneGesprekOpen', 'oneGesprekVerlaten',
+  'oneBerichtVerstuur', 'oneBerichtVerwijder', 'oneGesprekMaak', 'oneGesprekOpen', 'oneGesprekVerlaten', 'oneGesprekHernoemOpslaan',
   'onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
   'mtActieToevoegen', 'mtActieZet', 'mtActieVink', 'mtActieWeg',
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
@@ -7954,6 +8061,7 @@ function renderTabs() {
     const _bmInMed = currentTab === 'medewerkers' || currentTab === _bmIdx || currentTab === 'team';
     document.getElementById('sidebar').innerHTML = `
       ${mi('one', `<div class="sidebar-cat">
+        ${oneBerichtIcoonHtml()}
         <button class="sidebar-cat-btn ${currentTab==='one'?'active-cat':''}" onclick="selectTab('one')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('one')}Brightech ONE</span>${oneMeldingBadge()}</button>
       </div>`)}
       ${mi('medewerkers', `<div class="sidebar-cat">
@@ -8017,6 +8125,7 @@ function renderTabs() {
 
   document.getElementById('sidebar').innerHTML = `
     ${mi('one', `<div class="sidebar-cat">
+      ${oneBerichtIcoonHtml()}
       <button class="sidebar-cat-btn ${currentTab==='one'?'active-cat':''}" onclick="selectTab('one')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('one')}Brightech ONE</span>${oneMeldingBadge()}</button>
     </div>`)}
     ${mi('medewerkers', `<div class="sidebar-cat">
