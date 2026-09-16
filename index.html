@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1248 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1311 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1642,6 +1642,10 @@
   .vv-tegel small { display:block; color:rgba(255,255,255,.6); font-size:.72rem; margin-top:2px; }
   .vv-tegel.klaar { cursor:default; background:rgba(127,220,180,.12); border-left-color:#7fdcb4; }
   .card-vervolg { color:#F4CB3C !important; font-size:.68rem; }
+  .vv-manier { display:flex; gap:6px; flex-wrap:wrap; }
+  .vv-manier-keus { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid rgba(255,255,255,.22); border-radius:8px; color:#fff; font-size:.8rem; cursor:pointer; background:#364160; }
+  .vv-manier-keus input { margin:0; accent-color:#F4CB3C; }
+  .vv-manier-keus:has(input:checked) { border-color:#F4CB3C; background:rgba(244,203,60,.14); }
   .kand-vervolg-veld { width:100%; box-sizing:border-box; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:8px;
                        padding:8px 10px; font-family:inherit; font-size:.88rem; color-scheme:dark; }
   .kand-vervolg-veld::placeholder { color:rgba(255,255,255,.4); }
@@ -2840,6 +2844,15 @@
   .kand-raster > .pipe-card.kand-kleur-geel:hover  { background:rgba(245,158,11,.24); }
   .kand-raster > .pipe-card.kand-kleur-rood:hover  { background:rgba(220,38,38,.26); }
   .kand-raster > .pipe-card.kand-kleur-donkerrood:hover { background:rgba(153,27,27,.68); }
+  /* Niet meer beschikbaar (16-09): grijs, overklast alles; de tekst blijft leesbaar. */
+  .kand-raster > .pipe-card.kand-kleur-grijs { background:rgba(255,255,255,.05); border:2px solid rgba(255,255,255,.22); color:rgba(255,255,255,.62); }
+  .kand-raster > .pipe-card.kand-kleur-grijs .card-naam .naam { text-decoration:line-through; text-decoration-color:rgba(255,255,255,.45); }
+  .kand-raster > .pipe-card.kand-kleur-grijs .card-sub { color:rgba(255,255,255,.5) !important; }
+  .kand-raster > .pipe-card.kand-kleur-grijs .kand-onb-pil { color:rgba(255,255,255,.85); }
+  .kand-fases.uit .kand-fase:not(.kand-onbesch) { opacity:.35; }
+  .kand-fase.kand-onbesch { margin-left:6px; border-color:rgba(244,203,60,.55); color:#F4CB3C; }
+  .kand-fase.kand-onbesch.aan { background:rgba(255,255,255,.16); border-color:#fff; color:#fff; }
+  .kand-onb-pil { display:inline-block; font-size:.66rem; border-radius:8px; padding:1px 8px; background:rgba(255,255,255,.14); color:rgba(255,255,255,.85); }
   /* De klokregel op de kaart. Kleurt mee met de stand, zodat de kaartkleur
      niet het enige signaal is (en het ook leesbaar blijft voor wie kleur
      moeilijk onderscheidt). */
@@ -8233,7 +8246,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1248';
+const APP_VERSIE = '20260916-1311';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21769,6 +21782,7 @@ function renderKandidaten() {
       return `<div class="pipe-card ${kleurKlasse}" style="${cardStyle}">
         ${canExclude ? `<button class="kand-excl-btn" title="Uitsluiten van dit overzicht" onclick="kandidaatExcludeVraag('${escApos(c.bmNaam)}','${c.id}','${escApos(c.naam)}')">✕</button>` : ''}
         <div class="card-naam kand-naam${canExclude ? ' met-x' : ''}"><span class="card-naam-btns links">${kandKaartKnopHtml(c.bmNaam, c.id)}</span><span class="naam" title="${escHtml(c.naam)}">${escHtml(c.naam)}</span></div>
+        ${_kandOnbeschikbaarHtml(c)}
         ${metaHtml}
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
         <div class="card-sub" style="font-weight:700;color:#fff;">Aanbiedingen: ${aanbTotal}</div>
@@ -22091,7 +22105,7 @@ function kandVervolgTekst(c) {
   if (isNaN(d)) return '';
   const dag = d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\.$/, '').replace(/\. /g, ' ').replace(/\./g, '');
   const tijd = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
-  return dag + ' · ' + tijd + (c.vervolg_waar ? ' · ' + String(c.vervolg_waar).trim() : '');
+  return dag + ' · ' + tijd + (VERVOLG_MANIER[c.vervolg_manier] ? ' · ' + VERVOLG_MANIER[c.vervolg_manier] : '') + (c.vervolg_waar ? ' · ' + String(c.vervolg_waar).trim() : '');
 }
 // Het venster: datum + tijd, waar / met wie. Opslaan schrijft de kolommen
 // vervolg_op en vervolg_waar (supabase/kandidaat_vervolg.sql).
@@ -22105,12 +22119,13 @@ function kandVervolgVenster(bmNaam, cardId) {
     ? '<div class="kk-rij"><span>Gepland</span>' + escHtml(kandVervolgTekst(c)) + ' <small style="color:rgba(255,255,255,.45);margin-left:6px;">' + escHtml(datumNL(String(c.vervolg_op).slice(0, 10))) + '</small></div>'
     : '<div class="kk-rij"><span class="stil">nog geen vervolgafspraak gepland</span></div>';
   const bord = _vervolgTegelBord(bmNaam);
-  const tegel = _vervolgTegelHtml('kand-vervolg', 'Intake', bord, _naarVeldTijd(c.vervolg_op), _vervolgTegelBestaand('kaart:' + c.id));
+  const tegel = _vervolgTegelHtml('kand-vervolg', 'Intake', bord, _naarVeldTijd(c.vervolg_op), _vervolgTegelBestaand('kaart:' + c.id), c.vervolg_manier || null);
   crmKaartToon('<h4 class="wit">Vervolgafspraak · ' + escHtml(c.naam || '') + '</h4>' +
     '<div class="crm-sub">Wanneer is het vervolggesprek? Zodra er een datum staat, kleurt het kalender-icoon groen.</div>' +
     (mag
       ? '<div class="crm-kop">Datum en tijd</div>' +
         '<input type="datetime-local" id="kand-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(c.vervolg_op)) + '" oninput="_vervolgTegelWeekBij(\'kand-vervolg-op\',\'kand-vervolg-tegel-week\',\'Intake\')">' +
+        _vervolgManierHtml('kand-vervolg', c.vervolg_manier || null) +
         '<div class="crm-kop">Waar / met wie (niet verplicht)</div>' +
         '<input type="text" id="kand-vervolg-waar" class="kand-vervolg-veld" maxlength="120" placeholder="bijv. bij Neways, Esad Fidan" value="' + escHtml(c.vervolg_waar || '') + '">' +
         tegel +
@@ -22134,10 +22149,11 @@ async function kandVervolgOpslaan(bmNaam, cardId, weghalen) {
   const idx = cards.findIndex(c => String(c.id) === String(cardId));
   if (idx === -1) return;
   // Het vinkje "ook als tegeltje" lezen vóór het venster sluit (16-09).
+  const manier = weghalen ? null : _vervolgManier('kand-vervolg');
   const vink = document.getElementById('kand-vervolg-tegel');
-  const tegel = !weghalen && !!(vink && vink.checked) ? _vervolgTegelBord(bmNaam) : null;
-  const vorige = { vervolg_op: cards[idx].vervolg_op || null, vervolg_waar: cards[idx].vervolg_waar || null };
-  cards[idx] = { ...cards[idx], vervolg_op: op, vervolg_waar: waar };
+  const tegel = !weghalen && _vervolgManierKan(manier) && !!(vink && vink.checked) ? _vervolgTegelBord(bmNaam) : null;
+  const vorige = { vervolg_op: cards[idx].vervolg_op || null, vervolg_waar: cards[idx].vervolg_waar || null, vervolg_manier: cards[idx].vervolg_manier || null };
+  cards[idx] = { ...cards[idx], vervolg_op: op, vervolg_waar: waar, vervolg_manier: manier };
   pipeSave(bmNaam, cards);
   crmKaartSluit();
   render();
@@ -22151,7 +22167,7 @@ async function kandVervolgOpslaan(bmNaam, cardId, weghalen) {
   _echoVanZelf('pipeline_cards');
   // Via de databasefunctie, niet rechtstreeks: de schrijfregel laat een BM
   // alleen zijn eigen kaarten wijzigen, en dit hoort iedereen te kunnen.
-  const { data: gelukt, error } = await supa.rpc('bt_kand_vervolg_zet', { p_kaart: cardId, p_op: op, p_waar: waar });
+  const { data: gelukt, error } = await supa.rpc('bt_kand_vervolg_zet', { p_kaart: cardId, p_op: op, p_waar: waar, p_manier: manier });
   if (error || gelukt === false) {
     // Terugdraaien, anders toont het scherm iets wat nergens staat.
     const nu = pipeLoad(bmNaam); const j = nu.findIndex(c => String(c.id) === String(cardId));
@@ -22159,7 +22175,7 @@ async function kandVervolgOpslaan(bmNaam, cardId, weghalen) {
     const m = error ? String(error.message || '') : 'de kaart is niet gevonden';
     meldFout('vervolgafspraak opslaan mislukt: ' + m, 'kandVervolgOpslaan');
     alert('Niet opgeslagen: ' + (/column|schema cache|PGRST204|function|does not exist|PGRST202/i.test(m)
-      ? 'draai supabase/kandidaat_vervolg.sql in de SQL-editor — de kolommen en de functie bt_kand_vervolg_zet ontbreken nog.'
+      ? 'draai supabase/kandidaat_vervolg.sql en daarna supabase/vervolg_manier.sql in de SQL-editor — de kolommen en de functie bt_kand_vervolg_zet (met manier) ontbreken nog.'
       : m));
   }
 }
@@ -22172,6 +22188,10 @@ const KAND_UREN_GEEL      = 24;
 const KAND_UREN_ROOD      = 48;
 const KAND_UREN_DONKERROOD = 72;
 function kandKaartKleur(c) {
+  // Niet meer beschikbaar (16-09) gaat vóór alles: grijs, klok en fases tellen niet.
+  if (c && c.onbeschikbaar_op) {
+    return { klasse: 'kand-kleur-grijs', reden: 'Niet meer beschikbaar sinds ' + datumNL(String(c.onbeschikbaar_op).slice(0, 10)) + (c.onbeschikbaar_reden ? ' — ' + c.onbeschikbaar_reden : '') };
+  }
   const gedaan = kandFasesEffectief(c).length;
   if (gedaan >= KAND_FASES.length) {
     return { klasse: 'kand-kleur-groen', reden: 'Alle fases afgerond' };
@@ -22223,6 +22243,7 @@ function _kandFasesHtml(c, magWijzig) {
   const aan   = new Set(kandFasesEffectief(c));
   const vanzelf = kandAutoFases(c);   // deze staan vast en zijn niet klikbaar
   const kleur = kandKaartKleur(c);
+  const onb   = !!c.onbeschikbaar_op;   // niet meer beschikbaar: de andere iconen staan uit (16-09)
   // Sinds 16-09: Intake en Vervolgafspraak zijn nooit handmatig; de
   // automatische stappen openen bij een klik hun bron (record, RLDV-tool,
   // RLDV-check); het kalender-icoon opent het afspraakvenster. CV en
@@ -22231,8 +22252,8 @@ function _kandFasesHtml(c, magWijzig) {
     const isAan = aan.has(f.sleutel);
     const reden = vanzelf.get(f.sleutel);
     const nooitHand = f.sleutel === 'intake' || f.sleutel === 'vervolg';
-    const bron  = (reden || nooitHand) ? _kandFaseBron(f.sleutel, c) : null;
-    const klik  = magWijzig && !reden && !nooitHand;
+    const bron  = !onb && (reden || nooitHand) ? _kandFaseBron(f.sleutel, c) : null;
+    const klik  = !onb && magWijzig && !reden && !nooitHand;
     const tekst = escHtml(f.label + (reden ? ' — vanzelf: ' + reden
                                            : (isAan ? ' — afgevinkt' : (f.sleutel === 'intake' ? ' — gaat vanzelf op het intaketijdstip' : '')))
                           + (bron ? ' · klik: ' + bron.doel : ''));
@@ -22251,11 +22272,77 @@ function _kandFasesHtml(c, magWijzig) {
   // niet meer bij en verhuist naar de tooltip van het hele blok.
   const staat = aan.size + ' van ' + KAND_FASES.length + ' gedaan' +
                 (kleur.reden ? ' · ' + kleur.reden : '');
+  // Het icoon "Kandidaat niet meer beschikbaar" (16-09): rechts van de fases,
+  // altijd met een bevestiging vooraf; aan = toch weer beschikbaar maken.
+  const onbKnop = magWijzig
+    ? '<button class="kand-fase kand-onbesch' + (onb ? ' aan' : '') + '" title="' + (onb ? 'Toch weer beschikbaar — ' + escHtml(kleur.reden) : 'Kandidaat niet meer beschikbaar — vraagt eerst een bevestiging') + '"' +
+      ' aria-label="' + (onb ? 'Toch weer beschikbaar' : 'Kandidaat niet meer beschikbaar') + '" aria-pressed="' + (onb ? 'true' : 'false') + '"' +
+      ' onclick="event.stopPropagation();kandOnbeschikbaarVenster(\'' + escApos(c.bmNaam) + '\',\'' + c.id + '\')">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 11-4.7"/><path d="m16 16 5 5M21 16l-5 5"/></svg></button>'
+    : '';
   return '<div class="kand-fase-blok" title="' + escHtml(staat) + '">' +
-           '<div class="kand-fases">' + knoppen +
+           '<div class="kand-fases' + (onb ? ' uit' : '') + '">' + knoppen + onbKnop +
              '<span class="kand-fase-teller">' + aan.size + '/' + KAND_FASES.length + '</span>' +
            '</div>' +
          '</div>';
+}
+// De pil op het kaartje: sinds wanneer, en waarom.
+function _kandOnbeschikbaarHtml(c) {
+  if (!c || !c.onbeschikbaar_op) return '';
+  return '<div class="card-sub"><span class="kand-onb-pil">niet meer beschikbaar · ' + escHtml(datumNL(String(c.onbeschikbaar_op).slice(0, 10))) +
+    (c.onbeschikbaar_reden ? ' · ' + escHtml(c.onbeschikbaar_reden) : '') + '</span></div>';
+}
+// Eerst vragen (aanwijzing 16-09): het venster zegt wat er gebeurt, met een
+// reden die niet verplicht is. Aan → toch weer beschikbaar, ook met vraag.
+function kandOnbeschikbaarVenster(bmNaam, cardId) {
+  const c = pipeLoad(bmNaam).find(x => String(x.id) === String(cardId));
+  if (!c) return;
+  const bmE = escApos(bmNaam);
+  if (c.onbeschikbaar_op) {
+    crmKaartToon('<h4 class="wit">Toch weer beschikbaar?</h4>' +
+      '<div class="crm-sub">' + escHtml(c.naam || '') + ' staat op niet meer beschikbaar sinds ' + escHtml(datumNL(String(c.onbeschikbaar_op).slice(0, 10))) + (c.onbeschikbaar_reden ? ' (' + escHtml(c.onbeschikbaar_reden) + ')' : '') + '. Alle kaartjes van deze kandidaat in de pipeline van ' + escHtml(bmNaam) + ' krijgen hun gewone kleur en fases terug.</div>' +
+      '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kandOnbeschikbaarZet(\'' + bmE + '\',\'' + c.id + '\', false)">Ja, weer beschikbaar</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>');
+    return;
+  }
+  crmKaartToon('<h4 class="wit">Niet meer beschikbaar?</h4>' +
+    '<div class="crm-sub">Je zet <b style="color:#fff;">' + escHtml(c.naam || '') + '</b> op niet meer beschikbaar. Alle kaartjes van deze kandidaat in de pipeline van ' + escHtml(bmNaam) + ' worden grijs; de fases en de klok tellen dan niet meer. Terugdraaien kan altijd via hetzelfde icoon.</div>' +
+    '<div class="crm-kop">Reden (niet verplicht)</div>' +
+    '<input type="text" id="kand-onb-reden" class="kand-vervolg-veld" maxlength="120" placeholder="bijv. elders getekend, geen interesse meer">' +
+    '<div class="crm-knoppen"><button class="crm-knop weg" onclick="kandOnbeschikbaarZet(\'' + bmE + '\',\'' + c.id + '\', true)">Ja, niet meer beschikbaar</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>');
+  setTimeout(() => { const el = document.getElementById('kand-onb-reden'); if (el && el.focus) el.focus(); }, 30);
+}
+// Zet alle kaartjes van deze kandidaat (zelfde naam, hoofdletters en spaties
+// aan de randen tellen niet) in deze pipeline op (niet) beschikbaar. Via de
+// databasefunctie: de schrijfregel laat een BM alleen zijn eigen kaarten
+// wijzigen, en iedereen met het recht Kandidaten hoort dit te kunnen.
+async function kandOnbeschikbaarZet(bmNaam, cardId, aan) {
+  if (!eisWijzig('kandidaten')) return;
+  const cards = pipeLoad(bmNaam);
+  const c = cards.find(x => String(x.id) === String(cardId));
+  if (!c) return;
+  const veld = document.getElementById('kand-onb-reden');
+  const reden = aan ? (String((veld && veld.value) || '').trim() || null) : null;
+  const op = aan ? new Date().toISOString() : null;
+  const sleutel = _itkSleutel(c.naam || '');
+  const vorige = cards.map(x => ({ id: x.id, onbeschikbaar_op: x.onbeschikbaar_op || null, onbeschikbaar_reden: x.onbeschikbaar_reden || null }));
+  const nieuw = cards.map(x => _itkSleutel(x.naam || '') === sleutel ? { ...x, onbeschikbaar_op: op, onbeschikbaar_reden: reden } : x);
+  pipeSave(bmNaam, nieuw);
+  crmKaartSluit();
+  render();
+  if (!supa) return;
+  _echoVanZelf('pipeline_cards');
+  const { error } = await supa.rpc('bt_kand_onbeschikbaar_zet', { p_bm: bmNaam, p_naam: String(c.naam || '').trim(), p_op: op, p_reden: reden });
+  if (error) {
+    // Terugdraaien, anders toont het scherm iets wat nergens staat.
+    const nu = pipeLoad(bmNaam);
+    pipeSave(bmNaam, nu.map(x => { const v = vorige.find(y => String(y.id) === String(x.id)); return v ? { ...x, onbeschikbaar_op: v.onbeschikbaar_op, onbeschikbaar_reden: v.onbeschikbaar_reden } : x; }));
+    render();
+    const m = String(error.message || '');
+    meldFout('kandidaat (niet) beschikbaar zetten mislukt: ' + m, 'kandOnbeschikbaarZet');
+    alert('Niet opgeslagen: ' + (/column|schema cache|PGRST204|function|does not exist|PGRST202/i.test(m)
+      ? 'draai supabase/kandidaat_onbeschikbaar.sql in de SQL-editor — de kolommen en de functie bt_kand_onbeschikbaar_zet ontbreken nog.'
+      : m));
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -22351,8 +22438,9 @@ function kandKaartHtml(bmNaam, id) {
     sluit + '</div>';
   return '<h4>' + escHtml(c0.naam || 'zonder naam') +
     (huidig ? ' <span class="kk-fase">' + escHtml(huidig.stage) + ' · W' + huidig.laatste.week + '</span>' : '') +
-    (rec ? ' <span class="kk-fase ok">ITK-verslag</span>' : '') + '</h4>' +
-    '<div class="crm-sub">Kandidaat in de pipeline van ' + escHtml(bmNaam) + '</div>' +
+    (rec ? ' <span class="kk-fase ok">ITK-verslag</span>' : '') +
+    (c0.onbeschikbaar_op ? ' <span class="kk-fase" style="background:rgba(255,255,255,.14);">niet meer beschikbaar</span>' : '') + '</h4>' +
+    '<div class="crm-sub">Kandidaat in de pipeline van ' + escHtml(bmNaam) + (c0.onbeschikbaar_op ? ' · niet meer beschikbaar sinds ' + escHtml(datumNL(String(c0.onbeschikbaar_op).slice(0, 10))) + (c0.onbeschikbaar_reden ? ' — ' + escHtml(c0.onbeschikbaar_reden) : '') : '') + '</div>' +
     '<div class="crm-kop">Verloop</div><div class="kk-stappen">' + stappen + '</div>' +
     '<div class="crm-kop">Gegevens</div><div class="kk-rooster">' + (gegevens || '<div class="kk-rij"><span class="stil">geen gegevens ingevuld</span></div>') + '</div>' +
     '<div class="crm-kop">Gesprek en afspraken</div>' + verslag + rldv + vervolg +
@@ -22745,7 +22833,9 @@ function _pipeCardFromRow(c) {
     // lijst bepaalt welke kolommen uit de database de kaart in gaan (07-09).
     kand_fases: Array.isArray(c.kand_fases) ? c.kand_fases : [],
     vervolg_op: c.vervolg_op || null, vervolg_waar: c.vervolg_waar || null,
+    vervolg_manier: c.vervolg_manier || null,   // Kantoor / Teams / Telefoon (16-09)
     vervolg_van: c.vervolg_van || null,   // tegeltje uit een vervolgafspraak (16-09)
+    onbeschikbaar_op: c.onbeschikbaar_op || null, onbeschikbaar_reden: c.onbeschikbaar_reden || null,   // niet meer beschikbaar (16-09)
     intake_op: c.intake_op || null,
     collega_initials: c.collega_initials || null,
     projectnr: c.projectnr || null,
@@ -23688,7 +23778,7 @@ function bezoekVervolgTekst(v) {
   if (isNaN(d)) return '';
   const dag = d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
   const tijd = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
-  return [dag + ' · ' + tijd, v.vervolg_met, v.vervolg_afd, v.vervolg_waar].filter(x => x && String(x).trim()).join(' · ');
+  return [dag + ' · ' + tijd, v.vervolg_met, v.vervolg_afd, VERVOLG_MANIER[v.vervolg_manier] || '', v.vervolg_waar].filter(x => x && String(x).trim()).join(' · ');
 }
 function _accBronnen(b) {
   const bmE = escApos(b.kaartBm || '');
@@ -23738,7 +23828,10 @@ function _accBezoekKaartHtml(b) {
     '<div class="acc-pillen">' + pillen + '</div>' + vervolg + _accBronnenHtml(b) + '</div>';
 }
 function renderAccOverzichtHtml(subTabBtns) {
-  const lijst = accBezoekenLijst();
+  // Alleen bedrijfsbezoeken (aanwijzing 16-09): match-voorbereidingen en
+  // evaluaties horen hier niet; daar is niets mee te doen. Het Archief
+  // toont ze wel, met de soort erbij.
+  const lijst = accBezoekenLijst().filter(b => (b.soortBezoek || 'bedrijfsbezoek') === 'bedrijfsbezoek');
   const z = String(ACC_OVERZICHT_ZOEK || '').trim().toLowerCase();
   let secties;
   if (z) {
@@ -23878,6 +23971,27 @@ async function loadBezoekVervolg() {
 // tegeltje onthoudt waar het van komt (vervolg_van), zodat het maar één keer
 // wordt aangemaakt. Kolom: supabase/vervolg_tegeltje.sql.
 // ═══════════════════════════════════════════════════════════════════════════
+// Hoe vindt de afspraak plaats (aanwijzing 16-09)? Kantoor en Teams kunnen
+// als tegeltje de pipeline in; Telefoon niet — die krijgt alleen het groene
+// icoon. Kolom vervolg_manier op pipeline_cards en bezoek_vervolg
+// (supabase/vervolg_manier.sql).
+const VERVOLG_MANIER = { kantoor: 'Kantoor', teams: 'Teams', telefoon: 'Telefoon' };
+function _vervolgManier(prefix) {
+  const r = document.querySelector('input[name="' + prefix + '-manier"]:checked');
+  return r && VERVOLG_MANIER[r.value] ? r.value : null;
+}
+function _vervolgManierHtml(prefix, huidig) {
+  return '<div class="crm-kop">Hoe</div><div class="vv-manier">' + Object.keys(VERVOLG_MANIER).map(k =>
+    '<label class="vv-manier-keus"><input type="radio" name="' + prefix + '-manier" value="' + k + '"' + (huidig === k ? ' checked' : '') +
+    ' onchange="_vervolgManierBij(\'' + prefix + '\')"><span>' + VERVOLG_MANIER[k] + '</span></label>').join('') + '</div>';
+}
+function _vervolgManierKan(m) { return m === 'kantoor' || m === 'teams'; }
+function _vervolgManierBij(prefix) {
+  const kan = _vervolgManierKan(_vervolgManier(prefix));
+  const blok = document.getElementById(prefix + '-tegel-blok'), vink = document.getElementById(prefix + '-tegel');
+  if (blok) blok.style.display = kan ? '' : 'none';
+  if (!kan && vink) vink.checked = false;
+}
 // Wiens bord? Dat van de planner zelf. Wie geen eigen bord heeft (manager),
 // gebruikt het bord van de kaart als hij daar mag schrijven.
 function _vervolgTegelBord(voorkeur) {
@@ -23908,14 +24022,16 @@ function _vervolgTegelBestaand(sleutel) {
   }
   return null;
 }
-function _vervolgTegelHtml(prefix, stage, bord, waarde, bestaand) {
+function _vervolgTegelHtml(prefix, stage, bord, waarde, bestaand, manier) {
   if (bestaand) {
     return '<div class="vv-tegel klaar">Tegeltje staat al in de pipeline van ' + escHtml(bestaand.bmNaam) + ': ' + escHtml(bestaand.kaart.stage) + ' · week ' + escHtml(bestaand.kaart.week) + ' (' + escHtml(bestaand.kaart.jaar) + ')</div>';
   }
   if (!bord) return '';
-  return '<label class="vv-tegel"><input type="checkbox" id="' + prefix + '-tegel">' +
+  // Het blok is dicht tot er Kantoor of Teams gekozen is (Telefoon: geen tegeltje).
+  return '<div id="' + prefix + '-tegel-blok"' + (_vervolgManierKan(manier) ? '' : ' style="display:none;"') + '>' +
+    '<label class="vv-tegel"><input type="checkbox" id="' + prefix + '-tegel">' +
     '<span><b>Ook als tegeltje in de pipeline van ' + escHtml(bord) + '</b>' +
-    '<small id="' + prefix + '-tegel-week">' + escHtml(_vervolgTegelWeekTekst(stage, waarde)) + '</small></span></label>';
+    '<small id="' + prefix + '-tegel-week">' + escHtml(_vervolgTegelWeekTekst(stage, waarde)) + '</small></span></label></div>';
 }
 // Het bestaande pipeline-venster, voorgevuld. Geeft false als de planner op
 // dat bord niet mag schrijven (dan blijft het venster dicht).
@@ -23943,12 +24059,13 @@ function bezoekVervolgVenster(id) {
     ? '<div class="kk-rij"><span>Gepland</span>' + escHtml(bezoekVervolgTekst(v)) + '</div>'
     : '<div class="kk-rij"><span class="stil">nog geen vervolgafspraak gepland</span></div>';
   const bord = _vervolgTegelBord(b.kaartBm || null);
-  const tegel = _vervolgTegelHtml('bz-vervolg', 'Bezoeken', bord, _naarVeldTijd(v.vervolg_op), _vervolgTegelBestaand('bezoek:' + b.id));
+  const tegel = _vervolgTegelHtml('bz-vervolg', 'Bezoeken', bord, _naarVeldTijd(v.vervolg_op), _vervolgTegelBestaand('bezoek:' + b.id), v.vervolg_manier || null);
   crmKaartToon('<h4 class="wit">Vervolgafspraak · ' + escHtml(b.bedrijf) + '</h4>' +
     '<div class="crm-sub">Wanneer, met wie en waar is het vervolggesprek? Iedere collega mag dit plannen.</div>' +
     (mag
       ? '<div class="crm-kop">Datum en tijd</div>' +
         '<input type="datetime-local" id="bz-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(v.vervolg_op)) + '" oninput="_vervolgTegelWeekBij(\'bz-vervolg-op\',\'bz-vervolg-tegel-week\',\'Bezoeken\')">' +
+        _vervolgManierHtml('bz-vervolg', v.vervolg_manier || null) +
         '<div class="crm-kop">Met wie</div>' +
         '<input type="text" id="bz-vervolg-met" class="kand-vervolg-veld" list="bz-contacten" maxlength="80" placeholder="naam van de contactpersoon" value="' + escHtml(v.vervolg_met || b.contactpersoon || '') + '">' +
         '<datalist id="bz-contacten">' + contacten.map(c => '<option value="' + escHtml(c.naam) + '">' + escHtml([c.functie, c.afdeling].filter(Boolean).join(' · ')) + '</option>').join('') + '</datalist>' +
@@ -23977,10 +24094,11 @@ async function bezoekVervolgOpslaan(id, weghalen) {
   if (!weghalen && !afd && met) { const c = _accContactVan(b.account, met); if (c && c.afdeling) afd = c.afdeling; }
   const waar = weghalen ? null : (val('bz-vervolg-waar') || null);
   // Het vinkje "ook als tegeltje" lezen vóór het venster sluit (16-09).
+  const manier = weghalen ? null : _vervolgManier('bz-vervolg');
   const vink = document.getElementById('bz-vervolg-tegel');
-  const tegel = !weghalen && !!(vink && vink.checked) ? _vervolgTegelBord(b.kaartBm || null) : null;
+  const tegel = !weghalen && _vervolgManierKan(manier) && !!(vink && vink.checked) ? _vervolgTegelBord(b.kaartBm || null) : null;
   const vorige = BEZOEK_VERVOLG[b.id];
-  const rij = { verslag_id: b.id, vervolg_op: op, vervolg_met: met, vervolg_afd: afd, vervolg_waar: waar,
+  const rij = { verslag_id: b.id, vervolg_op: op, vervolg_met: met, vervolg_afd: afd, vervolg_waar: waar, vervolg_manier: manier,
                 afgerond_op: (vorige && vorige.afgerond_op) || null,   // "afgerond" blijft staan (16-09)
                 updated_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null, updated_at: new Date().toISOString() };
   BEZOEK_VERVOLG[b.id] = rij;
@@ -23990,7 +24108,7 @@ async function bezoekVervolgOpslaan(id, weghalen) {
     const cp = met ? _accContactVan(b.account, met) : null;
     const cpFunctie = (cp && cp.functie) || (met && b.contactpersoon && _itkSleutel(met) === _itkSleutel(b.contactpersoon) ? b.functie : '') || '';
     _vervolgTegelOpen({ stage: 'Bezoeken', op, bord: tegel, naam: b.bedrijf, vervolgVan: 'bezoek:' + b.id,
-      velden: { 'pipe-modal-bezoek-reden': 'Vervolgafspraak' + (waar ? ' · ' + waar : ''), 'pipe-modal-bezoek-contactpersoon': met || '', 'pipe-modal-bezoek-contactpersoon-functie': cpFunctie } });
+      velden: { 'pipe-modal-bezoek-reden': 'Vervolgafspraak' + (VERVOLG_MANIER[manier] ? ' · ' + VERVOLG_MANIER[manier] : '') + (waar ? ' · ' + waar : ''), 'pipe-modal-bezoek-contactpersoon': met || '', 'pipe-modal-bezoek-contactpersoon-functie': cpFunctie } });
   }
   if (!supa) return;
   _echoVanZelf('bezoek_vervolg');
@@ -23999,7 +24117,9 @@ async function bezoekVervolgOpslaan(id, weghalen) {
     if (vorige) BEZOEK_VERVOLG[b.id] = vorige; else delete BEZOEK_VERVOLG[b.id];
     render();
     meldFout('vervolgafspraak bezoek opslaan mislukt: ' + error.message, 'bezoekVervolgOpslaan');
-    alert('Niet opgeslagen: ' + (/does not exist|42P01|schema cache|PGRST204/i.test(error.message || '')
+    alert('Niet opgeslagen: ' + (/vervolg_manier/i.test(error.message || '')
+      ? 'draai supabase/vervolg_manier.sql in de SQL-editor — de kolom vervolg_manier ontbreekt nog.'
+      : /does not exist|42P01|schema cache|PGRST204/i.test(error.message || '')
       ? 'draai supabase/accountmanagement_overzicht.sql in de SQL-editor — de tabel bezoek_vervolg ontbreekt nog.' : error.message));
   }
 }
