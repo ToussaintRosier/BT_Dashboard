@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1202 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1211 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2935,6 +2935,11 @@
   .acc-bron:disabled { cursor:default; } .acc-bron:disabled:hover { background:transparent; color:rgba(255,255,255,.42); }
   .acc-bron-tel { margin-left:auto; padding-left:4px; font-size:.64rem; color:rgba(255,255,255,.4); flex-shrink:0; white-space:nowrap; }
   .acc-klantnaam { cursor:pointer; border-bottom:1px dotted rgba(255,255,255,.4); }
+  /* Archief bezoeken (16-09): de schakelaar per bezoek / per klant. */
+  .acc-sw { display:inline-flex; border:1px solid rgba(255,255,255,.22); border-radius:8px; overflow:hidden; margin-left:8px; flex-shrink:0; }
+  .acc-sw-knop { background:transparent; border:none; color:rgba(255,255,255,.7); font-family:inherit; font-size:.76rem; padding:7px 12px; cursor:pointer; }
+  .acc-sw-knop.aan { background:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); }
+  .acc-sw-knop:not(.aan):hover { background:rgba(255,255,255,.08); color:#fff; }
   .acc-klantnaam:hover { border-bottom-color:#F4CB3C; color:#F4CB3C; }
   .pipe-card .card-naam.acc-naam { justify-content:flex-start; align-items:center; }
   .pipe-card .card-naam.acc-naam .naam { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:#fff; }
@@ -4072,6 +4077,7 @@ let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'bewe
 let ACC_OVERZICHT_ZOEK = '';       // zoekveld op het tabblad Overzicht (16-09)
 let BEZOEK_VERVOLG = {};           // verslag_id → vervolgafspraak bij een bezoek (tabel bezoek_vervolg)
 let ACC_NOTITIES = {};             // account_id → gesprekslog op de klantkaart (tabel account_notities)
+let ACC_ARCHIEF = { zoek: '', perKlant: false, alles: false };   // Archief bezoeken (16-09); perKlant = samengevoegd
 let GESPREKSVERSLAGEN_CACHE = [];   // gespreksverslagen (verzoek 28-08)
 let GV_FORM = null;                 // null = dicht; {} = nieuw; {id} = bewerken
 let SL_SEARCH = '';
@@ -8217,7 +8223,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1202';
+const APP_VERSIE = '20260916-1211';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8593,7 +8599,7 @@ function rechtVoor(gebruiker, sleutel) {
   return rechtSjabloon(gebruiker)[sleutel] || 'geen';
 }
 
-function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel === 'accoverzicht' ? 'accounts' : sleutel === 'kandarchief' ? 'kandidaten' : sleutel) !== 'geen'; }   // Overzicht bezoeken volgt Accountmanagement, Archief volgt Kandidaten (16-09)
+function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel === 'accoverzicht' || sleutel === 'accarchief' ? 'accounts' : sleutel === 'kandarchief' ? 'kandidaten' : sleutel) !== 'geen'; }   // Overzicht bezoeken volgt Accountmanagement, Archief volgt Kandidaten (16-09)
 
 // Het slot op elke schrijfactie.
 //
@@ -8964,7 +8970,7 @@ function toggleAccounts(event) {
 // is een eigen pagina, KAM & RLDV de bestaande tabellen. Eén stuk zijbalk
 // voor beide varianten. Het label gaat naar het overzicht.
 function _sidebarAccountsHtml() {
-  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht';
+  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'accarchief';
   return mi('accounts', `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleAccounts(event)">
       <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="selectTab('accoverzicht'); event.stopPropagation();">${btIcon('accounts')}Accountmanagement</span>
@@ -8972,6 +8978,7 @@ function _sidebarAccountsHtml() {
     </div>
     <div class="sidebar-sub" style="display:${accountsOpen ? 'flex' : 'none'};">
       <button class="sidebar-item ${currentTab === 'accoverzicht' ? 'active' : ''}" onclick="selectTab('accoverzicht')">${btIcon('overzicht')}Overzicht</button>
+      <button class="sidebar-item ${currentTab === 'accarchief' ? 'active' : ''}" onclick="selectTab('accarchief')">${btIcon('archief')}Archief</button>
       <button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>
     </div>
   </div>`);
@@ -10715,7 +10722,7 @@ _versieWaakhond();
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
 const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
-                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kandarchief'];
+                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kandarchief', 'accarchief'];
 
 function _tabSleutel() {
   const uid = CURRENT_USER && CURRENT_USER.id;
@@ -10796,7 +10803,7 @@ function _kiesStartTab() {
   if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
   else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
   else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
-  else if (hersteld === 'accounts' || hersteld === 'accoverzicht') accountsOpen = true;
+  else if (hersteld === 'accounts' || hersteld === 'accoverzicht' || hersteld === 'accarchief') accountsOpen = true;
   else if (['kandidaten','kandarchief','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
 }
 
@@ -10815,7 +10822,7 @@ function selectTab(i) {
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   if (i === 'records') managementOpen = true;
   if (i === 'kandidaten' || i === 'kandarchief' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
-  if (i === 'accounts' || i === 'accoverzicht') accountsOpen = true;
+  if (i === 'accounts' || i === 'accoverzicht' || i === 'accarchief') accountsOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
@@ -11721,6 +11728,7 @@ function _renderKern() {
   if (currentTab === 'one') { renderOne(); return; }
   if (currentTab === 'accounts') { renderAccounts(); return; }
   if (currentTab === 'accoverzicht') { renderAccOverzicht(); return; }
+  if (currentTab === 'accarchief') { renderAccArchief(); return; }
   if (currentTab === 'kandarchief') { renderKandArchief(); return; }
   if (currentTab === 'financieel') {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
@@ -14631,6 +14639,7 @@ function _startOpnamesPreload() {
     loadAfsprakenGedeeld(),
     loadBezoekVervolg(),
     loadKandNotities(),
+    loadAccNotitiesAlles(),
   ]).then(() => {
     _opnamesPreloadBezig = false;
     _opnamesPreloadKlaar = true;
@@ -15462,7 +15471,7 @@ const _RT_SCHERMEN = {
   kpi_weekly:           ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten'],
   pipeline_cards:       ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten', 'kandidaten', 'kandarchief', 'plaatsing', 'rldvtool', 'rldvcheck', 'cvgen'],
   projecten:            ['bm', 'team', 'projecten', 'plaatsing', 'hrm', 'financieel'],
-  accounts:             ['accounts', 'accoverzicht', 'comrap', 'rldvtool', 'rldvcheck', 'bm'],
+  accounts:             ['accounts', 'accoverzicht', 'accarchief', 'comrap', 'rldvtool', 'rldvcheck', 'bm'],
   sales_leads:          ['accounts', 'comrap', 'rldvtool', 'rldvcheck', 'kandidaten'],
   financieel_omzet:     ['financieel', 'team'],
   plan_van_aanpak:      ['bm', 'medewerkers', 'comrap'],
@@ -15473,7 +15482,7 @@ const _RT_SCHERMEN = {
   mt_notulen:           ['mtacties', 'bm', 'comrap', 'medewerkers'],
   mt_coaching_notities: ['mtacties', 'bm', 'comrap', 'medewerkers'],
   one_posts: [], one_berichten: [], one_gesprek_leden: [], one_gesprekken: [],
-  account_notities: [], bezoek_vervolg: ['accoverzicht', 'accounts'], kandidaat_notities: ['kandarchief'],
+  account_notities: ['accarchief'], bezoek_vervolg: ['accoverzicht', 'accarchief', 'accounts'], kandidaat_notities: ['kandarchief'],
 };
 function _rtRaaktScherm(tabellen, tab) {
   const scherm = typeof tab === 'number' ? (typeof BMS !== 'undefined' && tab >= BMS.length ? 'team' : 'bm') : String(tab);
@@ -23990,6 +23999,166 @@ async function bedrijfHernoemOpslaan(oud) {
   alert('Hernoemd naar "' + nieuw + '": ' + _bedrijfHernoemTekst(t) + '.');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ACCOUNTMANAGEMENT · ARCHIEF BEZOEKEN (akkoord 16-09)
+//
+// Alle bezoeken ooit, in rijen, met zoekveld — zoals het kandidatenarchief.
+// Schakelaar "Per bezoek" / "Per klant": per klant voegt de bezoeken van
+// dezelfde klant samen tot één regel, na een bevestiging vooraf. Het is een
+// andere manier van kijken; aan de gegevens verandert niets. De pop-up per
+// klant is de klantkaart met daarin het blok Bezoeken (het klantdossier).
+// ═══════════════════════════════════════════════════════════════════════════
+const ACC_ARCHIEF_TOON = 50;
+async function loadAccNotitiesAlles() {
+  if (!supa) return;
+  try {
+    const { data, error } = await _alleRijen(() => supa.from('account_notities').select('*').order('created_at', { ascending: false }));
+    if (error) { if (!/does not exist|42P01/i.test(String(error.message || error.code || ''))) _meldStil('notities ophalen', error); return; }
+    const per = {};
+    (data || []).slice().sort((x, y) => String(y.created_at).localeCompare(String(x.created_at))).forEach(n => { (per[String(n.account_id)] = per[String(n.account_id)] || []).push(n); });
+    ACC_NOTITIES = per;
+  } catch (e) { _meldStil('notities ophalen', e); }
+}
+function _accLaatsteNotitie(account) {
+  const l = account && ACC_NOTITIES[String(account.id)];
+  return l && l.length ? l[0] : null;
+}
+function _accStatusPillen(b) {
+  return (b.afgerond ? '<span class="acc-pil g">afgerond</span>' : '') +
+    '<span class="acc-pil' + (b.record ? ' g' : '') + '">' + (b.record ? 'verslag' : 'geen verslag') + '</span>' +
+    (b.afgerond ? '' : (b.vervolg ? '<span class="acc-pil g">vervolg</span>' : '<span class="acc-pil y">geen vervolg</span>'));
+}
+// Eén regel per klant: alle bezoeken van dezelfde naam bij elkaar.
+function accKlantenLijst() {
+  const per = {};
+  accBezoekenLijst().forEach(b => {
+    const sl = _itkSleutel(b.bedrijf);
+    if (!sl) return;
+    const k = per[sl] = per[sl] || { sleutel: sl, naam: b.bedrijf, bezoeken: [], collegas: [], account: b.account || null, plan: b.plan || null, laatste: null, vervolg: null, afgerond: false };
+    k.bezoeken.push(b);
+    const vn = String(b.collega || '').split(' ')[0];
+    if (vn && !k.collegas.includes(vn)) k.collegas.push(vn);
+    if (!k.laatste || b.datumMs > k.laatste.datumMs) { k.laatste = b; if (b.bedrijf) k.naam = b.bedrijf; }
+    if (b.vervolg && (!k.vervolg || Date.parse(b.vervolg.vervolg_op) > Date.parse(k.vervolg.vervolg_op))) k.vervolg = b.vervolg;
+    if (!k.account && b.account) k.account = b.account;
+    if (!k.plan && b.plan) k.plan = b.plan;
+  });
+  return Object.values(per).map(k => { k.collegas.sort((a, b) => a.localeCompare(b, 'nl')); k.notitie = _accLaatsteNotitie(k.account); return k; })
+    .sort((a, b) => b.laatste.datumMs - a.laatste.datumMs || a.naam.localeCompare(b.naam, 'nl'));
+}
+function renderAccArchiefHtml() {
+  const st = ACC_ARCHIEF;
+  const z = String(st.zoek || '').trim().toLowerCase();
+  const kort = (t, n) => { const x = String(t || ''); return escHtml(x.slice(0, n) + (x.length > n ? '…' : '')); };
+  const schakel = '<div class="acc-sw">' +
+    '<button type="button" class="acc-sw-knop' + (st.perKlant ? '' : ' aan') + '" onclick="accArchiefPerKlant(false)">Per bezoek</button>' +
+    '<button type="button" class="acc-sw-knop' + (st.perKlant ? ' aan' : '') + '" onclick="accArchiefPerKlant(true)">Per klant</button></div>';
+  let tabel, gevonden, totaal;
+  if (!st.perKlant) {
+    const lijst = accBezoekenLijst();
+    const perKlant = {};
+    lijst.forEach(b => { const sl = _itkSleutel(b.bedrijf); perKlant[sl] = (perKlant[sl] || 0) + 1; });
+    const tekstVan = (b) => { const res = b.record && b.record.result && typeof b.record.result === 'object' ? b.record.result : null; const n = _accLaatsteNotitie(b.account); return [b.bedrijf, b.contactpersoon, b.functie, b.afdeling, b.collega, _ACC_SOORT[b.soortBezoek] || b.soortBezoek, res && res.samenvatting ? res.samenvatting : '', n ? n.tekst : ''].join(' ').toLowerCase(); };
+    gevonden = lijst.filter(b => !z || tekstVan(b).includes(z));
+    totaal = lijst.length;
+    const beperkt = !z && !st.alles && gevonden.length > ACC_ARCHIEF_TOON;
+    const toon = beperkt ? gevonden.slice(0, ACC_ARCHIEF_TOON) : gevonden;
+    const rijen = toon.map(b => {
+      const n = _accLaatsteNotitie(b.account);
+      const aantal = perKlant[_itkSleutel(b.bedrijf)] || 1;
+      return '<tr class="acc-arch-rij" onclick="bezoekKaartOpen(\'' + escApos(b.id) + '\')" title="Bezoekkaart openen">' +
+        '<td class="naam">' + _oneMarkeer(b.bedrijf || 'onbekend', z) + (aantal > 1 ? ' <span class="kand-pil">' + aantal + ' bezoeken</span>' : '') + '</td>' +
+        '<td class="d">' + (b.contactpersoon ? _oneMarkeer(b.contactpersoon + (b.afdeling ? ' · ' + b.afdeling : ''), z) : '<span class="stil">—</span>') + '</td>' +
+        '<td class="d">' + escHtml(_accDagKort(b.datumMs) || b.datumTekst) + '</td>' +
+        '<td class="d">' + _oneMarkeer(String(b.collega || '').split(' ')[0], z) + '</td>' +
+        '<td class="d">' + escHtml(_ACC_SOORT[b.soortBezoek] || b.soortBezoek) + '</td>' +
+        '<td>' + _accStatusPillen(b) + '</td>' +
+        '<td class="d not">' + (n ? _oneMarkeer(String(n.tekst).slice(0, 70) + (String(n.tekst).length > 70 ? '…' : ''), z) : '<span class="stil">—</span>') + '</td></tr>';
+    }).join('');
+    tabel = rijen ? '<table class="kand-archief-tabel kand-arch-tabel"><thead><tr><th>Klant</th><th>Contact · afdeling</th><th>Datum</th><th>Collega</th><th>Soort</th><th>Status</th><th>Laatste notitie</th></tr></thead><tbody>' + rijen + '</tbody></table>' : '';
+    var voetTekst = gevonden.length === totaal ? (beperkt ? ACC_ARCHIEF_TOON + ' van ' + totaal + ' · zonder zoekterm de laatste ' + ACC_ARCHIEF_TOON : totaal + ' bezoeken') : gevonden.length + ' van ' + totaal;
+    var voetKnop = beperkt ? '<button type="button" class="kand-archief-alles" onclick="accArchiefAlles()">alles tonen</button>' : '';
+  } else {
+    const lijst = accKlantenLijst();
+    const tekstVan = (k) => [k.naam, k.collegas.join(' '), k.bezoeken.map(b => [b.contactpersoon, b.afdeling, b.record && b.record.result && b.record.result.samenvatting ? b.record.result.samenvatting : ''].join(' ')).join(' '), k.notitie ? k.notitie.tekst : ''].join(' ').toLowerCase();
+    gevonden = lijst.filter(k => !z || tekstVan(k).includes(z));
+    totaal = lijst.length;
+    const beperkt = !z && !st.alles && gevonden.length > ACC_ARCHIEF_TOON;
+    const toon = beperkt ? gevonden.slice(0, ACC_ARCHIEF_TOON) : gevonden;
+    const rijen = toon.map(k => '<tr class="acc-arch-rij" onclick="klantDossierOpen(\'' + escApos(k.sleutel) + '\')" title="Klantdossier openen">' +
+      '<td class="naam">' + _oneMarkeer(k.naam, z) + '</td>' +
+      '<td class="d">' + k.bezoeken.length + '</td>' +
+      '<td class="d">' + escHtml(_accDagKort(k.laatste.datumMs) + ' · ' + String(k.laatste.collega || '').split(' ')[0]) + '</td>' +
+      '<td class="d">' + _oneMarkeer(k.collegas.join(', '), z) + '</td>' +
+      '<td>' + (k.account ? '<span class="acc-pil g">score ' + accScore(k.account) + '</span>' : '<span class="acc-pil">niet in KAM</span>') + '</td>' +
+      '<td class="d">' + (k.vervolg ? escHtml(bezoekVervolgTekst(k.vervolg).split(' · ').slice(0, 3).join(' · ')) : '<span class="acc-pil y">geen</span>') + '</td>' +
+      '<td class="d not">' + (k.notitie ? _oneMarkeer(kort(k.notitie.tekst, 70), z) : '<span class="stil">—</span>') + '</td></tr>').join('');
+    tabel = rijen ? '<table class="kand-archief-tabel kand-arch-tabel"><thead><tr><th>Klant</th><th>Bezoeken</th><th>Laatste</th><th>Collega\'s</th><th>KAM</th><th>Vervolg</th><th>Laatste notitie</th></tr></thead><tbody>' + rijen + '</tbody></table>' : '';
+    var voetTekst = gevonden.length === totaal ? (beperkt ? ACC_ARCHIEF_TOON + ' van ' + totaal + ' klanten' : totaal + ' klanten · samengevoegd') : gevonden.length + ' van ' + totaal + ' klanten';
+    var voetKnop = beperkt ? '<button type="button" class="kand-archief-alles" onclick="accArchiefAlles()">alles tonen</button>' : '';
+  }
+  return '<div><div class="person-header"><div class="person-name">Archief bezoeken' + btUitlegKnop('accounts') + '</div><div class="person-meta"></div></div>' +
+    '<div class="filter-toolbar"><div class="bt-strook">' +
+      '<input id="acc-arch-q" type="text" class="filter-search-pill" placeholder="Zoek klant, contactpersoon, afdeling, collega of notitie…" value="' + escHtml(st.zoek || '') + '" oninput="accArchiefZoek(this.value)">' + schakel +
+    '</div></div>' +
+    '<div class="kand-archief open" style="margin-top:0;">' + (tabel || '<div class="kand-archief-leeg">Niets gevonden.</div>') +
+    '<div class="kand-archief-voet"><span>' + voetTekst + '</span>' + voetKnop + '</div></div></div>';
+}
+function renderAccArchief() {
+  if (currentTab !== 'accarchief') return;
+  document.getElementById('main').innerHTML = renderAccArchiefHtml();
+}
+function accArchiefAlles() { ACC_ARCHIEF.alles = true; renderAccArchief(); }
+function accArchiefZoek(v) {
+  ACC_ARCHIEF.zoek = v;
+  renderAccArchief();
+  const inp = document.getElementById('acc-arch-q');
+  if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
+}
+// Samenvoegen vraagt eerst (aanwijzing 16-09): wat wordt er samengevoegd?
+function accArchiefPerKlant(aan, bevestigd) {
+  if (!aan) { ACC_ARCHIEF.perKlant = false; renderAccArchief(); return; }
+  if (bevestigd) { ACC_ARCHIEF.perKlant = true; crmKaartSluit(); renderAccArchief(); return; }
+  const meer = accKlantenLijst().filter(k => k.bezoeken.length > 1);
+  const regels = meer.slice(0, 8).map(k => '<li>' + escHtml(k.naam) + ' — ' + k.bezoeken.length + ' bezoeken (' + escHtml(k.collegas.join(', ')) + ')</li>').join('') +
+    (meer.length > 8 ? '<li>… nog ' + (meer.length - 8) + ' klanten</li>' : '');
+  crmKaartToon('<h4 class="wit">Bezoeken samenvoegen per klant?</h4>' +
+    '<div class="crm-sub">Klanten met meer dan één bezoek komen op één regel, met alle bezoeken in het dossier. Er verandert niets aan de gegevens — alleen hoe de lijst kijkt. Terugschakelen kan altijd.</div>' +
+    (meer.length ? '<ul class="kk-ul" style="margin:4px 0 8px;">' + regels + '</ul>' : '<div class="kk-tekst stil">Er is nu geen klant met meer dan één bezoek; de lijst blijft dan hetzelfde.</div>') +
+    '<div class="crm-knoppen"><button class="crm-knop goed" onclick="accArchiefPerKlant(true, true)">Samenvoegen</button><button class="crm-knop" onclick="crmKaartSluit()">Per bezoek laten</button></div>');
+}
+// Het blok Bezoeken in het klantdossier: elk bezoek op datum, met wie, wat.
+function _accBezoekenBlokHtml(naam) {
+  const sl = _itkSleutel(naam);
+  const bezoeken = accBezoekenLijst().filter(b => _itkSleutel(b.bedrijf) === sl);
+  const rijen = bezoeken.map(b => {
+    const res = b.record && b.record.result && typeof b.record.result === 'object' ? b.record.result : null;
+    const sam = res && res.samenvatting ? String(res.samenvatting) : '';
+    return '<div class="kk-rij"><span>' + escHtml(_accDagKort(b.datumMs) || b.datumTekst) + '</span><div>' +
+      escHtml([String(b.collega || 'onbekend').split(' ')[0], b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, _ACC_SOORT[b.soortBezoek] || b.soortBezoek].filter(Boolean).join(' · ')) +
+      (b.afgerond ? ' <span class="kk-pil">afgerond</span>' : '') +
+      (sam ? '<div class="kk-tekst" style="color:rgba(255,255,255,.6);font-size:.78rem;">' + escHtml(sam.slice(0, 120) + (sam.length > 120 ? '…' : '')) + '</div>' : (b.record ? '' : '<div class="kk-tekst stil" style="font-size:.76rem;">geen verslag</div>')) +
+      '</div><button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(b.id) + '\')">kaart</button></div>';
+  }).join('');
+  const vervolg = bezoeken.map(b => b.vervolg).filter(Boolean).sort((a, b) => Date.parse(b.vervolg_op) - Date.parse(a.vervolg_op))[0] || null;
+  return '<div class="crm-kop">Bezoeken</div><div class="kk-lijst">' + (rijen || '<div class="kk-tekst stil">nog geen bezoeken</div>') + '</div>' +
+    '<div class="crm-kop">Vervolgafspraak</div><div class="kk-rij"><span>Gepland</span>' + (vervolg ? escHtml(bezoekVervolgTekst(vervolg)) : '<span class="stil">nog geen vervolgafspraak</span>') + '</div>';
+}
+// Het klantdossier: de klantkaart met bezoeken, of — zonder KAM-klant — een
+// kaart met alleen de bezoeken en het log op naam.
+function klantDossierOpen(sleutel) {
+  const k = accKlantenLijst().find(x => x.sleutel === String(sleutel));
+  if (!k) return;
+  if (k.account) { klantKaartOpen(k.account.id, false, { metBezoeken: true }); return; }
+  crmKaartToon('<h4 class="wit">' + escHtml(k.naam) + ' <span class="kk-fase">niet in KAM</span><span class="kk-fase">' + k.bezoeken.length + ' bezoek' + (k.bezoeken.length === 1 ? '' : 'en') + '</span></h4>' +
+    '<div class="crm-sub">Bezocht door ' + escHtml(k.collegas.join(', ')) + ' · laatste ' + escHtml(_accDagKort(k.laatste.datumMs)) + (k.plan ? ' · accountplan ' + escHtml(datumNL(String(k.plan.updated_at || '').slice(0, 10))) : '') + '</div>' +
+    '<div class="kk-2k"><div>' + _accBezoekenBlokHtml(k.naam) + '</div><div>' +
+    '<div class="crm-kop">Gesprekslog</div><div class="kk-tekst stil">Het gesprekslog hoort bij een klant in Accountmanagement. Zet ' + escHtml(k.naam) + ' in de KAM-tabel om hier notities te kunnen maken.</div>' +
+    '</div></div>' +
+    '<div class="crm-knoppen">' + (k.plan ? '<button class="crm-knop" onclick="crmKaartSluit();apNaar(\'' + escApos(String(k.plan.id)) + '\')">Accountplan</button>' : '') +
+    '<button class="crm-knop" onclick="crmKaartSluit();recordsNaarKlant(\'' + escApos(k.naam) + '\')">Naar Records</button><button class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>', 'klant-kaart');
+}
+
 // ── De klantkaart ───────────────────────────────────────────────────────────
 async function loadAccNotities(accId) {
   if (!supa) return;
@@ -24004,7 +24173,7 @@ function _accNotitieTijd(iso) {
   const d = new Date(iso); if (isNaN(d)) return '';
   return d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '') + ' · ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
-function klantKaartHtml(accId) {
+function klantKaartHtml(accId, opties) {
   const sluit = '<button class="crm-knop" onclick="crmKaartSluit()">Sluiten</button>';
   const a = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).find(x => String(x.id) === String(accId));
   if (!a) return '<h4 class="wit">Klant</h4><div class="crm-sub">Deze klant staat niet (meer) in Accountmanagement.</div><div class="crm-knoppen">' + sluit + '</div>';
@@ -24060,17 +24229,21 @@ function klantKaartHtml(accId) {
     '<div class="kk-2k"><div>' +
       '<div class="crm-kop">Scorekaart</div>' + scores +
       '<div class="crm-kop">Contactpersonen</div>' + contactHtml +
+      (opties && opties.metBezoeken ? _accBezoekenBlokHtml(a.naam) : '') +
     '</div><div>' +
       '<div class="crm-kop">Gesprekslog</div>' + logHtml + invoer +
     '</div></div>' +
     '<div class="crm-knoppen">' + (magAcc ? '<button class="crm-knop" onclick="crmKaartSluit();accountsNaarKlant(\'' + idE + '\')">Bewerken in KAM-tabel</button>' : '') + sluit + '</div>';
 }
-function klantKaartOpen(accId, stil) {
+let _KLANT_KAART_OPTIES = {};   // per klant: hoe de kaart voor het laatst geopend is (dossier of niet)
+function klantKaartOpen(accId, stil, opties) {
+  if (opties) _KLANT_KAART_OPTIES[String(accId)] = opties; else if (!stil) delete _KLANT_KAART_OPTIES[String(accId)];
+  const opt = _KLANT_KAART_OPTIES[String(accId)] || null;
   // Wat je aan het typen was, blijft staan als de kaart opnieuw getekend wordt
   // (na een notitie van een collega die live binnenkomt).
   const oud = document.getElementById('acc-notitie-invoer');
   const concept = oud && oud.getAttribute('data-account') === String(accId) ? String(oud.value || '') : '';
-  crmKaartToon(klantKaartHtml(accId), 'klant-kaart');
+  crmKaartToon(klantKaartHtml(accId, opt), 'klant-kaart');
   if (concept) { const t = document.getElementById('acc-notitie-invoer'); if (t) { t.value = concept; _oneBerGroei(t); } }
   if (!ACC_NOTITIES[String(accId)] && !stil) loadAccNotities(accId).then(() => { if (document.getElementById('acc-notitie-invoer') || document.getElementById('crm-laag')) klantKaartOpen(accId, true); });
 }
