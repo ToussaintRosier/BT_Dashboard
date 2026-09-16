@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1311 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1315 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8246,7 +8246,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1311';
+const APP_VERSIE = '20260916-1315';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22274,7 +22274,9 @@ function _kandFasesHtml(c, magWijzig) {
                 (kleur.reden ? ' · ' + kleur.reden : '');
   // Het icoon "Kandidaat niet meer beschikbaar" (16-09): rechts van de fases,
   // altijd met een bevestiging vooraf; aan = toch weer beschikbaar maken.
-  const onbKnop = magWijzig
+  // Voor iedereen (aanwijzing 16-09), net als de vervolgafspraak: het recht
+  // op Medewerkers heeft iedereen die niet bewust op alleen-lezen staat.
+  const onbKnop = magWijzigen('medewerkers')
     ? '<button class="kand-fase kand-onbesch' + (onb ? ' aan' : '') + '" title="' + (onb ? 'Toch weer beschikbaar — ' + escHtml(kleur.reden) : 'Kandidaat niet meer beschikbaar — vraagt eerst een bevestiging') + '"' +
       ' aria-label="' + (onb ? 'Toch weer beschikbaar' : 'Kandidaat niet meer beschikbaar') + '" aria-pressed="' + (onb ? 'true' : 'false') + '"' +
       ' onclick="event.stopPropagation();kandOnbeschikbaarVenster(\'' + escApos(c.bmNaam) + '\',\'' + c.id + '\')">' +
@@ -22316,7 +22318,8 @@ function kandOnbeschikbaarVenster(bmNaam, cardId) {
 // databasefunctie: de schrijfregel laat een BM alleen zijn eigen kaarten
 // wijzigen, en iedereen met het recht Kandidaten hoort dit te kunnen.
 async function kandOnbeschikbaarZet(bmNaam, cardId, aan) {
-  if (!eisWijzig('kandidaten')) return;
+  // Iedere collega mag dit (16-09); de databasefunctie regelt het schrijven.
+  if (!eisWijzig('medewerkers')) return;
   const cards = pipeLoad(bmNaam);
   const c = cards.find(x => String(x.id) === String(cardId));
   if (!c) return;
