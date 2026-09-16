@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1231 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1236 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2941,6 +2941,8 @@
   .acc-sw-knop { background:transparent; border:none; color:rgba(255,255,255,.7); font-family:inherit; font-size:.76rem; padding:7px 12px; cursor:pointer; }
   .acc-sw-knop.aan { background:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); }
   .acc-sw-knop:not(.aan):hover { background:rgba(255,255,255,.08); color:#fff; }
+  .acc-arch-nieuw { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0 0 10px; padding:8px 12px; border-radius:8px; background:rgba(244,203,60,.12); border-left:3px solid #F4CB3C; color:#fff; font-size:.8rem; }
+  .acc-arch-nieuw strong { color:#F4CB3C; }
   .acc-klantnaam:hover { border-bottom-color:#F4CB3C; color:#F4CB3C; }
   .pipe-card .card-naam.acc-naam { justify-content:flex-start; align-items:center; }
   .pipe-card .card-naam.acc-naam .naam { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:#fff; }
@@ -4078,7 +4080,7 @@ let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'bewe
 let ACC_OVERZICHT_ZOEK = '';       // zoekveld op het tabblad Overzicht (16-09)
 let BEZOEK_VERVOLG = {};           // verslag_id → vervolgafspraak bij een bezoek (tabel bezoek_vervolg)
 let ACC_NOTITIES = {};             // account_id → gesprekslog op de klantkaart (tabel account_notities)
-let ACC_ARCHIEF = { zoek: '', perKlant: false, alles: false };   // Archief bezoeken (16-09); perKlant = samengevoegd
+let ACC_ARCHIEF = { zoek: '', perKlant: false, alles: false, bevestigd: {} };   // Archief bezoeken (16-09); perKlant = samengevoegd; bevestigd = welke klanten je samenvoegde (per browser onthouden)
 let GESPREKSVERSLAGEN_CACHE = [];   // gespreksverslagen (verzoek 28-08)
 let GV_FORM = null;                 // null = dicht; {} = nieuw; {id} = bewerken
 let SL_SEARCH = '';
@@ -8224,7 +8226,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1231';
+const APP_VERSIE = '20260916-1236';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -24010,6 +24012,29 @@ async function bedrijfHernoemOpslaan(oud) {
 // klant is de klantkaart met daarin het blok Bezoeken (het klantdossier).
 // ═══════════════════════════════════════════════════════════════════════════
 const ACC_ARCHIEF_TOON = 50;
+// Eenmaal samengevoegd blijft samengevoegd (aanwijzing 16-09): de keuze en de
+// bevestigde klanten staan in de browser. Krijgt een klant daarna een tweede
+// bezoek, dan staat hij los in de lijst tot je hem ook samenvoegt — dat wordt
+// bovenaan aangeboden.
+function _accArchiefLaad() {
+  try {
+    const o = JSON.parse(localStorage.getItem('bt_acc_archief') || 'null');
+    if (o && typeof o === 'object') {
+      ACC_ARCHIEF.perKlant = !!o.perKlant;
+      ACC_ARCHIEF.bevestigd = o.bevestigd && typeof o.bevestigd === 'object' ? o.bevestigd : {};
+    }
+  } catch (_) {}
+  if (!ACC_ARCHIEF.bevestigd) ACC_ARCHIEF.bevestigd = {};
+  ACC_ARCHIEF._geladen = true;
+}
+function _accArchiefBewaar() {
+  try { localStorage.setItem('bt_acc_archief', JSON.stringify({ perKlant: !!ACC_ARCHIEF.perKlant, bevestigd: ACC_ARCHIEF.bevestigd || {} })); } catch (_) {}
+}
+// Klanten met meer dan één bezoek die nog niet samengevoegd zijn.
+function _accArchiefNieuw() {
+  const b = ACC_ARCHIEF.bevestigd || {};
+  return accKlantenLijst().filter(k => k.bezoeken.length > 1 && !b[k.sleutel]);
+}
 async function loadAccNotitiesAlles() {
   if (!supa) return;
   try {
@@ -24030,7 +24055,7 @@ function _accStatusPillen(b) {
     (b.afgerond ? '' : (b.vervolg ? '<span class="acc-pil g">vervolg</span>' : '<span class="acc-pil y">geen vervolg</span>'));
 }
 // Eén regel per klant: alle bezoeken van dezelfde naam bij elkaar.
-function accKlantenLijst() {
+function accKlantenLijst(metLos) {
   const per = {};
   accBezoekenLijst().forEach(b => {
     const sl = _itkSleutel(b.bedrijf);
@@ -24044,11 +24069,19 @@ function accKlantenLijst() {
     if (!k.account && b.account) k.account = b.account;
     if (!k.plan && b.plan) k.plan = b.plan;
   });
-  return Object.values(per).map(k => { k.collegas.sort((a, b) => a.localeCompare(b, 'nl')); k.notitie = _accLaatsteNotitie(k.account); return k; })
-    .sort((a, b) => b.laatste.datumMs - a.laatste.datumMs || a.naam.localeCompare(b.naam, 'nl'));
+  let lijst = Object.values(per).map(k => { k.collegas.sort((a, b) => a.localeCompare(b, 'nl')); k.notitie = _accLaatsteNotitie(k.account); return k; });
+  if (metLos) {
+    // Nog niet bevestigd: elk bezoek een eigen regel, tot je samenvoegt.
+    const bev = ACC_ARCHIEF.bevestigd || {};
+    lijst = lijst.flatMap(k => k.bezoeken.length > 1 && !bev[k.sleutel]
+      ? k.bezoeken.map(b => ({ sleutel: k.sleutel, naam: k.naam, bezoeken: [b], laatste: b, collegas: [String(b.collega || '').split(' ')[0]], account: k.account, plan: k.plan, vervolg: b.vervolg || null, notitie: k.notitie, los: true, id: b.id, totaal: k.bezoeken.length }))
+      : [k]);
+  }
+  return lijst.sort((a, b) => b.laatste.datumMs - a.laatste.datumMs || a.naam.localeCompare(b.naam, 'nl'));
 }
 function renderAccArchiefHtml() {
   const st = ACC_ARCHIEF;
+  if (!st._geladen) _accArchiefLaad();
   const z = String(st.zoek || '').trim().toLowerCase();
   const kort = (t, n) => { const x = String(t || ''); return escHtml(x.slice(0, n) + (x.length > n ? '…' : '')); };
   const schakel = '<div class="acc-sw">' +
@@ -24080,15 +24113,17 @@ function renderAccArchiefHtml() {
     var voetTekst = gevonden.length === totaal ? (beperkt ? ACC_ARCHIEF_TOON + ' van ' + totaal + ' · zonder zoekterm de laatste ' + ACC_ARCHIEF_TOON : totaal + ' bezoeken') : gevonden.length + ' van ' + totaal;
     var voetKnop = beperkt ? '<button type="button" class="kand-archief-alles" onclick="accArchiefAlles()">alles tonen</button>' : '';
   } else {
-    const lijst = accKlantenLijst();
+    const lijst = accKlantenLijst(true);
+    const nieuw = _accArchiefNieuw();
+    var strook = nieuw.length ? '<div class="acc-arch-nieuw"><span><strong>' + nieuw.length + ' klant' + (nieuw.length === 1 ? '' : 'en') + '</strong> met bezoeken die nog niet samengevoegd zijn</span><button type="button" class="crm-knop goed" onclick="accArchiefPerKlant(true)">Bekijken</button></div>' : '';
     const tekstVan = (k) => [k.naam, k.collegas.join(' '), k.bezoeken.map(b => [b.contactpersoon, b.afdeling, b.record && b.record.result && b.record.result.samenvatting ? b.record.result.samenvatting : ''].join(' ')).join(' '), k.notitie ? k.notitie.tekst : ''].join(' ').toLowerCase();
     gevonden = lijst.filter(k => !z || tekstVan(k).includes(z));
     totaal = lijst.length;
     const beperkt = !z && !st.alles && gevonden.length > ACC_ARCHIEF_TOON;
     const toon = beperkt ? gevonden.slice(0, ACC_ARCHIEF_TOON) : gevonden;
-    const rijen = toon.map(k => '<tr class="acc-arch-rij" onclick="klantDossierOpen(\'' + escApos(k.sleutel) + '\')" title="Klantdossier openen">' +
-      '<td class="naam">' + _oneMarkeer(k.naam, z) + '</td>' +
-      '<td class="d">' + k.bezoeken.length + '</td>' +
+    const rijen = toon.map(k => (k.los
+        ? '<tr class="acc-arch-rij" onclick="bezoekKaartOpen(\'' + escApos(k.id) + '\')" title="Bezoekkaart openen">' + '<td class="naam">' + _oneMarkeer(k.naam, z) + ' <span class="kand-pil">niet samengevoegd</span></td><td class="d">1 van ' + k.totaal + '</td>'
+        : '<tr class="acc-arch-rij" onclick="klantDossierOpen(\'' + escApos(k.sleutel) + '\')" title="Klantdossier openen">' + '<td class="naam">' + _oneMarkeer(k.naam, z) + '</td><td class="d">' + k.bezoeken.length + '</td>') +
       '<td class="d">' + escHtml(_accDagKort(k.laatste.datumMs) + ' · ' + String(k.laatste.collega || '').split(' ')[0]) + '</td>' +
       '<td class="d">' + _oneMarkeer(k.collegas.join(', '), z) + '</td>' +
       '<td>' + (k.account ? '<span class="acc-pil g">score ' + accScore(k.account) + '</span>' : '<span class="acc-pil">niet in KAM</span>') + '</td>' +
@@ -24102,6 +24137,7 @@ function renderAccArchiefHtml() {
     '<div class="filter-toolbar"><div class="bt-strook">' +
       '<input id="acc-arch-q" type="text" class="filter-search-pill" placeholder="Zoek klant, contactpersoon, afdeling, collega of notitie…" value="' + escHtml(st.zoek || '') + '" oninput="accArchiefZoek(this.value)">' + schakel +
     '</div></div>' +
+    (typeof strook === 'string' ? strook : '') +
     '<div class="kand-archief open" style="margin-top:0;">' + (tabel || '<div class="kand-archief-leeg">Niets gevonden.</div>') +
     '<div class="kand-archief-voet"><span>' + voetTekst + '</span>' + voetKnop + '</div></div></div>';
 }
@@ -24118,15 +24154,23 @@ function accArchiefZoek(v) {
 }
 // Samenvoegen vraagt eerst (aanwijzing 16-09): wat wordt er samengevoegd?
 function accArchiefPerKlant(aan, bevestigd) {
-  if (!aan) { ACC_ARCHIEF.perKlant = false; renderAccArchief(); return; }
-  if (bevestigd) { ACC_ARCHIEF.perKlant = true; crmKaartSluit(); renderAccArchief(); return; }
-  const meer = accKlantenLijst().filter(k => k.bezoeken.length > 1);
+  if (!ACC_ARCHIEF._geladen) _accArchiefLaad();
+  if (!aan) { ACC_ARCHIEF.perKlant = false; _accArchiefBewaar(); renderAccArchief(); return; }
+  const meer = _accArchiefNieuw();
+  if (bevestigd) {
+    meer.forEach(k => { ACC_ARCHIEF.bevestigd[k.sleutel] = k.bezoeken.length; });
+    ACC_ARCHIEF.perKlant = true; _accArchiefBewaar(); crmKaartSluit(); renderAccArchief(); return;
+  }
+  const eerste = !ACC_ARCHIEF.perKlant;
+  if (!eerste && !meer.length) { renderAccArchief(); return; }   // al per klant, niets nieuws: geen vraag
   const regels = meer.slice(0, 8).map(k => '<li>' + escHtml(k.naam) + ' — ' + k.bezoeken.length + ' bezoeken (' + escHtml(k.collegas.join(', ')) + ')</li>').join('') +
     (meer.length > 8 ? '<li>… nog ' + (meer.length - 8) + ' klanten</li>' : '');
-  crmKaartToon('<h4 class="wit">Bezoeken samenvoegen per klant?</h4>' +
-    '<div class="crm-sub">Klanten met meer dan één bezoek komen op één regel, met alle bezoeken in het dossier. Er verandert niets aan de gegevens — alleen hoe de lijst kijkt. Terugschakelen kan altijd.</div>' +
+  crmKaartToon('<h4 class="wit">' + (eerste ? 'Bezoeken samenvoegen per klant?' : 'Nieuwe samenvoeging' + (meer.length === 1 ? '' : 'en')) + '</h4>' +
+    '<div class="crm-sub">' + (eerste
+      ? 'Klanten met meer dan één bezoek komen op één regel, met alle bezoeken in het dossier. Er verandert niets aan de gegevens — alleen hoe de lijst kijkt. Terugschakelen kan altijd.'
+      : 'Deze klanten hebben er sinds de vorige keer een bezoek bij en staan nog los in de lijst. Samenvoegen zet ze op één regel; wat je eerder samenvoegde, blijft zo.') + '</div>' +
     (meer.length ? '<ul class="kk-ul" style="margin:4px 0 8px;">' + regels + '</ul>' : '<div class="kk-tekst stil">Er is nu geen klant met meer dan één bezoek; de lijst blijft dan hetzelfde.</div>') +
-    '<div class="crm-knoppen"><button class="crm-knop goed" onclick="accArchiefPerKlant(true, true)">Samenvoegen</button><button class="crm-knop" onclick="crmKaartSluit()">Per bezoek laten</button></div>');
+    '<div class="crm-knoppen"><button class="crm-knop goed" onclick="accArchiefPerKlant(true, true)">Samenvoegen</button><button class="crm-knop" onclick="crmKaartSluit()">' + (eerste ? 'Per bezoek laten' : 'Later') + '</button></div>');
 }
 // Het blok Bezoeken in het klantdossier: elk bezoek op datum, met wie, wat.
 function _accBezoekenBlokHtml(naam) {
