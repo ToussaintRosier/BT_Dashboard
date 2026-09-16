@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1315 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1330 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1313,6 +1313,23 @@
                   border-radius:8px; padding:7px 10px; font-family:inherit; font-size:.8rem; margin-bottom:6px; }
   .one-ber-zoek::placeholder { color:rgba(255,255,255,.4); }
   .one-ber-sectie { font-size:.64rem; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.4); padding:8px 6px 2px; }
+  /* Vermeldingen (16-09): vast item bovenaan + het overzicht rechts. */
+  .one-ber-verm { background:rgba(244,203,60,.1); border-left:3px solid #F4CB3C; border-radius:0 8px 8px 0; margin-bottom:4px; }
+  .one-ber-verm.actief { background:rgba(244,203,60,.2); }
+  .one-ber-verm .one-ber-av.pin { background:transparent; font-size:1rem; }
+  .one-verm-lijst { flex:1; overflow:auto; padding:10px 12px; }
+  .one-verm-dag { font-size:.64rem; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.45); margin:8px 0 6px; }
+  .one-verm-rij { background:#253151; border-radius:10px; padding:10px 12px; margin-bottom:8px; border-left:3px solid rgba(255,255,255,.2); color:#fff; }
+  .one-verm-rij.ongelezen { border-left-color:#F4CB3C; }
+  .one-verm-rij.ongelezen .one-verm-stip { display:inline-block; width:8px; height:8px; border-radius:50%; background:#E87400; margin-left:auto; }
+  .one-verm-kop { display:flex; align-items:center; gap:6px; font-size:.8rem; }
+  .one-verm-kop b { font-weight:var(--w-nadruk); }
+  .one-verm-kop .stil { color:rgba(255,255,255,.5); font-size:.74rem; }
+  .one-verm-tekst { margin:6px 0 6px 28px; font-size:.82rem; color:rgba(255,255,255,.88); line-height:1.45; }
+  .one-verm-knoppen { margin-left:28px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .one-verm-bron { font-size:.7rem; color:#9ec8f4; }
+  .one-verm-knop { background:transparent; border:1px solid rgba(255,255,255,.25); color:#fff; border-radius:8px; padding:3px 9px; font-family:inherit; font-size:.7rem; cursor:pointer; }
+  .one-verm-knop:hover { background:rgba(255,255,255,.08); }
   .one-ber-draadkaart { display:flex; flex-direction:column; }
   .one-ber-nieuw { margin-top:8px; margin-bottom:0; }
   .one-ber-nieuw { width:100%; display:flex; align-items:center; justify-content:center; gap:6px;
@@ -6668,6 +6685,7 @@ let ONE_BER_KOPPELINGEN = {};        // v4: per gesprek de gekozen #-koppelingen
 let ONE_BER_BIJLAGE = null;          // v4: gekozen bijlage { file, naam } voor het open gesprek
 let ONE_BER_BIJLAGE_URLS = {};       // v4: bijlage_pad → tijdelijke link (8 uur)
 let _ONE_HASH = null;                // v4: open #-keuzelijst { gid, keuzes, gekozen, van, tot }
+let _ONE_VERM_GEZIEN = null;         // Vermeldingen (16-09): tijdstip van "alles gelezen", per browser
 let _ONE_BER_SPRING = null;          // v4: bericht-id om naartoe te scrollen na hertekenen
 
 async function loadOneBerichten() {
@@ -6785,13 +6803,88 @@ function _oneBerTijd(iso) {
   return d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
 }
 
+// ── Vermeldingen (akkoord 16-09) ───────────────────────────────────────────
+// Alles waarin jij getagd bent, op één plek: de tag-meldingen uit een
+// gesprekslog (klant of kandidaat) en #-tags op jou in gewone berichten.
+// Het bericht zelf staat gewoon in het gesprek; dit is het overzicht erop.
+// Ongelezen = na de leesstand van dat gesprek én na de lokale marker van
+// "alles gelezen" (die staat in de browser, niet in de database).
+function _oneVermGezien() {
+  if (_ONE_VERM_GEZIEN === null) { try { _ONE_VERM_GEZIEN = localStorage.getItem('bt_one_verm_gezien') || ''; } catch (_) { _ONE_VERM_GEZIEN = ''; } }
+  return _ONE_VERM_GEZIEN;
+}
+function _oneVermVoorMij(x) {
+  return x && x.created_by !== ONE_MIJN_ID && !x.verwijderd_op && Array.isArray(x.koppelingen)
+    && x.koppelingen.some(k => k && k.soort === 'collega' && String(k.id) === String(ONE_MIJN_ID));
+}
+function oneVermeldingen() {
+  return ONE_BERICHTEN.filter(x => _oneVermVoorMij(x) && ONE_GESPREKKEN.some(g => String(g.id) === String(x.gesprek_id)))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+}
+function _oneVermOngelezenIs(x) {
+  const lid = _oneBerMijnLid(x.gesprek_id);
+  const tot = [String((lid && lid.gelezen_tot) || ''), String(_oneVermGezien() || '')].sort().pop();
+  return String(x.created_at) > tot;
+}
+function oneVermeldingenOngelezen() { return oneVermeldingen().filter(_oneVermOngelezenIs).length; }
+function oneVermeldingenOpen() {
+  ONE_GESPREK_ACTIEF = 'vermeldingen';
+  ONE_WEERGAVE = 'message';
+  if (currentTab !== 'one') selectTab('one'); else renderOne();
+}
+function oneVermeldingenGelezen() {
+  _ONE_VERM_GEZIEN = new Date().toISOString();
+  try { localStorage.setItem('bt_one_verm_gezien', _ONE_VERM_GEZIEN); } catch (_) {}
+  renderOne();
+  if (typeof renderTabs === 'function' && document.getElementById('sidebar')) renderTabs();
+}
+// Waar komt de vermelding vandaan, en welke knop hoort erbij.
+function _oneVermBron(x) {
+  const bron = (x.koppelingen || []).find(k => k && k.soort && k.soort !== 'collega') || null;
+  const uitLog = /^📌/.test(String(x.tekst || ''));
+  const g = ONE_GESPREKKEN.find(y => String(y.id) === String(x.gesprek_id));
+  const soort = bron ? (bron.soort === 'bedrijf' ? 'scorekaart' : bron.soort) : '';
+  const label = uitLog ? (soort === 'kandidaat' ? 'gesprekslog kandidaat' : 'gesprekslog klant') : 'bericht in ' + oneGesprekNaam(g);
+  const knopTekst = soort === 'kandidaat' ? 'open kandidaatkaart' : soort === 'scorekaart' ? 'open klantkaart' : soort === 'bezoek' ? 'open record' : '';
+  const knop = bron && knopTekst
+    ? '<button class="one-verm-knop" type="button" data-soort="' + escHtml(soort) + '" data-id="' + escHtml(bron.id) + '" data-naam="' + escHtml(bron.naam || '') + '" data-bm="' + escHtml(bron.bm || '') + '" onclick="oneKoppelingOpen(this)">' + knopTekst + '</button>'
+    : '';
+  return { label, knop, bron };
+}
+function _oneVermeldingenHtml() {
+  const lijst = oneVermeldingen();
+  const ong = lijst.filter(_oneVermOngelezenIs).length;
+  let dagVorige = '';
+  const rijen = lijst.map(x => {
+    const dag = _oneBerDag(x.created_at);
+    const kop = dag !== dagVorige ? '<div class="one-verm-dag">' + escHtml(dag) + '</div>' : '';
+    dagVorige = dag;
+    const b = _oneVermBron(x);
+    // De aanhef van de tag-melding ("📌 Je bent genoemd in … van X: ") is hier overbodig.
+    const tekst = String(x.tekst || '').replace(/^📌\s*Je bent genoemd in het gesprekslog van [^:]*:\s*/, '');
+    const naam = String(x.auteur || '');
+    return kop + '<div class="one-verm-rij' + (_oneVermOngelezenIs(x) ? ' ongelezen' : '') + '">' +
+      '<div class="one-verm-kop"><span class="one-ber-av klein" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(_oneInitialen(naam)) + '</span>' +
+        '<b>' + escHtml(naam) + '</b><span class="stil">· ' + escHtml(b.label) + ' · ' + escHtml(_oneBerTijd(x.created_at)) + '</span><span class="one-verm-stip"></span></div>' +
+      '<div class="one-verm-tekst">' + _oneBerTekstHtml({ ...x, tekst }) + '</div>' +
+      '<div class="one-verm-knoppen">' + (b.bron ? '<span class="one-verm-bron">' + escHtml(b.bron.naam || '') + '</span>' : '') + b.knop +
+        '<button class="one-verm-knop" type="button" onclick="oneBerSpring(' + x.id + ')">naar het gesprek</button></div>' +
+      '</div>';
+  }).join('');
+  return '<div class="one-ber-draadkaart one-ber-verm-paneel">' +
+    '<div class="one-ber-kop"><div class="tx"><div class="t">📌 Vermeldingen</div><div class="s">' + (lijst.length ? lijst.length + ' keer getagd' + (ong ? ' · ' + ong + ' nieuw' : '') : 'alles waarin jij getagd wordt, komt hier') + '</div></div>' +
+      (ong ? '<div class="knoppen"><button class="one-ber-naamknop one-ber-ikoon" type="button" onclick="oneVermeldingenGelezen()">alles gelezen</button></div>' : '') + '</div>' +
+    '<div class="one-verm-lijst">' + (rijen || '<div class="one-ber-leeg">Nog geen vermeldingen. Zodra een collega je tagt met # in een gesprekslog of bericht, staat het hier.</div>') + '</div>' +
+    '</div>';
+}
+
 // ── Het paneel ──────────────────────────────────────────────────────────────
 function oneBerichtenHtml() {
   if (!ONE_BER_BESCHIKBAAR) {
     return '<div class="info-box blue">Berichten staan nog niet aan. Draai <code>supabase/one_berichten.sql</code> ' +
            'in de SQL-editor; daarna verschijnt hier de berichtenlijst.</div>';
   }
-  if (ONE_GESPREK_ACTIEF && !ONE_GESPREKKEN.some(g => String(g.id) === String(ONE_GESPREK_ACTIEF))) ONE_GESPREK_ACTIEF = null;
+  if (ONE_GESPREK_ACTIEF && ONE_GESPREK_ACTIEF !== 'vermeldingen' && !ONE_GESPREKKEN.some(g => String(g.id) === String(ONE_GESPREK_ACTIEF))) ONE_GESPREK_ACTIEF = null;
   if (!ONE_GESPREK_ACTIEF && ONE_GESPREKKEN.length) ONE_GESPREK_ACTIEF = ONE_GESPREKKEN[0].id;
 
   const zoek = String(ONE_BER_ZOEK || '').trim().toLowerCase();
@@ -6828,7 +6921,12 @@ function oneBerichtenHtml() {
                     || (zoekTekst && _oneBerZoekTreffers(g.id, zoek).length > 0);
   const groepen  = ONE_GESPREKKEN.filter(g => g.is_groep && past(g));
   const personen = ONE_GESPREKKEN.filter(g => !g.is_groep && past(g));
-  const lijst =
+  // Vast item bovenaan (16-09): alles waarin jij getagd bent.
+  const vermOng = oneVermeldingenOngelezen();
+  const vermItem = !zoek ? '<button class="one-ber-item one-ber-verm' + (ONE_GESPREK_ACTIEF === 'vermeldingen' ? ' actief' : '') + '" onclick="oneVermeldingenOpen()">' +
+      '<span class="one-ber-av pin">📌</span><span class="m"><span class="n">Vermeldingen</span><span class="l">alles waarin jij getagd bent</span></span>' +
+      (vermOng ? '<span class="one-ber-tel">' + vermOng + '</span>' : '') + '</button>' : '';
+  const lijst = vermItem +
     (groepen.length  ? '<div class="one-ber-sectie">Groepen</div>'  + groepen.map(item).join('')  : '') +
     (personen.length ? '<div class="one-ber-sectie">Collega\'s</div>' + personen.map(item).join('') : '');
 
@@ -6851,6 +6949,7 @@ function oneBerZoek(v) {
 }
 
 function _oneBerDraadHtml() {
+  if (ONE_GESPREK_ACTIEF === 'vermeldingen') return _oneVermeldingenHtml();
   const g = ONE_GESPREKKEN.find(x => String(x.id) === String(ONE_GESPREK_ACTIEF));
   if (!g) {
     return '<div class="one-ber-draadkaart"><div class="one-ber-leeg">Kies links een gesprek, of start een nieuw gesprek.</div></div>';
@@ -7552,7 +7651,9 @@ async function _oneMeldCollegas(koppelingen, bronLabel, tekst, bronKoppeling) {
     if (!gid) continue;
     const rij = { gesprek_id: gid, tekst: '📌 Je bent genoemd in het gesprekslog van ' + bronLabel + ': ' + tekst,
                   auteur: String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), created_by: ONE_MIJN_ID };
-    if (bronKoppeling) rij.koppelingen = [bronKoppeling];
+    // De bron én de collega als koppeling (16-09): zo vindt het overzicht
+    // Vermeldingen dit bericht terug bij de getagde collega.
+    rij.koppelingen = (bronKoppeling ? [bronKoppeling] : []).concat([{ soort: 'collega', id: k.id, naam: k.naam }]);
     _echoVanZelf('one_berichten');
     const { error } = await supa.from('one_berichten').insert(rij).select().single();
     if (error) meldFout('melding aan collega mislukt: ' + error.message, 'one_berichten');
@@ -8246,7 +8347,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1315';
+const APP_VERSIE = '20260916-1330';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
