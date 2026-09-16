@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1416 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1420 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8394,7 +8394,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1416';
+const APP_VERSIE = '20260916-1420';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -24835,7 +24835,28 @@ async function _kanbanSchrijf(bmNaam, payload) {
     kaart = { id: pipeUid(), datum: new Date().toLocaleDateString('nl-NL'), ...rij };
   }
   const cards = pipeLoad(bmNaam); cards.push(kaart); pipeSave(bmNaam, cards);
+  await _kanbanWeekHersla(bmNaam, kaart.week, kaart.jaar);
   return kaart;
+}
+// Een Kanban-wijziging raakt de pipeline, en daarmee de opgeslagen week in
+// Team Resultaten ("opg." in oranje zolang de pipeline meer telt dan er is
+// opgeslagen). Aanwijzing 16-09: dan de week meteen opnieuw opslaan, zodat
+// het vinkje groen blijft. Alleen voor weken die al opgeslagen wáren — een
+// week die nog "live" is, blijft live (die bevriezen we niet stiekem).
+async function _kanbanWeekHersla(bmNaam, week, jaar) {
+  if (!magWijzigen('medewerkers')) return;   // zelfde slot als Opslaan in het weekschema; stil, want dit loopt na een andere actie
+  if (!supa || !CURRENT_USER || !bmNaam || !week || !jaar) return;
+  try {
+    const wk = weekcijfersVoor(bmNaam, jaar, week);
+    if (!wk || !wk.isSaved) return;
+    const pipeCounts = getPipeCountsForWeek(bmNaam, week, jaar);
+    const payload = { bm_naam: bmNaam, jaar: jaar, week: week, ...pipeCounts, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
+    const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+    if (error) { _meldStil('week opnieuw opslaan na kanban', error); return; }
+    await loadKpiWeekly();
+    recomputeRatios();
+    _RT_WACHTRIJ.delete('kpi_weekly');
+  } catch (e) { _meldStil('week opnieuw opslaan na kanban', e); }
 }
 async function _kanbanUpdate(bmNaam, id, payload) {
   if (!eisWijzig('medewerkers')) return false;
@@ -24846,7 +24867,7 @@ async function _kanbanUpdate(bmNaam, id, payload) {
   }
   const cards = pipeLoad(bmNaam);
   const i = cards.findIndex(c => String(c.id) === String(id));
-  if (i !== -1) { cards[i] = { ...cards[i], ...payload }; pipeSave(bmNaam, cards); }
+  if (i !== -1) { cards[i] = { ...cards[i], ...payload }; pipeSave(bmNaam, cards); await _kanbanWeekHersla(bmNaam, cards[i].week, cards[i].jaar); }
   return true;
 }
 function _kanbanPayload(fase, o, vorige, gedeeld) {
