@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1420 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1455 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1663,6 +1663,8 @@
   .vv-manier-keus { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid rgba(255,255,255,.22); border-radius:8px; color:#fff; font-size:.8rem; cursor:pointer; background:#364160; }
   .vv-manier-keus input { margin:0; accent-color:#F4CB3C; }
   .vv-manier-keus:has(input:checked) { border-color:#F4CB3C; background:rgba(244,203,60,.14); }
+  .login-link { display:block; margin:10px auto 0; background:transparent; border:none; color:#9ec8f4; font-family:inherit; font-size:.78rem; cursor:pointer; text-decoration:underline dotted; }
+  .login-link:hover { color:#fff; }
   .kand-vervolg-veld { width:100%; box-sizing:border-box; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:8px;
                        padding:8px 10px; font-family:inherit; font-size:.88rem; color-scheme:dark; }
   .kand-vervolg-veld::placeholder { color:rgba(255,255,255,.4); }
@@ -4033,6 +4035,23 @@
     <p id="login-error" style="color:var(--danger); font-size:.8rem; min-height:1.1em; margin:-4px 0 8px;"></p>
     <div class="pipe-modal-btns" style="justify-content:stretch;">
       <button class="pipe-modal-ok" style="width:100%;" onclick="handleLoginClick()">Inloggen</button>
+    </div>
+    <button type="button" class="login-link" onclick="wachtwoordVergeten()">Wachtwoord vergeten?</button>
+  </div>
+</div>
+
+<!-- Wachtwoord instellen (16-09): wie via de uitnodigings- of herstellink
+     binnenkomt, kiest hier eerst zijn wachtwoord. Daarvoor kon dat nergens:
+     de link logde je in, en de volgende keer had je geen wachtwoord. -->
+<div id="ww-screen" class="pipe-modal-overlay" style="display:none; flex-direction:column; gap:18px;">
+  <div class="pipe-modal" style="width:360px;">
+    <h4>Wachtwoord instellen</h4>
+    <p class="pipe-modal-sub" id="ww-uitleg">Kies het wachtwoord waarmee je voortaan inlogt.</p>
+    <input type="password" id="ww-1" placeholder="Nieuw wachtwoord (minstens 8 tekens)" autocomplete="new-password"/>
+    <input type="password" id="ww-2" placeholder="Nog een keer" autocomplete="new-password" onkeydown="if(event.key==='Enter') wachtwoordInstellenOpslaan()"/>
+    <p id="ww-status" style="color:var(--danger); font-size:.8rem; min-height:1.1em; margin:-4px 0 8px;"></p>
+    <div class="pipe-modal-btns" style="justify-content:stretch;">
+      <button class="pipe-modal-ok" style="width:100%;" onclick="wachtwoordInstellenOpslaan()">Opslaan en doorgaan</button>
     </div>
   </div>
 </div>
@@ -6732,7 +6751,46 @@ let ONE_BER_KOPPELINGEN = {};        // v4: per gesprek de gekozen #-koppelingen
 let ONE_BER_BIJLAGE = null;          // v4: gekozen bijlage { file, naam } voor het open gesprek
 let ONE_BER_BIJLAGE_URLS = {};       // v4: bijlage_pad → tijdelijke link (8 uur)
 let _ONE_HASH = null;                // v4: open #-keuzelijst { gid, keuzes, gekozen, van, tot }
-let _ONE_VERM_GEZIEN = null;         // Vermeldingen (16-09): tijdstip van "alles gelezen", per browser
+let _ONE_VERM_GEZIEN = null;         // Vermeldingen (16-09): tijdstip van "alles gelezen"
+// ── Gebruikersinstellingen per persoon (16-09) ──────────────────────────────
+// Kleine voorkeuren die eerst alleen in de browser stonden (samengevoegd per
+// klant, vermeldingen gelezen) staan nu in de tabel gebruikersinstellingen:
+// één jsonb per persoon, zodat ze op elke computer gelijk zijn. De browser
+// blijft de terugval zolang de tabel er niet is (supabase/gebruikersinstellingen.sql).
+let INSTELLINGEN = null;             // null = nog niet geladen
+let _INSTELLINGEN_TABEL_WEG = false; // true zodra de tabel blijkt te ontbreken: dan alleen de browser
+async function loadInstellingen() {
+  if (!supa || !CURRENT_USER || !CURRENT_USER.id) return;
+  try {
+    const { data, error } = await supa.from('gebruikersinstellingen').select('instellingen').eq('user_id', CURRENT_USER.id).maybeSingle();
+    if (error) {
+      if (/does not exist|42P01/i.test(String(error.message || error.code || ''))) { _INSTELLINGEN_TABEL_WEG = true; INSTELLINGEN = INSTELLINGEN || {}; return; }
+      _meldStil('instellingen ophalen', error); return;
+    }
+    INSTELLINGEN = (data && data.instellingen && typeof data.instellingen === 'object') ? data.instellingen : {};
+  } catch (e) { _meldStil('instellingen ophalen', e); }
+}
+function instelling(sleutel, standaard) {
+  if (INSTELLINGEN && Object.prototype.hasOwnProperty.call(INSTELLINGEN, sleutel)) return INSTELLINGEN[sleutel];
+  try {
+    const v = localStorage.getItem('bt_' + sleutel);
+    if (v === null) return standaard;
+    try { return JSON.parse(v); } catch (_) { return v; }
+  } catch (_) { return standaard; }
+}
+async function instellingZet(sleutel, waarde) {
+  // Eigen voorkeur, eigen rij: het slot is dat je ingelogd bent (magWijzigen('one')
+  // heeft iedereen), stil omdat dit achter een andere handeling loopt.
+  if (!magWijzigen('one')) return;
+  INSTELLINGEN = INSTELLINGEN || {};
+  INSTELLINGEN[sleutel] = waarde;
+  try { localStorage.setItem('bt_' + sleutel, typeof waarde === 'string' ? waarde : JSON.stringify(waarde)); } catch (_) {}
+  if (!supa || !CURRENT_USER || !CURRENT_USER.id || _INSTELLINGEN_TABEL_WEG) return;
+  try {
+    const { error } = await supa.from('gebruikersinstellingen').upsert({ user_id: CURRENT_USER.id, instellingen: INSTELLINGEN, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    if (error) _meldStil('instelling opslaan', error);
+  } catch (e) { _meldStil('instelling opslaan', e); }
+}
 let _ONE_BER_SPRING = null;          // v4: bericht-id om naartoe te scrollen na hertekenen
 
 async function loadOneBerichten() {
@@ -6857,18 +6915,46 @@ function _oneBerTijd(iso) {
 // Ongelezen = na de leesstand van dat gesprek én na de lokale marker van
 // "alles gelezen" (die staat in de browser, niet in de database).
 function _oneVermGezien() {
-  if (_ONE_VERM_GEZIEN === null) { try { _ONE_VERM_GEZIEN = localStorage.getItem('bt_one_verm_gezien') || ''; } catch (_) { _ONE_VERM_GEZIEN = ''; } }
+  if (_ONE_VERM_GEZIEN === null) _ONE_VERM_GEZIEN = String(instelling('one_verm_gezien', '') || '');
   return _ONE_VERM_GEZIEN;
 }
 function _oneVermVoorMij(x) {
   return x && x.created_by !== ONE_MIJN_ID && !x.verwijderd_op && Array.isArray(x.koppelingen)
     && x.koppelingen.some(k => k && k.soort === 'collega' && String(k.id) === String(ONE_MIJN_ID));
 }
+// Tags in de ONE-feed (16-09): posts en reacties met mijn naam in getagd.
+// Een post aan iedereen (@ALL zet alle namen in getagd) is geen persoonlijke
+// vermelding en blijft buiten beeld.
+function _oneVermFeed() {
+  const ik = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '').trim();
+  if (!ik) return [];
+  const iedereen = Math.max(1, (Array.isArray(ONE_COLLEGAS) ? ONE_COLLEGAS.length : 1) - 1);
+  const mij = (r) => r && r.created_by !== ONE_MIJN_ID && !r.verwijderd_op && Array.isArray(r.getagd) && r.getagd.map(n => String(n).trim()).includes(ik) && r.getagd.length < iedereen;
+  const posts = (Array.isArray(ONE_POSTS) ? ONE_POSTS : []).filter(mij).map(p => ({
+    soort: 'post', id: p.id, post_id: p.id, auteur: p.auteur, created_by: p.created_by, created_at: p.created_at, getagd: p.getagd,
+    tekst: [p.onderwerp, p.tekst].filter(Boolean).join(': ') }));
+  const reacties = (Array.isArray(ONE_COMMENTAREN) ? ONE_COMMENTAREN : []).filter(mij).map(r => ({
+    soort: 'reactie', id: r.id, post_id: r.post_id, auteur: r.auteur, created_by: r.created_by, created_at: r.created_at, getagd: r.getagd, tekst: r.tekst }));
+  return posts.concat(reacties);
+}
 function oneVermeldingen() {
-  return ONE_BERICHTEN.filter(x => _oneVermVoorMij(x) && ONE_GESPREKKEN.some(g => String(g.id) === String(x.gesprek_id)))
+  const berichten = ONE_BERICHTEN.filter(x => _oneVermVoorMij(x) && ONE_GESPREKKEN.some(g => String(g.id) === String(x.gesprek_id)))
+    .map(x => ({ ...x, soort: 'bericht' }));
+  return berichten.concat(_oneVermFeed())
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
+// Naar het bericht in de feed springen.
+function oneVermNaarPost(postId) {
+  ONE_WEERGAVE = 'feed';
+  if (currentTab !== 'one') selectTab('one'); else renderOne();
+  setTimeout(() => {
+    const el = document.getElementById('one-post-' + String(postId));
+    if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('one-nieuw'); }
+  }, 80);
+}
 function _oneVermOngelezenIs(x) {
+  // Feed-vermeldingen kennen geen leesstand per gesprek: daar geldt alleen de marker "alles gelezen".
+  if (x.soort === 'post' || x.soort === 'reactie') return String(x.created_at) > String(_oneVermGezien() || '');
   const lid = _oneBerMijnLid(x.gesprek_id);
   const tot = [String((lid && lid.gelezen_tot) || ''), String(_oneVermGezien() || '')].sort().pop();
   return String(x.created_at) > tot;
@@ -6881,12 +6967,16 @@ function oneVermeldingenOpen() {
 }
 function oneVermeldingenGelezen() {
   _ONE_VERM_GEZIEN = new Date().toISOString();
-  try { localStorage.setItem('bt_one_verm_gezien', _ONE_VERM_GEZIEN); } catch (_) {}
+  instellingZet('one_verm_gezien', _ONE_VERM_GEZIEN);
   renderOne();
   if (typeof renderTabs === 'function' && document.getElementById('sidebar')) renderTabs();
 }
 // Waar komt de vermelding vandaan, en welke knop hoort erbij.
 function _oneVermBron(x) {
+  if (x.soort === 'post' || x.soort === 'reactie') {
+    return { label: x.soort === 'post' ? 'bericht in ONE' : 'reactie in ONE', bron: null,
+             knop: '<button class="one-verm-knop" type="button" onclick="oneVermNaarPost(\'' + escApos(String(x.post_id)) + '\')">naar het bericht</button>' };
+  }
   const bron = (x.koppelingen || []).find(k => k && k.soort && k.soort !== 'collega') || null;
   const uitLog = /^📌/.test(String(x.tekst || ''));
   const g = ONE_GESPREKKEN.find(y => String(y.id) === String(x.gesprek_id));
@@ -6913,9 +7003,9 @@ function _oneVermeldingenHtml() {
     return kop + '<div class="one-verm-rij' + (_oneVermOngelezenIs(x) ? ' ongelezen' : '') + '">' +
       '<div class="one-verm-kop"><span class="one-ber-av klein" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(_oneInitialen(naam)) + '</span>' +
         '<b>' + escHtml(naam) + '</b><span class="stil">· ' + escHtml(b.label) + ' · ' + escHtml(_oneBerTijd(x.created_at)) + '</span><span class="one-verm-stip"></span></div>' +
-      '<div class="one-verm-tekst">' + _oneBerTekstHtml({ ...x, tekst }) + '</div>' +
+      '<div class="one-verm-tekst">' + (x.soort === 'post' || x.soort === 'reactie' ? _oneTekstHtml(tekst, x.getagd) : _oneBerTekstHtml({ ...x, tekst })) + '</div>' +
       '<div class="one-verm-knoppen">' + (b.bron ? '<span class="one-verm-bron">' + escHtml(b.bron.naam || '') + '</span>' : '') + b.knop +
-        '<button class="one-verm-knop" type="button" onclick="oneBerSpring(' + x.id + ')">naar het gesprek</button></div>' +
+        (x.soort === 'post' || x.soort === 'reactie' ? '' : '<button class="one-verm-knop" type="button" onclick="oneBerSpring(' + x.id + ')">naar het gesprek</button>') + '</div>' +
       '</div>';
   }).join('');
   return '<div class="one-ber-draadkaart one-ber-verm-paneel">' +
@@ -8394,7 +8484,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1420';
+const APP_VERSIE = '20260916-1455';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10328,6 +10418,7 @@ function renderBeheer() {
       <div style="margin-top:14px;display:flex;gap:10px;">
         <button onclick="beheerSaveProfiel('${escHtml(BEHEER_EDIT_ID)}')" style="padding:8px 22px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;">Opslaan</button>
         <button onclick="beheerAnnuleerEdit()" style="padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text);">Annuleren</button>
+        <button onclick="beheerWachtwoordMail('${escHtml(editProfiel.email||'')}','beh-edit-msg')" title="Stuurt een mail waarmee de collega zelf een (nieuw) wachtwoord kiest" style="margin-left:auto;padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text);">Wachtwoordmail sturen</button>
       </div>
     </div>` : '';
 
@@ -10369,7 +10460,7 @@ function renderBeheer() {
              niet willen. Een nieuwe collega krijgt de uitnodigingsmail en
              kiest daar zijn eigen wachtwoord. */''}
         <div style="grid-column:1/-1;font-size:.78rem;color:var(--text-muted);line-height:1.4;">
-          De collega ontvangt een uitnodigingsmail en kiest daarin zelf een wachtwoord.
+          De collega ontvangt een uitnodigingsmail; de link brengt hem op dit dashboard, waar hij eerst zelf een wachtwoord kiest. Bestaat het account al, dan gaat er een wachtwoordmail.
         </div>
       </div>
       <div id="inv-msg" style="margin-top:8px;font-size:.82rem;"></div>
@@ -10741,7 +10832,7 @@ async function beheerInviteVerstuur() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + authHeader,
       },
-      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel }),
+      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel, redirectTo: _dashboardUrl() }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -14816,6 +14907,7 @@ function _startOpnamesPreload() {
     loadBezoekVervolg(),
     loadKandNotities(),
     loadAccNotitiesAlles(),
+    loadInstellingen(),
   ]).then(() => {
     _opnamesPreloadBezig = false;
     _opnamesPreloadKlaar = true;
@@ -14863,6 +14955,72 @@ async function doLogin(email, password) {
   const { error } = await supa.auth.signInWithPassword({ email, password });
   if (error) { showLoginError('Inloggen mislukt: ' + error.message); return; }
   await loadProfileAndStart();
+}
+
+// ── Wachtwoord instellen en vergeten (16-09) ────────────────────────────────
+// De uitnodigingsmail (en de herstelmail) brengt iemand terug op het dashboard
+// met een tijdelijke sessie in de adresbalk (#access_token=…&type=invite of
+// type=recovery). Zo'n sessie is ingelogd, maar er is nog geen wachtwoord.
+// Dat scherm komt dan eerst; daarna pas het dashboard.
+function _authUrlType() {
+  const h = String(location.hash || '').replace(/^#/, ''), q = String(location.search || '').replace(/^\?/, '');
+  const m = /(?:^|&)type=([a-z_]+)/.exec(h) || /(?:^|&)type=([a-z_]+)/.exec(q);
+  const soort = m ? m[1] : '';
+  return soort === 'invite' || soort === 'recovery' || soort === 'signup' || soort === 'magiclink' ? soort : '';
+}
+function _dashboardUrl() { return String(location.origin || '') + String(location.pathname || '/'); }
+function showWachtwoordInstellen(soort) {
+  const s = document.getElementById('ww-screen');
+  if (s) s.style.display = 'flex';
+  const l = document.getElementById('login-screen'); if (l) l.style.display = 'none';
+  const a = document.getElementById('app-root');     if (a) a.style.display = 'none';
+  const u = document.getElementById('ww-uitleg');
+  if (u) u.textContent = soort === 'recovery'
+    ? 'Je hebt om een nieuw wachtwoord gevraagd. Kies het hier; daarna log je er voortaan mee in.'
+    : 'Welkom! Je bent binnen via de uitnodiging. Kies het wachtwoord waarmee je voortaan inlogt.';
+  const st = document.getElementById('ww-status'); if (st) st.textContent = '';
+  setTimeout(() => { const el = document.getElementById('ww-1'); if (el && el.focus) el.focus(); }, 50);
+}
+async function wachtwoordInstellenOpslaan() {
+  const st = document.getElementById('ww-status');
+  const w1 = String((document.getElementById('ww-1') || {}).value || ''), w2 = String((document.getElementById('ww-2') || {}).value || '');
+  if (w1.length < 8) { if (st) st.textContent = 'Kies een wachtwoord van minstens 8 tekens.'; return; }
+  if (w1 !== w2) { if (st) st.textContent = 'De twee wachtwoorden zijn niet gelijk.'; return; }
+  if (!supa) { if (st) st.textContent = 'Database nog niet gekoppeld.'; return; }
+  if (st) st.textContent = 'Opslaan…';
+  const { error } = await supa.auth.updateUser({ password: w1 });
+  if (error) {
+    const m = String(error.message || '');
+    if (st) st.textContent = /different/i.test(m) ? 'Dit wachtwoord is gelijk aan het oude — kies een ander.' : 'Opslaan mislukt: ' + m;
+    meldFout('wachtwoord instellen mislukt: ' + m, 'wachtwoordInstellenOpslaan');
+    return;
+  }
+  // De tijdelijke sessie uit de adresbalk halen, anders komt dit scherm bij
+  // elke verversing terug.
+  try { history.replaceState(null, '', _dashboardUrl()); } catch (_) {}
+  try { location.hash = ''; } catch (_) {}
+  const s = document.getElementById('ww-screen'); if (s) s.style.display = 'none';
+  await loadProfileAndStart();
+}
+async function wachtwoordVergeten() {
+  const email = String((document.getElementById('login-email') || {}).value || '').trim();
+  const err = document.getElementById('login-error');
+  if (!email) { if (err) err.textContent = 'Vul eerst je e-mailadres in, dan sturen we een herstelmail.'; return; }
+  if (!supa) { if (err) err.textContent = 'Database nog niet gekoppeld.'; return; }
+  const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: _dashboardUrl() });
+  if (err) err.textContent = error ? 'Versturen mislukt: ' + String(error.message || '') : 'Herstelmail verstuurd naar ' + email + '. Klik op de link in de mail en kies een nieuw wachtwoord.';
+  if (error) meldFout('herstelmail mislukt: ' + String(error.message || ''), 'wachtwoordVergeten');
+}
+// Beheer: de wachtwoordmail opnieuw sturen (nieuwe collega die de uitnodiging
+// kwijt is, of iemand die zijn wachtwoord niet meer weet).
+async function beheerWachtwoordMail(email, msgId) {
+  const msg = document.getElementById(msgId || 'beh-edit-msg');
+  if (!email) { if (msg) btZetStatus(msg, '⚠️ Geen e-mailadres bij dit profiel.'); return; }
+  if (!supa) return;
+  if (msg) btZetStatus(msg, '⏳ Wachtwoordmail versturen…');
+  const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: _dashboardUrl() });
+  if (error) { if (msg) btZetStatus(msg, '⚠️ Versturen mislukt: ' + String(error.message || '')); meldFout('wachtwoordmail mislukt: ' + String(error.message || ''), 'beheerWachtwoordMail'); return; }
+  if (msg) btZetStatus(msg, '✅ Wachtwoordmail verstuurd naar ' + email + ' — de collega kiest via de link zelf een wachtwoord.');
 }
 
 async function loadProfileAndStart() {
@@ -15748,7 +15906,14 @@ async function initApp() {
     render();
     return;
   }
+  // Via de uitnodigings- of herstellink binnen (16-09): eerst een wachtwoord
+  // kiezen, dan pas het dashboard. Zie _authUrlType.
+  try {
+    supa.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') showWachtwoordInstellen('recovery'); });
+  } catch (_) {}
+  const soort = _authUrlType();
   const { data: { session } } = await supa.auth.getSession();
+  if (session && soort) { showWachtwoordInstellen(soort); return; }
   if (session) { await loadProfileAndStart(); }
   else { showLogin(); }
 }
@@ -22460,7 +22625,7 @@ function kandOnbeschikbaarVenster(bmNaam, cardId) {
     return;
   }
   crmKaartToon('<h4 class="wit">Niet meer beschikbaar?</h4>' +
-    '<div class="crm-sub">Je zet <b style="color:#fff;">' + escHtml(c.naam || '') + '</b> op niet meer beschikbaar. Alle kaartjes van deze kandidaat in de pipeline van ' + escHtml(bmNaam) + ' worden grijs; de fases en de klok tellen dan niet meer. Terugdraaien kan altijd via hetzelfde icoon.</div>' +
+    '<div class="crm-sub">Je zet <b style="color:#fff;">' + escHtml(c.naam || '') + '</b> op niet meer beschikbaar. Alle kaartjes van deze kandidaat in de pipeline van ' + escHtml(bmNaam) + ' worden grijs; de fases en de klok tellen dan niet meer, en de kandidaat gaat van de Kanban af. Terugdraaien kan altijd via hetzelfde icoon.</div>' +
     '<div class="crm-kop">Reden (niet verplicht)</div>' +
     '<input type="text" id="kand-onb-reden" class="kand-vervolg-veld" maxlength="120" placeholder="bijv. elders getekend, geen interesse meer">' +
     '<div class="crm-knoppen"><button class="crm-knop weg" onclick="kandOnbeschikbaarZet(\'' + bmE + '\',\'' + c.id + '\', true)">Ja, niet meer beschikbaar</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>');
@@ -24395,7 +24560,7 @@ const ACC_ARCHIEF_TOON = 50;
 // bovenaan aangeboden.
 function _accArchiefLaad() {
   try {
-    const o = JSON.parse(localStorage.getItem('bt_acc_archief') || 'null');
+    const o = instelling('acc_archief', null);
     if (o && typeof o === 'object') {
       ACC_ARCHIEF.perKlant = !!o.perKlant;
       ACC_ARCHIEF.bevestigd = o.bevestigd && typeof o.bevestigd === 'object' ? o.bevestigd : {};
@@ -24405,7 +24570,7 @@ function _accArchiefLaad() {
   ACC_ARCHIEF._geladen = true;
 }
 function _accArchiefBewaar() {
-  try { localStorage.setItem('bt_acc_archief', JSON.stringify({ perKlant: !!ACC_ARCHIEF.perKlant, bevestigd: ACC_ARCHIEF.bevestigd || {} })); } catch (_) {}
+  instellingZet('acc_archief', { perKlant: !!ACC_ARCHIEF.perKlant, bevestigd: ACC_ARCHIEF.bevestigd || {} });
 }
 // Klanten met meer dan één bezoek die nog niet samengevoegd zijn.
 function _accArchiefNieuw() {
@@ -24638,7 +24803,7 @@ function kanbanKaarten() {
   const opgevolgd = new Set(alle.filter(c => c.kanban_vorige && !c.verwijderd_op).map(c => String(c.kanban_vorige)));
   const per = {}; KANBAN_FASES.forEach(f => { per[f.sleutel] = []; });
   alle.forEach(c => {
-    if (c.verwijderd_op || c.kandidaten_uitgesloten || c.kanban_af || opgevolgd.has(String(c.id))) return;
+    if (c.verwijderd_op || c.kandidaten_uitgesloten || c.kanban_af || c.onbeschikbaar_op || opgevolgd.has(String(c.id))) return;
     const fase = kanbanFaseVan(c);
     if (!fase || !_kanbanRecent(c)) return;
     per[fase].push(c);
@@ -34395,6 +34560,19 @@ function pipeDrop(e, bmNaam, toStage, toWeek, toJaar) {
 // ── Add / bewerk card modal (zelfde modal, cardId bepaalt de modus) ──────────
 var _pipeModalCtx = { bmNaam: null, stage: null, week: null, jaar: null, cardId: null };
 
+// De Kanban-velden in het pipeline-venster (16-09): leeg bij toevoegen,
+// voorgevuld bij bewerken. De klantenlijst komt uit KAM + pipelines.
+function _pipeKanbanVeldenVul(card) {
+  const z = (id, v) => { const el = document.getElementById(id); if (el) el.value = v == null ? '' : String(v); };
+  z('pipe-modal-kb-klant', card ? (card.kanban_klant || '') : '');
+  z('pipe-modal-kb-functie', card ? (card.kanban_functie || '') : '');
+  z('pipe-modal-gesprek-op', card ? _naarVeldTijd(card.gesprek_op) : '');
+  z('pipe-modal-gesprek', card && card.gesprek ? String(card.gesprek) : '1');
+  z('pipe-modal-contract-functie', card ? (card.kanban_functie || '') : '');
+  z('pipe-modal-contract-op', card ? _naarVeldTijd(card.gesprek_op) : '');
+  const dl = document.getElementById('pipe-modal-klanten');
+  if (dl && typeof _kanbanKlantKeuzes === 'function') dl.innerHTML = _kanbanKlantKeuzes().map(n => '<option value="' + escHtml(n) + '">').join('');
+}
 function _pipeToggleStageFields(stage) {
   const isIntake   = stage === 'Intake';
   const isBezoek   = stage === 'Bezoeken';
@@ -34406,6 +34584,8 @@ function _pipeToggleStageFields(stage) {
   document.getElementById('pipe-modal-opdrachtgever-field').style.display = (isContract || isStarter) ? 'block' : 'none';
   document.getElementById('pipe-modal-salaris-field').style.display      = isContract ? 'block' : 'none';
   document.getElementById('pipe-modal-gedeeld-field').style.display      = (isContract || isStarter || isMatch) ? 'block' : 'none';
+  document.getElementById('pipe-modal-match-fields').style.display       = isMatch ? 'block' : 'none';
+  document.getElementById('pipe-modal-contract-fields').style.display    = isContract ? 'block' : 'none';
   document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'Naam opdrachtgever *' : 'Naam kandidaat *';
 }
 function pipeOpenModal(bmNaam, stage, week, jaar) {
@@ -34426,6 +34606,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-opdrachtgever').value = '';
   document.getElementById('pipe-modal-salaris').value = '';
   document.getElementById('pipe-modal-gedeeld').value = '1';
+  _pipeKanbanVeldenVul(null);
   _pipeToggleStageFields(stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Toevoegen';
   document.getElementById('pipe-modal').classList.add('open');
@@ -34451,6 +34632,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-opdrachtgever').value = card.opdrachtgever || '';
   document.getElementById('pipe-modal-salaris').value = card.salaris || '';
   document.getElementById('pipe-modal-gedeeld').value = card.gedeeld ? '0.5' : '1';
+  _pipeKanbanVeldenVul(card);
   _pipeToggleStageFields(card.stage);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Opslaan';
   document.getElementById('pipe-modal').classList.add('open');
@@ -34503,6 +34685,25 @@ async function _pipeConfirmAddInner() {
   const opdrachtgever   = (isContract || isStarter) ? document.getElementById('pipe-modal-opdrachtgever').value.trim() : undefined;
   const salaris         = isContract ? document.getElementById('pipe-modal-salaris').value.trim() : undefined;
   const gedeeld         = (isContract || isStarter || isMatch) ? (document.getElementById('pipe-modal-gedeeld').value === '0.5') : undefined;
+  // Kanban-velden (16-09): verplicht bij Matchgesprekken en Contractvoorstel.
+  const lees = (id) => { const el = document.getElementById(id); return String((el && el.value) || '').trim(); };
+  const kbKlant   = isMatch ? lees('pipe-modal-kb-klant') : isContract ? opdrachtgever : undefined;
+  const kbFunctie = isMatch ? lees('pipe-modal-kb-functie') : isContract ? lees('pipe-modal-contract-functie') : undefined;
+  const gesprekOp = isMatch ? _uitVeldTijd(lees('pipe-modal-gesprek-op')) : isContract ? _uitVeldTijd(lees('pipe-modal-contract-op')) : undefined;
+  const gesprekNr = isMatch ? (parseInt(lees('pipe-modal-gesprek'), 10) || 0) : undefined;
+  if (isMatch) {
+    const missingField = !kbKlant ? 'pipe-modal-kb-klant' : !kbFunctie ? 'pipe-modal-kb-functie' : !gesprekOp ? 'pipe-modal-gesprek-op' : !gesprekNr ? 'pipe-modal-gesprek' : null;
+    if (missingField) {
+      const missingLabels = [];
+      if (!kbKlant)   missingLabels.push('Klant');
+      if (!kbFunctie) missingLabels.push('Functie');
+      if (!gesprekOp) missingLabels.push('Datum en tijd gesprek');
+      if (!gesprekNr) missingLabels.push('Welk gesprek');
+      alert('Verplicht bij Matchgesprekken: ' + missingLabels.join(', '));
+      document.getElementById(missingField).focus();
+      return;
+    }
+  }
 
   // Verplichte velden bij Intake: naam (al gecontroleerd), functie, salarisindicatie, regio, reisbereidheid.
   if (isIntake) {
@@ -34537,11 +34738,13 @@ async function _pipeConfirmAddInner() {
   }
   // Verplicht bij Contractvoorstel: naam opdrachtgever + salaris (naam kandidaat al gecontroleerd).
   if (isContract) {
-    const missingField = !opdrachtgever ? 'pipe-modal-opdrachtgever' : !salaris ? 'pipe-modal-salaris' : null;
+    const missingField = !opdrachtgever ? 'pipe-modal-opdrachtgever' : !salaris ? 'pipe-modal-salaris' : !kbFunctie ? 'pipe-modal-contract-functie' : !gesprekOp ? 'pipe-modal-contract-op' : null;
     if (missingField) {
       const missingLabels = [];
       if (!opdrachtgever) missingLabels.push('Naam opdrachtgever');
       if (!salaris)       missingLabels.push('Salaris');
+      if (!kbFunctie)     missingLabels.push('Functie');
+      if (!gesprekOp)     missingLabels.push('Datum contractvoorstel');
       alert('Verplicht bij Contractvoorstel: ' + missingLabels.join(', '));
       document.getElementById(missingField).focus();
       return;
@@ -34561,7 +34764,8 @@ async function _pipeConfirmAddInner() {
     if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
-    if (isMatch)     { updatePayload.gedeeld = gedeeld; }
+    if (isMatch)     { updatePayload.gedeeld = gedeeld; updatePayload.kanban_klant = kbKlant; updatePayload.kanban_functie = kbFunctie; updatePayload.gesprek_op = gesprekOp; updatePayload.gesprek = gesprekNr; }
+    if (isContract)  { updatePayload.kanban_klant = kbKlant; updatePayload.kanban_functie = kbFunctie; updatePayload.gesprek_op = gesprekOp; }
     if (supa) {
       const ok = await _pipeSchrijf('kandidaat wijzigen', supa.from('pipeline_cards').update(updatePayload).eq('id', cardId), bmNaam);
       if (!ok) return;
@@ -34574,7 +34778,8 @@ async function _pipeConfirmAddInner() {
       if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
-      if (isMatch)     { card.gedeeld = gedeeld; }
+      if (isMatch)     { card.gedeeld = gedeeld; card.kanban_klant = kbKlant; card.kanban_functie = kbFunctie; card.gesprek_op = gesprekOp; card.gesprek = gesprekNr; }
+      if (isContract)  { card.kanban_klant = kbKlant; card.kanban_functie = kbFunctie; card.gesprek_op = gesprekOp; }
     }
     pipeSave(bmNaam, cards);
     pipeCloseModal();
@@ -34589,7 +34794,8 @@ async function _pipeConfirmAddInner() {
   if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
-  if (isMatch)     { insertPayload.gedeeld = gedeeld; }
+  if (isMatch)     { insertPayload.gedeeld = gedeeld; insertPayload.kanban_klant = kbKlant; insertPayload.kanban_functie = kbFunctie; insertPayload.gesprek_op = gesprekOp; insertPayload.gesprek = gesprekNr; insertPayload.functie = kbFunctie; }
+  if (isContract)  { insertPayload.kanban_klant = kbKlant; insertPayload.kanban_functie = kbFunctie; insertPayload.gesprek_op = gesprekOp; }
   // Tegeltje uit een vervolgafspraak (16-09): onthoud waar het van komt.
   if (_pipeModalCtx.vervolg_van) insertPayload.vervolg_van = _pipeModalCtx.vervolg_van;
   let newCard;
@@ -34615,9 +34821,9 @@ async function _pipeConfirmAddInner() {
         : 'Kandidaat toevoegen mislukt: ' + error.message);
       return;
     }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, vervolg_van: data.vervolg_van || null };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, vervolg_van: data.vervolg_van || null, kanban_klant: data.kanban_klant || null, kanban_functie: data.kanban_functie || null, gesprek_op: data.gesprek_op || null };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, vervolg_van: insertPayload.vervolg_van || null };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, vervolg_van: insertPayload.vervolg_van || null, kanban_klant: insertPayload.kanban_klant || null, kanban_functie: insertPayload.kanban_functie || null, gesprek_op: insertPayload.gesprek_op || null, gesprek: insertPayload.gesprek || null };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -34758,8 +34964,33 @@ function pipeDelete(bmNaam, cardId) {
       </div>
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Bezoeken</p>
     </div>
+    <div id="pipe-modal-match-fields" style="display:none;">
+      <!-- Sinds 16-09 verplicht: dezelfde velden als de Kanban, zodat een
+           gesprek dat hier wordt ingevoerd ook op het bord compleet is. -->
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="pipe-modal-kb-klant" list="pipe-modal-klanten" placeholder="Klant *" autocomplete="off" style="flex:1;margin-bottom:6px;"/>
+        <input type="text" id="pipe-modal-kb-functie" placeholder="Functie waarvoor *" autocomplete="off" style="flex:1;margin-bottom:6px;"/>
+      </div>
+      <datalist id="pipe-modal-klanten"></datalist>
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <div style="flex:1;">
+          <label for="pipe-modal-gesprek-op" style="display:block;font-size:.74rem;color:var(--muted);margin:2px 0 3px;">Datum en tijd gesprek *</label>
+          <input type="datetime-local" id="pipe-modal-gesprek-op" class="veld-licht" style="margin-bottom:6px;width:100%;box-sizing:border-box;"/>
+        </div>
+        <div style="flex:1;">
+          <label for="pipe-modal-gesprek" style="display:block;font-size:.74rem;color:var(--muted);margin:2px 0 3px;">Welk gesprek *</label>
+          <select id="pipe-modal-gesprek" style="margin-bottom:6px;width:100%;"><option value="1">1e gesprek</option><option value="2">2e gesprek</option><option value="3">3e gesprek</option></select>
+        </div>
+      </div>
+      <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Matchgesprekken</p>
+    </div>
     <div id="pipe-modal-opdrachtgever-field" style="display:none;">
       <input type="text" id="pipe-modal-opdrachtgever" placeholder="Naam opdrachtgever *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+    </div>
+    <div id="pipe-modal-contract-fields" style="display:none;">
+      <input type="text" id="pipe-modal-contract-functie" placeholder="Functie *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
+      <label for="pipe-modal-contract-op" style="display:block;font-size:.74rem;color:var(--muted);margin:2px 0 3px;">Datum contractvoorstel *</label>
+      <input type="datetime-local" id="pipe-modal-contract-op" class="veld-licht" style="margin-bottom:6px;width:100%;box-sizing:border-box;"/>
     </div>
     <div id="pipe-modal-salaris-field" style="display:none;">
       <input type="text" id="pipe-modal-salaris" placeholder="Salaris *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
