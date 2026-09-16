@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1236 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1248 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1635,6 +1635,13 @@
   @media (max-width:768px) { .kand-archief-tabel td.d:nth-child(3), .kand-archief-tabel td.d:nth-child(4) { display:none; } }
   .kand-fase.bron { cursor:pointer; }
   .kand-fase.bron:hover { outline:1px solid rgba(244,203,60,.6); }
+  /* Vervolgafspraak → tegeltje in de pipeline (16-09). */
+  .vv-tegel { display:flex; align-items:flex-start; gap:10px; margin-top:12px; padding:8px 10px; background:rgba(244,203,60,.12); border-left:3px solid #F4CB3C; color:#fff; font-size:.8rem; cursor:pointer; }
+  .vv-tegel input { margin:3px 0 0; accent-color:#F4CB3C; flex-shrink:0; }
+  .vv-tegel b { display:block; font-weight:var(--w-nadruk); }
+  .vv-tegel small { display:block; color:rgba(255,255,255,.6); font-size:.72rem; margin-top:2px; }
+  .vv-tegel.klaar { cursor:default; background:rgba(127,220,180,.12); border-left-color:#7fdcb4; }
+  .card-vervolg { color:#F4CB3C !important; font-size:.68rem; }
   .kand-vervolg-veld { width:100%; box-sizing:border-box; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:8px;
                        padding:8px 10px; font-family:inherit; font-size:.88rem; color-scheme:dark; }
   .kand-vervolg-veld::placeholder { color:rgba(255,255,255,.4); }
@@ -8226,7 +8233,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1236';
+const APP_VERSIE = '20260916-1248';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22097,13 +22104,16 @@ function kandVervolgVenster(bmNaam, cardId) {
   const lees = c.vervolg_op
     ? '<div class="kk-rij"><span>Gepland</span>' + escHtml(kandVervolgTekst(c)) + ' <small style="color:rgba(255,255,255,.45);margin-left:6px;">' + escHtml(datumNL(String(c.vervolg_op).slice(0, 10))) + '</small></div>'
     : '<div class="kk-rij"><span class="stil">nog geen vervolgafspraak gepland</span></div>';
-  crmKaartToon('<h4>Vervolgafspraak · ' + escHtml(c.naam || '') + '</h4>' +
+  const bord = _vervolgTegelBord(bmNaam);
+  const tegel = _vervolgTegelHtml('kand-vervolg', 'Intake', bord, _naarVeldTijd(c.vervolg_op), _vervolgTegelBestaand('kaart:' + c.id));
+  crmKaartToon('<h4 class="wit">Vervolgafspraak · ' + escHtml(c.naam || '') + '</h4>' +
     '<div class="crm-sub">Wanneer is het vervolggesprek? Zodra er een datum staat, kleurt het kalender-icoon groen.</div>' +
     (mag
       ? '<div class="crm-kop">Datum en tijd</div>' +
-        '<input type="datetime-local" id="kand-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(c.vervolg_op)) + '">' +
+        '<input type="datetime-local" id="kand-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(c.vervolg_op)) + '" oninput="_vervolgTegelWeekBij(\'kand-vervolg-op\',\'kand-vervolg-tegel-week\',\'Intake\')">' +
         '<div class="crm-kop">Waar / met wie (niet verplicht)</div>' +
         '<input type="text" id="kand-vervolg-waar" class="kand-vervolg-veld" maxlength="120" placeholder="bijv. bij Neways, Esad Fidan" value="' + escHtml(c.vervolg_waar || '') + '">' +
+        tegel +
         '<div id="kand-vervolg-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
         '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kandVervolgOpslaan(\'' + bmE + '\',\'' + c.id + '\')">Opslaan</button>' +
         (c.vervolg_op ? '<button class="crm-knop weg" onclick="kandVervolgOpslaan(\'' + bmE + '\',\'' + c.id + '\',true)">Weghalen</button>' : '') +
@@ -22123,11 +22133,20 @@ async function kandVervolgOpslaan(bmNaam, cardId, weghalen) {
   const cards = pipeLoad(bmNaam);
   const idx = cards.findIndex(c => String(c.id) === String(cardId));
   if (idx === -1) return;
+  // Het vinkje "ook als tegeltje" lezen vóór het venster sluit (16-09).
+  const vink = document.getElementById('kand-vervolg-tegel');
+  const tegel = !weghalen && !!(vink && vink.checked) ? _vervolgTegelBord(bmNaam) : null;
   const vorige = { vervolg_op: cards[idx].vervolg_op || null, vervolg_waar: cards[idx].vervolg_waar || null };
   cards[idx] = { ...cards[idx], vervolg_op: op, vervolg_waar: waar };
   pipeSave(bmNaam, cards);
   crmKaartSluit();
   render();
+  if (tegel) {
+    const c = cards[idx];
+    _vervolgTegelOpen({ stage: 'Intake', op, bord: tegel, naam: c.naam, vervolgVan: 'kaart:' + c.id,
+      velden: { 'pipe-modal-functie': c.functie, 'pipe-modal-si': c.salarisindicatie, 'pipe-modal-regio': c.regio, 'pipe-modal-reisbereidheid': c.reisbereidheid,
+                'pipe-modal-intake-op': _naarVeldTijd(op), 'pipe-modal-notitie': 'Vervolggesprek' } });
+  }
   if (!supa) return;
   _echoVanZelf('pipeline_cards');
   // Via de databasefunctie, niet rechtstreeks: de schrijfregel laat een BM
@@ -22726,6 +22745,7 @@ function _pipeCardFromRow(c) {
     // lijst bepaalt welke kolommen uit de database de kaart in gaan (07-09).
     kand_fases: Array.isArray(c.kand_fases) ? c.kand_fases : [],
     vervolg_op: c.vervolg_op || null, vervolg_waar: c.vervolg_waar || null,
+    vervolg_van: c.vervolg_van || null,   // tegeltje uit een vervolgafspraak (16-09)
     intake_op: c.intake_op || null,
     collega_initials: c.collega_initials || null,
     projectnr: c.projectnr || null,
@@ -23847,6 +23867,71 @@ async function loadBezoekVervolg() {
     BEZOEK_VERVOLG = nieuw;
   } catch (e) { _meldStil('vervolgafspraken ophalen', e); }
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// VERVOLGAFSPRAAK → TEGELTJE IN DE PIPELINE (akkoord 16-09)
+//
+// Wie een vervolgafspraak plant (bezoek of kandidaat) kan meteen een tegeltje
+// in de pipeline laten zetten: Bezoeken voor een klant, Intake voor een
+// kandidaat, in de week van de afspraak. Het bestaande pipeline-venster opent
+// voorgevuld; de verplichte velden blijven invulbaar en worden zoals altijd
+// gecontroleerd bij Toevoegen. Zo telt de afspraak mee in de KPI's. Het
+// tegeltje onthoudt waar het van komt (vervolg_van), zodat het maar één keer
+// wordt aangemaakt. Kolom: supabase/vervolg_tegeltje.sql.
+// ═══════════════════════════════════════════════════════════════════════════
+// Wiens bord? Dat van de planner zelf. Wie geen eigen bord heeft (manager),
+// gebruikt het bord van de kaart als hij daar mag schrijven.
+function _vervolgTegelBord(voorkeur) {
+  if (!CURRENT_USER) return null;
+  const eigen = CURRENT_USER.bm_naam;
+  if (eigen && canEdit(eigen)) return eigen;
+  if (voorkeur && canEdit(voorkeur)) return voorkeur;
+  return null;
+}
+// De week waarin het tegeltje komt, uit de datum van de afspraak (ISO-week,
+// dus 1 januari kan nog week 53 van het jaar ervoor zijn).
+function _vervolgTegelWeekTekst(stage, waarde) {
+  const iso = _uitVeldTijd(waarde);
+  if (!iso) return stage + ' · vul eerst een datum in';
+  const w = isoWeek(new Date(iso));
+  return stage + ' · week ' + w.week + ' (' + w.year + ') · telt mee in de KPI\'s';
+}
+function _vervolgTegelWeekBij(veldId, labelId, stage) {
+  const veld = document.getElementById(veldId), label = document.getElementById(labelId);
+  if (veld && label) label.textContent = _vervolgTegelWeekTekst(stage, veld.value);
+}
+// Is er al een tegeltje van deze afspraak? Kijkt op alle borden.
+function _vervolgTegelBestaand(sleutel) {
+  if (!sleutel) return null;
+  for (const bm of bmsMetCijfers()) {
+    const c = pipeLoad(bm.naam).find(x => x.vervolg_van === sleutel && !x.verwijderd_op);
+    if (c) return { kaart: c, bmNaam: bm.naam };
+  }
+  return null;
+}
+function _vervolgTegelHtml(prefix, stage, bord, waarde, bestaand) {
+  if (bestaand) {
+    return '<div class="vv-tegel klaar">Tegeltje staat al in de pipeline van ' + escHtml(bestaand.bmNaam) + ': ' + escHtml(bestaand.kaart.stage) + ' · week ' + escHtml(bestaand.kaart.week) + ' (' + escHtml(bestaand.kaart.jaar) + ')</div>';
+  }
+  if (!bord) return '';
+  return '<label class="vv-tegel"><input type="checkbox" id="' + prefix + '-tegel">' +
+    '<span><b>Ook als tegeltje in de pipeline van ' + escHtml(bord) + '</b>' +
+    '<small id="' + prefix + '-tegel-week">' + escHtml(_vervolgTegelWeekTekst(stage, waarde)) + '</small></span></label>';
+}
+// Het bestaande pipeline-venster, voorgevuld. Geeft false als de planner op
+// dat bord niet mag schrijven (dan blijft het venster dicht).
+function _vervolgTegelOpen(o) {
+  const w = isoWeek(new Date(o.op));
+  pipeOpenModal(o.bord, o.stage, w.week, w.year);
+  const laag = document.getElementById('pipe-modal');
+  if (!laag || !laag.classList.contains('open')) return false;
+  _pipeModalCtx.vervolg_van = o.vervolgVan || null;
+  document.getElementById('pipe-modal-title').textContent = o.stage === 'Bezoeken' ? 'Bezoek toevoegen' : 'Kandidaat toevoegen';
+  document.getElementById('pipe-modal-stage-label').textContent = o.stage + ' · Week ' + w.week + ' (' + w.year + ') · vervolgafspraak';
+  document.getElementById('pipe-modal-naam').value = o.naam || '';
+  Object.keys(o.velden || {}).forEach(id => { const el = document.getElementById(id); if (el && o.velden[id] != null && o.velden[id] !== '') el.value = String(o.velden[id]); });
+  return true;
+}
+
 function bezoekVervolgVenster(id) {
   const b = _accBezoekVind(id);
   if (!b) return;
@@ -23857,11 +23942,13 @@ function bezoekVervolgVenster(id) {
   const lees = v.vervolg_op
     ? '<div class="kk-rij"><span>Gepland</span>' + escHtml(bezoekVervolgTekst(v)) + '</div>'
     : '<div class="kk-rij"><span class="stil">nog geen vervolgafspraak gepland</span></div>';
+  const bord = _vervolgTegelBord(b.kaartBm || null);
+  const tegel = _vervolgTegelHtml('bz-vervolg', 'Bezoeken', bord, _naarVeldTijd(v.vervolg_op), _vervolgTegelBestaand('bezoek:' + b.id));
   crmKaartToon('<h4 class="wit">Vervolgafspraak · ' + escHtml(b.bedrijf) + '</h4>' +
     '<div class="crm-sub">Wanneer, met wie en waar is het vervolggesprek? Iedere collega mag dit plannen.</div>' +
     (mag
       ? '<div class="crm-kop">Datum en tijd</div>' +
-        '<input type="datetime-local" id="bz-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(v.vervolg_op)) + '">' +
+        '<input type="datetime-local" id="bz-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(v.vervolg_op)) + '" oninput="_vervolgTegelWeekBij(\'bz-vervolg-op\',\'bz-vervolg-tegel-week\',\'Bezoeken\')">' +
         '<div class="crm-kop">Met wie</div>' +
         '<input type="text" id="bz-vervolg-met" class="kand-vervolg-veld" list="bz-contacten" maxlength="80" placeholder="naam van de contactpersoon" value="' + escHtml(v.vervolg_met || b.contactpersoon || '') + '">' +
         '<datalist id="bz-contacten">' + contacten.map(c => '<option value="' + escHtml(c.naam) + '">' + escHtml([c.functie, c.afdeling].filter(Boolean).join(' · ')) + '</option>').join('') + '</datalist>' +
@@ -23869,6 +23956,7 @@ function bezoekVervolgVenster(id) {
         '<input type="text" id="bz-vervolg-afd" class="kand-vervolg-veld" maxlength="80" placeholder="wordt aangevuld uit de contactpersoon als je het leeg laat" value="' + escHtml(v.vervolg_afd || b.afdeling || '') + '">' +
         '<div class="crm-kop">Waar (niet verplicht)</div>' +
         '<input type="text" id="bz-vervolg-waar" class="kand-vervolg-veld" maxlength="120" placeholder="bijv. op locatie, Teams" value="' + escHtml(v.vervolg_waar || '') + '">' +
+        tegel +
         '<div id="bz-vervolg-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
         '<div class="crm-knoppen"><button class="crm-knop goed" onclick="bezoekVervolgOpslaan(\'' + idE + '\')">Opslaan</button>' +
         (v.vervolg_op ? '<button class="crm-knop weg" onclick="bezoekVervolgOpslaan(\'' + idE + '\',true)">Weghalen</button>' : '') +
@@ -23888,6 +23976,9 @@ async function bezoekVervolgOpslaan(id, weghalen) {
   let afd = weghalen ? null : (val('bz-vervolg-afd') || null);
   if (!weghalen && !afd && met) { const c = _accContactVan(b.account, met); if (c && c.afdeling) afd = c.afdeling; }
   const waar = weghalen ? null : (val('bz-vervolg-waar') || null);
+  // Het vinkje "ook als tegeltje" lezen vóór het venster sluit (16-09).
+  const vink = document.getElementById('bz-vervolg-tegel');
+  const tegel = !weghalen && !!(vink && vink.checked) ? _vervolgTegelBord(b.kaartBm || null) : null;
   const vorige = BEZOEK_VERVOLG[b.id];
   const rij = { verslag_id: b.id, vervolg_op: op, vervolg_met: met, vervolg_afd: afd, vervolg_waar: waar,
                 afgerond_op: (vorige && vorige.afgerond_op) || null,   // "afgerond" blijft staan (16-09)
@@ -23895,6 +23986,12 @@ async function bezoekVervolgOpslaan(id, weghalen) {
   BEZOEK_VERVOLG[b.id] = rij;
   crmKaartSluit();
   render();
+  if (tegel) {
+    const cp = met ? _accContactVan(b.account, met) : null;
+    const cpFunctie = (cp && cp.functie) || (met && b.contactpersoon && _itkSleutel(met) === _itkSleutel(b.contactpersoon) ? b.functie : '') || '';
+    _vervolgTegelOpen({ stage: 'Bezoeken', op, bord: tegel, naam: b.bedrijf, vervolgVan: 'bezoek:' + b.id,
+      velden: { 'pipe-modal-bezoek-reden': 'Vervolgafspraak' + (waar ? ' · ' + waar : ''), 'pipe-modal-bezoek-contactpersoon': met || '', 'pipe-modal-bezoek-contactpersoon-functie': cpFunctie } });
+  }
   if (!supa) return;
   _echoVanZelf('bezoek_vervolg');
   const { error } = await supa.from('bezoek_vervolg').upsert(rij, { onConflict: 'verslag_id' });
@@ -33442,6 +33539,7 @@ function renderPipeline(bm) {
           ondragstart="${weekEditable ? `pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')` : ''}"
           ondragend="pipeDragEnd(event)">
           <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${aanbInlineHtml}${kandKaartKnopHtml(bm.naam, c.id)}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">${btActie('potlood')}</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
+          ${c.vervolg_van ? '<div class="card-sub card-vervolg">↻ vervolgafspraak</div>' : ''}
           ${metaHtml}
           ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
           ${gesprekHtml}
@@ -33728,11 +33826,20 @@ async function _pipeConfirmAddInner() {
   if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
+  // Tegeltje uit een vervolgafspraak (16-09): onthoud waar het van komt.
+  if (_pipeModalCtx.vervolg_van) insertPayload.vervolg_van = _pipeModalCtx.vervolg_van;
   let newCard;
   if (supa) {
-    const { data, error } = await supa.from('pipeline_cards')
+    let { data, error } = await supa.from('pipeline_cards')
       .insert(insertPayload)
       .select().single();
+    if (error && insertPayload.vervolg_van && /vervolg_van|schema cache|PGRST204/i.test(error.message || '')) {
+      // De kolom ontbreekt nog (supabase/vervolg_tegeltje.sql): het tegeltje
+      // wél opslaan, alleen zonder herkomst — en dat melden.
+      meldFout('kolom pipeline_cards.vervolg_van ontbreekt — draai supabase/vervolg_tegeltje.sql', 'pipeline');
+      delete insertPayload.vervolg_van;
+      ({ data, error } = await supa.from('pipeline_cards').insert(insertPayload).select().single());
+    }
     if (error) {
       // PGRST116 na een insert: de rij ís opgeslagen, maar de leesregel laat
       // hem voor jou niet terugkomen (kaart van een collega). Dan is er niets
@@ -33744,9 +33851,9 @@ async function _pipeConfirmAddInner() {
         : 'Kandidaat toevoegen mislukt: ' + error.message);
       return;
     }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, vervolg_van: data.vervolg_van || null };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, vervolg_van: insertPayload.vervolg_van || null };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
