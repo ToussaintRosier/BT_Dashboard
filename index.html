@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1022 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1033 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8052,7 +8052,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1022';
+const APP_VERSIE = '20260916-1033';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21831,7 +21831,8 @@ function kandVervolgTekst(c) {
 function kandVervolgVenster(bmNaam, cardId) {
   const c = pipeLoad(bmNaam).find(x => String(x.id) === String(cardId));
   if (!c) return;
-  const mag = magKandidatenWijzigen();
+  // Iedere collega mag plannen (16-09), ook op de kaart van een ander.
+  const mag = magWijzigen('medewerkers');
   const bmE = escApos(bmNaam);
   const lees = c.vervolg_op
     ? '<div class="kk-rij"><span>Gepland</span>' + escHtml(kandVervolgTekst(c)) + ' <small style="color:rgba(255,255,255,.45);margin-left:6px;">' + escHtml(datumNL(String(c.vervolg_op).slice(0, 10))) + '</small></div>'
@@ -21851,8 +21852,9 @@ function kandVervolgVenster(bmNaam, cardId) {
   setTimeout(() => { const el = document.getElementById('kand-vervolg-op'); if (el && el.focus) el.focus(); }, 30);
 }
 async function kandVervolgOpslaan(bmNaam, cardId, weghalen) {
-  if (!eisWijzig('kandidaten')) return;
-  if (!magKandidatenWijzigen()) return;
+  // Iedere collega mag plannen (16-09): het recht op Medewerkers heeft
+  // iedereen die niet bewust op alleen-lezen staat.
+  if (!eisWijzig('medewerkers')) return;
   const status = document.getElementById('kand-vervolg-status');
   const veldOp = document.getElementById('kand-vervolg-op'), veldWaar = document.getElementById('kand-vervolg-waar');
   const op   = weghalen ? null : _uitVeldTijd(veldOp && veldOp.value);
@@ -21868,15 +21870,18 @@ async function kandVervolgOpslaan(bmNaam, cardId, weghalen) {
   render();
   if (!supa) return;
   _echoVanZelf('pipeline_cards');
-  const { error } = await supa.from('pipeline_cards').update({ vervolg_op: op, vervolg_waar: waar }).eq('id', cardId);
-  if (error) {
+  // Via de databasefunctie, niet rechtstreeks: de schrijfregel laat een BM
+  // alleen zijn eigen kaarten wijzigen, en dit hoort iedereen te kunnen.
+  const { data: gelukt, error } = await supa.rpc('bt_kand_vervolg_zet', { p_kaart: cardId, p_op: op, p_waar: waar });
+  if (error || gelukt === false) {
     // Terugdraaien, anders toont het scherm iets wat nergens staat.
     const nu = pipeLoad(bmNaam); const j = nu.findIndex(c => String(c.id) === String(cardId));
     if (j !== -1) { nu[j] = { ...nu[j], ...vorige }; pipeSave(bmNaam, nu); render(); }
-    meldFout('vervolgafspraak opslaan mislukt: ' + error.message, 'kandVervolgOpslaan');
-    alert('Niet opgeslagen: ' + (/column|schema cache|PGRST204/i.test(error.message || '')
-      ? 'draai supabase/kandidaat_vervolg.sql in de SQL-editor — de kolommen vervolg_op en vervolg_waar ontbreken nog.'
-      : error.message));
+    const m = error ? String(error.message || '') : 'de kaart is niet gevonden';
+    meldFout('vervolgafspraak opslaan mislukt: ' + m, 'kandVervolgOpslaan');
+    alert('Niet opgeslagen: ' + (/column|schema cache|PGRST204|function|does not exist|PGRST202/i.test(m)
+      ? 'draai supabase/kandidaat_vervolg.sql in de SQL-editor — de kolommen en de functie bt_kand_vervolg_zet ontbreken nog.'
+      : m));
   }
 }
 
@@ -22040,7 +22045,6 @@ function kandKaartHtml(bmNaam, id) {
     rij('Opdrachtgever', escHtml(veld('opdrachtgever'))) +
     rij('Gespreksronde', veld('gesprek') ? escHtml(String(veld('gesprek'))) + 'e' : '') +
     rij('Plaatsing', alle.some(c => c.gedeeld) ? 'gedeeld · telt als 0,5' : '') +
-    rij('Vervolgafspraak', (() => { const k = alle.slice().reverse().find(x => x.vervolg_op) || (c0.vervolg_op ? c0 : null); return k ? escHtml(kandVervolgTekst(k)) : ''; })()) +
     rij('Notitie', escHtml(veld('notitie')));
   // Verslag en afspraken
   const sleutel = _itkSleutel(c0.naam);
@@ -22055,6 +22059,13 @@ function kandKaartHtml(bmNaam, id) {
   const rldv = rij('RLDV-selectie', sel
     ? bedrijven.length + (bedrijven.length === 1 ? ' bedrijf · ' : ' bedrijven · ') + escHtml(bedrijven.join(', ')) + ' · <span class="kk-pil">' + escHtml(rldvCheckStand(sel).tekst) + '</span>'
     : '<span class="stil">nog geen selectie</span>', knopRldv);
+  // Vervolgafspraak in het lijstje (16-09): altijd zichtbaar, met een knop om
+  // te plannen of te wijzigen — iedereen mag dat.
+  const vervolgKaart = alle.slice().reverse().find(x => x.vervolg_op) || (c0.vervolg_op ? c0 : intake);
+  const knopVervolg = magWijzigen('medewerkers')
+    ? '<button class="kk-knop" onclick="crmKaartSluit();kandVervolgVenster(\'' + escApos(bmNaam) + '\',\'' + escApos(String(vervolgKaart.id)) + '\')">' + (vervolgKaart.vervolg_op ? 'wijzigen' : 'plannen') + '</button>'
+    : '';
+  const vervolg = rij('Vervolgafspraak', vervolgKaart.vervolg_op ? escHtml(kandVervolgTekst(vervolgKaart)) : '<span class="stil">nog geen vervolgafspraak</span>', knopVervolg);
   const fases = _kandFasesHtml({ ...intake, bmNaam }, magKandidatenWijzigen());
   const knoppen = '<div class="crm-knoppen">' +
     (canEdit(bmNaam) ? '<button class="crm-knop goed" onclick="crmKaartSluit();pipeOpenEditModal(\'' + escApos(bmNaam) + '\',\'' + c0.id + '\')">Wijzigen</button>' : '') +
@@ -22065,7 +22076,7 @@ function kandKaartHtml(bmNaam, id) {
     '<div class="crm-sub">Kandidaat in de pipeline van ' + escHtml(bmNaam) + '</div>' +
     '<div class="crm-kop">Verloop</div><div class="kk-stappen">' + stappen + '</div>' +
     '<div class="crm-kop">Gegevens</div><div class="kk-rooster">' + (gegevens || '<div class="kk-rij"><span class="stil">geen gegevens ingevuld</span></div>') + '</div>' +
-    '<div class="crm-kop">Gesprek en afspraken</div>' + verslag + rldv +
+    '<div class="crm-kop">Gesprek en afspraken</div>' + verslag + rldv + vervolg +
     '<div class="crm-kop">CRM-ronde</div>' + fases +
     knoppen;
 }
