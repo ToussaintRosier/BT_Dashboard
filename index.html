@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1116 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260916-1138 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2870,8 +2870,15 @@
                display:inline-flex; align-items:center; }
   .kand-open svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .kand-open:hover { color:#F4CB3C; background:rgba(255,255,255,.08); }
-  .crm-kaart.kand-kaart, .crm-kaart.bezoek-kaart, .crm-kaart.klant-kaart { max-width:760px; }
-  .crm-kaart h4.wit { color:#fff; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .crm-kaart.kand-kaart { max-width:760px; }
+  /* Breder, twee kolommen (akkoord 16-09). */
+  .crm-kaart.bezoek-kaart, .crm-kaart.klant-kaart { max-width:960px; padding:20px 24px; }
+  .crm-kaart h4.wit { color:#fff !important; font-size:1.15rem; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .kk-2k { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px 28px; }
+  @media (max-width:768px) { .kk-2k { grid-template-columns:1fr; } }
+  .kk-lijst .kk-rij { padding:7px 0; align-items:flex-start; }
+  .kk-ul { margin:0; padding-left:16px; line-height:1.6; }
+  .kk-ul .crm-klik { color:#fff; }
   .kk-iks { margin-left:auto; display:inline-flex; gap:6px; }
   .kk-ik { width:30px; height:30px; border-radius:7px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#9ec8f4; cursor:pointer; padding:0;
            display:inline-flex; align-items:center; justify-content:center; }
@@ -2885,9 +2892,11 @@
   .kk-scores { display:flex; gap:6px; flex-wrap:wrap; }
   .kk-scores span { background:#364160; border-radius:6px; padding:3px 9px; font-size:.72rem; color:rgba(255,255,255,.75); }
   .kk-scores b { color:#F4CB3C; font-weight:var(--w-nadruk); }
-  .kk-cp { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:.84rem; color:#fff; }
-  .kk-cp .n { font-weight:var(--w-nadruk); }
-  .kk-cp .rol { color:rgba(255,255,255,.5); font-size:.76rem; } .kk-cp .rol.r { margin-left:auto; }
+  .kk-cp { display:grid; grid-template-columns:28px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) auto auto; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:.84rem; color:#fff; }
+  .kk-cp .n { font-weight:var(--w-nadruk); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kk-cp .rol { color:rgba(255,255,255,.5); font-size:.76rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .kk-cp .rol.r { text-align:right; }
+  .kk-cp .kk-afd { justify-self:start; }
+  @media (max-width:640px) { .kk-cp { grid-template-columns:28px 1fr auto; } .kk-cp .rol, .kk-cp .kk-afd { display:none; } }
   .kk-afd { font-size:.68rem; background:rgba(255,255,255,.1); border-radius:8px; padding:1px 7px; color:rgba(255,255,255,.8); }
   .kk-cp-nieuw { display:grid; grid-template-columns:1.2fr 1.2fr 1fr .9fr auto; gap:6px; margin-top:8px; }
   .kk-cp-nieuw input, .kk-cp-nieuw select { min-width:0; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.78rem; }
@@ -4106,7 +4115,6 @@ let EVAL_SORT_KEY = 'naam';      // Evaluatiebeheer sortering
 let EVAL_SORT_DIR = 'asc';
 let EVAL_SEARCH   = '';          // Vrije zoekterm evaluatiebeheer
 let KAND_SEARCH   = '';          // Vrije zoekterm Kandidaten-overzicht
-let KAND_SUBTAB = 'overzicht';   // 'overzicht' | 'archief' (16-09)
 let KAND_ARCHIEF_TAB = { zoek: '', filter: '', alles: false };   // het tabblad Archief
 let KAND_NOTITIES = null;        // kand_sleutel → gesprekslog (tabel kandidaat_notities); null = nog niet geladen
 let KAND_ARCHIEF = { open: false, zoek: '', collega: '', alles: false };   // archief van uitgesloten kandidaten (16-09)
@@ -4970,6 +4978,7 @@ const BT_ICONEN = {
   overzicht:   '<path d="M4 6h16M4 12h16M4 18h10"/>',
   // Records: een stapeltje verslagen — twee vellen achter elkaar met regels.
   records:     '<path d="M8 3h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9.5 8h5M9.5 11.5h5M9.5 15h3"/>',
+  archief:     '<path d="M3 5h18v4H3z"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>',
   // MT-acties: een lijstje met vinkjes. Leende eerst het pictogram van
   // Records, en dan staan er twee identieke regels in het menu.
   rldvcheck:   '<path d="M4 7h9M4 12h9M4 17h5"/><path d="M15.5 15.5l2 2 4-4"/>',
@@ -8203,7 +8212,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1116';
+const APP_VERSIE = '20260916-1138';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8579,7 +8588,7 @@ function rechtVoor(gebruiker, sleutel) {
   return rechtSjabloon(gebruiker)[sleutel] || 'geen';
 }
 
-function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel === 'accoverzicht' ? 'accounts' : sleutel) !== 'geen'; }   // Overzicht bezoeken volgt Accountmanagement (16-09)
+function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel === 'accoverzicht' ? 'accounts' : sleutel === 'kandarchief' ? 'kandidaten' : sleutel) !== 'geen'; }   // Overzicht bezoeken volgt Accountmanagement, Archief volgt Kandidaten (16-09)
 
 // Het slot op elke schrijfactie.
 //
@@ -8974,7 +8983,7 @@ function toggleKandidaten(event) {
 // beide varianten, zodat ze niet uit elkaar kunnen lopen. Het label gaat naar
 // het overzicht, het pijltje klapt alleen open en dicht (zoals Medewerkers).
 function _sidebarKandidatenHtml() {
-  const erin = currentTab === 'kandidaten' || currentTab === 'rldvtool' || currentTab === 'rldvcheck';
+  const erin = currentTab === 'kandidaten' || currentTab === 'kandarchief' || currentTab === 'rldvtool' || currentTab === 'rldvcheck';
   const open = magZien('rldvcheck') ? rldvCheckOpenAantal() : 0;
   return miGroep(['kandidaten', 'rldvtool', 'rldvcheck'], `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleKandidaten(event)">
@@ -8984,6 +8993,7 @@ function _sidebarKandidatenHtml() {
     </div>
     <div class="sidebar-sub" style="display:${kandidatenOpen ? 'flex' : 'none'};">
       ${mi('kandidaten', `<button class="sidebar-item ${currentTab === 'kandidaten' ? 'active' : ''}" onclick="selectTab('kandidaten')">${btIcon('overzicht')}Overzicht</button>`)}
+      ${mi('kandidaten', `<button class="sidebar-item ${currentTab === 'kandarchief' ? 'active' : ''}" onclick="selectTab('kandarchief')">${btIcon('archief')}Archief</button>`)}
       ${mi('rldvtool', `<button class="sidebar-item ${currentTab === 'rldvtool' ? 'active' : ''}" onclick="selectTab('rldvtool')">${btIcon('rldvtool')}RLDV-tool</button>`)}
       ${mi('rldvcheck', `<button class="sidebar-item ${currentTab === 'rldvcheck' ? 'active' : ''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-check${open ? ' <span class="sidebar-teller">' + open + '</span>' : ''}</button>`)}
     </div>
@@ -10700,7 +10710,7 @@ _versieWaakhond();
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
 const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
-                      'rldvtool', 'rldvcheck', 'accoverzicht'];
+                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kandarchief'];
 
 function _tabSleutel() {
   const uid = CURRENT_USER && CURRENT_USER.id;
@@ -10782,7 +10792,7 @@ function _kiesStartTab() {
   else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
   else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
   else if (hersteld === 'accounts' || hersteld === 'accoverzicht') accountsOpen = true;
-  else if (['kandidaten','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
+  else if (['kandidaten','kandarchief','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
 }
 
 function selectTab(i) {
@@ -10799,7 +10809,7 @@ function selectTab(i) {
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   if (i === 'records') managementOpen = true;
-  if (i === 'kandidaten' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
+  if (i === 'kandidaten' || i === 'kandarchief' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
   if (i === 'accounts' || i === 'accoverzicht') accountsOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
@@ -11706,6 +11716,7 @@ function _renderKern() {
   if (currentTab === 'one') { renderOne(); return; }
   if (currentTab === 'accounts') { renderAccounts(); return; }
   if (currentTab === 'accoverzicht') { renderAccOverzicht(); return; }
+  if (currentTab === 'kandarchief') { renderKandArchief(); return; }
   if (currentTab === 'financieel') {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
     if (!magZien('financieel')) { currentTab = eersteZichtbaarTabblad(); renderTabs(); render(); return; }
@@ -15371,7 +15382,7 @@ const _RT_TAKEN = {
   pipeline_cards:   async () => { await pipeFetchAll(); },
   projecten:        async () => { await loadProjecten(); },
   accounts:         async () => { await accountsFetchAll(); },
-  kandidaat_notities: async () => { await loadKandNotities(); _kandKaartHerteken(); if (currentTab === 'kandidaten' && KAND_SUBTAB === 'archief') renderKandidaten(); },
+  kandidaat_notities: async () => { await loadKandNotities(); _kandKaartHerteken(); if (currentTab === 'kandarchief') renderKandArchief(); },
   account_notities: async () => { const open = document.getElementById('acc-notitie-invoer'); const id = open ? open.getAttribute('data-account') : null; if (id) { await loadAccNotities(id); klantKaartOpen(id, true); } },
   bezoek_vervolg:   async () => { await loadBezoekVervolg(); },
   sales_leads:      async () => { await salesLeadsFetchAll(); },
@@ -15444,7 +15455,7 @@ function _rtVerzamel(tabel) {
 // "overal" (veilige kant); de ONE-tabellen tekenen zichzelf al in hun taak.
 const _RT_SCHERMEN = {
   kpi_weekly:           ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten'],
-  pipeline_cards:       ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten', 'kandidaten', 'plaatsing', 'rldvtool', 'rldvcheck', 'cvgen'],
+  pipeline_cards:       ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten', 'kandidaten', 'kandarchief', 'plaatsing', 'rldvtool', 'rldvcheck', 'cvgen'],
   projecten:            ['bm', 'team', 'projecten', 'plaatsing', 'hrm', 'financieel'],
   accounts:             ['accounts', 'accoverzicht', 'comrap', 'rldvtool', 'rldvcheck', 'bm'],
   sales_leads:          ['accounts', 'comrap', 'rldvtool', 'rldvcheck', 'kandidaten'],
@@ -15457,7 +15468,7 @@ const _RT_SCHERMEN = {
   mt_notulen:           ['mtacties', 'bm', 'comrap', 'medewerkers'],
   mt_coaching_notities: ['mtacties', 'bm', 'comrap', 'medewerkers'],
   one_posts: [], one_berichten: [], one_gesprek_leden: [], one_gesprekken: [],
-  account_notities: [], bezoek_vervolg: ['accoverzicht', 'accounts'], kandidaat_notities: [],
+  account_notities: [], bezoek_vervolg: ['accoverzicht', 'accounts'], kandidaat_notities: ['kandarchief'],
 };
 function _rtRaaktScherm(tabellen, tab) {
   const scherm = typeof tab === 'number' ? (typeof BMS !== 'undefined' && tab >= BMS.length ? 'team' : 'bm') : String(tab);
@@ -21678,8 +21689,6 @@ function getKandidatenWeeks() {
   return weeks;
 }
 function renderKandidaten() {
-  // Tabblad Archief (16-09): alle kandidaten in rijen, met zoekveld.
-  if (KAND_SUBTAB === 'archief') { document.getElementById('main').innerHTML = renderKandArchiefTabHtml(); return; }
   const weeks = getKandidatenWeeks();
   const canExclude = magKandidatenWijzigen();
   const isManager = isManagerLevel();
@@ -21793,7 +21802,6 @@ function renderKandidaten() {
         <span class="meta-pill">Laatste 10 weken</span>
       </div>
     </div>
-    ${_kandSubtabsHtml()}
     <div class="filter-toolbar">
       <div class="bt-strook">
         <input id="kand-search-q" type="text" class="filter-search-pill"
@@ -22337,11 +22345,12 @@ function kandKaartOpen(bmNaam, id) {
 // kaart onder de CRM-ronde — dezelfde opzet als de klantkaart.
 // ═══════════════════════════════════════════════════════════════════════════
 const KAND_ARCHIEF_TAB_TOON = 50;
-function _kandSubtabsHtml() {
-  const knop = (k, label) => '<button class="bm-subtab-btn' + (KAND_SUBTAB === k ? ' active' : '') + '" onclick="kandSubtab(\'' + k + '\')">' + label + '</button>';
-  return '<div class="bm-subtabs">' + knop('overzicht', 'Overzicht') + knop('archief', 'Archief') + '</div>';
+// Archief is een eigen pagina in het menu (aanwijzing 16-09): tab 'kandarchief',
+// onder Kandidaten tussen Overzicht en RLDV-tool. Volgt het recht op Kandidaten.
+function renderKandArchief() {
+  if (currentTab !== 'kandarchief') return;
+  document.getElementById('main').innerHTML = renderKandArchiefTabHtml();
 }
-function kandSubtab(k) { KAND_SUBTAB = k === 'archief' ? 'archief' : 'overzicht'; renderKandidaten(); }
 function kandArchiefLijst() {
   const per = {};
   const w = (c) => (+c.jaar || 0) * 100 + (+c.week || 0);
@@ -22358,7 +22367,9 @@ function kandArchiefLijst() {
       if (c.stage === 'Intake' && c.kandidaten_uitgesloten) k.uitgesloten = true;
       if (c.functie && !k.functie) k.functie = c.functie;
       if (c.regio && !k.regio) k.regio = c.regio;
-      if (w(c) < k.eersteW) { k.eersteW = w(c); }
+      // De collega die de intake invoerde (aanwijzing 16-09): de oudste kaart,
+      // liefst de intakekaart.
+      if (w(c) < k.eersteW || (w(c) === k.eersteW && c.stage === 'Intake')) { k.eersteW = w(c); k.invoerder = bm.naam; }
       if (w(c) > k.laatsteW || (w(c) === k.laatsteW && PIPE_STAGES.indexOf(c.stage) > PIPE_STAGES.indexOf(k.stage))) {
         k.laatsteW = w(c); k.stage = c.stage; k.week = +c.week; k.jaar = +c.jaar; k.kaart = c; k.bmNaam = bm.naam;
       }
@@ -22376,7 +22387,7 @@ function renderKandArchiefTabHtml() {
   const st = KAND_ARCHIEF_TAB;
   const z = String(st.zoek || '').trim().toLowerCase();
   const past = (k) => (!st.filter || (st.filter === 'uitgesloten') === k.uitgesloten)
-    && (!z || [k.naam, k.functie, k.regio, k.collegas.join(' '), k.stage, ((KAND_NOTITIES && KAND_NOTITIES[k.sleutel]) || []).map(n => n.tekst).join(' ')].join(' ').toLowerCase().includes(z));
+    && (!z || [k.naam, k.functie, k.regio, k.invoerder || '', k.stage, ((KAND_NOTITIES && KAND_NOTITIES[k.sleutel]) || []).map(n => n.tekst).join(' ')].join(' ').toLowerCase().includes(z));
   const gevonden = lijst.filter(past);
   const beperkt = !z && !st.alles && gevonden.length > KAND_ARCHIEF_TAB_TOON;
   const toon = beperkt ? gevonden.slice(0, KAND_ARCHIEF_TAB_TOON) : gevonden;
@@ -22386,7 +22397,7 @@ function renderKandArchiefTabHtml() {
     return '<tr class="kand-arch-rij' + (k.uitgesloten ? ' uit' : '') + '" onclick="kandKaartOpen(\'' + escApos(k.bmNaam) + '\',\'' + escApos(String(k.kaart.id)) + '\')" title="Kandidaatkaart openen">' +
       '<td class="naam">' + _oneMarkeer(k.naam, z) + (k.uitgesloten ? ' <span class="kand-pil uit">uitgesloten</span>' : '') + '</td>' +
       '<td class="d">' + (sub ? _oneMarkeer(sub, z) : '<span class="stil">—</span>') + '</td>' +
-      '<td class="d">' + _oneMarkeer(k.collegas.join(', '), z) + '</td>' +
+      '<td class="d">' + _oneMarkeer(k.invoerder || k.collegas[0] || '', z) + '</td>' +
       '<td class="d">' + escHtml(k.stage + ' · W' + k.week) + '</td>' +
       '<td class="a">' + telFmt(k.aanb) + '</td>' +
       '<td class="d not">' + not + (k.notities > 1 ? ' <small>+' + (k.notities - 1) + '</small>' : '') + '</td></tr>';
@@ -22394,9 +22405,8 @@ function renderKandArchiefTabHtml() {
   const voet = '<div class="kand-archief-voet"><span>' +
     (gevonden.length === lijst.length ? (beperkt ? KAND_ARCHIEF_TAB_TOON + ' van ' + lijst.length + ' · zonder zoekterm de laatste ' + KAND_ARCHIEF_TAB_TOON : lijst.length + ' kandidaten') : gevonden.length + ' van ' + lijst.length) + '</span>' +
     (beperkt ? '<button type="button" class="kand-archief-alles" onclick="kandArchiefTabAlles()">alles tonen</button>' : '') + '</div>';
-  return '<div><div class="person-header"><div class="person-name">Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
+  return '<div><div class="person-header"><div class="person-name">Archief kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten · alle pipelines</span></div></div>' +
-    _kandSubtabsHtml() +
     '<div class="filter-toolbar"><div class="bt-strook">' +
       '<input id="kand-arch-q" type="text" class="filter-search-pill" placeholder="Zoek kandidaat, functie, regio, collega of notitie…" value="' + escHtml(st.zoek || '') + '" oninput="kandArchiefTabZoek(this.value)">' +
       '<select class="kand-archief-sel" onchange="kandArchiefTabFilter(this.value)"><option value=""' + (!st.filter ? ' selected' : '') + '>Alle kandidaten</option>' +
@@ -22407,11 +22417,11 @@ function renderKandArchiefTabHtml() {
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') + voet +
     '</div></div>';
 }
-function kandArchiefTabAlles() { KAND_ARCHIEF_TAB.alles = true; renderKandidaten(); }
-function kandArchiefTabFilter(v) { KAND_ARCHIEF_TAB.filter = v || ''; renderKandidaten(); }
+function kandArchiefTabAlles() { KAND_ARCHIEF_TAB.alles = true; renderKandArchief(); }
+function kandArchiefTabFilter(v) { KAND_ARCHIEF_TAB.filter = v || ''; renderKandArchief(); }
 function kandArchiefTabZoek(v) {
   KAND_ARCHIEF_TAB.zoek = v;
-  renderKandidaten();
+  renderKandArchief();
   const inp = document.getElementById('kand-arch-q');
   if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
 }
@@ -23735,8 +23745,16 @@ function bezoekKaartHtml(id) {
     '<button class="kk-ik" type="button" title="' + escHtml(x.titel) + '" aria-label="' + escHtml(x.titel) + '" onclick="' + x.klik + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + x.svg + '</svg></button>').join('');
   const res = (b.record && b.record.result && typeof b.record.result === 'object') ? b.record.result : null;
   const samenvatting = res && res.samenvatting ? String(res.samenvatting) : '';
-  const eerdere = accBezoekenLijst().filter(x => x.id !== b.id && _itkSleutel(x.bedrijf) === _itkSleutel(b.bedrijf))
-    .map(x => escHtml((x.record ? x.record.datum : 'week ' + x.week) + ' (' + String(x.collega || '').split(' ')[0] + ')'));
+  // Eerdere bezoeken per week, met wie er ging: "Mike (3×), Yoël" (16-09).
+  const perWeek = {};
+  accBezoekenLijst().filter(x => x.id !== b.id && _itkSleutel(x.bedrijf) === _itkSleutel(b.bedrijf)).forEach(x => {
+    const k = (x.jaar || 0) * 100 + (x.week || 0);
+    const w = perWeek[k] = perWeek[k] || { jaar: x.jaar, week: x.week, wie: {} };
+    const vn = String(x.collega || 'onbekend').split(' ')[0];
+    w.wie[vn] = (w.wie[vn] || 0) + 1;
+  });
+  const eerdere = Object.keys(perWeek).map(Number).sort((a, c) => c - a).map(k => perWeek[k]);
+  const eerdereTekst = (w) => Object.keys(w.wie).sort().map(n => n + (w.wie[n] > 1 ? ' (' + w.wie[n] + '×)' : '')).join(', ');
   const contactTekst = b.contactpersoon ? b.contactpersoon + (b.functie || b.afdeling ? ' (' + [b.functie, b.afdeling ? 'afdeling ' + b.afdeling : ''].filter(Boolean).join(', ') + ')' : '') : 'contactpersoon onbekend';
   const soort = (_ACC_SOORT[b.soortBezoek] || b.soortBezoek);
   const magPlannen = magWijzigen('medewerkers');
@@ -23745,19 +23763,27 @@ function bezoekKaartHtml(id) {
       (b.account ? ' <span class="kk-fase ok">KAM · score ' + accScore(b.account) + '</span>' : '') +
       '<span class="kk-iks">' + iconen + '</span></h4>' +
     '<div class="crm-sub">' + escHtml(soort.charAt(0).toUpperCase() + soort.slice(1) + ' door ' + (b.collega || 'onbekend') + ' · ' + contactTekst) + '</div>' +
+    '<div class="kk-2k"><div>' +
     '<div class="crm-kop">Samenvatting uit het verslag</div>' +
     (samenvatting ? '<div class="kk-tekst">' + escHtml(samenvatting) + '</div>' : '<div class="kk-tekst stil">' + (b.record ? 'het verslag heeft nog geen samenvatting' : 'nog geen verslag van dit bezoek') + '</div>') +
-    '<div class="crm-kop">Verbanden</div><div class="kk-rooster">' +
+    '<div class="crm-kop">Verbanden</div><div class="kk-lijst">' +
       rij('Record', b.record ? escHtml(b.record.datum + ' · ' + String(b.collega || '').split(' ')[0]) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '') +
       rij('Accountplan', b.plan ? 'bijgewerkt ' + escHtml(datumNL(String(b.plan.updated_at || '').slice(0, 10))) : '<span class="stil">nog geen</span>', b.plan ? kn("apNaar('" + escApos(String(b.plan.id)) + "')") : (b.account && magWijzigen('accounts') ? kn("apNieuwVoor('" + escApos(String(b.account.id)) + "')", 'nieuw') : '')) +
       rij('Scorekaart', b.account ? String(accScore(b.account)) : '<span class="stil">niet in KAM</span>', b.account ? kn("klantKaartOpen('" + escApos(String(b.account.id)) + "')") : '') +
       rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("ACCOUNT_SUBTAB='sales';selectTab('accounts')") : '') +
-      rij('Lopende kandidaten', b.lopend.length ? escHtml(b.lopend.map(c => c.naam + ' (' + c.stage + ')').join(', ')) : '<span class="stil">geen</span>', b.lopend.length ? kn("kandKaartOpen('" + escApos(String(bmsMetCijfers().find(bm => pipeLoad(bm.naam).some(c => c.id === b.lopend[0].id)) ? bmsMetCijfers().find(bm => pipeLoad(bm.naam).some(c => c.id === b.lopend[0].id)).naam : '')) + "','" + escApos(String(b.lopend[0].id)) + "')", 'kaart') : '') +
-      rij('Eerdere bezoeken', eerdere.length ? eerdere.join(', ') : '<span class="stil">geen</span>', eerdere.length ? kn("recordsNaarKlant('" + escApos(b.bedrijf) + "')", 'records') : '') +
+      rij('Lopende kandidaten', b.lopend.length
+        ? '<ul class="kk-ul">' + b.lopend.map(c => { const bm = bmsMetCijfers().find(x => pipeLoad(x.naam).some(y => y.id === c.id)); return '<li><span class="crm-klik" onclick="crmKaartSluit();kandKaartOpen(\'' + escApos(bm ? bm.naam : '') + '\',\'' + escApos(String(c.id)) + '\')">' + escHtml(c.naam) + '</span> · ' + escHtml(c.stage) + '</li>'; }).join('') + '</ul>'
+        : '<span class="stil">geen</span>') +
+    '</div></div><div>' +
+    '<div class="crm-kop">Eerdere bezoeken</div><div class="kk-lijst">' +
+      (eerdere.length ? eerdere.slice(0, 8).map((w, i) => rij('Week ' + w.week + (w.jaar && w.jaar !== (b.jaar || w.jaar) ? ' (' + w.jaar + ')' : ''), escHtml(eerdereTekst(w)), i === 0 ? kn("recordsNaarKlant('" + escApos(b.bedrijf) + "')", 'records') : '')).join('')
+                      : rij('Eerdere bezoeken', '<span class="stil">geen</span>')) +
+      (eerdere.length > 8 ? '<div class="kk-tekst stil">… en ' + (eerdere.length - 8) + ' eerdere weken</div>' : '') +
     '</div>' +
     '<div class="crm-kop">Vervolgafspraak</div>' +
     rij('Vervolgafspraak', b.vervolg ? escHtml(bezoekVervolgTekst(b.vervolg)) : '<span class="stil">nog geen vervolgafspraak</span>',
         magPlannen ? '<button class="kk-knop" onclick="bezoekVervolgVenster(\'' + escApos(b.id) + '\')">' + (b.vervolg ? 'wijzigen' : 'plannen') + '</button>' : '') +
+    '</div></div>' +
     '<div class="crm-knoppen">' + (magPlannen ? '<button class="crm-knop goed" onclick="bezoekVervolgVenster(\'' + escApos(b.id) + '\')">Vervolgafspraak plannen</button>' : '') +
       (b.record ? '<button class="crm-knop" onclick="crmKaartSluit();recordsNaarRecord(\'bezoek\',\'' + escApos(b.id) + '\')">Naar Records</button>' : '') + sluit + '</div>';
 }
@@ -23917,9 +23943,13 @@ function klantKaartHtml(accId) {
     : '';
   return '<h4 class="wit">' + escHtml(a.naam || 'Klant') + ' <span class="kk-fase ' + scoreKlasse + '">score ' + score + (score >= 28 ? ' · groen' : score === 27 ? ' · geel' : ' · rood') + '</span>' + iconen + '</h4>' +
     '<div class="crm-sub">' + escHtml(sub) + '</div>' +
-    '<div class="crm-kop">Scorekaart</div>' + scores +
-    '<div class="crm-kop">Contactpersonen</div>' + contactHtml +
-    '<div class="crm-kop">Gesprekslog</div>' + logHtml + invoer +
+    // Breder, twee kolommen (akkoord 16-09): links scores en contactpersonen, rechts het log.
+    '<div class="kk-2k"><div>' +
+      '<div class="crm-kop">Scorekaart</div>' + scores +
+      '<div class="crm-kop">Contactpersonen</div>' + contactHtml +
+    '</div><div>' +
+      '<div class="crm-kop">Gesprekslog</div>' + logHtml + invoer +
+    '</div></div>' +
     '<div class="crm-knoppen">' + (magAcc ? '<button class="crm-knop" onclick="crmKaartSluit();accountsNaarKlant(\'' + idE + '\')">Bewerken in KAM-tabel</button>' : '') + sluit + '</div>';
 }
 function klantKaartOpen(accId, stil) {
