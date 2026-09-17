@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-0849 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-0856 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1671,6 +1671,11 @@
   .rldv-aanb-week { font-size:.64rem; border-radius:7px; padding:0 6px; background:rgba(255,255,255,.12); color:#fff; vertical-align:middle; }
   .rldv-aanb-week.nu { background:rgba(244,203,60,.2); color:#F4CB3C; }
   .rldv-aanb-regel { margin-top:4px; color:rgba(255,255,255,.75); }
+  /* In het lichte pipeline-venster moeten de gele/groene blokken donkere tekst hebben. */
+  .pipe-modal .vv-tegel { color:#253151; background:rgba(244,203,60,.28); border-left-color:#E87400; }
+  .pipe-modal .vv-tegel.klaar { color:#0f3d2e; background:rgba(14,159,110,.16); border-left-color:#0e9f6e; }
+  .pipe-modal .vv-tegel small { color:rgba(37,49,81,.75); }
+  .pipe-modal .vv-tegel .crm-knop { color:#0e9f6e; border-color:#0e9f6e; background:#fff; }
   /* Beheer → Database (16-09) */
   .sch-tabel td { vertical-align:top; }
   .sch-ok { color:#7fdcb4; font-weight:var(--w-nadruk); }
@@ -8540,7 +8545,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-0849';
+const APP_VERSIE = '20260917-0856';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -34852,6 +34857,35 @@ function _pipeKanbanVeldenVul(card) {
 // Aanbieden via de RLDV-check (17-09): bij het plusje in de kolom Aanbieden
 // laat het venster zien of de kandidaat een check heeft, en opent die met
 // één klik in de week van de kolom. Zonder check: aantal zoals altijd.
+// Namen van iedereen met een Intake-tegeltje (alle pipelines), uniek, op alfabet.
+function _pipeIntakeNamen() {
+  const set = new Map();
+  bmsMetCijfers().forEach(bm => pipeLoad(bm.naam).forEach(c => {
+    if (c.stage !== 'Intake' || c.verwijderd_op || c.kandidaten_uitgesloten || c.onbeschikbaar_op || !c.naam) return;
+    const k = _itkSleutel(c.naam); if (!set.has(k)) set.set(k, String(c.naam).trim());
+  }));
+  return Array.from(set.values()).sort((a, b) => a.localeCompare(b, 'nl'));
+}
+function _pipeNaamKeuzeVul(aan, huidig) {
+  const sel = document.getElementById('pipe-modal-naam-keuze'), inp = document.getElementById('pipe-modal-naam');
+  if (!sel || !inp) return;
+  if (!aan) { sel.style.display = 'none'; inp.style.display = ''; return; }
+  const namen = _pipeIntakeNamen();
+  const inLijst = huidig && namen.some(n => _itkSleutel(n) === _itkSleutel(huidig));
+  sel.innerHTML = '<option value="">— kies een kandidaat uit de intakes —</option>' +
+    namen.map(n => '<option value="' + escHtml(n) + '"' + (inLijst && _itkSleutel(n) === _itkSleutel(huidig) ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') +
+    '<option value="__anders"' + (huidig && !inLijst ? ' selected' : '') + '>— andere naam (zelf typen) —</option>';
+  sel.style.display = '';
+  inp.style.display = huidig && !inLijst ? '' : 'none';
+}
+function _pipeNaamKeuze() {
+  const sel = document.getElementById('pipe-modal-naam-keuze'), inp = document.getElementById('pipe-modal-naam');
+  if (!sel || !inp) return;
+  const v = String(sel.value || '');
+  if (v === '__anders') { inp.value = ''; inp.style.display = ''; if (inp.focus) inp.focus(); }
+  else { inp.value = v; inp.style.display = 'none'; }
+  _pipeAanbRldvBij();
+}
 function _pipeAanbRldvBij() {
   const blok = document.getElementById('pipe-modal-aanb-rldv');
   if (!blok) return;
@@ -34889,6 +34923,7 @@ function _pipeToggleStageFields(stage) {
   document.getElementById('pipe-modal-match-fields').style.display       = isMatch ? 'block' : 'none';
   const isAanb = stage === 'Aanbieden';
   document.getElementById('pipe-modal-aanb-rldv').style.display          = isAanb ? 'block' : 'none';
+  _pipeNaamKeuzeVul(isAanb, (document.getElementById('pipe-modal-naam') || {}).value || '');
   if (isAanb) _pipeAanbRldvBij();
   document.getElementById('pipe-modal-contract-fields').style.display    = isContract ? 'block' : 'none';
   document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'Naam opdrachtgever *' : 'Naam kandidaat *';
@@ -35232,6 +35267,9 @@ function pipeDelete(bmNaam, cardId) {
   <div class="pipe-modal">
     <h4 id="pipe-modal-title">Kandidaat toevoegen</h4>
     <p class="pipe-modal-sub" id="pipe-modal-stage-label">Fase: —</p>
+    <!-- Bij Aanbieden (17-09): de naam kiezen uit de kandidaten die op intake
+         zijn geweest, tegen spelfouten. "Andere naam" opent het vrije veld. -->
+    <select id="pipe-modal-naam-keuze" style="display:none;" onchange="_pipeNaamKeuze()"></select>
     <input type="text" id="pipe-modal-naam" placeholder="Naam kandidaat *" autocomplete="off" oninput="_pipeAanbRldvBij()"/>
     <div id="pipe-modal-aanb-rldv" style="display:none;"></div>
     <div id="pipe-modal-intake-fields" style="display:none;">
