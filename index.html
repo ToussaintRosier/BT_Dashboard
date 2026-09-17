@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1515 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1540 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1665,6 +1665,14 @@
   .vv-tegel small { display:block; color:rgba(255,255,255,.6); font-size:.72rem; margin-top:2px; }
   .vv-tegel.klaar { cursor:default; background:rgba(127,220,180,.12); border-left-color:#7fdcb4; }
   .card-vervolg { color:#F4CB3C !important; font-size:.68rem; }
+  /* Aanbieden-tegeltje, ontwerp A (17-09): groot getal met label; de pil
+     "uit RLDV-check" groen in plaats van geel. */
+  .card-aanb-groot { display:flex; align-items:baseline; gap:7px; margin-top:4px; }
+  .card-aanb-groot .n { font-size:1.35rem; font-weight:var(--w-nadruk); line-height:1; color:#fff; }
+  .card-aanb-groot .l { font-size:.68rem; color:rgba(255,255,255,.65); }
+  .card-aanb-groot .card-aanb-stap { height:22px; }
+  .card-aanb-groot .card-aanb-stap .cijfer { font-size:1.1rem; min-width:26px; }
+  .pipe-card.aanb .card-vervolg { color:#5fd6a8 !important; }
   .vv-manier { display:flex; gap:6px; flex-wrap:wrap; }
   .vv-manier-keus { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid rgba(255,255,255,.22); border-radius:8px; color:#fff; font-size:.8rem; cursor:pointer; background:#364160; }
   .vv-manier-keus input { margin:0; accent-color:#F4CB3C; }
@@ -8606,7 +8614,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1515';
+const APP_VERSIE = '20260917-1540';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -35092,9 +35100,9 @@ function renderPipeline(bm) {
       const cardsHtml = cellCards.map(c => {
         const aanbGetal = +c.aanb || 0;
         const uitCheck = /^rldv:/.test(String(c.vervolg_van || ''));
-        const aanbInlineHtml = !isAanb ? ''
-          : uitCheck
-            ? `<span class="card-aanb-stap vast" title="Uit de RLDV-check: afvinken gebeurt daar"><span class="cijfer">${aanbGetal}</span></span>`
+        // Ontwerp A (17-09): het getal groot onder de naam, met label; uit de
+        // check als kaal getal, handmatig met de +/− stapper in dezelfde rij.
+        const aanbStapper = !isAanb || uitCheck ? ''
           : weekEditable
             ? `<span class="card-aanb-stap" ondragstart="event.stopPropagation()" onclick="event.stopPropagation()">
                  <button type="button" title="Eén minder" aria-label="Eén aanbieding minder"
@@ -35110,7 +35118,10 @@ function renderPipeline(bm) {
                  <span class="cijfer">${aanbGetal}</span>
                  <button type="button" disabled aria-hidden="true">+</button>
                </span>`;
-        const aanbHtml = '';
+        const aanbGrootHtml = !isAanb ? ''
+          : uitCheck
+            ? `<div class="card-aanb-groot"><span class="n">${aanbGetal}</span><span class="l">aanbiedingen · week ${wk.week}</span></div>`
+            : `<div class="card-aanb-groot">${aanbStapper}<span class="l">aanbiedingen · week ${wk.week}</span></div>`;
         const gesprekOpts = [1,2,3].map(n => `<option value="${n}" ${c.gesprek===n?'selected':''}>${n===1?'1e':n===2?'2e':'3e'} gesprek</option>`).join('');
         const gesprekHtml = isMatch
           ? `<div class="card-aanb-row">
@@ -35124,16 +35135,16 @@ function renderPipeline(bm) {
           : '';
         const metaBits = _pipeKaartMeta(c);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
-        return `<div class="pipe-card" style="box-shadow:inset 2px 0 0 ${col.punt};" draggable="${weekEditable?'true':'false'}"
+        return `<div class="pipe-card${isAanb ? ' aanb' : ''}" style="box-shadow:inset 2px 0 0 ${col.punt};" draggable="${weekEditable?'true':'false'}"
           onmouseenter="pipeZweef(event,'${bmE}','${c.id}')" onmouseleave="crmZweefWeg()"
           ondragstart="${weekEditable ? `pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')` : ''}"
           ondragend="pipeDragEnd(event)">
-          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${aanbInlineHtml}${kandKaartKnopHtml(bm.naam, c.id)}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">${btActie('potlood')}</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
+          <div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${kandKaartKnopHtml(bm.naam, c.id)}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">${btActie('potlood')}</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>
+          ${aanbGrootHtml}
           ${c.vervolg_van ? (uitCheck ? '<div class="card-sub card-vervolg">✓ uit RLDV-check</div>' : '<div class="card-sub card-vervolg">↻ vervolgafspraak</div>') : ''}
           ${metaHtml}
           ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
           ${gesprekHtml}
-          ${aanbHtml}
         </div>`;
       }).join('');
 
