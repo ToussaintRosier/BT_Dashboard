@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260916-1551 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-0823 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8532,7 +8532,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260916-1551';
+const APP_VERSIE = '20260917-0823';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10615,19 +10615,21 @@ function renderBeheer() {
           <input id="inv-einddatum" type="date" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
         </div>
       </div>
-        ${/* Het wachtwoordveld is weggehaald (codereview 20-08): de uitleg bij
-             Toegang zegt zelf dat wachtwoorden die iemand anders instelt op
-             een briefje terechtkomen. Het scherm beloofde dus iets wat we
-             niet willen. Een nieuwe collega krijgt de uitnodigingsmail en
-             kiest daar zijn eigen wachtwoord. */''}
+        ${/* Wachtwoord (terug sinds 17-09, op verzoek): ingevuld = het account
+             is meteen actief met dit wachtwoord, zonder mail. Leeg = de
+             uitnodigingsmail, waarin de collega zelf een wachtwoord kiest. */''}
+        <div>
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Wachtwoord <span style="color:var(--text-muted);font-size:.75rem;">(leeg = uitnodigingsmail)</span></label>
+          <input id="inv-wachtwoord" type="text" autocomplete="off" placeholder="minstens 8 tekens" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,#fff);color:var(--text);box-sizing:border-box;">
+        </div>
         <div style="grid-column:1/-1;font-size:.78rem;color:var(--text-muted);line-height:1.4;">
-          De collega ontvangt een uitnodigingsmail; de link brengt hem op dit dashboard, waar hij eerst zelf een wachtwoord kiest. Bestaat het account al, dan gaat er een wachtwoordmail.
+          Met een wachtwoord is het account direct actief en kan de collega meteen inloggen (geef het wachtwoord persoonlijk door; hij kan het daarna zelf wijzigen via "Wachtwoord vergeten?"). Zonder wachtwoord ontvangt de collega een uitnodigingsmail; de link brengt hem op dit dashboard, waar hij eerst zelf een wachtwoord kiest. Bestaat het account al, dan gaat er een wachtwoordmail.
         </div>
       </div>
       <div id="inv-msg" style="margin-top:8px;font-size:.82rem;"></div>
       <div style="margin-top:14px;display:flex;gap:10px;">
-        <button onclick="beheerInviteVerstuur()" style="padding:8px 22px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer;">Uitnodiging versturen</button>
-        <button onclick="beheerSluitInvite()" style="padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text);">Annuleren</button>
+        <button class="crm-knop goed" onclick="beheerInviteVerstuur()">Collega aanmaken</button>
+        <button class="crm-knop" onclick="beheerSluitInvite()">Annuleren</button>
       </div>
     </div>` : '';
 
@@ -10971,7 +10973,7 @@ async function beheerVernieuwen() {
 
 async function beheerInviteVerstuur() {
   const msg = document.getElementById('inv-msg');
-  if (msg) btZetStatus(msg, '⏳ Uitnodiging versturen…');
+  if (msg) btZetStatus(msg, '⏳ Collega aanmaken…');
   try {
     const naam       = document.getElementById('inv-naam')?.value?.trim();
     const email      = document.getElementById('inv-email')?.value?.trim();
@@ -10979,8 +10981,13 @@ async function beheerInviteVerstuur() {
     const begindatum  = document.getElementById('inv-begindatum')?.value || null;
     const einddatum   = document.getElementById('inv-einddatum')?.value  || null;
     const jaardoel    = parseInt(document.getElementById('inv-jaardoel')?.value||'12',10);
+    const wachtwoord  = (document.getElementById('inv-wachtwoord')?.value || '').trim();
     if (!naam || !email || !rol) {
       if (msg) btZetStatus(msg, '⚠️ Naam, e-mail en rol zijn verplicht.');
+      return;
+    }
+    if (wachtwoord && wachtwoord.length < 8) {
+      if (msg) btZetStatus(msg, '⚠️ Een wachtwoord moet minstens 8 tekens hebben (of laat het leeg voor een uitnodigingsmail).');
       return;
     }
 
@@ -10993,7 +11000,7 @@ async function beheerInviteVerstuur() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + authHeader,
       },
-      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel, redirectTo: _dashboardUrl() }),
+      body: JSON.stringify({ naam, email, rol, begindatum, einddatum, jaardoel, redirectTo: _dashboardUrl(), wachtwoord: wachtwoord || undefined }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
