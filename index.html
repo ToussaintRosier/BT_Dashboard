@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-0856 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-0917 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1670,7 +1670,19 @@
   .rldv-aanb:disabled { cursor:default; opacity:.6; }
   .rldv-aanb-week { font-size:.64rem; border-radius:7px; padding:0 6px; background:rgba(255,255,255,.12); color:#fff; vertical-align:middle; }
   .rldv-aanb-week.nu { background:rgba(244,203,60,.2); color:#F4CB3C; }
-  .rldv-aanb-regel { margin-top:4px; color:rgba(255,255,255,.75); }
+  .rldv-aanb-regel { margin-top:4px; color:rgba(255,255,255,.75); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .rldv-aanb.lezen { display:inline-flex; align-items:center; justify-content:center; cursor:default; }
+  .rldv-aanb-knopje { font-size:.7rem; padding:2px 9px; border-color:rgba(244,203,60,.55); color:#F4CB3C; }
+  /* Het afvinkvenster (17-09): rijen op slot gedempt, voet met samenvatting en knoppen. */
+  .rldv-aanb-venster .rldv-aanb { display:inline-flex; align-items:center; justify-content:center; }
+  .rldv-rij.rldv-aanb-slot { opacity:.5; cursor:default; }
+  .rldv-rij.rldv-aanb-slot .rldv-aanb.aan { background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.25); }
+  .rldv-aanb-link { color:#9ec8f4; text-decoration:underline; }
+  .rldv-aanb-voetrij { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .rldv-aanb-samenvatting { color:rgba(255,255,255,.8); font-size:.8rem; }
+  .rldv-aanb-samenvatting b { color:#fff; }
+  .rldv-aanb-knoppen { display:flex; gap:8px; margin-left:auto; }
+  .rldv-aanb-knoppen .crm-knop:disabled { opacity:.4; cursor:default; }
   /* In het lichte pipeline-venster moeten de gele/groene blokken donkere tekst hebben. */
   .pipe-modal .vv-tegel { color:#253151; background:rgba(244,203,60,.28); border-left-color:#E87400; }
   .pipe-modal .vv-tegel.klaar { color:#0f3d2e; background:rgba(14,159,110,.16); border-left-color:#0e9f6e; }
@@ -3082,6 +3094,7 @@
   .kk-rij > span:first-child { color:rgba(255,255,255,.55); width:130px; flex-shrink:0; }
   .kk-rij .stil { color:rgba(255,255,255,.4); font-style:italic; }
   .kk-rij .kk-knop { margin-left:auto; }
+  .kk-rij .kk-knop + .kk-knop { margin-left:6px; }   /* twee knoppen naast elkaar (afvinken · check, 17-09) */
   .kk-knop { background:transparent; border:1px solid rgba(158,200,244,.45); color:#9ec8f4; border-radius:6px; padding:2px 9px; font-family:inherit; font-size:.7rem; cursor:pointer; flex-shrink:0; }
   .kk-knop:hover { background:rgba(158,200,244,.12); }
   .kk-pil { display:inline-block; font-size:.66rem; background:rgba(255,255,255,.1); border-radius:9px; padding:1px 7px; color:#fff; }
@@ -4208,6 +4221,7 @@ let RLDV_TOOL = { kaartId: '', gekozen: new Set(), opmerking: '', bezig: false,
 let RLDV_SUBTAB = 'selectie';
 let RLDV_CHECK_FILTER = 'alle';   // tabblad Check: alle | open | gewijzigd | akkoord
 let RLDV_CHECK = null;   // { id, gekozen:Set, toevoegen:bool, bezig:bool }
+let RLDV_AANB = null;    // afvinkvenster: { id, week, jaar, nu:Set, was:Set, bezig } — vinkjes leven hier tot Opvoeren (17-09)
 let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'beweging' | 'verslagen' — Overzicht is sinds 16-09 een eigen pagina (tab 'accoverzicht')
 let ACC_OVERZICHT_ZOEK = '';       // zoekveld op het tabblad Overzicht (16-09)
 let BEZOEK_VERVOLG = {};           // verslag_id → vervolgafspraak bij een bezoek (tabel bezoek_vervolg)
@@ -8545,7 +8559,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-0856';
+const APP_VERSIE = '20260917-0917';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22594,8 +22608,9 @@ function _kandFaseBron(sleutel, c) {
   }
   const sel = rldvSelectieVoorKaart(c.id);
   if (!sel) return null;
-  if (sleutel === 'rldv_sel') return { klik: "crmKaartSluit();rldvCheckOpen('" + escApos(String(sel.id)) + "')", doel: 'de RLDV-check openen (met afvinken van aanbiedingen)' };
-  if (sleutel === 'rldv_check' || sleutel === 'aanbieden') return { klik: "crmKaartSluit();rldvCheckVanuitMelding('" + escApos(String(sel.id)) + "')", doel: 'de RLDV-check openen' };
+  if (sleutel === 'rldv_sel') return { klik: "crmKaartSluit();rldvCheckOpen('" + escApos(String(sel.id)) + "')", doel: 'de RLDV-check openen' };
+  if (sleutel === 'aanbieden') return { klik: "crmKaartSluit();rldvAanbiedenVenster('" + escApos(String(sel.id)) + "')", doel: 'aanbiedingen afvinken' };
+  if (sleutel === 'rldv_check') return { klik: "crmKaartSluit();rldvCheckVanuitMelding('" + escApos(String(sel.id)) + "')", doel: 'de RLDV-check openen' };
   return null;
 }
 // "wo 23 sep · 14:00 · bij Neways"
@@ -22924,7 +22939,10 @@ function kandKaartHtml(bmNaam, id) {
   // RLDV-selectie hangt aan de intakekaart
   const sel = rldvSelectieVoorKaart(intake.id);
   const bedrijven = rldvBedrijvenVan(sel).map(b => (b && (b.naam || b.bedrijf)) || String(b || ''));
-  const knopRldv = sel ? '<button class="kk-knop" onclick="crmKaartSluit();rldvCheckOpen(\'' + escApos(String(sel.id)) + '\')">openen</button>' : '';
+  const knopRldv = sel
+    ? '<button class="kk-knop" onclick="crmKaartSluit();rldvAanbiedenVenster(\'' + escApos(String(sel.id)) + '\')">afvinken</button>' +
+      '<button class="kk-knop" onclick="crmKaartSluit();rldvCheckOpen(\'' + escApos(String(sel.id)) + '\')">check</button>'
+    : '';
   const rldv = rij('RLDV-selectie', sel
     ? bedrijven.length + (bedrijven.length === 1 ? ' bedrijf · ' : ' bedrijven · ') + escHtml(bedrijven.join(', ')) + ' · <span class="kk-pil">' + escHtml(rldvCheckStand(sel).tekst) + '</span>'
     : '<span class="stil">nog geen selectie</span>', knopRldv);
@@ -26319,9 +26337,9 @@ function rldvKiesSubtab(tab) { RLDV_SUBTAB = tab; render(); }
 // (rldv_selecties.aangeboden, jsonb). Elke week met vinkjes heeft één
 // Aanbieden-tegeltje in de pipeline van de maker van de selectie, met als
 // aantal het aantal vinkjes van die week (herkomst 'rldv:<selectie-id>').
-// Uitvinken telt af. Nieuwe vinkjes tellen in de week van waaruit de check
-// geopend is (het plusje in een weekkolom) of in de huidige week (vanaf de
-// kandidaatkaart). De KPI Aanbieden blijft de som van de tegeltjes.
+// Afvinken gebeurt in het aparte venster "Aanbiedingen afvinken" (tweede
+// ronde 17-09); in de RLDV-check is de kolom Aangeboden alleen-lezen.
+// De KPI Aanbieden blijft de som van de tegeltjes.
 // Kolom: supabase/rldv_aangeboden.sql.
 // ═══════════════════════════════════════════════════════════════════════════
 function rldvAangeboden(sel) {
@@ -26340,14 +26358,13 @@ function rldvSelectieVoorNaam(naam) {
     .sort((a, b) => String(b.aangemaakt_op || '').localeCompare(String(a.aangemaakt_op || '')));
   return lijst[0] || null;
 }
+// Alleen-lezen (tweede ronde 17-09): afvinken gebeurt in het aparte venster
+// "Aanbiedingen afvinken", niet in de check zelf.
 function _rldvAangebodenCel(sel, b) {
   const v = rldvAangeboden(sel)[String(b.id)];
-  const mag = magWijzigen('medewerkers');
-  const klik = mag ? ' onclick="event.stopPropagation();rldvAangebodenToggle(\'' + escApos(String(b.id)) + '\')"' : '';
   return '<td class="rldv-aanb-cel" onclick="event.stopPropagation()">' +
-    '<button type="button" class="rldv-aanb' + (v ? ' aan' : '') + '"' + klik + (mag ? '' : ' disabled') +
-      ' title="' + (v ? 'Aangeboden in week ' + escHtml(v.week) + (v.door ? ' door ' + escHtml(v.door) : '') + ' · klik om uit te vinken' : 'Aanvinken: aangeboden (telt in week ' + (RLDV_CHECK ? RLDV_CHECK.week : '') + ')') + '">' +
-      (v ? '✓' : '') + '</button>' +
+    '<span class="rldv-aanb' + (v ? ' aan' : '') + ' lezen" title="' + (v ? 'Aangeboden in week ' + escHtml(v.week) + (v.door ? ' door ' + escHtml(v.door) : '') : 'Nog niet aangeboden') + ' · afvinken via Aanbiedingen afvinken">' +
+      (v ? '✓' : '') + '</span>' +
     (v ? ' <span class="rldv-aanb-week' + (RLDV_CHECK && v.week === RLDV_CHECK.week && v.jaar === RLDV_CHECK.jaar ? ' nu' : '') + '">W' + escHtml(v.week) + '</span>' : '') +
     '</td>';
 }
@@ -26367,30 +26384,132 @@ async function _rldvAanbTegelSync(sel, week, jaar) {
   if ((+cards[idx].aanb || 0) === aantal) return;
   await _kanbanUpdate(bm, cards[idx].id, { aanb: aantal });
 }
-async function rldvAangebodenToggle(bedrijfId) {
-  if (!RLDV_CHECK || !eisWijzig('medewerkers')) return;
-  const sel = RLDV_SELECTIES.find(r => String(r.id) === String(RLDV_CHECK.id));
+// ── Het afvinkvenster "Aanbiedingen afvinken" (akkoord 17-09, tweede ronde) ──
+// Alleen de bedrijven uit de check, met een vinkje. Geen toevoegen, geen
+// akkoord, geen wijzigen van de selectie. Je vinkt af voor één week (de week
+// van het plusje in de pipeline, of de huidige week vanaf de kandidaatkaart).
+// Bedrijven die in een eerdere week al aangeboden zijn staan op slot. Niets
+// wordt weggeschreven tot "Opvoeren als aanbiedingen (n)": dan één update van
+// rldv_selecties.aangeboden en één Aanbieden-tegeltje van die week. Annuleren
+// gooit de vinkjes weg.
+function rldvAanbiedenVenster(selId, opties) {
+  const sel = RLDV_SELECTIES.find(r => String(r.id) === String(selId));
   if (!sel) return;
+  const o = opties || {};
+  const nu = isoWeek(new Date());
+  const week = +(o.week || nu.week), jaar = +(o.jaar || nu.year);
+  const al = Object.entries(rldvAangeboden(sel)).filter(([, v]) => v && +v.week === week && +v.jaar === jaar).map(([k]) => String(k));
+  RLDV_AANB = { id: sel.id, week, jaar, nu: new Set(al), was: new Set(al), bezig: false };
+  crmKaartToon(_rldvAanbiedenHtml(), 'crm-kaart-breed', () => { RLDV_AANB = null; });
+}
+function _rldvAanbSel() { return RLDV_AANB ? RLDV_SELECTIES.find(r => String(r.id) === String(RLDV_AANB.id)) : null; }
+function _rldvAanbiedenRij(sel, b) {
+  const id = String(b.id);
+  const r = rldvBedrijfNu(b) || {};
+  const v = rldvAangeboden(sel)[id];
+  const slot = !!(v && (+v.week !== RLDV_AANB.week || +v.jaar !== RLDV_AANB.jaar));
+  const aan = !slot && RLDV_AANB.nu.has(id);
+  const mag = magWijzigen('medewerkers');
+  const leeg = x => x ? escHtml(x) : '<span class="rldv-sub">—</span>';
+  const klik = (!slot && mag) ? ' onclick="rldvAanbiedenToggle(\'' + escApos(id) + '\')" style="cursor:pointer;"' : '';
+  const laatste = slot
+    ? '<span class="rldv-aanb-week">week ' + escHtml(v.week) + ' · op slot</span>'
+    : (aan ? '<span class="rldv-aanb-week nu">week ' + escHtml(RLDV_AANB.week) + '</span>' : '');
+  return '<tr class="rldv-rij' + (aan ? ' aan' : '') + (slot ? ' rldv-aanb-slot' : '') + '"' + klik + '>' +
+    '<td class="rldv-aanb-cel"><span class="rldv-aanb' + ((aan || slot) ? ' aan' : '') + (slot || !mag ? ' lezen' : '') + '">' + ((aan || slot) ? '✓' : '') + '</span></td>' +
+    '<td class="acc-td-left">' + escHtml(r.naam || b.naam || '') + '</td>' +
+    '<td>' + leeg((r.vakgebied || '').trim()) + '</td>' +
+    '<td>' + leeg((r.regio || '').trim()) + '</td>' +
+    '<td>' + (r.contactpersoon ? '<span class="acc-pill acc-pill-op">' + escHtml(r.contactpersoon) + '</span>' : '<span class="acc-pill acc-pill-empty">—</span>') + '</td>' +
+    '<td>' + (r.status ? _rldvStipTekst(r.status === 'Klant' ? 'klant' : r.status === 'CP-bekend' ? 'cp' : 'prospect', r.status) : '<span class="rldv-sub">—</span>') + '</td>' +
+    '<td class="rldv-sub">' + laatste + '</td>' +
+    '</tr>';
+}
+function _rldvAanbiedenVoetHtml(sel) {
+  const A = RLDV_AANB;
+  const n = A.nu.size;
+  const gewijzigd = n !== A.was.size || [...A.nu].some(id => !A.was.has(id));
+  const mag = magWijzigen('medewerkers');
+  const bm = sel.bm_naam || sel.aangemaakt_door || '';
+  const kaart = pipeLoad(bm).find(c => c.stage === 'Aanbieden' && c.vervolg_van === 'rldv:' + sel.id && +c.week === A.week && +c.jaar === A.jaar && !c.verwijderd_op);
+  const wat = kaart
+    ? 'Het tegeltje Aanbieden van week ' + A.week + ' bij ' + escHtml(bm) + ' staat op <b>' + (+kaart.aanb || 0) + '</b> → wordt <b>' + n + '</b>.'
+    : (n ? 'Er komt een <b>nieuw</b> tegeltje "Aanbiedingen: ' + n + '" in de pipeline van ' + escHtml(bm) + ', week ' + A.week + '.' : 'Nog niets afgevinkt voor week ' + A.week + '.');
+  return '<div class="rldv-aanb-voetrij">' +
+    '<div class="rldv-aanb-samenvatting"><b>' + n + '</b> afgevinkt voor week ' + A.week + ' · ' + wat + '</div>' +
+    '<div class="rldv-aanb-knoppen">' +
+      '<button type="button" class="crm-knop" onclick="rldvAanbiedenSluit()">Annuleren</button>' +
+      (mag ? '<button type="button" class="crm-knop goed" onclick="rldvAanbiedenOpvoeren()"' + (gewijzigd && !A.bezig ? '' : ' disabled') + '>Opvoeren als aanbiedingen (' + n + ')</button>' : '') +
+    '</div></div>';
+}
+function _rldvAanbiedenHtml() {
+  const sel = _rldvAanbSel();
+  if (!sel) return '<div class="rldv-check-kop">Deze selectie bestaat niet meer.</div>';
+  const A = RLDV_AANB;
+  const bekend = rldvBedrijvenVan(sel);
+  const perWeek = rldvAangebodenPerWeek(sel);
+  const eerder = Object.keys(perWeek).sort().filter(k => k !== A.jaar + '-' + A.week).map(k => 'week ' + k.split('-')[1] + ': ' + perWeek[k]).join(' · ');
+  const wanneer = sel.aangemaakt_op ? new Date(sel.aangemaakt_op).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
+  return '<div class="rldv-check rldv-aanb-venster">' +
+    '<div class="rldv-check-kop">' +
+      '<div class="rldv-check-titel">Aanbiedingen afvinken — ' + escHtml(sel.kandidaat_naam || '') +
+        '<span class="rldv-pil open">week ' + escHtml(A.week) + '</span></div>' +
+      '<div class="rldv-check-regel">RLDV-check van ' + escHtml(wanneer) + ' · ' + bekend.length + (bekend.length === 1 ? ' bedrijf' : ' bedrijven') +
+        ' · gemaakt door ' + escHtml(sel.aangemaakt_door || sel.bm_naam || '') + (eerder ? ' · eerder aangeboden: ' + escHtml(eerder) : '') +
+        ' · <a href="#" class="rldv-aanb-link" onclick="event.preventDefault();rldvAanbiedenSluit();rldvCheckOpen(\'' + escApos(String(sel.id)) + '\')">RLDV-check bekijken</a></div>' +
+      '<div class="rldv-check-regel rldv-aanb-regel">Vink af waar je in <b>week ' + escHtml(A.week) + '</b> hebt aangeboden. Er wordt niets opgeslagen tot je op <b>Opvoeren</b> drukt. Bedrijven uit eerdere weken staan op slot.</div>' +
+    '</div>' +
+    '<div class="rldv-check-lijst"><table class="acc-table rldv-tab rldv-aanb-tab">' +
+      '<colgroup><col style="width:34px;"><col style="width:26%;"><col style="width:18%;"><col style="width:12%;"><col style="width:12%;"><col style="width:14%;"><col style="width:18%;"></colgroup>' +
+      '<thead><tr><th></th><th class="acc-th-left">Bedrijf</th><th>Vakgebied</th><th>Regio</th><th>CP</th><th>Status</th><th>Aangeboden</th></tr></thead>' +
+      '<tbody id="rldv-aanb-body">' + bekend.map(b => _rldvAanbiedenRij(sel, b)).join('') + '</tbody></table></div>' +
+    '<div class="rldv-check-voet" id="rldv-aanb-voet">' + _rldvAanbiedenVoetHtml(sel) + '</div>' +
+    '</div>';
+}
+// Alleen de lijst en de voet verversen: het venster zelf blijft staan, zodat
+// de scrollstand bewaard blijft.
+function _rldvAanbiedenBij() {
+  const sel = _rldvAanbSel();
+  if (!sel) return;
+  const body = document.getElementById('rldv-aanb-body'), voet = document.getElementById('rldv-aanb-voet');
+  if (body) body.innerHTML = rldvBedrijvenVan(sel).map(b => _rldvAanbiedenRij(sel, b)).join('');
+  if (voet) voet.innerHTML = _rldvAanbiedenVoetHtml(sel);
+}
+function rldvAanbiedenToggle(bedrijfId) {
+  const sel = _rldvAanbSel();
+  if (!sel || RLDV_AANB.bezig || !magWijzigen('medewerkers')) return;
   const id = String(bedrijfId);
-  const nu = { ...rldvAangeboden(sel) };
+  const v = rldvAangeboden(sel)[id];
+  if (v && (+v.week !== RLDV_AANB.week || +v.jaar !== RLDV_AANB.jaar)) return;   // eerdere week: op slot
+  if (RLDV_AANB.nu.has(id)) RLDV_AANB.nu.delete(id); else RLDV_AANB.nu.add(id);
+  _rldvAanbiedenBij();
+}
+function rldvAanbiedenSluit() { RLDV_AANB = null; crmKaartSluit(); }
+async function rldvAanbiedenOpvoeren() {
+  const sel = _rldvAanbSel();
+  if (!sel || RLDV_AANB.bezig || !eisWijzig('medewerkers')) return;
+  const { week, jaar, nu, was } = RLDV_AANB;
+  const aangeboden = { ...rldvAangeboden(sel) };
+  // Alleen deze week raken: weg wat uitgevinkt is, erbij wat nieuw is.
+  was.forEach(id => { if (!nu.has(id)) delete aangeboden[id]; });
+  nu.forEach(id => { if (!aangeboden[id]) aangeboden[id] = { week, jaar, op: new Date().toISOString(), door: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '') }; });
   const vorige = sel.aangeboden;
-  let week = RLDV_CHECK.week, jaar = RLDV_CHECK.jaar;
-  if (nu[id]) { week = nu[id].week || week; jaar = nu[id].jaar || jaar; delete nu[id]; }
-  else nu[id] = { week, jaar, op: new Date().toISOString(), door: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '') };
-  sel.aangeboden = nu;
-  _rldvVensterBijwerken();
+  RLDV_AANB.bezig = true; _rldvAanbiedenBij();
+  sel.aangeboden = aangeboden;
   if (supa) {
     _echoVanZelf('rldv_selecties');
-    const { error } = await supa.from('rldv_selecties').update({ aangeboden: nu }).eq('id', sel.id);
+    const { error } = await supa.from('rldv_selecties').update({ aangeboden }).eq('id', sel.id);
     if (error) {
-      sel.aangeboden = vorige; _rldvVensterBijwerken();
-      meldFout('aangeboden afvinken mislukt: ' + error.message, 'rldvAangebodenToggle');
+      sel.aangeboden = vorige; RLDV_AANB.bezig = false; _rldvAanbiedenBij();
+      meldFout('aanbiedingen opvoeren mislukt: ' + error.message, 'rldvAanbiedenOpvoeren');
       alert('Niet opgeslagen: ' + (/aangeboden|schema cache|PGRST204/i.test(error.message || '') ? 'draai supabase/rldv_aangeboden.sql in de SQL-editor — de kolom aangeboden ontbreekt nog.' : error.message));
       return;
     }
   }
   await _rldvAanbTegelSync(sel, week, jaar);
-  render(); _rldvVensterBijwerken();
+  const n = nu.size, bm = sel.bm_naam || sel.aangemaakt_door || '';
+  RLDV_AANB = null; crmKaartSluit(); render();
+  alert('Opgevoerd: ' + n + (n === 1 ? ' aanbieding' : ' aanbiedingen') + ' voor ' + (sel.kandidaat_naam || '') + ' in week ' + week + ' (tegeltje Aanbieden bij ' + bm + ').');
 }
 
 function rldvCheckOpen(selId, opties) {
@@ -26696,7 +26815,7 @@ function rldvCheckHtml() {
         ' · ' + bekend.length + ' bedrijven · ' + rldvAanbiedingenVoor(sel.kandidaat_naam) + ' aanbiedingen ingevoerd' +
       '</div>' +
       '<div class="rldv-check-regel rldv-aanb-regel">Afgevinkt: aangeboden <b>' + aangebodenTotaal + '</b>' + (wekenTekst ? ' = ' + escHtml(wekenTekst) : '') +
-        ' · nieuwe vinkjes tellen in <b>week ' + escHtml(RLDV_CHECK.week) + '</b> en gaan direct naar het Aanbieden-tegeltje van die week.</div>' +
+        (magWijzigen('medewerkers') ? ' · <button type="button" class="crm-knop rldv-aanb-knopje" onclick="rldvCheckSluit();rldvAanbiedenVenster(\'' + escApos(String(sel.id)) + '\')">Aanbiedingen afvinken</button>' : '') + '</div>' +
     '</div>' +
     '<div class="rldv-check-kolommen"><div>' +
       '<div class="rldv-check-sectie">In deze selectie · ' + bekend.length +
@@ -34892,14 +35011,14 @@ function _pipeAanbRldvBij() {
   const naam = String((document.getElementById('pipe-modal-naam') || {}).value || '').trim();
   const sel = naam ? rldvSelectieVoorNaam(naam) : null;
   if (!sel) {
-    blok.innerHTML = '<div class="vv-tegel" style="margin:0 0 10px;"><span>' + (naam ? 'Geen RLDV-check voor deze kandidaat — het aantal zet je op het tegeltje (+/−).' : 'Typ de naam; heeft de kandidaat een RLDV-check, dan kun je daar afvinken wat je aangeboden hebt.') + '</span></div>';
+    blok.innerHTML = '<div class="vv-tegel" style="margin:0 0 10px;"><span>' + (naam ? 'Geen RLDV-check voor deze kandidaat — het aantal zet je op het tegeltje (+/−).' : 'Kies de naam; heeft de kandidaat een RLDV-check, dan vink je af wat je aangeboden hebt en voer je dat op.') + '</span></div>';
     return;
   }
   const n = rldvBedrijvenVan(sel).length, per = rldvAangebodenPerWeek(sel), tot = Object.values(per).reduce((a, b) => a + b, 0);
   const wanneer = sel.aangemaakt_op ? new Date(sel.aangemaakt_op).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
   blok.innerHTML = '<div class="vv-tegel klaar" style="margin:0 0 10px;"><span><b>RLDV-check van ' + escHtml(wanneer) + '</b> · ' + n + ' bedrijven · ' + tot + ' aangeboden' +
-    '<br><small>Afvinken telt in week ' + escHtml(String(_pipeModalCtx.week)) + ' en maakt het tegeltje zelf aan.</small></span>' +
-    '<button type="button" class="crm-knop goed" style="margin-left:auto;" onclick="pipeAanbViaRldv()">RLDV-check openen en afvinken</button></div>';
+    '<br><small>Vink af wat je in week ' + escHtml(String(_pipeModalCtx.week)) + ' hebt aangeboden; Opvoeren maakt of vult het tegeltje van die week.</small></span>' +
+    '<button type="button" class="crm-knop goed" style="margin-left:auto;" onclick="pipeAanbViaRldv()">Aanbiedingen afvinken</button></div>';
 }
 function pipeAanbViaRldv() {
   const naam = String((document.getElementById('pipe-modal-naam') || {}).value || '').trim();
@@ -34907,7 +35026,7 @@ function pipeAanbViaRldv() {
   if (!sel) return;
   const { week, jaar } = _pipeModalCtx;
   pipeCloseModal();
-  rldvCheckOpen(sel.id, { week, jaar });
+  rldvAanbiedenVenster(sel.id, { week, jaar });
 }
 function _pipeToggleStageFields(stage) {
   const isIntake   = stage === 'Intake';
