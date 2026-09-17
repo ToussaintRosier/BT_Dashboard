@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1726 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1752 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1676,9 +1676,19 @@
   .crm-actie.uit { border-style:dashed; border-color:rgba(255,255,255,.2); color:rgba(255,255,255,.35); cursor:default; }
   .crm-actie-groep { display:inline-flex; align-items:center; gap:8px; font-size:.76rem; }
   .person-meta .crm-nieuw { font-size:.76rem; padding:5px 12px; margin-left:8px; }
-  .crm-kaart.crm-wizard { max-width:640px; }
+  /* Wizard (17-09): elke stap exact dezelfde maat. Kop, subregel en stappenbalk
+     op vaste hoogte zodat het eerste veld op elke stap op dezelfde hoogte
+     begint; knoppen onderaan vastgepind; de foutregel houdt zijn plek vrij. */
+  .crm-kaart.crm-wizard { width:640px; max-width:calc(100vw - 28px); height:560px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-sizing:border-box; }
+  .crm-wizard h4.wit { height:28px; line-height:28px; margin:0; padding-right:34px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+  .crm-wizard .crm-sub { height:18px; line-height:18px; margin:0 0 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+  .crm-wizard .crm-form { flex:1; min-height:0; align-content:start; overflow:auto; }
+  .crm-wizard .crm-knoppen { flex-shrink:0; margin-top:10px; flex-wrap:nowrap; }
+  .crm-wiz-terug.onzichtbaar { visibility:hidden; }
+  .crm-wizard .crm-wiz-door { min-width:120px; text-align:center; }
+  @media (max-width:640px) { .crm-kaart.crm-wizard { height:auto; max-height:88vh; } }
   .crm-kaart.crm-dossier { max-width:1040px; }
-  .crm-wiz-balk { display:flex; align-items:center; gap:6px; margin:0 0 14px; flex-wrap:wrap; }
+  .crm-wiz-balk { display:flex; align-items:center; gap:6px; margin:0 0 14px; height:24px; flex-wrap:nowrap; overflow:hidden; flex-shrink:0; }
   .crm-wiz-stap { width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:var(--w-nadruk); background:rgba(255,255,255,.12); color:rgba(255,255,255,.6); flex-shrink:0; }
   .crm-wiz-stap.nu { background:#F4CB3C; color:#253151; }
   .crm-wiz-stap.af { background:rgba(14,159,110,.5); color:#fff; }
@@ -1693,7 +1703,8 @@
   .crm-form input, .crm-form textarea { width:100%; box-sizing:border-box; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:.84rem; }
   .crm-form input:focus, .crm-form textarea:focus { outline:none; border-color:#F4CB3C; }
   .crm-form input::placeholder { color:rgba(255,255,255,.3); }
-  .crm-wiz-fout { margin-top:10px; padding:7px 10px; border-radius:8px; background:rgba(232,116,0,.18); border-left:3px solid #E87400; color:#fff; font-size:.8rem; }
+  .crm-wiz-fout { margin-top:10px; padding:7px 10px; height:34px; box-sizing:border-box; border-radius:8px; background:rgba(232,116,0,.18); border-left:3px solid #E87400; color:#fff; font-size:.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+  .crm-wiz-fout:not(.aan) { visibility:hidden; }
   @media (max-width:640px) { .crm-form { grid-template-columns:1fr; } }
   .acc-arch-rij td.naam .kand-pil { background:rgba(255,255,255,.1); color:rgba(255,255,255,.7); }
   .kand-pil { display:inline-block; font-size:.62rem; border-radius:8px; padding:0 7px; margin-left:6px; vertical-align:middle; font-weight:var(--w-normaal); }
@@ -8662,7 +8673,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1726';
+const APP_VERSIE = '20260917-1752';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25326,14 +25337,17 @@ function _crmWizHtml() {
       : '<input id="' + id + '" type="' + (f.type || 'text') + '" value="' + escHtml(v) + '" maxlength="300"' + (f.type === 'url' ? ' placeholder="https://…"' : '') + '>';
     return '<div class="crm-form-veld' + (f.breed ? ' breed' : '') + '">' + lab + inp + '</div>';
   }).join('');
-  const fout = W.fout ? '<div class="crm-wiz-fout">' + escHtml(W.fout) + '</div>' : '';
+  // Vaste maat op elke stap (akkoord 17-09): de foutregel staat er altijd
+  // (onzichtbaar als er niets is) en Terug ook (onzichtbaar op stap 1), zodat
+  // velden en knoppen op elke stap op precies dezelfde plek staan.
+  const fout = '<div class="crm-wiz-fout' + (W.fout ? ' aan' : '') + '">' + escHtml(W.fout || '') + '</div>';
   const opslaan = W.soort === 'kand' ? 'crmKandOpslaan()' : 'crmBedrijfOpslaan()';
-  return '<h4 class="wit">' + escHtml(W.titel) + '</h4>' +
-    '<div class="crm-sub">Stap ' + (W.stap + 1) + ' van ' + W.velden.length + ' · ' + escHtml(sec.titel) + (W.stap === 0 ? ' · alleen de velden met een * zijn verplicht, de rest vul je later aan' : '') + '</div>' +
+  return '<h4 class="wit" title="' + escHtml(W.titel) + '">' + escHtml(W.titel) + '</h4>' +
+    '<div class="crm-sub">Stap ' + (W.stap + 1) + ' van ' + W.velden.length + ' · ' + escHtml(sec.titel) + (W.stap === 0 ? ' · alleen * is verplicht' : '') + '</div>' +
     balk + '<div class="crm-form">' + velden + '</div>' + fout +
     '<div class="crm-knoppen">' +
-      (W.stap > 0 ? '<button class="crm-knop" onclick="crmWizStap(-1)">← Terug</button>' : '') +
-      (laatste ? '<button class="crm-knop goed" onclick="' + opslaan + '">Opslaan</button>' : '<button class="crm-knop goed" onclick="crmWizStap(1)">Volgende →</button>') +
+      '<button class="crm-knop crm-wiz-terug' + (W.stap > 0 ? '' : ' onzichtbaar') + '" onclick="crmWizStap(-1)"' + (W.stap > 0 ? '' : ' tabindex="-1" aria-hidden="true"') + '>← Terug</button>' +
+      (laatste ? '<button class="crm-knop goed crm-wiz-door" onclick="' + opslaan + '">Opslaan</button>' : '<button class="crm-knop goed crm-wiz-door" onclick="crmWizStap(1)">Volgende →</button>') +
       '<button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>';
 }
 // Wat er in de velden van de huidige stap staat meenemen (voor je verder gaat).
