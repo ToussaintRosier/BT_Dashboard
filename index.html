@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1220 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1234 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -441,6 +441,8 @@
   /* Statuspillen: dezelfde behandeling als in de cijfertabellen. */
   .bt-venster .badge { background:rgba(255,255,255,.08); }
   .bt-venster .badge-green  { color:#4ade80; }
+  .acc-plan-pil { cursor:pointer; border:1px solid rgba(74,222,128,.35); white-space:nowrap; }
+  .acc-plan-pil:hover { background:rgba(74,222,128,.18); }
   .bt-venster .badge-orange,
   .bt-venster .badge-yellow { color:#fbbf24; }
   .bt-venster .badge-red    { color:#f87171; }
@@ -8581,7 +8583,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1220';
+const APP_VERSIE = '20260917-1234';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -24331,6 +24333,15 @@ function _accPlanVan(naam) {
       || null;
 }
 function _accContacten(a) { return a && Array.isArray(a.contacten) ? a.contacten.filter(c => c && c.naam) : []; }
+// Kolom Accountplan in de KAM-lijst (17-09): "Ja · datum" opent het plan,
+// "Nee" is alleen een stand. Maken gaat via het plan-icoon rechts.
+function _accPlanCel(a) {
+  const plan = _accPlanVan(a && a.naam);
+  if (!plan) return '<span class="badge badge-grijs">Nee</span>';
+  const d = String(plan.updated_at || plan.created_at || '').slice(0, 10);
+  return '<span class="badge badge-green acc-plan-pil" onclick="apNaar(\'' + escApos(String(plan.id)) + '\')" title="Accountplan openen' + (d ? ' · bijgewerkt ' + escHtml(datumNL(d)) : '') + '">Ja' + (d ? ' · ' + escHtml(_kandDatumKort(d)) : '') + '</span>';
+}
+function _accPlanSort(a) { return _accPlanVan(a && a.naam) ? 1 : 0; }
 function _accContactVan(a, naam) {
   const sl = _itkSleutel(naam || '');
   if (!sl) return null;
@@ -28465,6 +28476,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
     let av, bv;
     if (ACC_SORT_COL === 'score') { av = accScore(a); bv = accScore(b); }
     else if (ACC_SORT_COL === 'updated_at') { av = a.updated_at || ''; bv = b.updated_at || ''; }
+    else if (ACC_SORT_COL === 'accountplan') { av = _accPlanSort(a); bv = _accPlanSort(b); }
     else { av = a[ACC_SORT_COL]; bv = b[ACC_SORT_COL]; }
     if (av == null) av = ''; if (bv == null) bv = '';
     const cmp = (typeof av === 'number' && typeof bv === 'number') ? av - bv : String(av).localeCompare(String(bv), 'nl');
@@ -28554,6 +28566,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
       <td>${voorwCell}</td>
       <td>${actiefCell}</td>
       <td style="text-align:center;">${top11Cell}</td>
+      <td style="text-align:center;">${_accPlanCel(a)}</td>
       <td>${actionsCell}</td>
     </tr>`;
   }).join('');
@@ -28599,6 +28612,7 @@ function renderStrategischeLeadsHtml(subTabBtns) {
           <col style="width:72px;">
           <col style="width:60px;">
           <col style="width:86px;">
+          <col style="width:92px;">
           <col style="width:96px;">
         </colgroup>
         <thead><tr>
@@ -28611,9 +28625,10 @@ function renderStrategischeLeadsHtml(subTabBtns) {
           ${kamTh('voorwaarden_bekend','Voorwaarden bekend')}
           ${kamTh('actief_aanbieden','Actief aanbieden')}
           <th style="text-align:center;">Top 11</th>
+          ${kamTh('accountplan','Accountplan')}
           <th></th>
         </tr></thead>
-        <tbody>${rows || `<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:24px;">Geen klanten gevonden.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="19" style="text-align:center;color:var(--muted);padding:24px;">Geen klanten gevonden.</td></tr>`}</tbody>
       </table>
     </div>
   </div>`;
