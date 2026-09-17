@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-2001 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-2008 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2678,6 +2678,17 @@
   .rldv-meld-knop { flex:0 0 auto; background:transparent; color:#fff; font-family:inherit; font-size:.86rem;
                     border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:10px 16px; cursor:pointer; }
   .rldv-meld-knop.hoofd { flex:1; background:#E87400; border-color:#E87400; }
+  /* Bevestigvenster (17-09): bovenop een open kaart (9400), onder de meldingen (9500). */
+  .bt-bevestig-laag { position:fixed; inset:0; z-index:9450; background:rgba(20,27,48,.6); display:flex; align-items:center; justify-content:center; padding:20px; }
+  .bt-bevestig { width:440px; max-width:100%; background:#253151; border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:18px 20px; box-sizing:border-box; color:rgba(255,255,255,.88); font-size:.85rem; box-shadow:0 18px 50px rgba(0,0,0,.45); }
+  .bt-bevestig-titel { display:flex; align-items:center; gap:10px; color:#fff; font-size:1.05rem; font-weight:var(--w-nadruk); margin:0 0 6px; }
+  .bt-bevestig-ic { width:30px; height:30px; border-radius:8px; background:rgba(224,82,82,.14); color:#ffb3b3; display:inline-flex; align-items:center; justify-content:center; font-size:.95rem; flex-shrink:0; }
+  .bt-bevestig-ic.goed { background:rgba(244,203,60,.16); color:#F4CB3C; }
+  .bt-bevestig-tekst { color:rgba(255,255,255,.55); font-size:.8rem; line-height:1.5; }
+  .bt-bevestig-tekst b { color:#F4CB3C; font-weight:var(--w-normaal); }
+  .bt-bevestig-tekst .bt-bevestig-al { margin-top:6px; }
+  .bt-bevestig-knoppen { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.1); }
+  .bt-bevestig-knoppen .crm-knop { min-width:110px; text-align:center; }
   .crm-laag { position:fixed; inset:0; z-index:9400; background:rgba(20,27,48,.55);
               display:flex; align-items:center; justify-content:center; padding:20px; }
   .crm-kaart { background:#253151; border:1px solid rgba(255,255,255,.14);
@@ -7475,7 +7486,7 @@ async function oneDeelnemerWeghalen(gid, uid) {
   if (!eisWijzig('one')) return;
   if (!supa || uid === ONE_MIJN_ID) return;
   const lid = ONE_LEDEN.find(l => String(l.gesprek_id) === String(gid) && l.user_id === uid);
-  if (!confirm((lid ? lid.naam : 'Deze collega') + ' uit de groep halen? Die ziet de berichten dan niet meer.')) return;
+  if (!(await btBevestig((lid ? lid.naam : 'Deze collega') + ' uit de groep halen? Die ziet de berichten dan niet meer.'))) return;
   _echoVanZelf('one_gesprek_leden');
   const { data, error } = await supa.from('one_gesprek_leden').delete().eq('gesprek_id', gid).eq('user_id', uid).select('user_id');
   if (error || !data || !data.length) {
@@ -7974,7 +7985,7 @@ async function oneBerichtVerstuur(gid) {
 async function oneBerichtVerwijder(id) {
   if (!eisWijzig('one')) return;
   if (!supa) return;
-  if (!confirm('Dit bericht verwijderen? Er blijft "bericht verwijderd" staan.')) return;
+  if (!(await btBevestig('Dit bericht verwijderen? Er blijft "bericht verwijderd" staan.'))) return;
   const nu = new Date().toISOString();
   _echoVanZelf('one_berichten');
   const { data, error } = await supa.from('one_berichten').update({ verwijderd_op: nu })
@@ -7994,8 +8005,8 @@ async function oneGesprekVerlaten(gid) {
   // Weg bij jou, niet bij de ander (15-09). Pas als de laatste deelnemer het
   // verwijdert, ruimt de database het gesprek zelf op (one_berichten_v2.sql).
   const anderen = _oneBerAnderen(gid).map(x => x.naam.split(' ')[0]);
-  if (!confirm('Gesprek met ' + oneGesprekNaam(g) + ' bij jou verwijderen?\n\n' +
-      (anderen.length ? anderen.join(', ') + ' houdt de berichten tot ' + (anderen.length === 1 ? 'die' : 'zij') + ' het ook verwijder' + (anderen.length === 1 ? 't' : 'en') + '.' : 'Je bent de laatste deelnemer; het gesprek verdwijnt dan helemaal.'))) return;
+  if (!(await btBevestig('Gesprek met ' + oneGesprekNaam(g) + ' bij jou verwijderen?\n\n' +
+      (anderen.length ? anderen.join(', ') + ' houdt de berichten tot ' + (anderen.length === 1 ? 'die' : 'zij') + ' het ook verwijder' + (anderen.length === 1 ? 't' : 'en') + '.' : 'Je bent de laatste deelnemer; het gesprek verdwijnt dan helemaal.')))) return;
   _echoVanZelf('one_gesprek_leden');
   const { error } = await supa.from('one_gesprek_leden').delete().eq('gesprek_id', gid).eq('user_id', ONE_MIJN_ID);
   if (error) { meldFout('gesprek verlaten mislukt: ' + error.message, 'one_berichten'); alert('Niet gelukt: ' + error.message); return; }
@@ -8692,7 +8703,7 @@ function _oneTagsUitTekst(tekst, ik) {
 // Zo blijft navraag achteraf mogelijk zonder dat het bericht nog in beeld komt.
 async function oneVerwijderPost(id) {
   if (!eisWijzig('one')) return;
-  if (!confirm('Dit bericht weghalen uit de feed? De reacties eronder verdwijnen mee.')) return;
+  if (!(await btBevestig('Dit bericht weghalen uit de feed? De reacties eronder verdwijnen mee.'))) return;
   try {
     const { error } = await supa.from('one_posts')
       .update({ verwijderd_op: new Date().toISOString() }).eq('id', id);
@@ -8703,7 +8714,7 @@ async function oneVerwijderPost(id) {
 
 async function oneVerwijderReactie(id) {
   if (!eisWijzig('one')) return;
-  if (!confirm('Deze reactie weghalen?')) return;
+  if (!(await btBevestig('Deze reactie weghalen?'))) return;
   try {
     const { error } = await supa.from('one_reacties')
       .update({ verwijderd_op: new Date().toISOString() }).eq('id', id);
@@ -8735,7 +8746,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-2001';
+const APP_VERSIE = '20260917-2008';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9928,7 +9939,7 @@ async function memoVerstuur() {
 
 async function memoIntrekken(id) {
   if (!eisWijzig('beheer')) return;
-  if (!confirm('Deze mededeling intrekken? Collega’s die hem nog niet gezien hebben, krijgen hem niet meer.')) return;
+  if (!(await btBevestig('Deze mededeling intrekken? Collega’s die hem nog niet gezien hebben, krijgen hem niet meer.'))) return;
   try {
     const { error } = await supa.from('memos').update({ actief: false }).eq('id', id);
     if (error) { alert('Intrekken mislukt: ' + error.message); return; }
@@ -10299,7 +10310,7 @@ async function zetRecht(naam, sleutel, stand) {
 // Alles van één collega terug naar zijn rol.
 async function herstelRechten(naam) {
   if (!isBeheerder()) return;
-  if (!confirm('Alle handmatig gezette rechten van ' + naam + ' weghalen?\n\nHij volgt daarna weer het sjabloon van zijn rol.')) return;
+  if (!(await btBevestig('Alle handmatig gezette rechten van ' + naam + ' weghalen?\n\nHij volgt daarna weer het sjabloon van zijn rol.'))) return;
   const melding = (tekst, kleur) => {
     const el = document.getElementById('rr-melding');
     if (el) el.innerHTML = `<span style="color:${kleur};">${tekst}</span>`;
@@ -10492,7 +10503,7 @@ async function beheerFoutenVerversen() {
 
 async function beheerFoutenOpruimen() {
   if (!isBeheerder()) return;
-  if (!confirm('Alle gemelde fouten verwijderen?\n\nJe begint dan met een schoon logboek.')) return;
+  if (!(await btBevestig('Alle gemelde fouten verwijderen?\n\nJe begint dan met een schoon logboek.'))) return;
   const { error } = await supa.from('fouten').delete().gte('id', 0);
   if (error) { alert('Opruimen mislukt: ' + error.message); return; }
   FOUTEN_RIJEN = [];
@@ -13124,7 +13135,7 @@ async function mtActieWeg(id) {
   const a = MT_ACTIES.find(x => x.id === id);
   if (!eisWijzig(_mtSleutel(a))) return;
   const wat = (a && a.tekst || '').trim();
-  if (!confirm('Actie verwijderen?' + (wat ? '\n\n' + wat : ''))) return;
+  if (!(await btBevestig('Actie verwijderen?' + (wat ? '\n\n' + wat : '')))) return;
   const { error } = await supa.from('mt_acties').delete().eq('id', id);
   if (error) { alert('Verwijderen mislukt: ' + error.message); meldFout(error.message, 'mtActieWeg'); return; }
   MT_ACTIES = MT_ACTIES.filter(x => x.id !== id);
@@ -13321,8 +13332,8 @@ async function mtNotuleVerwijder(id) {
   if (!eisWijzig('mtacties')) return;
   const rij = MT_NOTULEN.find(n => String(n.id) === String(id));
   if (!rij) return;
-  if (!confirm(`Notule van week ${rij.week} · ${rij.jaar} verwijderen?\n\n` +
-               'Het verslag is daarna weg; dit kan niet ongedaan worden gemaakt.')) return;
+  if (!(await btBevestig(`Notule van week ${rij.week} · ${rij.jaar} verwijderen?\n\n` +
+               'Het verslag is daarna weg; dit kan niet ongedaan worden gemaakt.'))) return;
   const { error } = await supa.from('mt_notulen').delete().eq('id', id);
   if (error) { alert(_mtFoutTekst('Verwijderen', error)); meldFout(error.message, 'mtNotuleVerwijder'); return; }
   MT_NOTULEN = MT_NOTULEN.filter(n => String(n.id) !== String(id));
@@ -14791,7 +14802,7 @@ async function ecDocumentenOpen(id) {
 
 async function ecDocumentenVerwijder(id, naam) {
   if (!eisWijzig('hrm')) return;
-  if (!confirm(`Wil je "${naam}" definitief verwijderen?`)) return;
+  if (!(await btBevestig(`Wil je "${naam}" definitief verwijderen?`))) return;
   if (!supa) return;
   const { error } = await supa.from('ec_documenten').delete().eq('id', id);
   if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
@@ -17005,6 +17016,77 @@ function toonTagMelding(p) {
 // weer naar RLDV-Check ging (melding 09-09).
 let _CRM_BIJ_SLUITEN = null;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BEVESTIGVENSTER IN HUISSTIJL (akkoord 17-09)
+//
+// Vervangt het grijze browservenster (confirm) overal in het dashboard.
+// btBevestig('Vraag? Uitleg.') geeft een belofte: true bij bevestigen, false
+// bij Annuleren, Esc of een klik naast het venster. De titel is de vraag tot
+// en met het vraagteken; wat erna komt is de uitleg (dubbele regelovergang =
+// nieuwe alinea, tekst tussen aanhalingstekens in geel). De knop krijgt de
+// naam van de handeling: rood als er iets definitief weggaat, groen anders.
+// ═══════════════════════════════════════════════════════════════════════════
+function _bevestigDelen(tekst, opties) {
+  opties = opties || {};
+  let t = String(tekst == null ? '' : tekst).replace(/\r/g, '').trim();
+  // "Weet je zeker dat je dit X wilt verwijderen?" → "Dit X verwijderen?"
+  t = t.replace(/^Weet je zeker dat je\s+(.*?)\s+wilt\s+(\w+)\?/i, (m, wat, ww) => wat.charAt(0).toUpperCase() + wat.slice(1) + ' ' + ww + '?');
+  t = t.replace(/^Wil je\s+(.*?)\s+(definitief\s+)?(\w+)\?/i, (m, wat, def, ww) => wat.charAt(0).toUpperCase() + wat.slice(1) + ' ' + (def || '') + ww + '?');
+  // Titel: de eerste zin die op een vraagteken eindigt (als die niet te lang is).
+  let titel = t, rest = '';
+  const q = t.indexOf('?');
+  if (q > 0 && q < 140) { titel = t.slice(0, q + 1).trim(); rest = t.slice(q + 1).trim(); }
+  else { const nl = t.indexOf('\n'); if (nl > 0) { titel = t.slice(0, nl).trim(); rest = t.slice(nl).trim(); } }
+  // Zit de vraag ná een uitleg ("… Ga door?"), dan wordt de laatste zin de titel.
+  if (titel.length > 140 || (q > 0 && /\.\s+[^.]*\?$/.test(titel))) {
+    const m = titel.match(/^([\s\S]*\.)\s+([^.]*\?)$/); if (m) { rest = (m[1] + ' ' + rest).trim(); titel = m[2].trim(); }
+  }
+  const alineas = rest.split(/\n\s*\n/).map(a => a.replace(/\n/g, ' ').trim()).filter(Boolean);
+  const tekstHtml = alineas.map((a, i) => (i ? '<div class="bt-bevestig-al">' : '<div>') + escHtml(a).replace(/&quot;([^&]{1,80})&quot;/g, '<b>&quot;$1&quot;</b>').replace(/"([^"]{1,80})"/g, '<b>"$1"</b>') + '</div>').join('');
+  // De knop: het werkwoord uit de vraag.
+  const WW = [['verwijder', 'Verwijderen'], ['weggooi', 'Weggooien'], ['wissen', 'Wissen'], ['leegmaken', 'Leegmaken'], ['leeg te maken', 'Leegmaken'], ['intrekken', 'Intrekken'], ['afwijzen', 'Afwijzen'], ['weghalen', 'Weghalen'], ['uit de groep halen', 'Weghalen'],
+              ['bevriezen', 'Bevriezen'], ['opslaan', 'Opslaan'], ['samenvoegen', 'Samenvoegen'], ['uploaden', 'Uploaden'], ['vervangen', 'Vervangen'], ['doorgaan', 'Doorgaan'], ['heranalyseren', 'Samenvoegen']];
+  const laag = (titel + ' ' + rest).toLowerCase();
+  let knop = opties.knop || 'Doorgaan';
+  if (!opties.knop) { const tl = titel.toLowerCase(); const hit = WW.find(([w]) => tl.includes(w)) || WW.find(([w]) => laag.includes(w)); if (hit) knop = hit[1]; }
+  const weg = /verwijder|weggooi|wissen|leegmaken|leeg te maken|intrekken|afwijzen|weghalen|uit de groep halen/i.test(titel) || /^(Verwijderen|Weggooien|Wissen|Leegmaken|Intrekken|Afwijzen|Weghalen)$/.test(knop);
+  const soort = opties.soort || (weg ? 'weg' : 'goed');
+  return { titel, tekst: tekstHtml, knop, soort };
+}
+function btBevestig(tekst, opties) {
+  return new Promise((resolve) => {
+    const d = _bevestigDelen(tekst, opties);
+    document.getElementById('bt-bevestig-laag')?.remove();
+    const laag = document.createElement('div');
+    laag.className = 'bt-bevestig-laag'; laag.id = 'bt-bevestig-laag';
+    laag.innerHTML = '<div class="bt-bevestig" role="alertdialog" aria-modal="true">' +
+      '<div class="bt-bevestig-titel"><span class="bt-bevestig-ic' + (d.soort === 'weg' ? '' : ' goed') + '">' + (d.soort === 'weg' ? '&#128465;' : '!') + '</span><span>' + escHtml(d.titel) + '</span></div>' +
+      (d.tekst ? '<div class="bt-bevestig-tekst">' + d.tekst + '</div>' : '') +
+      '<div class="bt-bevestig-knoppen"><button type="button" class="crm-knop" data-bevestig="nee">Annuleren</button>' +
+      '<button type="button" class="crm-knop ' + (d.soort === 'weg' ? 'weg' : 'goed') + '" data-bevestig="ja">' + escHtml(d.knop) + '</button></div></div>';
+    let af = false;
+    const klaar = (ok) => {
+      if (af) return; af = true;
+      document.removeEventListener('keydown', toets, true);
+      laag.remove();
+      resolve(ok);
+    };
+    // Toetsen worden hier onderschept (capture), zodat Esc niet ook de kaart
+    // eronder sluit en Enter geen ander formulier indient.
+    const toets = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); klaar(false); }
+      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); klaar(true); }
+    };
+    laag.addEventListener('click', (e) => {
+      if (e.target === laag) { klaar(false); return; }
+      const k = e.target.closest && e.target.closest('[data-bevestig]');
+      if (k) klaar(k.getAttribute('data-bevestig') === 'ja');
+    });
+    document.body.appendChild(laag);
+    document.addEventListener('keydown', toets, true);
+    const ja = laag.querySelector('[data-bevestig="ja"]'); if (ja && ja.focus) ja.focus();
+  });
+}
 function crmKaartToon(html, klasse, bijSluiten) {
   // Een kaart vervangen is geen sluiten: de opruimtaak hoort dan niet af te
   // gaan, anders wist het bijwerken van het venster de check die je bekijkt.
@@ -17870,7 +17952,7 @@ async function afsprakenIntrekken() {
   if (!eisWijzig('gesprek')) return;
   const modal = document.getElementById('afspraken-modal');
   if (!modal || !supa) return;
-  if (!confirm('Link intrekken?\n\nDe kandidaat kan de afspraken daarna niet meer openen. Je kunt later opnieuw publiceren.')) return;
+  if (!(await btBevestig('Link intrekken?\n\nDe kandidaat kan de afspraken daarna niet meer openen. Je kunt later opnieuw publiceren.'))) return;
   const id = modal.dataset.recId;
   const bestaand = AFSPRAKEN_GEDEELD[String(id)];
   if (!bestaand || !bestaand.id) return;
@@ -17981,7 +18063,7 @@ function renderBmCoachingTab(bm) {
         <td><span class="cc-acties">
           ${!cr ? `<button class="crm-knop goed" onclick="${fnAnalyse}">Analyseer</button>` : leeg}
           ${type === 'itk' ? `<button class="crm-knop" onclick="afsprakenDelen('${rec.id}')" title="De afspraken uit dit gesprek bekijken en delen">Afspraken</button>` : leeg}
-          ${isManagerLevel() ? `<button class="crm-knop weg" onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" title="Verwijder opname">Weg</button>` : leeg}
+          ${isManagerLevel() ? `<button class="crm-knop weg" onclick="event.stopPropagation();btBevestig('Opname verwijderen?').then(ok=>{if(ok){${fnVerwijder}}})" title="Verwijder opname">Weg</button>` : leeg}
         </span></td>
       </tr>
       ${cr && !cr.loading && cr.result ? `<tr><td colspan="6" class="cc-res"><div class="cc-res-grid">
@@ -18043,7 +18125,7 @@ function renderOpnamesAlleen(naam) {
         ${type === 'itk' ? _afsprakenBadge(rec.id) : ''}
         ${type === 'itk' ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="afsprakenDelen('${rec.id}')" title="Afspraken delen met de kandidaat via QR-code">Afspraken</button>` : ''}
         ${cr && !cr.loading && cr.result ? `<button class="btn-secondary" style="font-size:.77rem;padding:4px 11px;flex-shrink:0;" onclick="mailCoachAnalyse('${rec.id}','${type}')">Mailen</button>` : ''}
-        ${isManagerLevel() ? `<button onclick="event.stopPropagation();if(confirm('Opname verwijderen?')){${fnVerwijder}}" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">${btActie('prullenbak')}</button>` : ''}
+        ${isManagerLevel() ? `<button onclick="event.stopPropagation();btBevestig('Opname verwijderen?').then(ok=>{if(ok){${fnVerwijder}}})" style="background:none;border:none;font-size:1rem;cursor:pointer;color:#e02424;flex-shrink:0;padding:2px 6px;" title="Verwijder opname">${btActie('prullenbak')}</button>` : ''}
       </div>
       ${cr && !cr.loading && cr.result ? `
       <div style="padding:12px 14px;border-top:1px solid var(--border);background:#fafafa;">
@@ -18985,7 +19067,7 @@ function projContractFrozenSave(src, id, val) {
     else localStorage.removeItem(projContractFrozenKey(src, id));
   } catch (_) {}
 }
-function projContractFreeze(src, id, safeId) {
+async function projContractFreeze(src, id, safeId) {
   // Valideer verplichte velden
   const d = projContractLoad(src, id);
   const missing = CONTRACT_FIELDS.filter(f => f.required && !(src === 'pipeline' && f.key === 'projectnr')).filter(f => {
@@ -18996,7 +19078,7 @@ function projContractFreeze(src, id, safeId) {
     alert('⚠️ Vul eerst alle verplichte velden in:\n\n' + missing.map(f => '• ' + f.label).join('\n'));
     return;
   }
-  if (!confirm('Contractgegevens opslaan?\n\nKlik daarna op "Wijzigen" om aanpassingen te doen.')) return;
+  if (!(await btBevestig('Contractgegevens opslaan?\n\nKlik daarna op "Wijzigen" om aanpassingen te doen.'))) return;
   projContractFrozenSave(src, id, true);
   _refreshContractRow(safeId);
 }
@@ -19021,8 +19103,8 @@ function projSluitAlle() {
 }
 // Werkt op de gegevens, niet op rijen in het scherm: sinds 09-09 staan de
 // contractblokken niet meer in de lijst.
-function projFreezeAll() {
-  if (!confirm('Alle projecten bevriezen?\n\nDaarna is per project "Wijzigen" nodig om iets aan te passen.')) return;
+async function projFreezeAll() {
+  if (!(await btBevestig('Alle projecten bevriezen?\n\nDaarna is per project "Wijzigen" nodig om iets aan te passen.'))) return;
   const lijst = (window._projOvCache || {}).overzichtRanges || [];
   let n = 0;
   for (const r of lijst) {
@@ -19757,7 +19839,7 @@ function getGedeeldPairs(cards) {
 // verdwijnt uit het "Projecten overzicht".
 async function deleteProjectRange(source, id, bmNaam) {
   if (!eisWijzig('projecten')) return;
-  if (!confirm('Dit project verwijderen uit de lijst?\n\nHistorische weken in de projectenlijn blijven behouden — vanaf nu telt dit project niet meer mee.')) return;
+  if (!(await btBevestig('Dit project verwijderen uit de lijst?\n\nHistorische weken in de projectenlijn blijven behouden — vanaf nu telt dit project niet meer mee.'))) return;
   if (!supa) return;
   const vandaag = toISODate(new Date());
   if (source === 'excel') {
@@ -19785,9 +19867,9 @@ async function deleteProjectRange(source, id, bmNaam) {
 // akkoordkeuze aan voorafgaat.
 async function pipeVerwijderHalve(bmNaam, cardId, naam) {
   if (!eisWijzig('medewerkers')) return;
-  if (!confirm('Halve plaatsing van ' + naam + ' verwijderen?\n\n' +
+  if (!(await btBevestig('Halve plaatsing van ' + naam + ' verwijderen?\n\n' +
                'Het kaartje verdwijnt uit de goedkeuring en uit de pijplijn. ' +
-               'Doe dit als de plaatsing niet doorgaat of als hij dubbel staat.')) return;
+               'Doe dit als de plaatsing niet doorgaat of als hij dubbel staat.'))) return;
   await pipeSetGoedkeuring(bmNaam, cardId, 'niet_akkoord');
 }
 
@@ -19806,7 +19888,7 @@ async function pipeSetGoedkeuring(bmNaam, cardId, status) {
   const card  = cards.find(c => c.id === cardId);
 
   if (status === 'niet_akkoord') {
-    if (!confirm('Deze kandidaat afwijzen?\n\nDe kaart verdwijnt definitief uit de goedkeuringslijst.')) return;
+    if (!(await btBevestig('Deze kandidaat afwijzen?\n\nDe kaart verdwijnt definitief uit de goedkeuringslijst.'))) return;
     // String-vergelijking om type-mismatch te voorkomen (DB geeft soms number, onclick geeft string)
     pipeSave(bmNaam, cards.filter(c => String(c.id) !== String(cardId)));
     render();
@@ -19927,7 +20009,7 @@ async function pipeSetGedeeldAkkoord(bmNaam1, id1, bmNaam2, id2) {
 
 async function pipeSetGedeeldNietAkkoord(bmNaam1, id1, bmNaam2, id2) {
   if (!eisWijzig('medewerkers')) return;
-  if (!confirm('Beide plaatsingen afwijzen?\n\nBeide kaarten verdwijnen definitief uit de goedkeuringslijst.')) return;
+  if (!(await btBevestig('Beide plaatsingen afwijzen?\n\nBeide kaarten verdwijnen definitief uit de goedkeuringslijst.'))) return;
   // Lokale verwijdering (String-vergelijking om type-mismatch te voorkomen)
   pipeSave(bmNaam1, (PIPE_CACHE[bmNaam1]||[]).filter(c => String(c.id) !== String(id1)));
   pipeSave(bmNaam2, (PIPE_CACHE[bmNaam2]||[]).filter(c => String(c.id) !== String(id2)));
@@ -20831,7 +20913,7 @@ function renderComrapOpgeslagenHtml(w, y) {
             <button onclick="event.stopPropagation();comrapPdfOpgeslagen(${i});"
               title="Openen als afdrukpagina — kies daar Opslaan als PDF"
               style="background:#253151;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">Exporteer PDF</button>
-            <button onclick="event.stopPropagation();if(confirm('Analyse week ${a.week}/${a.jaar} verwijderen?'))comrapVerwijder(${JSON.stringify(a.id)});"
+            <button onclick="event.stopPropagation();btBevestig('Analyse week ${a.week}/${a.jaar} verwijderen?').then(ok=>{if(ok)comrapVerwijder(${JSON.stringify(a.id)})});"
               style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">${btActie('prullenbak')}</button>
             </span>
           </div>
@@ -21678,7 +21760,7 @@ function renderAanmeldForm() {
   if (!STANDAARD_SYNCED) standaardSupabaseSync();
   const allStandaard = standaardLoadAll();
   const standaardInner = allStandaard.length
-    ? `<select id="standaard-select" style="flex:1;min-width:200px;padding:6px 10px;font-size:.82rem;font-weight:600;border-radius:6px;border:none;background:#fff;color:#111;cursor:pointer;" onchange="if(this.value){if(confirm('Opdrachtgever-gegevens worden ingeladen. Ga door?'))standaardApply(this.value);this.value='';}">
+    ? `<select id="standaard-select" style="flex:1;min-width:200px;padding:6px 10px;font-size:.82rem;font-weight:600;border-radius:6px;border:none;background:#fff;color:#111;cursor:pointer;" onchange="if(this.value){var v=this.value;this.value='';btBevestig('Opdrachtgever-gegevens worden ingeladen. Ga door?').then(ok=>{if(ok)standaardApply(v)});}">
         <option value="">— Kies opdrachtgever —</option>
         ${allStandaard.map(e=>`<option value="${e.id}">${escHtml(e.naam)}</option>`).join('')}
       </select>`
@@ -21932,8 +22014,8 @@ function hrmWordAanmeld() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function hrmResetAanmeld() {
-  if (!confirm('Weet je zeker dat je het volledige aanmeldformulier wilt leegmaken?\n\nAlle ingevulde gegevens worden gewist. Dit kan niet ongedaan worden gemaakt.')) return;
+async function hrmResetAanmeld() {
+  if (!(await btBevestig('Weet je zeker dat je het volledige aanmeldformulier wilt leegmaken?\n\nAlle ingevulde gegevens worden gewist. Dit kan niet ongedaan worden gemaakt.'))) return;
   localStorage.removeItem('bt_aanmeld_data');
   renderHrmBackoffice();
 }
@@ -23406,7 +23488,7 @@ async function kandNotitiePlaats(sleutel, naam) {
 async function kandNotitieVerwijder(id) {
   if (!eisWijzig('medewerkers')) return;
   if (!supa) return;
-  if (!confirm('Deze notitie verwijderen?')) return;
+  if (!(await btBevestig('Deze notitie verwijderen?'))) return;
   _echoVanZelf('kandidaat_notities');
   const { data, error } = await supa.from('kandidaat_notities').delete().eq('id', id).select('id');
   if (error || !data || !data.length) { meldFout('kandidaatnotitie verwijderen mislukt: ' + (error ? error.message : 'nul rijen'), 'kandNotitieVerwijder'); alert('Niet verwijderd: ' + (error ? error.message : 'alleen je eigen notities kun je verwijderen.')); return; }
@@ -23903,7 +23985,7 @@ async function accountsConfirmNew() {
 
 async function accountsDeleteRow(id) {
   if (!eisWijzig('accounts')) return;
-  if (!confirm('Deze klant verwijderen uit de lijst?')) return;
+  if (!(await btBevestig('Deze klant verwijderen uit de lijst?'))) return;
   if (supa && !String(id).startsWith('local-')) {
     const { error } = await supa.from('accounts').delete().eq('id', id);
     if (error) { console.error('Klant verwijderen mislukt:', error); return; }
@@ -24024,7 +24106,7 @@ async function apNew(vooraf) {
 
 async function apDelete(id) {
   if (!eisWijzig('accounts')) return;
-  if (!confirm('Weet je zeker dat je dit accountplan wilt verwijderen?')) return;
+  if (!(await btBevestig('Weet je zeker dat je dit accountplan wilt verwijderen?'))) return;
   const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
   if (rec?.overeenkomst_path && supa) {
     supa.storage.from('accountplannen-docs').remove([rec.overeenkomst_path]).catch(() => {});
@@ -24075,7 +24157,7 @@ async function apOvereenkomstOpen(id) {
 }
 
 async function apOvereenkomstDelete(id) {
-  if (!confirm('Samenwerkingsovereenkomst verwijderen van dit accountplan?')) return;
+  if (!(await btBevestig('Samenwerkingsovereenkomst verwijderen van dit accountplan?'))) return;
   const rec = ACCOUNTPLAN_RECORDS.find(r => String(r.id) === String(id));
   if (!rec?.overeenkomst_path) return;
   if (supa) { await supa.storage.from('accountplannen-docs').remove([rec.overeenkomst_path]).catch(() => {}); }
@@ -25872,7 +25954,7 @@ async function crmKandSamenvoegen(doelSleutel) {
   const lijst = crmKandLijst();
   const doel = lijst.find(x => x.sleutel === String(doelSleutel)), bron = lijst.find(x => x.sleutel === String((sel && sel.value) || ''));
   if (!doel || !bron || doel.sleutel === bron.sleutel) { alert('Kies eerst een kandidaat om samen te voegen.'); return; }
-  if (!confirm('Alles van ' + bron.naam + ' komt onder ' + doel.naam + '. Het dossier van ' + bron.naam + ' verdwijnt. Dit kan niet worden teruggedraaid. Doorgaan?')) return;
+  if (!(await btBevestig('Alles van ' + bron.naam + ' komt onder ' + doel.naam + '. Het dossier van ' + bron.naam + ' verdwijnt. Dit kan niet worden teruggedraaid. Doorgaan?', { knop: 'Samenvoegen', soort: 'weg' }))) return;
   if (!supa) return;
   const knop = document.getElementById('crm-sv-knop'); if (knop) knop.disabled = true;
   ['pipeline_cards', 'verslagen', 'kandidaat_notities', 'rldv_selecties', 'crm_kandidaten'].forEach(_echoVanZelf);
@@ -27020,7 +27102,7 @@ async function accNotitiePlaats(accId) {
 async function accNotitieVerwijder(id) {
   if (!eisWijzig('medewerkers')) return;
   if (!supa) return;
-  if (!confirm('Deze notitie verwijderen?')) return;
+  if (!(await btBevestig('Deze notitie verwijderen?'))) return;
   _echoVanZelf('account_notities');
   const { data, error } = await supa.from('account_notities').delete().eq('id', id).select('id');
   if (error || !data || !data.length) { meldFout('notitie verwijderen mislukt: ' + (error ? error.message : 'nul rijen'), 'accNotitieVerwijder'); alert('Niet verwijderd: ' + (error ? error.message : 'alleen je eigen notities kun je verwijderen.')); return; }
@@ -27437,7 +27519,7 @@ async function gvOpslaan(knop) {
 
 async function gvVerwijder(id) {
   if (!eisWijzig('accounts')) return;
-  if (!confirm('Dit gespreksverslag verwijderen?\n\nEen verslag dat uit een opname komt, verwijdert de opname zelf niet.')) return;
+  if (!(await btBevestig('Dit gespreksverslag verwijderen?\n\nEen verslag dat uit een opname komt, verwijdert de opname zelf niet.'))) return;
   const { error } = await supa.from('gespreksverslagen').delete().eq('id', id);
   if (error) { alert('Verwijderen mislukt: ' + _gvFout(error)); return; }
   GESPREKSVERSLAGEN_CACHE = GESPREKSVERSLAGEN_CACHE.filter(g => String(g.id) !== String(id));
@@ -28060,9 +28142,9 @@ async function rldvSelectieVerwijder(id) {
   const sel = RLDV_SELECTIES.find(r => String(r.id) === String(id));
   if (!sel || !supa) return;
   const aantal = rldvBedrijvenVan(sel).length;
-  if (!confirm('De RLDV-check van ' + (sel.kandidaat_naam || 'deze kandidaat') + ' verwijderen?\n\n' +
+  if (!(await btBevestig('De RLDV-check van ' + (sel.kandidaat_naam || 'deze kandidaat') + ' verwijderen?\n\n' +
                aantal + (aantal === 1 ? ' bedrijf' : ' bedrijven') +
-               ' in deze selectie. Dit is niet terug te draaien.')) return;
+               ' in deze selectie. Dit is niet terug te draaien.'))) return;
 
   const { error } = await supa.from('rldv_selecties').delete().eq('id', sel.id);
   if (error) {
@@ -29498,7 +29580,7 @@ async function slConfirmNew() {
 
 async function slDeleteRow(id) {
   if (!eisWijzig('accounts')) return;
-  if (!confirm('Deze lead verwijderen uit de lijst?')) return;
+  if (!(await btBevestig('Deze lead verwijderen uit de lijst?'))) return;
   if (supa && !String(id).startsWith('local-')) {
     const { error } = await supa.from('sales_leads').delete().eq('id', id);
     if (error) { console.error('Lead verwijderen mislukt:', error); return; }
@@ -30829,8 +30911,8 @@ function gesprekHerstelVerwerk() {
   GESPREK._herstel = null;
   gesprekUpload(h.blob, h.mimeType);
 }
-function gesprekHerstelWeggooi() {
-  if (!confirm('Deze opname definitief weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+async function gesprekHerstelWeggooi() {
+  if (!(await btBevestig('Deze opname definitief weggooien? Dit kan niet ongedaan worden gemaakt.'))) return;
   GESPREK._herstel = null;
   recWis('gesprek');
   renderGesprek();
@@ -30842,8 +30924,8 @@ function gesprekUploadOpnieuw() {
     else { GESPREK.statusMsg = '❌ Er is geen bewaarde audio meer gevonden.'; renderGesprek(); }
   });
 }
-function gesprekOpnameWeggooien() {
-  if (!confirm('De opname weggooien? De audio is dan definitief weg.')) return;
+async function gesprekOpnameWeggooien() {
+  if (!(await btBevestig('De opname weggooien? De audio is dan definitief weg.'))) return;
   GESPREK.uploadFout = false; GESPREK._laatsteBlob = null; GESPREK.statusMsg = '';
   recWis('gesprek');
   renderGesprek();
@@ -30860,8 +30942,8 @@ function bezoekHerstelVerwerk() {
   BEZOEK._herstel = null;
   bezoekUpload(h.blob, h.mimeType);
 }
-function bezoekHerstelWeggooi() {
-  if (!confirm('Deze opname definitief weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+async function bezoekHerstelWeggooi() {
+  if (!(await btBevestig('Deze opname definitief weggooien? Dit kan niet ongedaan worden gemaakt.'))) return;
   BEZOEK._herstel = null;
   recWis('bezoek');
   renderBezoekRecorder();
@@ -30873,8 +30955,8 @@ function bezoekUploadOpnieuw() {
     else { BEZOEK.statusMsg = '❌ Er is geen bewaarde audio meer gevonden.'; renderBezoekRecorder(); }
   });
 }
-function bezoekOpnameWeggooien() {
-  if (!confirm('De opname weggooien? De audio is dan definitief weg.')) return;
+async function bezoekOpnameWeggooien() {
+  if (!(await btBevestig('De opname weggooien? De audio is dan definitief weg.'))) return;
   BEZOEK.uploadFout = false; BEZOEK._laatsteBlob = null; BEZOEK.statusMsg = '';
   recWis('bezoek');
   renderBezoekRecorder();
@@ -32022,7 +32104,7 @@ async function _updateGesprekVerslagInSupa(localId, result, transcript) {
     }
   } catch(e) { _meldStil('gespreksverslag bijwerken op de server', e); }
 }
-function addBezoekRecord() {
+async function addBezoekRecord() {
   const b = BEZOEK; if (!b.result) return;
   const datum = new Date().toLocaleDateString('nl-NL',{day:'2-digit',month:'long',year:'numeric'});
   const recNaam = BEZOEK.recorderNaam || '';
@@ -32036,10 +32118,9 @@ function addBezoekRecord() {
     r.bedrijf === b.bedrijf && r.soortBezoek === soort &&
     r.datum === datum && r.recorder_naam === recNaam
   );
-  const dupIdx = (dupIdxRuw >= 0 && !confirm(
-      'Er staat al een verslag van vandaag voor "' + (b.bedrijf || 'dit bezoek') + '".\n\n' +
-      'OK  = dat verslag vervangen door deze nieuwe opname (het oude is dan weg)\n' +
-      'Annuleren = allebei bewaren'))
+  const dupIdx = (dupIdxRuw >= 0 && !(await btBevestig(
+      'Verslag van vandaag voor "' + (b.bedrijf || 'dit bezoek') + '" vervangen?\n\n' +
+      'Er staat al een verslag van vandaag. Vervangen = het oude verslag is weg. Annuleren = allebei bewaren.', { knop: 'Vervangen', soort: 'weg' })))
     ? -1 : dupIdxRuw;
   const record = { datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam };
   if (dupIdx >= 0) {
@@ -32159,7 +32240,7 @@ async function gesprekRecordToewijzen(id, naam) {
   if (fout) alert('De toewijzing staat wel in jouw scherm, maar is niet op de server opgeslagen:\n\n' + fout + '\n\nCollega\'s zien hem daardoor nog niet.');
   renderGesprek();
 }
-function gesprekRecordVerwijder(id) {
+async function gesprekRecordVerwijder(id) {
   if (!eisWijzig('gesprek')) return;
   // Bevestigen (doorlichting 02-09): dit was één klik op een prullenbakje,
   // zonder vraag en zonder weg terug. En de serverfout werd genegeerd: weigerde
@@ -32167,7 +32248,7 @@ function gesprekRecordVerwijder(id) {
   // kwam het bij de volgende verversing gewoon terug.
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   const wie = rec ? ([rec.naam, rec.functie].filter(Boolean).join(' — ') || 'dit verslag') : 'dit verslag';
-  if (!confirm('"' + wie + '" verwijderen?\n\nDit haalt het verslag voor iedereen weg. Dit is niet terug te draaien.')) return;
+  if (!(await btBevestig('"' + wie + '" verwijderen?\n\nDit haalt het verslag voor iedereen weg. Dit is niet terug te draaien.'))) return;
   const terug = GESPREK_RECORDS.slice();
   GESPREK_RECORDS=GESPREK_RECORDS.filter(r=>String(r.id)!==String(id));
   GESPREK_OPEN.delete(id); GESPREK_SHOW_TR.delete(id);
@@ -32185,9 +32266,9 @@ function gesprekRecordVerwijder(id) {
     });
   }
 }
-function gesprekRecordWisAlles() {
+async function gesprekRecordWisAlles() {
   if (!eisWijzig('gesprek')) return;
-  if(!confirm('Weet je zeker dat je alle gespreksverslagen wilt wissen? (Verwijdert ook van de gedeelde server)'))return;
+  if(!(await btBevestig('Weet je zeker dat je alle gespreksverslagen wilt wissen? (Verwijdert ook van de gedeelde server)')))return;
   const ids = GESPREK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
   GESPREK_RECORDS=[]; GESPREK_OPEN.clear(); GESPREK_SHOW_TR.clear(); _saveGesprekRec();
   if (supa && ids.length) ids.forEach(id=>supa.from('verslagen').delete().eq('id',id).then(()=>{}).catch(()=>{}));
@@ -32201,7 +32282,7 @@ async function gesprekSamenvoegGroep(groepKey, silent) {
   if (_samenvoegBusy) return;
   const groep = GESPREK_RECORDS.filter(r => _gspKey(r) === groepKey);
   if (groep.length < 2) return;
-  if (!silent && !confirm(`${groep.length} opnames van "${groep[0].naam || groep[0].functie || 'deze persoon'}" samenvoegen tot 1 transcriptie en heranalyseren?`)) return;
+  if (!silent && !(await btBevestig(`${groep.length} opnames van "${groep[0].naam || groep[0].functie || 'deze persoon'}" samenvoegen tot 1 transcriptie en heranalyseren?`))) return;
   _samenvoegBusy = true;
   // Statusbericht tonen
   const safeKey = btoa(unescape(encodeURIComponent(groepKey))).replace(/[^a-zA-Z0-9]/g,'');
@@ -32313,7 +32394,7 @@ async function bezoekRecordToewijzen(id, naam) {
   if (fout) alert('De toewijzing staat wel in jouw scherm, maar is niet op de server opgeslagen:\n\n' + fout + '\n\nCollega\'s zien hem daardoor nog niet.');
   renderBezoekRecorder();
 }
-function bezoekRecordVerwijder(id) {
+async function bezoekRecordVerwijder(id) {
   if (!eisWijzig('bezoek')) return;
   // Bevestigen (doorlichting 02-09): dit was één klik op een prullenbakje,
   // zonder vraag en zonder weg terug. En de serverfout werd genegeerd: weigerde
@@ -32321,7 +32402,7 @@ function bezoekRecordVerwijder(id) {
   // kwam het bij de volgende verversing gewoon terug.
   const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
   const wie = rec ? ([rec.bedrijf, rec.contactpersoon].filter(Boolean).join(' — ') || 'dit verslag') : 'dit verslag';
-  if (!confirm('"' + wie + '" verwijderen?\n\nDit haalt het verslag voor iedereen weg. Dit is niet terug te draaien.')) return;
+  if (!(await btBevestig('"' + wie + '" verwijderen?\n\nDit haalt het verslag voor iedereen weg. Dit is niet terug te draaien.'))) return;
   const terug = BEZOEK_RECORDS.slice();
   BEZOEK_RECORDS=BEZOEK_RECORDS.filter(r=>String(r.id)!==String(id));
   BEZOEK_OPEN.delete(id); BEZOEK_SHOW_TR.delete(id);
@@ -32339,13 +32420,13 @@ function bezoekRecordVerwijder(id) {
     });
   }
 }
-function bezoekRecordWisAlles() {
+async function bezoekRecordWisAlles() {
   if (!eisWijzig('bezoek')) return;
   // Alleen managers (doorlichting 02-09): dit wist de verslagen van het hele
   // team van de gedeelde server, met één bevestiging. Dat hoort niet bij
   // iedereen met opnamerecht te liggen.
   if (!isManagerLevel()) { alert('Alle verslagen wissen kan alleen een manager.'); return; }
-  if(!confirm('Weet je zeker dat je ALLE bezoekverslagen van het hele team wilt wissen?\n\nDit verwijdert ze ook van de gedeelde server en is niet terug te draaien.'))return;
+  if(!(await btBevestig('Weet je zeker dat je ALLE bezoekverslagen van het hele team wilt wissen?\n\nDit verwijdert ze ook van de gedeelde server en is niet terug te draaien.')))return;
   const ids = BEZOEK_RECORDS.filter(r=>typeof r.id==='string'&&r.id.includes('-')).map(r=>r.id);
   BEZOEK_RECORDS=[]; BEZOEK_OPEN.clear(); BEZOEK_SHOW_TR.clear(); _saveBezoekRec();
   if (supa && ids.length) ids.forEach(id=>supa.from('verslagen').delete().eq('id',id).then(()=>{}).catch(()=>{}));
@@ -33132,7 +33213,7 @@ function bezoekPoll() {
           supa.storage.from('audio-opnames').remove([BEZOEK._audioStoragePath]).catch(() => {});
           BEZOEK._audioStoragePath = null;
         }
-        addBezoekRecord();
+        await addBezoekRecord();
         BEZOEK._laatsteBlob = null;
         recWis('bezoek');   // het vangnet mag weg: het verslag staat er
         renderBezoekRecorder();
@@ -35156,8 +35237,8 @@ function standaardModalSave() {
   HRM_SUBTAB = 'standaard';
   render();
 }
-function standaardDelete(id) {
-  if (!confirm('Weet je zeker dat je deze standaard wilt verwijderen?')) return;
+async function standaardDelete(id) {
+  if (!(await btBevestig('Weet je zeker dat je deze standaard wilt verwijderen?'))) return;
   const all = standaardLoadAll();
   const entry = all.find(e => e.id === id);
   standaardSaveAll(all.filter(e => e.id !== id));
@@ -35332,7 +35413,7 @@ function aanmeldLoadSaved() {
 }
 async function aanmeldDeleteSaved(id) {
   if (!eisWijzig('hrm')) return;
-  if (!confirm('Weet je zeker dat je dit formulier wilt verwijderen?')) return;
+  if (!(await btBevestig('Weet je zeker dat je dit formulier wilt verwijderen?'))) return;
   if (supa) {
     try {
       const { error } = await supa.from('aanmeld_formulieren').delete().eq('id', id);
@@ -35360,7 +35441,7 @@ async function aanmeldMigreerLokaal() {
   try { lokaal = JSON.parse(localStorage.getItem('bt_aanmeld_saved') || '[]'); } catch(_) {}
   if (!lokaal.length) { alert('Geen lokale formulieren gevonden op dit apparaat.'); return; }
   if (!supa) { alert('Geen Supabase-verbinding.'); return; }
-  if (!confirm(`${lokaal.length} lokaal opgeslagen formulier${lokaal.length!==1?'en':''} uploaden naar de gedeelde omgeving?`)) return;
+  if (!(await btBevestig(`${lokaal.length} lokaal opgeslagen formulier${lokaal.length!==1?'en':''} uploaden naar de gedeelde omgeving?`))) return;
   let ok = 0, fail = 0;
   for (const e of lokaal) {
     try {
