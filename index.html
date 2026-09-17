@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-2015 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-2031 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2739,7 +2739,33 @@
      (aanwijzing 28-08 — alles netjes onder elkaar). */
   #crm-zweef .crm-rij { display:grid; grid-template-columns:132px 1fr; gap:10px; }
   #crm-zweef .crm-rij .r { text-align:left; }
-  #melding-bak { position:fixed; right:18px; bottom:18px; z-index:9500;
+  /* Snelchat (17-09): vaste knop rechtsonder, paneel erboven. Boven de kaarten
+     (9400), onder het bevestigvenster (9450) en de meldingen (9500). */
+  #snelchat-knop { position:fixed; right:18px; bottom:18px; width:52px; height:52px; border-radius:50%; background:#F4CB3C; color:#253151; border:none; box-shadow:0 8px 24px rgba(0,0,0,.4); z-index:9420; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+  #snelchat-knop:hover { background:#f7d65c; }
+  #snelchat-knop svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  #snelchat-knop .n { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; border-radius:10px; background:#E87400; color:#fff; font-size:.7rem; font-weight:var(--w-nadruk); display:flex; align-items:center; justify-content:center; padding:0 5px; box-sizing:border-box; border:2px solid #1c2540; font-family:inherit; }
+  #snelchat-knop .n[hidden] { display:none; }
+  #snelchat-knop.verborgen { display:none; }
+  @keyframes snelchat-puls { 0% { transform:scale(1); } 50% { transform:scale(1.14); } 100% { transform:scale(1); } }
+  #snelchat-knop.licht { animation:snelchat-puls .5s ease 2; }
+  #snelchat { position:fixed; right:18px; bottom:82px; width:380px; height:560px; max-height:calc(100vh - 100px); background:#253151; border:1px solid rgba(255,255,255,.14); border-radius:12px; box-shadow:0 18px 50px rgba(0,0,0,.45); z-index:9420; display:flex; flex-direction:column; overflow:hidden; }
+  #snelchat.verborgen { display:none; }
+  .snelchat-kop { display:flex; align-items:center; gap:8px; padding:9px 10px 9px 12px; border-bottom:1px solid rgba(255,255,255,.1); color:#fff; font-size:.85rem; font-weight:var(--w-nadruk); flex-shrink:0; }
+  .snelchat-kop .t { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .snelchat-kop .r { margin-left:auto; display:flex; gap:2px; flex-shrink:0; }
+  .snelchat-kop button { background:transparent; border:none; color:rgba(255,255,255,.6); font-size:1.05rem; line-height:1; cursor:pointer; padding:4px 7px; border-radius:6px; font-family:inherit; }
+  .snelchat-kop button:hover { color:#fff; background:rgba(255,255,255,.08); }
+  .snelchat-body { flex:1; min-height:0; display:flex; flex-direction:column; }
+  #snelchat .one-ber { display:flex; flex-direction:column; height:100%; min-height:0; gap:0; }
+  #snelchat .one-ber-lijst, #snelchat .one-ber-draadkaart { flex:1; min-height:0; border:none; border-radius:0; background:transparent; padding:8px 10px; }
+  #snelchat.lijst .one-ber-draadkaart { display:none; }
+  #snelchat.draad .one-ber-lijst { display:none; }
+  #snelchat .one-ber-kop { display:none; }
+  #snelchat .one-ber-draad { padding:4px 0; }
+  #snelchat .one-ber-verstuur { padding:6px 10px; }
+  @media (max-width:600px) { #snelchat { inset:0; width:auto; height:auto; max-height:none; border-radius:0; border:none; } #snelchat-knop { right:12px; bottom:12px; } }
+  #melding-bak { position:fixed; right:18px; bottom:84px; z-index:9500;
                  display:flex; flex-direction:column; gap:8px; max-width:400px; }
   .melding { display:flex; gap:11px; align-items:flex-start;
              background:#364160; border:1px solid rgba(255,255,255,.16);
@@ -2759,7 +2785,7 @@
   .melding-x { margin-left:auto; background:none; border:none; cursor:pointer;
                color:rgba(255,255,255,.4); font-size:1rem; line-height:1; padding:0 2px; }
   .melding-x:hover { color:#fff; }
-  @media (max-width:600px) { #melding-bak { right:10px; left:10px; bottom:10px; max-width:none; } }
+  @media (max-width:600px) { #melding-bak { right:10px; left:10px; bottom:74px; max-width:none; } }
 
   /* Te doen in de dagstart (25-08). Het venster is licht; deze regels volgen
      de opmaak van de rest van dat venster. */
@@ -6382,6 +6408,7 @@ function _oneOpnieuw() { _oneBewaarConcept(); renderOne(); }
 
 // ── De pagina ───────────────────────────────────────────────────────────────
 function renderOne() {
+  if (SNELCHAT.open && currentTab !== 'one') { snelchatRender(); return; }   // snelchat (17-09): niet de pagina overschrijven
   const sinds = ONE_SESSIE_SINDS === null ? _oneSinds() : ONE_SESSIE_SINDS;
   _oneMarkeerGezien();
 
@@ -7127,6 +7154,84 @@ function toonBerichtLoginMelding() {
 }
 // Icoon boven Brightech ONE in de menubalk, zolang er ongelezen berichten
 // zijn; verdwijnt zodra ze gelezen zijn (15-09).
+// ═══════════════════════════════════════════════════════════════════════════
+// SNELCHAT (akkoord 17-09)
+//
+// Een vaste gele knop rechtsonder, op elke pagina, met de ongelezen-teller.
+// Klik = een klein paneel met dezélfde ONE · Berichten: eerst je gesprekken,
+// dan één gesprek met het gewone invoerveld. Eén bron: ONE_GESPREKKEN,
+// ONE_BERICHTEN, oneBerichtenHtml() en oneBerichtVerstuur(). Op de ONE-pagina
+// zelf verbergt de knop zich (anders staat het dubbel in beeld).
+// ═══════════════════════════════════════════════════════════════════════════
+let SNELCHAT = { open: false, weergave: 'lijst' };   // weergave: 'lijst' | 'draad'
+function _snelchatMag() {
+  return !!(typeof CURRENT_USER !== 'undefined' && CURRENT_USER) && !!ONE_BER_BESCHIKBAAR &&
+    (typeof onderdeelAan !== 'function' || onderdeelAan('one')) && (typeof magZien !== 'function' || magZien('one'));
+}
+// De knop neerzetten of verbergen; wordt bij elke render() aangeroepen.
+function snelchatZorg() {
+  let knop = document.getElementById('snelchat-knop');
+  if (!_snelchatMag() || currentTab === 'one') { if (knop) knop.classList.add('verborgen'); if (SNELCHAT.open) snelchatSluit(); return; }
+  if (!knop) {
+    knop = document.createElement('button');
+    knop.id = 'snelchat-knop'; knop.type = 'button'; knop.title = 'Snel een bericht aan een collega'; knop.setAttribute('aria-label', 'Berichten');
+    knop.onclick = snelchatToggle;
+    knop.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.2-4.2A8 8 0 1 1 21 12z"/><path d="M8 11h8M8 14h5"/></svg><span class="n" id="snelchat-tel" hidden></span>';
+    document.body.appendChild(knop);
+  }
+  knop.classList.remove('verborgen');
+  snelchatBadge();
+}
+function snelchatBadge() {
+  const n = oneBerichtenOngelezen() + oneVermeldingenOngelezen();
+  const el = document.getElementById('snelchat-tel'); if (!el) return;
+  el.textContent = n > 99 ? '99+' : String(n);
+  el.hidden = !n;
+}
+function snelchatToggle() { if (SNELCHAT.open) snelchatSluit(); else snelchatOpen(); }
+function snelchatOpen(gid) {
+  if (!_snelchatMag()) return;
+  SNELCHAT.open = true;
+  if (gid) { ONE_GESPREK_ACTIEF = gid; SNELCHAT.weergave = 'draad'; }
+  let p = document.getElementById('snelchat');
+  if (!p) { p = document.createElement('div'); p.id = 'snelchat'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Berichten'); document.body.appendChild(p); }
+  p.classList.remove('verborgen');
+  snelchatRender();
+  document.addEventListener('keydown', _snelchatEsc);
+}
+function _snelchatEsc(e) {
+  // Esc sluit het paneel — maar niet als er een bevestiging of kaart bovenop staat (die gaat voor).
+  if (e.key === 'Escape' && SNELCHAT.open && !document.getElementById('bt-bevestig-laag') && !document.getElementById('crm-laag')) snelchatSluit();
+}
+function snelchatSluit() {
+  SNELCHAT.open = false;
+  const p = document.getElementById('snelchat'); if (p) p.classList.add('verborgen');
+  document.removeEventListener('keydown', _snelchatEsc);
+  if (typeof oneHashSluit === 'function') oneHashSluit();
+  if (typeof oneEmojiSluit === 'function') oneEmojiSluit();
+}
+function snelchatLijst() { SNELCHAT.weergave = 'lijst'; snelchatRender(); }
+function snelchatVolledig() {
+  snelchatSluit();
+  ONE_WEERGAVE = 'message';
+  selectTab('one');
+}
+function snelchatRender() {
+  const p = document.getElementById('snelchat'); if (!p || !SNELCHAT.open) return;
+  const draad = SNELCHAT.weergave === 'draad' && !!ONE_GESPREK_ACTIEF;
+  const g = draad && ONE_GESPREK_ACTIEF !== 'vermeldingen' ? ONE_GESPREKKEN.find(x => String(x.id) === String(ONE_GESPREK_ACTIEF)) : null;
+  const titel = !draad ? 'Berichten' : ONE_GESPREK_ACTIEF === 'vermeldingen' ? 'Vermeldingen' : (g ? oneGesprekNaam(g) : 'Gesprek');
+  const av = g ? '<span class="one-ber-av klein" style="background:' + (g.is_groep ? '#7FD1AE' : _oneAvatarKleur(oneGesprekNaam(g))) + ';">' + escHtml(_oneInitialen(oneGesprekNaam(g))) + '</span>' : '';
+  p.className = draad ? 'draad' : 'lijst';
+  p.innerHTML = '<div class="snelchat-kop">' +
+    (draad ? '<button type="button" title="Terug naar je gesprekken" aria-label="Terug" onclick="snelchatLijst()">&#8249;</button>' : '') + av +
+    '<span class="t" title="' + escHtml(titel) + '">' + escHtml(titel) + '</span>' +
+    '<span class="r">' + (!draad ? '<button type="button" title="Nieuw gesprek of groep" aria-label="Nieuw gesprek" onclick="oneGesprekNieuwVenster()">+</button>' : '') +
+    '<button type="button" title="Volledig scherm (ONE · Berichten)" aria-label="Volledig scherm" onclick="snelchatVolledig()">&#10530;</button>' +
+    '<button type="button" title="Sluiten (Esc)" aria-label="Sluiten" onclick="snelchatSluit()">&times;</button></span></div>' +
+    '<div class="snelchat-body">' + oneBerichtenHtml() + '</div>';
+  if (draad) _oneBerNaRender();
+}
 function oneBerichtIcoonHtml() {
   const n = oneBerichtenOngelezen();
   if (!n) return '';
@@ -7232,6 +7337,7 @@ function oneVermeldingenOngelezen() { return oneVermeldingen().filter(_oneVermOn
 function oneVermeldingenOpen() {
   ONE_GESPREK_ACTIEF = 'vermeldingen';
   ONE_WEERGAVE = 'message';
+  if (SNELCHAT.open && currentTab !== 'one') { SNELCHAT.weergave = 'draad'; snelchatRender(); return; }
   if (currentTab !== 'one') selectTab('one'); else renderOne();
 }
 function oneVermeldingenGelezen() {
@@ -7895,6 +8001,17 @@ function _oneBerNaRender() {
 }
 function oneZetWeergave(w) { ONE_WEERGAVE = w === 'message' ? 'message' : 'feed'; _oneOpnieuw(); }
 function _oneBerHerteken() {
+  snelchatZorg();
+  if (SNELCHAT.open && currentTab !== 'one') {
+    // Zit je in het paneel in het gesprek dat net een bericht kreeg, dan is het gelezen.
+    const g = SNELCHAT.weergave === 'draad' ? ONE_GESPREKKEN.find(x => String(x.id) === String(ONE_GESPREK_ACTIEF)) : null;
+    if (g && !document.hidden && oneGesprekOngelezen(g) && magWijzigen('one')) _oneBerMarkeerGelezen(g.id);
+    snelchatRender();
+    return;
+  }
+  // Paneel dicht: de knop licht even op als er iets nieuws is.
+  const knop = document.getElementById('snelchat-knop');
+  if (knop && oneBerichtenOngelezen()) { knop.classList.remove('licht'); void knop.offsetWidth; knop.classList.add('licht'); }
   if (currentTab === 'one' && ONE_WEERGAVE === 'message') {
     // Zit je in het gesprek dat net een bericht kreeg, dan is het gelezen.
     const g = ONE_GESPREKKEN.find(x => String(x.id) === String(ONE_GESPREK_ACTIEF));
@@ -7925,6 +8042,8 @@ function oneGesprekOpen(gid) {
   // schrijfrecht op ONE — stil, want een leesmodus hoort hier niet te klagen.
   if (g && oneGesprekOngelezen(g) && magWijzigen('one')) _oneBerMarkeerGelezen(gid);
   ONE_WEERGAVE = 'message';
+  // Vanuit de snelchat (17-09) blijf je in het paneel.
+  if (SNELCHAT.open && currentTab !== 'one') { SNELCHAT.weergave = 'draad'; snelchatRender(); return; }
   if (currentTab !== 'one') selectTab('one'); else renderOne();
 }
 function oneBerichtToets(e, gid) {
@@ -7981,7 +8100,7 @@ async function oneBerichtVerstuur(gid) {
     delete ONE_BER_ANTWOORD[gid];
     ONE_BER_KOPPELINGEN[gid] = [];
     ONE_BER_BIJLAGE = null;
-    if (data.bijlage_pad) _oneBerBijlageLinks().then(() => { if (currentTab === 'one' && ONE_WEERGAVE === 'message') renderOne(); });
+    if (data.bijlage_pad) _oneBerBijlageLinks().then(() => { if (SNELCHAT.open || (currentTab === 'one' && ONE_WEERGAVE === 'message')) renderOne(); });
     renderOne();
     const t = document.getElementById('one-ber-invoer'); if (t) t.focus();
   } finally {
@@ -8753,7 +8872,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-2015';
+const APP_VERSIE = '20260917-2031';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12411,6 +12530,7 @@ window.addEventListener('resize', () => {
 function render() {
   _renderKern();
   try { _leesmodusToepassen(); } catch (e) { console.error('Leesmodus mislukt:', e); }
+  try { snelchatZorg(); } catch (e) { console.error('Snelchat mislukt:', e); }
 }
 
 function _renderKern() {
