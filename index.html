@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1234 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1238 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8583,7 +8583,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1234';
+const APP_VERSIE = '20260917-1238';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15098,6 +15098,10 @@ async function loadAllData() {
     stap('BUM-gesprekken', loadBumGesprekken),
     stap('MT-acties', laadMtActies),
     stap('accountmanagement', accountsFetchAll),
+    // Accountplannen meteen mee (17-09): de KAM-lijst, de bezoekkaartjes en de
+    // klantkaart tonen of er een plan is; die werden pas geladen bij het eerste
+    // openen van het tabblad Accountplan en stonden tot dan op "Nee".
+    stap('accountplannen', apLoadAll),
     stap('sales leads', salesLeadsFetchAll),
     stap('omzetcijfers', loadFinancieelOmzet),
     stap('begroting', loadBegroting),
@@ -23792,6 +23796,7 @@ async function apLoadAll() {
       dmu:             Array.isArray(r.dmu)             ? r.dmu             : [],
       checklist:       (r.checklist && typeof r.checklist === 'object') ? r.checklist : {},
     }));
+    if (!error) window._apLoaded = true;
   } catch(e) { console.error('Accountplan laden:', e); }
 }
 
