@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1752 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1758 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1668,6 +1668,20 @@
   .crm-doc:hover { background:#F4CB3C; color:#253151; }
   .crm-doc.leeg { border-color:rgba(255,255,255,.2); color:rgba(255,255,255,.35); background:transparent; cursor:default; }
   .crm-link { color:#9ec8f4; text-decoration:underline; }
+  /* Zoekbalk en filters CRM (ontwerp A, 17-09) */
+  .crm-balk { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:2px 0 10px; border-bottom:1px solid rgba(255,255,255,.1); }
+  .crm-tabs { display:flex; gap:22px; }
+  .crm-tab { background:transparent; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:8px 0 9px; color:rgba(255,255,255,.6); font-family:inherit; font-size:.82rem; cursor:pointer; white-space:nowrap; }
+  .crm-tab:hover { color:#fff; }
+  .crm-tab.aan { color:#fff; border-bottom-color:#F4CB3C; }
+  .crm-tab small { color:rgba(255,255,255,.4); font-size:.7rem; margin-left:5px; }
+  .crm-tab.aan small { color:rgba(255,255,255,.65); }
+  .crm-zoek { display:flex; align-items:center; gap:8px; width:340px; max-width:45%; border-bottom:1px solid rgba(255,255,255,.22); padding:4px 0 8px; margin-bottom:0; color:rgba(255,255,255,.45); }
+  .crm-zoek:focus-within { border-bottom-color:#F4CB3C; }
+  .crm-zoek svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; flex-shrink:0; }
+  .crm-zoek input { flex:1; min-width:0; background:transparent; border:none; outline:none; color:#fff; font-family:inherit; font-size:.84rem; padding:0; }
+  .crm-zoek input::placeholder { color:rgba(255,255,255,.35); }
+  @media (max-width:640px) { .crm-balk { flex-direction:column; align-items:stretch; gap:4px; } .crm-tabs { gap:14px; overflow-x:auto; } .crm-zoek { width:100%; max-width:none; } }
   .crm-acties { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:-4px 0 12px; }
   .crm-actie { display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:5px 11px; font-family:inherit; font-size:.76rem; color:#fff; background:transparent; cursor:pointer; }
   .crm-actie:hover { background:rgba(255,255,255,.08); }
@@ -8673,7 +8687,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1752';
+const APP_VERSIE = '20260917-1758';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25211,6 +25225,14 @@ function _crmTh(st, col, label, zet, cls) {
 function _crmSortZet(st, col) {
   if (st.sort === col) st.dir = st.dir === -1 ? 1 : -1; else { st.sort = col; st.dir = 1; }
 }
+// Zoekbalk en filters (ontwerp A, 17-09): tabbladen met het aantal erbij en
+// een gele streep onder de gekozen; rechts een zoekveld zonder kader.
+function _crmZoekBalkHtml(st, tabs, o) {
+  return '<div class="crm-balk"><div class="crm-tabs">' +
+    tabs.map(([v, tekst, n]) => '<button type="button" class="crm-tab' + ((st.filter || '') === v ? ' aan' : '') + '" onclick="' + o.zet + '(\'' + v + '\')">' + escHtml(tekst) + '<small>' + n + '</small></button>').join('') +
+    '</div><div class="crm-zoek"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
+    '<input id="' + o.id + '" type="text" value="' + escHtml(st.zoek || '') + '" placeholder="Zoeken…" title="Zoekt op ' + escHtml(o.hint) + '" oninput="' + o.zoek + '(this.value)"></div></div>';
+}
 function _crmVoet(gevonden, totaal, beperkt, alles, wat) {
   return '<div class="kand-archief-voet"><span>' +
     (gevonden === totaal ? (beperkt ? CRM_TOON + ' van ' + totaal + ' · zonder zoekterm de eerste ' + CRM_TOON : totaal + ' ' + wat) : gevonden + ' van ' + totaal) + '</span>' +
@@ -25293,15 +25315,13 @@ function renderCrmKandidatenHtml() {
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td>' +
       '<td class="a crm-docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
-  const pil = (v, tekst) => '<button type="button" class="acc-soort-knop' + (st.filter === v ? ' aan' : '') + '" onclick="crmKandFilter(\'' + v + '\')">' + tekst + '</button>';
+  const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['met', 'Met intake', lijst.filter(k => k.intake).length], ['zonder', 'Zonder intake', lijst.filter(k => !k.intake).length]],
+    { id: 'crm-kand-q', zet: 'crmKandFilter', zoek: 'crmKandZoek', hint: 'naam, woonplaats, functie, collega, e-mail en notities' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmKandWizard()">+ Kandidaat</button>' : '') + '</div></div>' +
     _crmSqlHint() +
-    '<div class="filter-toolbar"><div class="bt-strook">' +
-      '<input id="crm-kand-q" type="text" class="filter-search-pill" placeholder="Zoek op naam, woonplaats, functie, collega, e-mail of notitie…" value="' + escHtml(st.zoek || '') + '" oninput="crmKandZoek(this.value)">' +
-      '<span class="acc-soort-filter">' + pil('', 'Alle') + pil('met', 'Met intake') + pil('zonder', 'Zonder intake') + '</span>' +
-    '</div></div>' +
+    balk +
     '<div class="kand-archief open" style="margin-top:0;">' +
       (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'intake', 'Intake', 'crmKandSort') + _crmTh(st, 'collega', 'Collega', 'crmKandSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '<th class="a">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') +
@@ -25629,15 +25649,13 @@ function renderCrmBedrijvenHtml() {
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td>' +
       '<td class="a crm-docs">' + _crmDocIcoon(r.swo_link, 'Samenwerkingsovereenkomst', 'swo') + _crmDocIcoon(r.offerte_link, 'Offerte', 'off') + '</td></tr>';
   }).join('');
-  const pil = (v, tekst) => '<button type="button" class="acc-soort-knop' + (st.filter === v ? ' aan' : '') + '" onclick="crmBedrijfFilter(\'' + v + '\')">' + tekst + '</button>';
+  const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['kam', 'KAM-klanten', lijst.filter(k => k.account).length], ['rldv', 'RLDV', lijst.filter(k => k.lead).length], ['bezoeken', 'Met bezoeken', lijst.filter(k => k.bezoeken).length]],
+    { id: 'crm-bedr-q', zet: 'crmBedrijfFilter', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, contactpersoon, vakgebied en notities' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Bedrijven' + btUitlegKnop('accounts') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' bedrijven</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmBedrijfWizard()">+ Bedrijf</button>' : '') + '</div></div>' +
     _crmSqlHint() +
-    '<div class="filter-toolbar"><div class="bt-strook">' +
-      '<input id="crm-bedr-q" type="text" class="filter-search-pill" placeholder="Zoek op bedrijf, plaats, contactpersoon, vakgebied of notitie…" value="' + escHtml(st.zoek || '') + '" oninput="crmBedrijfZoek(this.value)">' +
-      '<span class="acc-soort-filter">' + pil('', 'Alle') + pil('kam', 'KAM-klanten') + pil('rldv', 'RLDV') + pil('bezoeken', 'Met bezoeken') + '</span>' +
-    '</div></div>' +
+    balk +
     '<div class="kand-archief open" style="margin-top:0;">' +
       (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr>' + _crmTh(st, 'naam', 'Bedrijf', 'crmBedrijfSort') + _crmTh(st, 'plaats', 'Plaats', 'crmBedrijfSort') + _crmTh(st, 'contact', 'Contactpersoon', 'crmBedrijfSort') + _crmTh(st, 'status', 'Status', 'crmBedrijfSort') + _crmTh(st, 'bezoeken', 'Bezoeken', 'crmBedrijfSort', 'a') + _crmTh(st, 'laatste', 'Laatste contact', 'crmBedrijfSort') + '<th class="a">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') +
