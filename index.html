@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1147 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1200 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3058,6 +3058,11 @@
   .kb-pil.rood { background:rgba(224,82,82,.35); color:#ffb3b3; }
   .kb-pil.groen { background:rgba(14,159,110,.3); color:#7fdcb4; }
   .kb-pil.let { background:rgba(244,203,60,.18); color:#F4CB3C; }
+  /* Keuzerij "Volgende stap" in het doorzetvenster (17-09). */
+  .kb-stappen { display:flex; gap:6px; flex-wrap:wrap; }
+  .kb-stap { border:1px solid rgba(255,255,255,.28); border-radius:99px; background:transparent; color:rgba(255,255,255,.8); font-family:inherit; font-size:.76rem; padding:4px 12px; cursor:pointer; }
+  .kb-stap:hover { border-color:#fff; color:#fff; }
+  .kb-stap.aan { background:#F4CB3C; border-color:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); cursor:default; }
   .kb-knop { width:22px; height:20px; flex-shrink:0; border:1px solid rgba(255,255,255,.22); border-radius:5px; background:transparent; color:rgba(255,255,255,.75); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
   .kb-knop svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .kb-knop:hover { background:rgba(255,255,255,.08); color:#fff; }
@@ -8572,7 +8577,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1147';
+const APP_VERSIE = '20260917-1200';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25038,9 +25043,28 @@ const KANBAN_FASES = [
   { sleutel: 'starter',  label: 'Starters',         stage: 'Starter',         gesprek: null, datum: 'Startdatum' },
 ];
 let KANBAN = { collega: '', zoek: '' };
+let KANBAN_DOOR = null;   // doorzetvenster: { id, keuze } — de gekozen volgende stap (stap overslaan, 17-09)
 const KANBAN_WEKEN = 12;   // tegeltjes zonder Kanban-gegevens tellen mee als ze jonger zijn dan dit
 function _kanbanFase(sleutel) { return KANBAN_FASES.find(f => f.sleutel === sleutel) || null; }
 function _kanbanVolgende(sleutel) { const i = KANBAN_FASES.findIndex(f => f.sleutel === sleutel); return i >= 0 && i < KANBAN_FASES.length - 1 ? KANBAN_FASES[i + 1].sleutel : null; }
+// Welke stappen je bij het doorzetten kunt kiezen (17-09): alles ná de
+// huidige, tot en met Contractvoorstel. Starter melden blijft de aparte knop
+// op het Contractvoorstel-kaartje, omdat daar het akkoord aan vastzit.
+function _kanbanStappenNa(sleutel) {
+  const i = KANBAN_FASES.findIndex(f => f.sleutel === sleutel);
+  if (i < 0) return [];
+  return KANBAN_FASES.slice(i + 1).map(f => f.sleutel).filter(k => k !== 'starter');
+}
+function _kanbanStapKeuzeHtml(bmNaam, id, fase, keuze) {
+  const stappen = _kanbanStappenNa(fase);
+  if (stappen.length < 2) return '';
+  const volgende = _kanbanVolgende(fase);
+  return '<div class="crm-kop">Volgende stap</div><div class="kb-stappen">' +
+    stappen.map(k => '<button type="button" class="kb-stap' + (k === keuze ? ' aan' : '') + '"' +
+      (k === keuze ? '' : ' onclick="kanbanDoorVenster(\'' + escApos(bmNaam) + '\',\'' + escApos(id) + '\',\'' + k + '\')"') +
+      ' title="' + (k === volgende ? 'De volgende in de rij (standaard)' : 'Stap overslaan: ' + escHtml(_kanbanFase(k).label)) + '">' + escHtml(_kanbanFase(k).label) + '</button>').join('') +
+    '</div><div class="crm-sub" style="margin-top:4px;">Standaard is de volgende in de rij. Kies verder als een gesprek niet nodig is; de overgeslagen stap krijgt geen tegeltje en telt niet mee.</div>';
+}
 function kanbanFaseVan(c) {
   if (!c) return null;
   if (c.stage === 'Intake') return c.starboy ? 'starboy' : null;
@@ -25380,27 +25404,41 @@ async function kanbanNieuwOpslaan(fase) {
   if (gelukt) { crmKaartSluit(); render(); }
 }
 // ── Doorzetten naar de volgende fase ────────────────────────────────────────
-function kanbanDoorVenster(bmNaam, id) {
+// Sinds 17-09 met een keuzerij "Volgende stap": standaard de volgende in de
+// rij, maar 2e/3e gesprek kunnen overgeslagen worden (direct naar
+// Contractvoorstel). Bij het wisselen van keuze blijven de ingevulde velden
+// staan. De keuze staat in KANBAN_DOOR; kanbanDoorOpslaan leest hem daar.
+function kanbanDoorVenster(bmNaam, id, keuze) {
   const v = _kanbanVind(id);
   if (!v) return;
   const c = v.kaart, fase = kanbanFaseVan(c), volgende = _kanbanVolgende(fase);
   if (!volgende) return;
-  const f = _kanbanFase(volgende);
+  const stappen = _kanbanStappenNa(fase);
+  const gekozen = keuze && stappen.includes(keuze) ? keuze : volgende;
+  // Wisselen van keuze: wat er al ingevuld is meenemen.
+  const open = KANBAN_DOOR && String(KANBAN_DOOR.id) === String(id) && document.getElementById('kb-klant') ? _kanbanLees() : null;
+  KANBAN_DOOR = { id: c.id, keuze: gekozen };
+  const f = _kanbanFase(gekozen);
   const groep = _kanbanGroepVan(c.id);
   const bms = groep && groep.bms ? groep.bms : [bmNaam];
-  const titel = volgende === 'starter' ? 'Melden als starter · ' + escHtml(c.naam || '') : escHtml(c.naam || '') + ' → ' + escHtml(f.label);
+  const titel = gekozen === 'starter' ? 'Melden als starter · ' + escHtml(c.naam || '') : escHtml(c.naam || '') + ' → ' + escHtml(f.label);
+  const overgeslagen = stappen.slice(0, stappen.indexOf(gekozen)).map(k => _kanbanFase(k).label);
   crmKaartToon('<h4 class="wit">' + titel + '</h4>' +
-    '<div class="crm-sub">' + (volgende === 'starter' ? 'Het contractvoorstel is akkoord: ' + escHtml(c.naam || '') + ' start bij ' + escHtml(_kanbanKlantVan(c) || 'de klant') + '.' : 'Nu in ' + escHtml(_kanbanFase(fase).label) + '. Vul de datum van de volgende stap in.') + '</div>' +
-    _kanbanVeldenHtml({ klant: _kanbanKlantVan(c), functie: c.kanban_functie || (fase === 'starboy' ? c.functie : '') || '', datumLabel: f.datum, metSalaris: volgende === 'contract', salaris: c.salaris || '', bm1: _kanbanStandaardBm(bms[0]), bm2: bms[1] || '' }) +
-    _kanbanUitleg(null, volgende, c.id) +
-    '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kanbanDoorOpslaan(\'' + escApos(bmNaam) + '\',\'' + escApos(c.id) + '\')">' + (volgende === 'starter' ? 'Starter melden' : 'Doorzetten') + '</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'kand-kaart');
+    '<div class="crm-sub">' + (gekozen === 'starter' ? 'Het contractvoorstel is akkoord: ' + escHtml(c.naam || '') + ' start bij ' + escHtml(_kanbanKlantVan(c) || 'de klant') + '.' : 'Nu in ' + escHtml(_kanbanFase(fase).label) + '. Vul de datum van de volgende stap in.') + '</div>' +
+    _kanbanStapKeuzeHtml(bmNaam, c.id, fase, gekozen) +
+    _kanbanVeldenHtml({ klant: open ? open.klant : _kanbanKlantVan(c), functie: open ? open.functie : (c.kanban_functie || (fase === 'starboy' ? c.functie : '') || ''), op: open ? open.opVeld : '', datumLabel: f.datum, metSalaris: gekozen === 'contract', salaris: open && open.salaris ? open.salaris : (c.salaris || ''), bm1: open && open.bm1 ? open.bm1 : _kanbanStandaardBm(bms[0]), bm2: open ? open.bm2 : (bms[1] || '') }) +
+    _kanbanUitleg(null, gekozen, c.id) +
+    (overgeslagen.length ? '<div class="vv-tegel" style="margin-top:6px;">Overgeslagen: ' + escHtml(overgeslagen.join(' en ')) + ' — daarvoor komt geen tegeltje, dus dat telt niet mee in de KPI\'s.</div>' : '') +
+    '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kanbanDoorOpslaan(\'' + escApos(bmNaam) + '\',\'' + escApos(c.id) + '\')">' + (gekozen === 'starter' ? 'Starter melden' : 'Doorzetten naar ' + escHtml(f.label)) + '</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'kand-kaart', () => { KANBAN_DOOR = null; });
   setTimeout(() => { const el = document.getElementById(_kanbanKlantVan(c) ? 'kb-op' : 'kb-klant'); if (el && el.focus) el.focus(); }, 30);
 }
 async function kanbanDoorOpslaan(bmNaam, id) {
   if (!eisWijzig('medewerkers')) return;
   const v = _kanbanVind(id);
   if (!v) return;
-  const c = v.kaart, volgende = _kanbanVolgende(kanbanFaseVan(c));
+  const c = v.kaart, fase = kanbanFaseVan(c);
+  const keuze = KANBAN_DOOR && String(KANBAN_DOOR.id) === String(id) ? KANBAN_DOOR.keuze : null;
+  const volgende = keuze && _kanbanStappenNa(fase).includes(keuze) ? keuze : _kanbanVolgende(fase);
   if (!volgende) return;
   const o = _kanbanLees(); o.naam = String(c.naam || '').trim();
   const fout = _kanbanControle(volgende, o, false);
@@ -25415,7 +25453,7 @@ async function kanbanDoorOpslaan(bmNaam, id) {
     const kaart = await _kanbanSchrijf(bms[i], _kanbanPayload(volgende, o, vorigen[i] || vorigen[0], bms.length === 2));
     if (!kaart) gelukt = false;
   }
-  if (gelukt) { crmKaartSluit(); render(); }
+  if (gelukt) { KANBAN_DOOR = null; crmKaartSluit(); render(); }
 }
 // ── Klant, functie, datum wijzigen ──────────────────────────────────────────
 function kanbanBewerkVenster(bmNaam, id) {
