@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1311 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1515 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1684,6 +1684,7 @@
   .rldv-rij.rldv-aanb-slot { opacity:.5; cursor:default; }
   .rldv-rij.rldv-aanb-slot .rldv-aanb.aan { background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.25); }
   .rldv-aanb-link { color:#9ec8f4; text-decoration:underline; }
+  .rldv-aanb-bmkeuze { background:#364160; color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:6px; padding:2px 6px; font-family:inherit; font-size:.74rem; margin:0 4px; }
   .rldv-aanb-voetrij { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
   .rldv-aanb-samenvatting { color:rgba(255,255,255,.8); font-size:.8rem; }
   .rldv-aanb-samenvatting b { color:#fff; }
@@ -8605,7 +8606,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1311';
+const APP_VERSIE = '20260917-1515';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26591,10 +26592,13 @@ function _rldvAangebodenCel(sel, b) {
     '</td>';
 }
 // Het Aanbieden-tegeltje van die week gelijkzetten met de vinkjes.
-async function _rldvAanbTegelSync(sel, week, jaar) {
-  const bm = sel.bm_naam || sel.aangemaakt_door;
+// Sinds 17-09 (derde ronde) per collega: het tegeltje komt bij wie de
+// aanbiedingen deed (het vinkje draagt zijn naam in 'door'), niet bij de maker
+// van de selectie. Twee collega's in dezelfde week → twee tegeltjes.
+async function _rldvAanbTegelSync(sel, week, jaar, bm) {
+  bm = bm || sel.bm_naam || sel.aangemaakt_door;
   if (!bm) return;
-  const aantal = Object.values(rldvAangeboden(sel)).filter(v => v && v.week === week && v.jaar === jaar).length;
+  const aantal = Object.values(rldvAangeboden(sel)).filter(v => v && +v.week === +week && +v.jaar === +jaar && _itkSleutel(v.door) === _itkSleutel(bm)).length;
   const herkomst = 'rldv:' + sel.id;
   const cards = pipeLoad(bm);
   const idx = cards.findIndex(c => c.stage === 'Aanbieden' && c.vervolg_van === herkomst && +c.week === +week && +c.jaar === +jaar && !c.verwijderd_op);
@@ -26605,6 +26609,15 @@ async function _rldvAanbTegelSync(sel, week, jaar) {
   }
   if ((+cards[idx].aanb || 0) === aantal) return;
   await _kanbanUpdate(bm, cards[idx].id, { aanb: aantal });
+}
+// Alle collega's die voor deze selectie en week een tegeltje hebben (plus de
+// aanbieder zelf) opnieuw laten tellen — zo corrigeert een tegeltje dat nog
+// bij de selectiemaker stond zichzelf naar zijn eigen vinkjes.
+async function _rldvAanbTegelSyncAlle(sel, week, jaar, bm) {
+  const herkomst = 'rldv:' + sel.id;
+  const namen = new Set([bm]);
+  bmsMetCijfers().forEach(b => { if (pipeLoad(b.naam).some(c => c.stage === 'Aanbieden' && c.vervolg_van === herkomst && +c.week === +week && +c.jaar === +jaar && !c.verwijderd_op)) namen.add(b.naam); });
+  for (const naam of namen) await _rldvAanbTegelSync(sel, week, jaar, naam);
 }
 // ── Het afvinkvenster "Aanbiedingen afvinken" (akkoord 17-09, tweede ronde) ──
 // Alleen de bedrijven uit de check, met een vinkje. Geen toevoegen, geen
@@ -26620,22 +26633,32 @@ function rldvAanbiedenVenster(selId, opties) {
   const o = opties || {};
   const nu = isoWeek(new Date());
   const week = +(o.week || nu.week), jaar = +(o.jaar || nu.year);
-  const al = Object.entries(rldvAangeboden(sel)).filter(([, v]) => v && +v.week === week && +v.jaar === jaar).map(([k]) => String(k));
-  RLDV_AANB = { id: sel.id, week, jaar, nu: new Set(al), was: new Set(al), bezig: false };
+  // Bij wie het tegeltje komt (17-09): de eigenaar van de pipeline van waaruit
+  // je kwam (plusje), anders je eigen pipeline. Te wijzigen in het venster.
+  const bm = o.bm || _kanbanStandaardBm(null);
+  const al = Object.entries(rldvAangeboden(sel)).filter(([, v]) => v && +v.week === week && +v.jaar === jaar && _itkSleutel(v.door) === _itkSleutel(bm)).map(([k]) => String(k));
+  RLDV_AANB = { id: sel.id, week, jaar, bm, nu: new Set(al), was: new Set(al), bezig: false };
   crmKaartToon(_rldvAanbiedenHtml(), 'crm-kaart-breed', () => { RLDV_AANB = null; });
+}
+// Andere collega kiezen: opnieuw openen op zijn naam (niet-opgeslagen vinkjes vervallen).
+function rldvAanbiedenBm(naam) {
+  if (!RLDV_AANB) return;
+  const { id, week, jaar } = RLDV_AANB;
+  rldvAanbiedenVenster(id, { week, jaar, bm: naam });
 }
 function _rldvAanbSel() { return RLDV_AANB ? RLDV_SELECTIES.find(r => String(r.id) === String(RLDV_AANB.id)) : null; }
 function _rldvAanbiedenRij(sel, b) {
   const id = String(b.id);
   const r = rldvBedrijfNu(b) || {};
   const v = rldvAangeboden(sel)[id];
-  const slot = !!(v && (+v.week !== RLDV_AANB.week || +v.jaar !== RLDV_AANB.jaar));
+  // Op slot: andere week, of dezelfde week maar door een andere collega.
+  const slot = !!(v && (+v.week !== RLDV_AANB.week || +v.jaar !== RLDV_AANB.jaar || _itkSleutel(v.door) !== _itkSleutel(RLDV_AANB.bm)));
   const aan = !slot && RLDV_AANB.nu.has(id);
   const mag = magWijzigen('medewerkers');
   const leeg = x => x ? escHtml(x) : '<span class="rldv-sub">—</span>';
   const klik = (!slot && mag) ? ' onclick="rldvAanbiedenToggle(\'' + escApos(id) + '\')" style="cursor:pointer;"' : '';
   const laatste = slot
-    ? '<span class="rldv-aanb-week">week ' + escHtml(v.week) + ' · op slot</span>'
+    ? '<span class="rldv-aanb-week">week ' + escHtml(v.week) + (v.door ? ' · ' + escHtml(String(v.door).split(' ')[0]) : '') + ' · op slot</span>'
     : (aan ? '<span class="rldv-aanb-week nu">week ' + escHtml(RLDV_AANB.week) + '</span>' : '');
   return '<tr class="rldv-rij' + (aan ? ' aan' : '') + (slot ? ' rldv-aanb-slot' : '') + '"' + klik + '>' +
     '<td class="rldv-aanb-cel"><span class="rldv-aanb' + ((aan || slot) ? ' aan' : '') + (slot || !mag ? ' lezen' : '') + '">' + ((aan || slot) ? '✓' : '') + '</span></td>' +
@@ -26652,7 +26675,7 @@ function _rldvAanbiedenVoetHtml(sel) {
   const n = A.nu.size;
   const gewijzigd = n !== A.was.size || [...A.nu].some(id => !A.was.has(id));
   const mag = magWijzigen('medewerkers');
-  const bm = sel.bm_naam || sel.aangemaakt_door || '';
+  const bm = A.bm || '';
   const kaart = pipeLoad(bm).find(c => c.stage === 'Aanbieden' && c.vervolg_van === 'rldv:' + sel.id && +c.week === A.week && +c.jaar === A.jaar && !c.verwijderd_op);
   const wat = kaart
     ? 'Het tegeltje Aanbieden van week ' + A.week + ' bij ' + escHtml(bm) + ' staat op <b>' + (+kaart.aanb || 0) + '</b> → wordt <b>' + n + '</b>.'
@@ -26679,7 +26702,9 @@ function _rldvAanbiedenHtml() {
       '<div class="rldv-check-regel">RLDV-check van ' + escHtml(wanneer) + ' · ' + bekend.length + (bekend.length === 1 ? ' bedrijf' : ' bedrijven') +
         ' · gemaakt door ' + escHtml(sel.aangemaakt_door || sel.bm_naam || '') + (eerder ? ' · eerder aangeboden: ' + escHtml(eerder) : '') +
         ' · <a href="#" class="rldv-aanb-link" onclick="event.preventDefault();rldvAanbiedenSluit();rldvCheckOpen(\'' + escApos(String(sel.id)) + '\')">RLDV-check bekijken</a></div>' +
-      '<div class="rldv-check-regel rldv-aanb-regel">Vink af waar je in <b>week ' + escHtml(A.week) + '</b> hebt aangeboden. Er wordt niets opgeslagen tot je op <b>Opvoeren</b> drukt. Bedrijven uit eerdere weken staan op slot.</div>' +
+      '<div class="rldv-check-regel rldv-aanb-regel">Vink af waar je in <b>week ' + escHtml(A.week) + '</b> hebt aangeboden. Er wordt niets opgeslagen tot je op <b>Opvoeren</b> drukt. Wat een collega of een eerdere week al aanbood staat op slot.</div>' +
+      '<div class="rldv-check-regel rldv-aanb-regel">Tegeltje komt bij: <select id="rldv-aanb-bm" class="rldv-aanb-bmkeuze" onchange="rldvAanbiedenBm(this.value)">' +
+        bmsMetCijfers().map(b => '<option value="' + escHtml(b.naam) + '"' + (b.naam === A.bm ? ' selected' : '') + '>' + escHtml(b.naam) + '</option>').join('') + '</select> · de aanbiedingen tellen in zijn/haar KPI</div>' +
     '</div>' +
     '<div class="rldv-check-lijst"><table class="acc-table rldv-tab rldv-aanb-tab">' +
       '<colgroup><col style="width:34px;"><col style="width:26%;"><col style="width:18%;"><col style="width:12%;"><col style="width:12%;"><col style="width:14%;"><col style="width:18%;"></colgroup>' +
@@ -26714,7 +26739,7 @@ async function rldvAanbiedenOpvoeren() {
   const aangeboden = { ...rldvAangeboden(sel) };
   // Alleen deze week raken: weg wat uitgevinkt is, erbij wat nieuw is.
   was.forEach(id => { if (!nu.has(id)) delete aangeboden[id]; });
-  nu.forEach(id => { if (!aangeboden[id]) aangeboden[id] = { week, jaar, op: new Date().toISOString(), door: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '') }; });
+  nu.forEach(id => { if (!aangeboden[id]) aangeboden[id] = { week, jaar, op: new Date().toISOString(), door: String(RLDV_AANB.bm || '') }; });
   const vorige = sel.aangeboden;
   RLDV_AANB.bezig = true; _rldvAanbiedenBij();
   sel.aangeboden = aangeboden;
@@ -26728,8 +26753,9 @@ async function rldvAanbiedenOpvoeren() {
       return;
     }
   }
-  await _rldvAanbTegelSync(sel, week, jaar);
-  const n = nu.size, bm = sel.bm_naam || sel.aangemaakt_door || '';
+  const bm = RLDV_AANB.bm || '';
+  await _rldvAanbTegelSyncAlle(sel, week, jaar, bm);
+  const n = nu.size;
   RLDV_AANB = null; crmKaartSluit(); render();
   alert('Opgevoerd: ' + n + (n === 1 ? ' aanbieding' : ' aanbiedingen') + ' voor ' + (sel.kandidaat_naam || '') + ' in week ' + week + ' (tegeltje Aanbieden bij ' + bm + ').');
 }
@@ -35269,7 +35295,7 @@ function pipeAanbViaRldv() {
   if (!sel) return;
   const { week, jaar } = _pipeModalCtx;
   pipeCloseModal();
-  rldvAanbiedenVenster(sel.id, { week, jaar });
+  rldvAanbiedenVenster(sel.id, { week, jaar, bm: _pipeModalCtx.bmNaam });
 }
 // Titel per fase (17-09): "Bezoek toevoegen", "Matchgesprek wijzigen", …
 function _pipeTitel(stage, wijzig) {
