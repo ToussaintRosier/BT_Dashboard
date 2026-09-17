@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1238 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1243 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8583,7 +8583,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1238';
+const APP_VERSIE = '20260917-1243';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -34848,6 +34848,20 @@ function strVal(v) {
 }
 function escApos(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
+// De regel onder de naam op een pipeline-tegeltje. Uit het Kanban (17-09):
+// het bedrijf waar hij op gesprek gaat, niet de functie; de opdrachtgever
+// van een contractvoorstel niet nog eens erachter.
+function _pipeKaartMeta(c) {
+  const kbKlant = String(c.kanban_klant || '').trim();
+  return [
+    kbKlant || c.functie,
+    c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', kandIntakeTekst(c),
+    c.opdrachtgever && String(c.opdrachtgever).trim() !== kbKlant ? ('Opdrachtgever: ' + c.opdrachtgever) : '',
+    c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '',
+    c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '',
+    c.gedeeld ? 'Gedeeld (0,5)' : '',
+  ].filter(Boolean);
+}
 function renderPipeline(bm) {
   const cards    = pipeLoad(bm.naam);
   const weeks    = getPipeWeeks();
@@ -34998,7 +35012,7 @@ function renderPipeline(bm) {
                </select>
              </div>`
           : '';
-        const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', kandIntakeTekst(c), c.opdrachtgever ? ('Opdrachtgever: ' + c.opdrachtgever) : '', c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '', c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '', c.gedeeld ? 'Gedeeld (0,5)' : ''].filter(Boolean);
+        const metaBits = _pipeKaartMeta(c);
         const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
         return `<div class="pipe-card" style="box-shadow:inset 2px 0 0 ${col.punt};" draggable="${weekEditable?'true':'false'}"
           onmouseenter="pipeZweef(event,'${bmE}','${c.id}')" onmouseleave="crmZweefWeg()"
