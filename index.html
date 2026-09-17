@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1656 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1726 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3015,7 +3015,7 @@
                display:inline-flex; align-items:center; }
   .kand-open svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .kand-open:hover { color:#F4CB3C; background:rgba(255,255,255,.08); }
-  .crm-kaart.kand-kaart { max-width:760px; }
+  .crm-kaart.kand-kaart { max-width:1040px; }   /* zelfde maat als het CRM-dossier (17-09) */
   /* Breder, twee kolommen (akkoord 16-09). */
   .crm-kaart.bezoek-kaart, .crm-kaart.klant-kaart { max-width:960px; padding:20px 24px; }
   .crm-kaart h4.wit { color:#fff !important; font-size:1.15rem; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -8662,7 +8662,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1656';
+const APP_VERSIE = '20260917-1726';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9001,6 +9001,9 @@ function rechtSjabloon(g) {
     hrm:          w(zwaar),
     accounts:     w(rol !== 'backoffice'),
     kandidaten:   w(vinkje),
+    // CRM (17-09): het adresboek van het team. Iedereen voert kandidaten en
+    // bedrijven in en werkt ze bij — de intake in de pipeline komt eruit.
+    crm:          'wijzig',
     cvgen:        'wijzig',
     plaatsing:    'wijzig',
     // Net als de andere tools: iedereen mag hem gebruiken. Het akkoord op een
@@ -9038,14 +9041,16 @@ function rechtVoor(gebruiker, sleutel) {
   return rechtSjabloon(gebruiker)[sleutel] || 'geen';
 }
 
-// Afgeleide pagina's hebben geen eigen recht: Overzicht bezoeken en
-// CRM · Bedrijven volgen Accountmanagement, CRM · Kandidaten en Kanban volgen
-// Kandidaten (16-09, CRM 17-09). Eén vertaling voor zien én wijzigen — de
-// leesmodus vroeg eerst magWijzigen('accoverzicht'), kreeg 'geen' en zette de
-// hele pagina op alleen-lezen voor iedereen behalve de beheerder (melding 17-09).
+// Afgeleide pagina's hebben geen eigen recht: Overzicht bezoeken volgt
+// Accountmanagement, Kanban volgt Kandidaten (16-09); de twee CRM-pagina's
+// volgen het recht 'crm' (17-09, standaard wijzigen voor iedereen). Eén
+// vertaling voor zien én wijzigen — de leesmodus vroeg eerst
+// magWijzigen('accoverzicht'), kreeg 'geen' en zette de hele pagina op
+// alleen-lezen voor iedereen behalve de beheerder (melding 17-09).
 function _rechtSleutel(sleutel) {
-  return sleutel === 'accoverzicht' || sleutel === 'crmbedrijf' ? 'accounts'
-       : sleutel === 'crmkand' || sleutel === 'kanban' ? 'kandidaten' : sleutel;
+  return sleutel === 'accoverzicht' ? 'accounts'
+       : sleutel === 'kanban' ? 'kandidaten'
+       : sleutel === 'crmkand' || sleutel === 'crmbedrijf' ? 'crm' : sleutel;
 }
 function magZien(sleutel)    { return rechtVoor(CURRENT_USER, _rechtSleutel(sleutel)) !== 'geen'; }
 
@@ -9185,6 +9190,8 @@ const ONDERDELEN = [
     uitleg:'De hele categorie, inclusief de kaarten van individuele collega’s.' },
   { sleutel:'accounts',    label:'Accountmanagement',       groep:'Hoofdmenu' },
   { sleutel:'kandidaten',  label:'Kandidaten',              groep:'Hoofdmenu' },
+  { sleutel:'crm',         label:'CRM',                     groep:'Hoofdmenu',
+    uitleg:'Kandidaten en Bedrijven: dossiers, contactgegevens, documenten en gesprekslogs. Een intake in de pipeline komt uit dit CRM.' },
   { sleutel:'team',        label:'Team Resultaten',         groep:'Medewerkers' },
   { sleutel:'projecten',   label:'Projecten',               groep:'Management' },
   { sleutel:'financieel',  label:'Financieel',              groep:'Management' },
@@ -23163,12 +23170,14 @@ function kandKaartHtml(bmNaam, id, terug) {
     (rec ? ' <span class="kk-fase ok">ITK-verslag</span>' : '') +
     (c0.onbeschikbaar_op ? ' <span class="kk-fase" style="background:rgba(255,255,255,.14);">niet meer beschikbaar</span>' : '') + '</h4>' +
     '<div class="crm-sub">Kandidaat in de pipeline van ' + escHtml(bmNaam) + (c0.onbeschikbaar_op ? ' · niet meer beschikbaar sinds ' + escHtml(datumNL(String(c0.onbeschikbaar_op).slice(0, 10))) + (c0.onbeschikbaar_reden ? ' — ' + escHtml(c0.onbeschikbaar_reden) : '') : '') + '</div>' +
-    _kanbanKandBlokHtml(c0.naam) +
-    '<div class="crm-kop">Verloop</div><div class="kk-stappen">' + stappen + '</div>' +
-    '<div class="crm-kop">Gegevens</div><div class="kk-rooster">' + (gegevens || '<div class="kk-rij"><span class="stil">geen gegevens ingevuld</span></div>') + '</div>' +
-    '<div class="crm-kop">Gesprek en afspraken</div>' + verslag + rldv + vervolg +
-    '<div class="crm-kop">CRM-ronde</div>' + fases +
-    _kandLogHtml(sleutel, String((intake && intake.naam) || c0.naam || '').trim()) +
+    // Zelfde indeling als het CRM-dossier (17-09): links de kandidaat, rechts het log.
+    '<div class="kk-2k"><div>' +
+      '<div class="crm-kop">Verloop</div><div class="kk-stappen">' + stappen + '</div>' +
+      _kanbanKandBlokHtml(c0.naam) +
+      '<div class="crm-kop">Gegevens</div><div class="kk-lijst">' + (gegevens || '<div class="kk-rij"><span class="stil">geen gegevens ingevuld</span></div>') + '</div>' +
+      '<div class="crm-kop">Gesprek en afspraken</div>' + verslag + rldv + vervolg +
+      '<div class="crm-kop">CRM-ronde</div>' + fases +
+    '</div><div>' + _kandLogHtml(sleutel, String((intake && intake.naam) || c0.naam || '').trim()) + '</div></div>' +
     knoppen;
 }
 // terug (17-09): de sleutel van het CRM-dossier waar je vandaan kwam — dan
@@ -25274,7 +25283,7 @@ function renderCrmKandidatenHtml() {
       '<td class="a crm-docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
   const pil = (v, tekst) => '<button type="button" class="acc-soort-knop' + (st.filter === v ? ' aan' : '') + '" onclick="crmKandFilter(\'' + v + '\')">' + tekst + '</button>';
-  const mag = magWijzigen('kandidaten') && !CRM_ONTBREEKT;
+  const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmKandWizard()">+ Kandidaat</button>' : '') + '</div></div>' +
     _crmSqlHint() +
@@ -25352,7 +25361,7 @@ function _crmWizVelden(velden, rij) {
   return w;
 }
 function crmKandWizard(sleutel) {
-  if (!magWijzigen('kandidaten')) { alert('Je hebt geen recht om kandidaten te wijzigen.'); return; }
+  if (!magWijzigen('crm')) { alert('Je hebt geen recht om kandidaten te wijzigen.'); return; }
   const rij = sleutel ? (CRM_KANDIDATEN || []).find(k => k.sleutel === sleutel) || null : null;
   const w = _crmWizVelden(CRM_KAND_VELDEN, rij);
   if (!rij && sleutel) {
@@ -25374,7 +25383,7 @@ function _crmSqlFout(error) {
   return /does not exist|42P01|schema cache|PGRST20/i.test(String(error.message || '')) ? 'draai supabase/crm.sql in de SQL-editor — de CRM-tabellen ontbreken nog. (' + error.message + ')' : error.message;
 }
 async function crmKandOpslaan() {
-  if (!eisWijzig('kandidaten')) return;
+  if (!eisWijzig('crm')) return;
   const W = CRM_WIZ; if (!W || W.soort !== 'kand') return;
   _crmWizLees();
   const velden = _crmWizWaarden(CRM_KAND_VELDEN, W.w);
@@ -25468,7 +25477,7 @@ function crmKandDossierHtml(sleutel) {
     ? '<div class="kk-stappen">' + _crmKandTijdlijn(k) + '</div>' + _kanbanKandBlokHtml(k.naam)
     : '<div class="kk-tekst stil">Nog geen tegeltje in een pipeline.</div>';
   const knoppen = '<div class="crm-knoppen">' +
-    (magWijzigen('kandidaten') && !CRM_ONTBREEKT ? '<button class="crm-knop goed" onclick="crmKandWizard(\'' + sE + '\')">Wijzigen</button>' : '') +
+    (magWijzigen('crm') && !CRM_ONTBREEKT ? '<button class="crm-knop goed" onclick="crmKandWizard(\'' + sE + '\')">Wijzigen</button>' : '') +
     (k.kaart ? '<button class="crm-knop" onclick="kandKaartOpen(\'' + escApos(k.bmNaam) + '\',\'' + escApos(String(k.kaart.id)) + '\',\'' + sE + '\')">Kandidaatkaart</button>' : '') +
     sluit + '</div>';
   return kop + '<div class="crm-sub">' + escHtml(sub) + '</div>' + _crmKandActiesHtml(k) +
@@ -25607,7 +25616,7 @@ function renderCrmBedrijvenHtml() {
       '<td class="a crm-docs">' + _crmDocIcoon(r.swo_link, 'Samenwerkingsovereenkomst', 'swo') + _crmDocIcoon(r.offerte_link, 'Offerte', 'off') + '</td></tr>';
   }).join('');
   const pil = (v, tekst) => '<button type="button" class="acc-soort-knop' + (st.filter === v ? ' aan' : '') + '" onclick="crmBedrijfFilter(\'' + v + '\')">' + tekst + '</button>';
-  const mag = magWijzigen('accounts') && !CRM_ONTBREEKT;
+  const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Bedrijven' + btUitlegKnop('accounts') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' bedrijven</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmBedrijfWizard()">+ Bedrijf</button>' : '') + '</div></div>' +
     _crmSqlHint() +
@@ -25635,7 +25644,7 @@ function crmBedrijfZoek(v) {
   if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
 }
 function crmBedrijfWizard(sleutel) {
-  if (!magWijzigen('accounts')) { alert('Je hebt geen recht om bedrijven te wijzigen.'); return; }
+  if (!magWijzigen('crm')) { alert('Je hebt geen recht om bedrijven te wijzigen.'); return; }
   const rij = sleutel ? (CRM_BEDRIJVEN || []).find(b => b.sleutel === sleutel) || null : null;
   const w = _crmWizVelden(CRM_BEDR_VELDEN, rij);
   if (!rij && sleutel) { const k = crmBedrijfLijst().find(x => x.sleutel === sleutel); if (k) w.naam = k.naam; }
@@ -25644,7 +25653,7 @@ function crmBedrijfWizard(sleutel) {
   const el = document.getElementById('crm-w-naam'); if (el && el.focus) el.focus();
 }
 async function crmBedrijfOpslaan() {
-  if (!eisWijzig('accounts')) return;
+  if (!eisWijzig('crm')) return;
   const W = CRM_WIZ; if (!W || W.soort !== 'bedrijf') return;
   _crmWizLees();
   const velden = _crmWizWaarden(CRM_BEDR_VELDEN, W.w);
@@ -25685,7 +25694,7 @@ function crmBedrijfDossierHtml(sleutel) {
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel));
   if (!k) return '<h4 class="wit">Bedrijf</h4><div class="crm-sub">Dit bedrijf staat niet (meer) in het CRM.</div><div class="crm-knoppen">' + sluit + '</div>';
   const r = k.crm || {}, s = _crmBedrijfStatus(k), sE = escApos(k.sleutel), a = k.account, lead = k.lead;
-  const magAcc = magWijzigen('accounts');
+  const magAcc = magWijzigen('crm');
   const rij = (label, waarde, extra) => (waarde === '' || waarde === null || waarde === undefined) ? '' :
     '<div class="kk-rij"><span>' + escHtml(label) + '</span>' + waarde + (extra || '') + '</div>';
   const svgPlan = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v3H9z"/><path d="M15 4.5h2A2 2 0 0 1 19 6.5V20a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/><path d="M12 11v6M9 14h6"/></svg>';
@@ -25753,7 +25762,7 @@ function _accKaartHerteken(accId) {
   klantKaartOpen(accId, true);
 }
 async function _crmBedrijfContactenOpslaan(k, lijst) {
-  if (!magWijzigen('accounts')) return;   // het slot staat bij de bron, zoals bij _accContactenOpslaan
+  if (!magWijzigen('crm')) return;   // het slot staat bij de bron, zoals bij _accContactenOpslaan
   if (k.account) { await _accContactenOpslaan(k.account, lijst); return; }
   if (!k.crm) { alert('Sla het bedrijf eerst op in het CRM (knop Wijzigen) om contactpersonen te bewaren.'); return; }
   const vorige = k.crm.contacten;
@@ -25769,7 +25778,7 @@ async function _crmBedrijfContactenOpslaan(k, lijst) {
   }
 }
 async function crmBedrijfContactToevoegen(sleutel) {
-  if (!eisWijzig('accounts')) return;
+  if (!eisWijzig('crm')) return;
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
   const val = (id) => { const el = document.getElementById(id); return String((el && el.value) || '').trim(); };
   const naam = val('crm-cp-naam');
@@ -25777,7 +25786,7 @@ async function crmBedrijfContactToevoegen(sleutel) {
   await _crmBedrijfContactenOpslaan(k, _crmBedrijfContacten(k).concat([{ naam, functie: val('crm-cp-functie'), afdeling: val('crm-cp-afd'), rol: val('crm-cp-rol') }]));
 }
 async function crmBedrijfContactWeghalen(sleutel, i) {
-  if (!eisWijzig('accounts')) return;
+  if (!eisWijzig('crm')) return;
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
   await _crmBedrijfContactenOpslaan(k, _crmBedrijfContacten(k).filter((_, j) => j !== i));
 }
@@ -25827,8 +25836,8 @@ async function crmAanvullen() {
   _CRM_AANGEVULD = true;
   if (!supa || !CURRENT_USER || CRM_ONTBREEKT || CRM_KANDIDATEN === null || CRM_BEDRIJVEN === null) return;
   const mij = ONE_MIJN_ID || CURRENT_USER.id || null;
-  const kand = magWijzigen('kandidaten') ? _crmKandUitBronnen() : [];
-  const bedr = magWijzigen('accounts') ? _crmBedrijfUitBronnen() : [];
+  const kand = magWijzigen('crm') ? _crmKandUitBronnen() : [];
+  const bedr = magWijzigen('crm') ? _crmBedrijfUitBronnen() : [];
   if (!kand.length && !bedr.length) return;
   let nk = 0, nb = 0;
   const schrijf = async (tabel, rijen) => {
@@ -36002,7 +36011,7 @@ function _pipeNaamCrmHint(aan, huidig) {
   const blok = document.getElementById('pipe-modal-naam-crm');
   if (!blok) return;
   if (!aan) { blok.style.display = 'none'; blok.innerHTML = ''; return; }
-  const magNieuw = typeof magWijzigen === 'function' ? magWijzigen('kandidaten') : true;
+  const magNieuw = typeof magWijzigen === 'function' ? magWijzigen('crm') : true;
   blok.innerHTML = (CRM_ONTBREEKT
       ? 'De CRM-tabellen bestaan nog niet: draai <b>supabase/crm.sql</b> in de SQL-editor. Tot die tijd kun je geen intake opvoeren.'
       : (huidig && !_crmKandBestaat(huidig) ? '<span style="color:#E87400;">' + escHtml(huidig) + ' staat nog niet in het CRM — voeg hem daar toe, dan valt alles onder één naam.</span> ' : 'Staat de kandidaat er nog niet bij? ') +
