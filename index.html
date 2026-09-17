@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1243 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1302 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3018,6 +3018,12 @@
   .acc-pil.g { background:rgba(127,220,180,.2); color:#7fdcb4; }
   .acc-pil.o { background:rgba(232,116,0,.2); color:#ffb366; }
   .acc-pil.b { background:rgba(158,200,244,.18); color:#9ec8f4; }
+  .acc-pil.t { background:rgba(158,200,244,.22); color:#bcd4f7; font-weight:var(--w-nadruk); }
+  /* Filter op type bezoek in Overzicht bezoeken (17-09). */
+  .acc-soort-filter { display:inline-flex; gap:6px; margin-left:12px; vertical-align:middle; flex-wrap:wrap; }
+  .acc-soort-knop { border:1px solid rgba(255,255,255,.28); border-radius:99px; background:transparent; color:#fff; font-family:inherit; font-size:.74rem; padding:4px 11px; cursor:pointer; }
+  .acc-soort-knop:hover { border-color:#fff; }
+  .acc-soort-knop.aan { background:#F4CB3C; border-color:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); cursor:default; }
   .acc-bronnen { display:flex; gap:2px; align-items:center; margin-top:8px; padding-top:7px; border-top:1px solid var(--border); flex-wrap:nowrap; }
   .acc-bron { position:relative; width:26px; height:26px; border:0; padding:0; border-radius:7px; background:transparent; color:rgba(255,255,255,.42); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
   .acc-bron svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
@@ -4248,6 +4254,7 @@ let RLDV_CHECK = null;   // { id, gekozen:Set, toevoegen:bool, bezig:bool }
 let RLDV_AANB = null;    // afvinkvenster: { id, week, jaar, nu:Set, was:Set, bezig } — vinkjes leven hier tot Opvoeren (17-09)
 let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'beweging' | 'verslagen' — Overzicht is sinds 16-09 een eigen pagina (tab 'accoverzicht')
 let ACC_OVERZICHT_ZOEK = '';       // zoekveld op het tabblad Overzicht (16-09)
+let ACC_OVERZICHT_SOORT = '';      // filter op type bezoek in Overzicht bezoeken ('' = alle, 17-09)
 let BEZOEK_VERVOLG = {};           // verslag_id → vervolgafspraak bij een bezoek (tabel bezoek_vervolg)
 let ACC_NOTITIES = {};             // account_id → gesprekslog op de klantkaart (tabel account_notities)
 let ACC_ARCHIEF = { zoek: '', perKlant: false, alles: false, bevestigd: {} };   // Archief bezoeken (16-09); perKlant = samengevoegd; bevestigd = welke klanten je samenvoegde (per browser onthouden)
@@ -8583,7 +8590,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1243';
+const APP_VERSIE = '20260917-1302';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10427,6 +10434,7 @@ const VERWACHT_SCHEMA = [
   { bestand: 'accountmanagement_overzicht.sql', soort: 'tabel', naam: 'bezoek_vervolg' },
   { bestand: 'accountmanagement_overzicht.sql', soort: 'kolom', naam: 'accounts.contacten' },
   { bestand: 'bedrijf_hernoemen.sql',        soort: 'kolom',   naam: 'bezoek_vervolg.afgerond_op' },
+  { bestand: 'bezoek_soort.sql',             soort: 'kolom',   naam: 'pipeline_cards.bezoek_soort' },
   { bestand: 'bedrijf_hernoemen.sql',        soort: 'functie', naam: 'bt_bedrijf_hernoem/2' },
   { bestand: 'gebruikersinstellingen.sql',   soort: 'tabel',   naam: 'gebruikersinstellingen' },
   { bestand: 'rldv_aangeboden.sql',         soort: 'kolom',   naam: 'rldv_selecties.aangeboden' },
@@ -23440,7 +23448,7 @@ function _pipeCardFromRow(c) {
     week: c.week, jaar: c.jaar, aanb: c.aanb, functie: c.functie, salarisindicatie: c.salarisindicatie,
     regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever,
     salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden,
-    bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie,
+    bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, bezoek_soort: c.bezoek_soort || null,
     goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht,
     definitieve_einddatum: c.definitieve_einddatum || null,
     verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten,
@@ -24359,26 +24367,36 @@ function accBezoekenLijst() {
   (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).forEach(r => {
     const ms = _recDatumSort(r.datum);
     const wk = ms ? isoWeek(new Date(ms)) : { year: 0, week: 0 };
-    items.push({ id: String(r.id), record: r, kaart: null, bedrijf: r.bedrijf || '', contactpersoon: r.contactpersoon || '', functie: '',
-                 datumMs: ms, week: wk.week, jaar: wk.year, collega: r.recorder_naam || '', soortBezoek: r.soortBezoek || 'bedrijfsbezoek', datumTekst: r.datum || '' });
+    items.push({ id: String(r.id), record: r, kaart: null, kaarten: [], bedrijf: r.bedrijf || '', contactpersoon: r.contactpersoon || '', functie: '',
+                 datumMs: ms, week: wk.week, jaar: wk.year, collega: r.recorder_naam || '', collegas: r.recorder_naam ? [r.recorder_naam] : [], soortBezoek: _bezoekSoortNorm(r.soortBezoek), datumTekst: r.datum || '' });
   });
   for (const bm of bmsMetCijfers()) {
     for (const c of pipeLoad(bm.naam)) {
       if (c.verwijderd_op || c.stage !== 'Bezoeken') continue;
       const sl = _itkSleutel(c.naam || c.opdrachtgever || '');
-      const zelfde = items.find(b => b.record && b.week === c.week && b.jaar === c.jaar && _itkSleutel(b.bedrijf) === sl);
+      // Zelfde bedrijf, zelfde week: één kaartje — aan het verslag, of aan het
+      // tegeltje van de collega die er ook heen ging (samen op bezoek, 17-09).
+      // Ieders eigen tegeltje blijft in zijn pipeline staan en telt daar mee.
+      const zelfde = items.find(b => +b.week === +c.week && +b.jaar === +c.jaar && _itkSleutel(b.bedrijf) === sl);
       if (zelfde) {
-        zelfde.kaart = c; zelfde.kaartBm = bm.naam;
+        zelfde.kaarten.push({ kaart: c, bm: bm.naam });
+        if (!zelfde.collegas.some(n => _itkSleutel(n) === _itkSleutel(bm.naam))) zelfde.collegas.push(bm.naam);
+        // Hoofdkaartje: waar de vervolgafspraak/afgerond-stand aan hangt. Een
+        // verslag wint; anders het tegeltje dat al een stand heeft.
+        const staat = (id) => !!(BEZOEK_VERVOLG[String(id)] && (BEZOEK_VERVOLG[String(id)].vervolg_op || BEZOEK_VERVOLG[String(id)].afgerond_op));
+        if (zelfde.record || (!zelfde.kaart)) { if (!zelfde.kaart) { zelfde.kaart = c; zelfde.kaartBm = bm.naam; } }
+        else if (staat(c.id) && !staat(zelfde.id)) { zelfde.id = String(c.id); zelfde.kaart = c; zelfde.kaartBm = bm.naam; }
         if (!zelfde.contactpersoon && c.bezoek_contactpersoon) zelfde.contactpersoon = c.bezoek_contactpersoon;
-        if (c.bezoek_contactpersoon_functie) zelfde.functie = c.bezoek_contactpersoon_functie;
+        if (!zelfde.functie && c.bezoek_contactpersoon_functie) zelfde.functie = c.bezoek_contactpersoon_functie;
         continue;
       }
       const ma = isoWeekStartDate(+c.jaar, +c.week);
-      items.push({ id: String(c.id), record: null, kaart: c, kaartBm: bm.naam, bedrijf: c.naam || c.opdrachtgever || '', contactpersoon: c.bezoek_contactpersoon || '',
-                   functie: c.bezoek_contactpersoon_functie || '', datumMs: ma ? ma.getTime() : 0, week: +c.week, jaar: +c.jaar, collega: bm.naam,
-                   soortBezoek: 'bedrijfsbezoek', datumTekst: 'week ' + c.week });
+      items.push({ id: String(c.id), record: null, kaart: c, kaartBm: bm.naam, kaarten: [{ kaart: c, bm: bm.naam }], bedrijf: c.naam || c.opdrachtgever || '', contactpersoon: c.bezoek_contactpersoon || '',
+                   functie: c.bezoek_contactpersoon_functie || '', datumMs: ma ? ma.getTime() : 0, week: +c.week, jaar: +c.jaar, collega: bm.naam, collegas: [bm.naam],
+                   soortBezoek: _bezoekSoortNorm(c.bezoek_soort), datumTekst: 'week ' + c.week });
     }
   }
+  items.forEach(b => { b.samen = b.collegas.length > 1; b.collega = b.collegas.join(' + ') || b.collega; });
   items.forEach(b => {
     b.account = _accKlantVan(b.bedrijf);
     b.plan = _accPlanVan(b.bedrijf);
@@ -24397,7 +24415,54 @@ function accBezoekenLijst() {
   });
   return items.sort((a, b) => b.datumMs - a.datumMs || String(a.bedrijf).localeCompare(String(b.bedrijf), 'nl'));
 }
-const _ACC_SOORT = { bedrijfsbezoek: 'bedrijfsbezoek', evaluatie_medewerker: 'evaluatie', voorbereiding_matchgesprek: 'match-voorbereiding' };
+// Voornamen van wie erbij was: "Robin + Mike".
+function _accCollegaKort(b) {
+  const lijst = b && Array.isArray(b.collegas) && b.collegas.length ? b.collegas : [b && b.collega || ''];
+  return lijst.map(n => String(n || '').split(' ')[0]).filter(Boolean).join(' + ');
+}
+const _ACC_SOORT = { bedrijfsbezoek: 'bedrijfsbezoek', evaluatie_medewerker: 'evaluatie', voorbereiding_matchgesprek: 'match-voorbereiding', matchgesprek: 'matchgesprek', evaluatie: 'evaluatie' };
+// Type bezoek op het tegeltje (17-09): verplicht bij Bezoeken in de pipeline.
+// De verslagen uit de BZK-recorder vallen in dezelfde drie (evaluatie_medewerker
+// → evaluatie, voorbereiding_matchgesprek → matchgesprek).
+const BEZOEK_SOORTEN = { bedrijfsbezoek: 'Bedrijfsbezoek', matchgesprek: 'Matchgesprek', evaluatie: 'Evaluatie' };
+function _bezoekSoortNorm(s) {
+  const x = String(s || '').trim();
+  if (x === 'evaluatie_medewerker' || x === 'evaluatie') return 'evaluatie';
+  if (x === 'voorbereiding_matchgesprek' || x === 'matchgesprek') return 'matchgesprek';
+  return 'bedrijfsbezoek';
+}
+// Bedrijven om uit te kiezen: de RLDV-lijst plus de KAM-klanten. Kiezen in
+// plaats van typen, zodat tegeltje, verslag en overzicht dezelfde naam dragen.
+function _bedrijfKeuzes() {
+  const set = new Map();
+  const zet = (n) => { const naam = String(n || '').trim(); const k = _itkSleutel(naam); if (k && !set.has(k)) set.set(k, naam); };
+  // KAM eerst: die naam is de nette (hoofdletters); de RLDV-lijst vult aan.
+  (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).forEach(a => zet(a && a.naam));
+  (typeof SALES_LEADS_CACHE !== 'undefined' ? SALES_LEADS_CACHE : []).forEach(b => zet(b && b.naam));
+  return Array.from(set.values()).sort((a, b) => a.localeCompare(b, 'nl'));
+}
+// Keuzelijst met vrije uitwijk voor de recorders: select + verborgen tekstveld.
+// zet = pad van de variabele ('BEZOEK.bedrijf'), herteken = aanroep na keuze.
+function _opnKeuzeHtml(o) {
+  const lijst = o.lijst || [];
+  const waarde = String(o.waarde || '').trim();
+  const inLijst = waarde && lijst.some(n => _itkSleutel(n) === _itkSleutel(waarde));
+  const nieuw = waarde && !inLijst;
+  return '<select class="acc-text-input" style="width:100%;margin-bottom:6px;" onchange="_opnKeuze(this,\'' + o.zet + '\',\'' + escApos(o.herteken || '') + '\')"' + (o.uit ? ' disabled' : '') + '>' +
+    '<option value=""' + (!waarde ? ' selected' : '') + '>' + escHtml(o.leeg || '— kies —') + '</option>' +
+    lijst.map(n => '<option value="' + escHtml(n) + '"' + (inLijst && _itkSleutel(n) === _itkSleutel(waarde) ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') +
+    '<option value="__anders"' + (nieuw ? ' selected' : '') + '>' + escHtml(o.nieuw || '— anders (zelf typen) —') + '</option></select>' +
+    '<input type="text" class="acc-text-input" style="' + (nieuw ? '' : 'display:none;') + 'width:100%;" placeholder="' + escHtml(o.placeholder || 'naam') + '" value="' + escHtml(waarde) + '" oninput="' + o.zet + '=this.value"' + (o.uit ? ' disabled' : '') + '>';
+}
+function _opnKeuze(sel, pad, herteken) {
+  const v = String(sel.value || '');
+  const inp = sel.nextElementSibling;
+  const zet = (waarde) => { const d = pad.split('.'); let obj = window; for (let i = 0; i < d.length - 1; i++) obj = obj[d[i]]; obj[d[d.length - 1]] = waarde; };
+  if (v === '__anders') { zet(''); if (inp) { inp.style.display = ''; inp.value = ''; if (inp.focus) inp.focus(); } return; }
+  zet(v);
+  if (inp) { inp.style.display = 'none'; inp.value = v; }
+  if (herteken) { try { (0, eval)(herteken); } catch (e) { _meldStil('recorder keuze', e); } }
+}
 function _accDagKort(ms) {
   if (!ms) return '';
   return new Date(ms).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
@@ -24445,7 +24510,9 @@ function _accBezoekKaartHtml(b) {
     '<span class="acc-pil' + (b.record ? ' g' : '') + '">' + (b.record ? 'verslag' : 'geen verslag') + '</span>' +
     (b.account ? '<span class="acc-pil' + (b.plan ? ' g' : '') + '">' + (b.plan ? 'accountplan' : 'geen accountplan') + '</span><span class="acc-pil b">score ' + accScore(b.account) + '</span>'
                : '<span class="acc-pil">niet in KAM</span>') +
-    (b.lopend.length ? '<span class="acc-pil o">' + b.lopend.length + ' lopend</span>' : '');
+    (b.lopend.length ? '<span class="acc-pil o">' + b.lopend.length + ' lopend</span>' : '') +
+    (b.samen ? '<span class="acc-pil">samen</span>' : '');
+  const typePil = '<span class="acc-pil t">' + escHtml(BEZOEK_SOORTEN[b.soortBezoek] || b.soortBezoek) + '</span>';
   const vervolg = b.afgerond && !b.vervolg ? '' : b.vervolg
     ? '<div class="card-sub">Vervolg: ' + escHtml(_accDagKort(Date.parse(b.vervolg.vervolg_op)) + ' · ' + new Date(b.vervolg.vervolg_op).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })) +
       (b.vervolg.vervolg_met ? ' · ' + escHtml(b.vervolg.vervolg_met) + (b.vervolg.vervolg_afd ? ' (' + escHtml(b.vervolg.vervolg_afd) + ')' : '') : '') + '</div>'
@@ -24454,14 +24521,16 @@ function _accBezoekKaartHtml(b) {
     '<div class="card-naam acc-naam"><span class="card-naam-btns links"><button class="kand-open" type="button" title="Bezoekkaart openen" aria-label="Bezoekkaart openen" onclick="event.stopPropagation();bezoekKaartOpen(\'' + escApos(b.id) + '\')">' +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/></svg></button></span><span class="naam" title="' + escHtml(b.bedrijf) + '">' + escHtml(b.bedrijf || 'onbekend bedrijf') + '</span></div>' +
     '<div class="card-sub">' + naamRegel + '</div>' +
-    '<div class="card-sub">' + escHtml(_accDagKort(b.datumMs) + ' · ' + b.collega + ' · ' + (_ACC_SOORT[b.soortBezoek] || b.soortBezoek)) + '</div>' +
-    '<div class="acc-pillen">' + pillen + '</div>' + vervolg + _accBronnenHtml(b) + '</div>';
+    '<div class="card-sub">' + escHtml(_accDagKort(b.datumMs) + ' · ' + b.collega) + '</div>' +   // het type staat sinds 17-09 als pil
+    '<div class="acc-pillen">' + typePil + pillen + '</div>' + vervolg + _accBronnenHtml(b) + '</div>';
 }
+function accOverzichtSoort(k) { ACC_OVERZICHT_SOORT = String(k || ''); renderAccOverzicht(); }
 function renderAccOverzichtHtml(subTabBtns) {
-  // Alleen bedrijfsbezoeken (aanwijzing 16-09): match-voorbereidingen en
-  // evaluaties horen hier niet; daar is niets mee te doen. Het Archief
-  // toont ze wel, met de soort erbij.
-  const lijst = accBezoekenLijst().filter(b => (b.soortBezoek || 'bedrijfsbezoek') === 'bedrijfsbezoek');
+  // Sinds 17-09 alle types, met een filter: het tegeltje draagt zelf zijn
+  // type (bedrijfsbezoek / matchgesprek / evaluatie) en toont dat als pil.
+  const lijst = accBezoekenLijst().filter(b => !ACC_OVERZICHT_SOORT || b.soortBezoek === ACC_OVERZICHT_SOORT);
+  const soortFilter = '<div class="acc-soort-filter">' + [['', 'Alle']].concat(Object.entries(BEZOEK_SOORTEN)).map(([k, l]) =>
+    '<button type="button" class="acc-soort-knop' + ((ACC_OVERZICHT_SOORT || '') === k ? ' aan' : '') + '" onclick="accOverzichtSoort(\'' + k + '\')">' + escHtml(l) + '</button>').join('') + '</div>';
   const z = String(ACC_OVERZICHT_ZOEK || '').trim().toLowerCase();
   let secties;
   if (z) {
@@ -24485,7 +24554,7 @@ function renderAccOverzichtHtml(subTabBtns) {
   }
   return '<div><div class="person-header"><div class="person-name">Overzicht bezoeken' + btUitlegKnop('accounts') + '</div>' +
     '<div class="person-meta"></div></div>' + (subTabBtns || '') +
-    '<div class="filter-toolbar"><div class="bt-strook"><input id="acc-overzicht-q" type="text" class="filter-search-pill" placeholder="Zoek bedrijf, contactpersoon, afdeling, collega…" value="' + escHtml(ACC_OVERZICHT_ZOEK) + '" oninput="accOverzichtZoek(this.value)"></div></div>' +
+    '<div class="filter-toolbar"><div class="bt-strook"><input id="acc-overzicht-q" type="text" class="filter-search-pill" placeholder="Zoek bedrijf, contactpersoon, afdeling, collega…" value="' + escHtml(ACC_OVERZICHT_ZOEK) + '" oninput="accOverzichtZoek(this.value)">' + soortFilter + '</div></div>' +
     secties + '</div>';
 }
 function renderAccOverzicht() {
@@ -24536,7 +24605,7 @@ function bezoekKaartHtml(id) {
     '<div class="crm-kop">Samenvatting uit het verslag</div>' +
     (samenvatting ? '<div class="kk-tekst">' + escHtml(samenvatting) + '</div>' : '<div class="kk-tekst stil">' + (b.record ? 'het verslag heeft nog geen samenvatting' : 'nog geen verslag van dit bezoek') + '</div>') +
     '<div class="crm-kop">Verbanden</div><div class="kk-lijst">' +
-      rij('Record', b.record ? escHtml(b.record.datum + ' · ' + String(b.collega || '').split(' ')[0]) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '') +
+      rij('Record', b.record ? escHtml(b.record.datum + ' · ' + _accCollegaKort(b)) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '') +
       rij('Accountplan', b.plan ? 'bijgewerkt ' + escHtml(datumNL(String(b.plan.updated_at || '').slice(0, 10))) : '<span class="stil">nog geen</span>', b.plan ? kn("apNaar('" + escApos(String(b.plan.id)) + "')") : (b.account && magWijzigen('accounts') ? kn("apNieuwVoor('" + escApos(String(b.account.id)) + "')", 'nieuw') : '')) +
       rij('Scorekaart', b.account ? String(accScore(b.account)) : '<span class="stil">niet in KAM</span>', b.account ? kn("klantKaartOpen('" + escApos(String(b.account.id)) + "')") : '') +
       rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("ACCOUNT_SUBTAB='sales';selectTab('accounts')") : '') +
@@ -24675,6 +24744,7 @@ function _vervolgTegelOpen(o) {
   document.getElementById('pipe-modal-stage-label').textContent = o.stage + ' · Week ' + w.week + ' (' + w.year + ') · vervolgafspraak';
   document.getElementById('pipe-modal-naam').value = o.naam || '';
   Object.keys(o.velden || {}).forEach(id => { const el = document.getElementById(id); if (el && o.velden[id] != null && o.velden[id] !== '') el.value = String(o.velden[id]); });
+  _pipeToggleStageFields(o.stage);   // keuzelijst (bedrijf/kandidaat) op de voorgevulde naam zetten (17-09)
   return true;
 }
 
@@ -24738,7 +24808,7 @@ async function bezoekVervolgOpslaan(id, weghalen) {
     const cp = met ? _accContactVan(b.account, met) : null;
     const cpFunctie = (cp && cp.functie) || (met && b.contactpersoon && _itkSleutel(met) === _itkSleutel(b.contactpersoon) ? b.functie : '') || '';
     _vervolgTegelOpen({ stage: 'Bezoeken', op, bord: tegel, naam: b.bedrijf, vervolgVan: 'bezoek:' + b.id,
-      velden: { 'pipe-modal-bezoek-reden': 'Vervolgafspraak' + (VERVOLG_MANIER[manier] ? ' · ' + VERVOLG_MANIER[manier] : '') + (waar ? ' · ' + waar : ''), 'pipe-modal-bezoek-contactpersoon': met || '', 'pipe-modal-bezoek-contactpersoon-functie': cpFunctie } });
+      velden: { 'pipe-modal-bezoek-soort': _bezoekSoortNorm(b.soortBezoek), 'pipe-modal-bezoek-reden': 'Vervolgafspraak' + (VERVOLG_MANIER[manier] ? ' · ' + VERVOLG_MANIER[manier] : '') + (waar ? ' · ' + waar : ''), 'pipe-modal-bezoek-contactpersoon': met || '', 'pipe-modal-bezoek-contactpersoon-functie': cpFunctie } });
   }
   if (!supa) return;
   _echoVanZelf('bezoek_vervolg');
@@ -24909,8 +24979,7 @@ function accKlantenLijst(metLos) {
     if (!sl) return;
     const k = per[sl] = per[sl] || { sleutel: sl, naam: b.bedrijf, bezoeken: [], collegas: [], account: b.account || null, plan: b.plan || null, laatste: null, vervolg: null, afgerond: false };
     k.bezoeken.push(b);
-    const vn = String(b.collega || '').split(' ')[0];
-    if (vn && !k.collegas.includes(vn)) k.collegas.push(vn);
+    _accCollegaKort(b).split(' + ').forEach(vn => { if (vn && !k.collegas.includes(vn)) k.collegas.push(vn); });
     if (!k.laatste || b.datumMs > k.laatste.datumMs) { k.laatste = b; if (b.bedrijf) k.naam = b.bedrijf; }
     if (b.vervolg && (!k.vervolg || Date.parse(b.vervolg.vervolg_op) > Date.parse(k.vervolg.vervolg_op))) k.vervolg = b.vervolg;
     if (!k.account && b.account) k.account = b.account;
@@ -24921,7 +24990,7 @@ function accKlantenLijst(metLos) {
     // Nog niet bevestigd: elk bezoek een eigen regel, tot je samenvoegt.
     const bev = ACC_ARCHIEF.bevestigd || {};
     lijst = lijst.flatMap(k => k.bezoeken.length > 1 && !bev[k.sleutel]
-      ? k.bezoeken.map(b => ({ sleutel: k.sleutel, naam: k.naam, bezoeken: [b], laatste: b, collegas: [String(b.collega || '').split(' ')[0]], account: k.account, plan: k.plan, vervolg: b.vervolg || null, notitie: k.notitie, los: true, id: b.id, totaal: k.bezoeken.length }))
+      ? k.bezoeken.map(b => ({ sleutel: k.sleutel, naam: k.naam, bezoeken: [b], laatste: b, collegas: _accCollegaKort(b).split(' + '), account: k.account, plan: k.plan, vervolg: b.vervolg || null, notitie: k.notitie, los: true, id: b.id, totaal: k.bezoeken.length }))
       : [k]);
   }
   return lijst.sort((a, b) => b.laatste.datumMs - a.laatste.datumMs || a.naam.localeCompare(b.naam, 'nl'));
@@ -24951,7 +25020,7 @@ function renderAccArchiefHtml() {
         '<td class="naam">' + _oneMarkeer(b.bedrijf || 'onbekend', z) + (aantal > 1 ? ' <span class="kand-pil">' + aantal + ' bezoeken</span>' : '') + '</td>' +
         '<td class="d">' + (b.contactpersoon ? _oneMarkeer(b.contactpersoon + (b.afdeling ? ' · ' + b.afdeling : ''), z) : '<span class="stil">—</span>') + '</td>' +
         '<td class="d">' + escHtml(_accDagKort(b.datumMs) || b.datumTekst) + '</td>' +
-        '<td class="d">' + _oneMarkeer(String(b.collega || '').split(' ')[0], z) + '</td>' +
+        '<td class="d">' + _oneMarkeer(_accCollegaKort(b), z) + '</td>' +
         '<td class="d">' + escHtml(_ACC_SOORT[b.soortBezoek] || b.soortBezoek) + '</td>' +
         '<td>' + _accStatusPillen(b) + '</td>' +
         '<td class="d not">' + (n ? _oneMarkeer(String(n.tekst).slice(0, 70) + (String(n.tekst).length > 70 ? '…' : ''), z) : '<span class="stil">—</span>') + '</td></tr>';
@@ -25027,7 +25096,7 @@ function _accBezoekenBlokHtml(naam) {
     const res = b.record && b.record.result && typeof b.record.result === 'object' ? b.record.result : null;
     const sam = res && res.samenvatting ? String(res.samenvatting) : '';
     return '<div class="kk-rij"><span>' + escHtml(_accDagKort(b.datumMs) || b.datumTekst) + '</span><div>' +
-      escHtml([String(b.collega || 'onbekend').split(' ')[0], b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, _ACC_SOORT[b.soortBezoek] || b.soortBezoek].filter(Boolean).join(' · ')) +
+      escHtml([_accCollegaKort(b) || 'onbekend', b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, _ACC_SOORT[b.soortBezoek] || b.soortBezoek].filter(Boolean).join(' · ')) +
       (b.afgerond ? ' <span class="kk-pil">afgerond</span>' : '') +
       (sam ? '<div class="kk-tekst" style="color:rgba(255,255,255,.6);font-size:.78rem;">' + escHtml(sam.slice(0, 120) + (sam.length > 120 ? '…' : '')) + '</div>' : (b.record ? '' : '<div class="kk-tekst stil" style="font-size:.76rem;">geen verslag</div>')) +
       '</div><button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(b.id) + '\')">kaart</button></div>';
@@ -30108,9 +30177,8 @@ function renderGesprek() {
     <div class="chart-card" style="margin-bottom:14px;">
       <div class="two-col" style="gap:12px;margin-bottom:10px;">
         <div>
-          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Naam kandidaat</label>
-          <input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Jan de Vries"
-            value="${escHtml(g.naam)}" oninput="GESPREK.naam=this.value" ${g.recording||g.analyzing?'disabled':''}>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Naam kandidaat · uit de intakes in de pipeline</label>
+          ${_opnKeuzeHtml({ lijst: _pipeIntakeNamen(), waarde: g.naam, zet: 'GESPREK.naam', leeg: '— kies een kandidaat uit de intakes —', nieuw: '— nieuwe kandidaat (zelf typen) —', placeholder: 'bijv. Jan de Vries', uit: g.recording || g.analyzing, herteken: 'renderGesprek()' })}
         </div>
         <div>
           <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Functie waarop gesolliciteerd</label>
@@ -32167,9 +32235,10 @@ function renderBezoekRecorder() {
       </div>
       <div class="two-col" style="gap:12px;margin-bottom:10px;">
         <div>
-          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Naam medewerker':'Bedrijfsnaam'}</label>
-          <input type="text" class="acc-text-input" style="width:100%;" placeholder="${b.soortBezoek==='evaluatie_medewerker'?'bijv. Jan de Vries':'bijv. Acme BV'}"
-            value="${escHtml(b.bedrijf)}" oninput="BEZOEK.bedrijf=this.value" ${b.recording||b.analyzing?'disabled':''}>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Naam medewerker':'Bedrijfsnaam · uit RLDV-lijst en KAM'}</label>
+          ${b.soortBezoek==='evaluatie_medewerker'
+            ? `<input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Jan de Vries" value="${escHtml(b.bedrijf)}" oninput="BEZOEK.bedrijf=this.value" ${b.recording||b.analyzing?'disabled':''}>`
+            : _opnKeuzeHtml({ lijst: _bedrijfKeuzes(), waarde: b.bedrijf, zet: 'BEZOEK.bedrijf', leeg: '— kies een bedrijf (RLDV-lijst / KAM) —', nieuw: '— nieuw bedrijf (zelf typen) —', uit: b.recording || b.analyzing, herteken: 'renderBezoekRecorder()' })}
         </div>
         <div>
           <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Opdrachtgever':b.soortBezoek==='voorbereiding_matchgesprek'?'Kandidaat naam':'Contactpersoon'}</label>
@@ -35141,15 +35210,18 @@ function _pipeIntakeNamen() {
   }));
   return Array.from(set.values()).sort((a, b) => a.localeCompare(b, 'nl'));
 }
-function _pipeNaamKeuzeVul(aan, huidig) {
+// bron: 'intake' (Aanbieden: kandidaat uit de intakes) of 'bedrijf' (Bezoeken:
+// bedrijf uit de RLDV-lijst en KAM, 17-09).
+function _pipeNaamKeuzeVul(aan, huidig, bron) {
   const sel = document.getElementById('pipe-modal-naam-keuze'), inp = document.getElementById('pipe-modal-naam');
   if (!sel || !inp) return;
   if (!aan) { sel.style.display = 'none'; inp.style.display = ''; return; }
-  const namen = _pipeIntakeNamen();
+  const bedrijf = bron === 'bedrijf';
+  const namen = bedrijf ? _bedrijfKeuzes() : _pipeIntakeNamen();
   const inLijst = huidig && namen.some(n => _itkSleutel(n) === _itkSleutel(huidig));
-  sel.innerHTML = '<option value="">— kies een kandidaat uit de intakes —</option>' +
+  sel.innerHTML = '<option value="">' + (bedrijf ? '— kies een bedrijf (RLDV-lijst / KAM) —' : '— kies een kandidaat uit de intakes —') + '</option>' +
     namen.map(n => '<option value="' + escHtml(n) + '"' + (inLijst && _itkSleutel(n) === _itkSleutel(huidig) ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') +
-    '<option value="__anders"' + (huidig && !inLijst ? ' selected' : '') + '>— andere naam (zelf typen) —</option>';
+    '<option value="__anders"' + (huidig && !inLijst ? ' selected' : '') + '>' + (bedrijf ? '— nieuw bedrijf (zelf typen) —' : '— andere naam (zelf typen) —') + '</option>';
   sel.style.display = '';
   inp.style.display = huidig && !inLijst ? '' : 'none';
 }
@@ -35198,7 +35270,7 @@ function _pipeToggleStageFields(stage) {
   document.getElementById('pipe-modal-match-fields').style.display       = isMatch ? 'block' : 'none';
   const isAanb = stage === 'Aanbieden';
   document.getElementById('pipe-modal-aanb-rldv').style.display          = isAanb ? 'block' : 'none';
-  _pipeNaamKeuzeVul(isAanb, (document.getElementById('pipe-modal-naam') || {}).value || '');
+  _pipeNaamKeuzeVul(isAanb || isBezoek, (document.getElementById('pipe-modal-naam') || {}).value || '', isBezoek ? 'bedrijf' : 'intake');
   if (isAanb) _pipeAanbRldvBij();
   document.getElementById('pipe-modal-contract-fields').style.display    = isContract ? 'block' : 'none';
   document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'Naam opdrachtgever *' : 'Naam kandidaat *';
@@ -35215,6 +35287,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-regio').value = '';
   document.getElementById('pipe-modal-reisbereidheid').value = '';
   document.getElementById('pipe-modal-intake-op').value = '';
+  document.getElementById('pipe-modal-bezoek-soort').value = '';
   document.getElementById('pipe-modal-bezoek-reden').value = '';
   document.getElementById('pipe-modal-bezoek-contactpersoon').value = '';
   document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = '';
@@ -35241,6 +35314,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-regio').value = card.regio || '';
   document.getElementById('pipe-modal-reisbereidheid').value = card.reisbereidheid || '';
   document.getElementById('pipe-modal-intake-op').value = _naarVeldTijd(card.intake_op);
+  document.getElementById('pipe-modal-bezoek-soort').value = card.bezoek_soort || '';
   document.getElementById('pipe-modal-bezoek-reden').value = card.bezoek_reden || '';
   document.getElementById('pipe-modal-bezoek-contactpersoon').value = card.bezoek_contactpersoon || '';
   document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value = card.bezoek_contactpersoon_functie || '';
@@ -35294,6 +35368,7 @@ async function _pipeConfirmAddInner() {
   const regio           = isIntake ? document.getElementById('pipe-modal-regio').value : undefined;
   const reisbereidheid  = isIntake ? (document.getElementById('pipe-modal-reisbereidheid').value || null) : undefined;
   const intakeOp        = isIntake ? _uitVeldTijd(document.getElementById('pipe-modal-intake-op').value) : undefined;
+  const bezoekSoort     = isBezoek ? document.getElementById('pipe-modal-bezoek-soort').value : undefined;
   const bezoekReden     = isBezoek ? document.getElementById('pipe-modal-bezoek-reden').value.trim() : undefined;
   const bezoekContact   = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon').value.trim() : undefined;
   const bezoekContactFunctie = isBezoek ? document.getElementById('pipe-modal-bezoek-contactpersoon-functie').value.trim() : undefined;
@@ -35340,9 +35415,10 @@ async function _pipeConfirmAddInner() {
   // Verplicht bij Bezoeken: reden van bezoek + contactpersoon + functie contactpersoon
   // (naam = naam opdrachtgever, al gecontroleerd).
   if (isBezoek) {
-    const missingField = !bezoekReden ? 'pipe-modal-bezoek-reden' : !bezoekContact ? 'pipe-modal-bezoek-contactpersoon' : !bezoekContactFunctie ? 'pipe-modal-bezoek-contactpersoon-functie' : null;
+    const missingField = !bezoekSoort ? 'pipe-modal-bezoek-soort' : !bezoekReden ? 'pipe-modal-bezoek-reden' : !bezoekContact ? 'pipe-modal-bezoek-contactpersoon' : !bezoekContactFunctie ? 'pipe-modal-bezoek-contactpersoon-functie' : null;
     if (missingField) {
       const missingLabels = [];
+      if (!bezoekSoort) missingLabels.push('Type bezoek');
       if (!bezoekReden) missingLabels.push('Reden van bezoek');
       if (!bezoekContact) missingLabels.push('Contactpersoon');
       if (!bezoekContactFunctie) missingLabels.push('Functie contactpersoon');
@@ -35376,7 +35452,7 @@ async function _pipeConfirmAddInner() {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
     if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; updatePayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; updatePayload.intake_op = intakeOp; }
-    if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
+    if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; updatePayload.bezoek_soort = bezoekSoort; }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
     if (isMatch)     { updatePayload.gedeeld = gedeeld; updatePayload.kanban_klant = kbKlant; updatePayload.kanban_functie = kbFunctie; updatePayload.gesprek_op = gesprekOp; updatePayload.gesprek = gesprekNr; }
@@ -35390,7 +35466,7 @@ async function _pipeConfirmAddInner() {
     if (card) {
       card.naam = naam; card.notitie = notitie;
       if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; card.reisbereidheid = reisbereidheid ? +reisbereidheid : null; card.intake_op = intakeOp; }
-      if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; }
+      if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; card.bezoek_soort = bezoekSoort; }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
       if (isMatch)     { card.gedeeld = gedeeld; card.kanban_klant = kbKlant; card.kanban_functie = kbFunctie; card.gesprek_op = gesprekOp; card.gesprek = gesprekNr; }
@@ -35406,7 +35482,7 @@ async function _pipeConfirmAddInner() {
   const datum = new Date().toLocaleDateString('nl-NL');
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week, jaar, updated_by: CURRENT_USER?.id };
   if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; insertPayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; insertPayload.intake_op = intakeOp; }
-  if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; }
+  if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; insertPayload.bezoek_soort = bezoekSoort; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
   if (isMatch)     { insertPayload.gedeeld = gedeeld; insertPayload.kanban_klant = kbKlant; insertPayload.kanban_functie = kbFunctie; insertPayload.gesprek_op = gesprekOp; insertPayload.gesprek = gesprekNr; insertPayload.functie = kbFunctie; }
@@ -35436,9 +35512,9 @@ async function _pipeConfirmAddInner() {
         : 'Kandidaat toevoegen mislukt: ' + error.message);
       return;
     }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, vervolg_van: data.vervolg_van || null, kanban_klant: data.kanban_klant || null, kanban_functie: data.kanban_functie || null, gesprek_op: data.gesprek_op || null };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, bezoek_soort: data.bezoek_soort || null, vervolg_van: data.vervolg_van || null, kanban_klant: data.kanban_klant || null, kanban_functie: data.kanban_functie || null, gesprek_op: data.gesprek_op || null };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, vervolg_van: insertPayload.vervolg_van || null, kanban_klant: insertPayload.kanban_klant || null, kanban_functie: insertPayload.kanban_functie || null, gesprek_op: insertPayload.gesprek_op || null, gesprek: insertPayload.gesprek || null };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week, jaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, bezoek_soort: bezoekSoort || null, vervolg_van: insertPayload.vervolg_van || null, kanban_klant: insertPayload.kanban_klant || null, kanban_functie: insertPayload.kanban_functie || null, gesprek_op: insertPayload.gesprek_op || null, gesprek: insertPayload.gesprek || null };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -35576,6 +35652,13 @@ function pipeDelete(bmNaam, cardId) {
       <p style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px;">* verplicht bij Intake</p>
     </div>
     <div id="pipe-modal-bezoek-fields" style="display:none;">
+      <!-- Type bezoek (17-09): verplicht; komt als pil in Overzicht bezoeken. -->
+      <select id="pipe-modal-bezoek-soort" style="margin-bottom:6px;">
+        <option value="">Type bezoek *</option>
+        <option value="bedrijfsbezoek">Bedrijfsbezoek</option>
+        <option value="matchgesprek">Matchgesprek</option>
+        <option value="evaluatie">Evaluatie</option>
+      </select>
       <input type="text" id="pipe-modal-bezoek-reden" placeholder="Reden van bezoek *" autocomplete="off" style="width:100%;margin-bottom:6px;"/>
       <div style="display:flex; gap:8px;">
         <input type="text" id="pipe-modal-bezoek-contactpersoon" placeholder="Contactpersoon *" autocomplete="off" style="flex:1;margin-bottom:6px;"/>
