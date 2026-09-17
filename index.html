@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1637 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1641 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3924,6 +3924,7 @@
   .pipe-modal .pm-r { display:flex; gap:8px; }
   .pipe-modal .pm-r > div { flex:1; min-width:0; }
   .pipe-modal .pm-hint { font-size:.7rem; color:#8a92a3; margin:-4px 0 10px; line-height:1.4; }
+  .pipe-modal .pm-crm-nieuw { color:#253151; border-color:#253151; background:#fff; font-size:.7rem; padding:3px 9px; margin-top:4px; }
   .pipe-modal .pm-verborgen { display:none; }
   .pipe-modal .pm-pillen { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
   .pipe-modal .pm-pil { border:1px solid #c9cfda; border-radius:99px; background:#fff; color:#253151; font-family:inherit; font-size:.78rem; padding:5px 12px; cursor:pointer; }
@@ -8653,7 +8654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1637';
+const APP_VERSIE = '20260917-1641';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25073,6 +25074,7 @@ let CRM_ONTBREEKT = false;   // crm.sql nog niet gedraaid: de pagina's zeggen da
 let CRM_KAND_TAB = { zoek: '', filter: '', alles: false, sort: '', dir: 1 };   // de pagina Kandidaten; sort '' = laatste contact eerst
 let CRM_BEDR_TAB = { zoek: '', filter: '', alles: false, sort: '', dir: 1 };   // de pagina Bedrijven
 let CRM_WIZ = null;          // de open wizard: { soort, stap, id, w, velden, titel, fout }
+let _CRM_WIZ_NA = null;      // wat er na Opslaan in de wizard moet gebeuren (bijv. terug naar het pipeline-venster); null = dossier openen
 let _CRM_AANGEVULD = false;  // vliegende start: één keer per sessie
 const CRM_TOON = 100;        // zonder zoekterm de eerste 100 regels
 
@@ -25119,6 +25121,15 @@ async function loadCrm() {
   if (k && b) CRM_ONTBREEKT = false;
   CRM_KANDIDATEN = k || CRM_KANDIDATEN || [];
   CRM_BEDRIJVEN = b || CRM_BEDRIJVEN || [];
+}
+// De kandidaten in het CRM, op naam (voor het pipeline-venster: een intake
+// komt sinds 17-09 alleen nog uit deze lijst).
+function _crmKandNamen() {
+  return (CRM_KANDIDATEN || []).map(r => String(r.naam || '').trim()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'nl'));
+}
+function _crmKandBestaat(naam) {
+  const sl = _itkSleutel(naam);
+  return !!sl && (CRM_KANDIDATEN || []).some(r => (r.sleutel || _itkSleutel(r.naam)) === sl);
 }
 function _crmNaamSplits(naam) {
   const delen = String(naam || '').trim().replace(/\s+/g, ' ').split(' ');
@@ -25273,7 +25284,7 @@ function crmKandZoek(v) {
 }
 
 // ── De wizard (kandidaat én bedrijf): drie stappen in één donker venster ───
-function _crmWizToon() { crmKaartToon(_crmWizHtml(), 'crm-wizard', () => { CRM_WIZ = null; }); }
+function _crmWizToon() { crmKaartToon(_crmWizHtml(), 'crm-wizard', () => { CRM_WIZ = null; _CRM_WIZ_NA = null; }); }
 function _crmWizHtml() {
   const W = CRM_WIZ, sec = W.velden[W.stap], laatste = W.stap === W.velden.length - 1;
   const balk = '<div class="crm-wiz-balk">' + W.velden.map((s, i) =>
@@ -25353,7 +25364,11 @@ async function crmKandOpslaan() {
   velden.sleutel = _itkSleutel(velden.naam);
   const lijst = CRM_KANDIDATEN || [];
   const dubbel = lijst.find(k => k.sleutel === velden.sleutel && String(k.id) !== String(W.id || ''));
-  if (dubbel) { alert('Deze kandidaat bestaat al: ' + dubbel.naam + '. Het dossier staat nu open.'); CRM_WIZ = null; crmKandOpen(velden.sleutel); return; }
+  if (dubbel) {
+    // Vanuit het pipeline-venster (17-09): de bestaande kandidaat gewoon kiezen.
+    if (_CRM_WIZ_NA) { const na = _CRM_WIZ_NA; CRM_WIZ = null; _CRM_WIZ_NA = null; alert('Deze kandidaat staat al in het CRM: ' + dubbel.naam + ' — die is nu gekozen.'); na(dubbel); return; }
+    alert('Deze kandidaat bestaat al: ' + dubbel.naam + '. Het dossier staat nu open.'); CRM_WIZ = null; crmKandOpen(velden.sleutel); return;
+  }
   let rij;
   if (W.id) {
     const oud = lijst.find(k => String(k.id) === String(W.id)) || {};
@@ -25375,7 +25390,8 @@ async function crmKandOpslaan() {
     CRM_KANDIDATEN = lijst.concat([rij]);
   }
   CRM_WIZ = null;
-  crmKandOpen(velden.sleutel);
+  if (_CRM_WIZ_NA) { const na = _CRM_WIZ_NA; _CRM_WIZ_NA = null; na(rij); }
+  else crmKandOpen(velden.sleutel);
   if (currentTab === 'crmkand') renderCrmKandidaten();
 }
 
@@ -35896,18 +35912,52 @@ function _pipeIntakeNamen() {
 }
 // bron: 'intake' (Aanbieden: kandidaat uit de intakes) of 'bedrijf' (Bezoeken:
 // bedrijf uit de RLDV-lijst en KAM, 17-09).
+// bron 'crm' (Intake, sinds 17-09): alleen kandidaten uit CRM · Kandidaten,
+// zonder "zelf typen" — wie er niet in staat voer je eerst in het CRM in (knop
+// onder de lijst). Een bestaand tegeltje met een naam buiten het CRM houdt
+// zijn naam (anders kon je de andere velden niet meer bewerken), met aanwijzing.
 function _pipeNaamKeuzeVul(aan, huidig, bron) {
   const sel = document.getElementById('pipe-modal-naam-keuze'), inp = document.getElementById('pipe-modal-naam');
   if (!sel || !inp) return;
+  const crm = bron === 'crm';
+  _pipeNaamCrmHint(aan && crm, huidig);
   if (!aan) { sel.style.display = 'none'; inp.style.display = ''; return; }
   const bedrijf = bron === 'bedrijf';
-  const namen = bedrijf ? _bedrijfKeuzes() : _pipeIntakeNamen();
+  const namen = bedrijf ? _bedrijfKeuzes() : crm ? _crmKandNamen() : _pipeIntakeNamen();
   const inLijst = huidig && namen.some(n => _itkSleutel(n) === _itkSleutel(huidig));
-  sel.innerHTML = '<option value="">' + (bedrijf ? '— kies een bedrijf (RLDV-lijst / KAM) —' : '— kies een kandidaat uit de intakes —') + '</option>' +
+  sel.innerHTML = '<option value="">' + (bedrijf ? '— kies een bedrijf (RLDV-lijst / KAM) —' : crm ? '— kies een kandidaat uit het CRM —' : '— kies een kandidaat uit de intakes —') + '</option>' +
     namen.map(n => '<option value="' + escHtml(n) + '"' + (inLijst && _itkSleutel(n) === _itkSleutel(huidig) ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') +
-    '<option value="__anders"' + (huidig && !inLijst ? ' selected' : '') + '>' + (bedrijf ? '— nieuw bedrijf (zelf typen) —' : '— andere naam (zelf typen) —') + '</option>';
+    (crm
+      ? (huidig && !inLijst ? '<option value="' + escHtml(huidig) + '" selected>' + escHtml(huidig) + ' · nog niet in het CRM</option>' : '')
+      : '<option value="__anders"' + (huidig && !inLijst ? ' selected' : '') + '>' + (bedrijf ? '— nieuw bedrijf (zelf typen) —' : '— andere naam (zelf typen) —') + '</option>');
   sel.style.display = '';
-  inp.style.display = huidig && !inLijst ? '' : 'none';
+  inp.style.display = !crm && huidig && !inLijst ? '' : 'none';
+  if (crm) inp.value = huidig || '';
+}
+// De regel onder de keuzelijst bij Intake: knop naar de CRM-wizard, of de
+// aanwijzing dat crm.sql nog niet gedraaid is / de naam nog niet in het CRM staat.
+function _pipeNaamCrmHint(aan, huidig) {
+  const blok = document.getElementById('pipe-modal-naam-crm');
+  if (!blok) return;
+  if (!aan) { blok.style.display = 'none'; blok.innerHTML = ''; return; }
+  const magNieuw = typeof magWijzigen === 'function' ? magWijzigen('kandidaten') : true;
+  blok.innerHTML = (CRM_ONTBREEKT
+      ? 'De CRM-tabellen bestaan nog niet: draai <b>supabase/crm.sql</b> in de SQL-editor. Tot die tijd kun je geen intake opvoeren.'
+      : (huidig && !_crmKandBestaat(huidig) ? '<span style="color:#E87400;">' + escHtml(huidig) + ' staat nog niet in het CRM — voeg hem daar toe, dan valt alles onder één naam.</span> ' : 'Staat de kandidaat er nog niet bij? ') +
+        (magNieuw ? '<button type="button" class="crm-knop pm-crm-nieuw" onclick="pipeNieuweCrmKandidaat()">+ Nieuwe kandidaat in CRM</button>' : ''));
+  blok.style.display = '';
+}
+// Opent de CRM-wizard bovenop het pipeline-venster; na Opslaan staat de nieuwe
+// naam direct geselecteerd (ook als de naam al bestond).
+function pipeNieuweCrmKandidaat() {
+  _CRM_WIZ_NA = (rij) => {
+    crmKaartSluit();
+    const naam = rij && rij.naam ? String(rij.naam) : '';
+    _pipeNaamKeuzeVul(true, naam, 'crm');
+    const inp = document.getElementById('pipe-modal-naam'); if (inp) inp.value = naam;
+    const sel = document.getElementById('pipe-modal-naam-keuze'); if (sel) sel.value = naam;
+  };
+  crmKandWizard();
 }
 function _pipeNaamKeuze() {
   const sel = document.getElementById('pipe-modal-naam-keuze'), inp = document.getElementById('pipe-modal-naam');
@@ -35970,7 +36020,7 @@ function _pipeToggleStageFields(stage) {
   document.getElementById('pipe-modal-match-fields').style.display       = isMatch ? 'block' : 'none';
   const isAanb = stage === 'Aanbieden';
   document.getElementById('pipe-modal-aanb-rldv').style.display          = isAanb ? 'block' : 'none';
-  _pipeNaamKeuzeVul(isAanb || isBezoek, (document.getElementById('pipe-modal-naam') || {}).value || '', isBezoek ? 'bedrijf' : 'intake');
+  _pipeNaamKeuzeVul(isAanb || isBezoek || isIntake, (document.getElementById('pipe-modal-naam') || {}).value || '', isBezoek ? 'bedrijf' : isIntake ? 'crm' : 'intake');
   if (isAanb) _pipeAanbRldvBij();
   document.getElementById('pipe-modal-contract-fields').style.display    = isContract ? 'block' : 'none';
   document.getElementById('pipe-modal-naam').placeholder = isBezoek ? 'naam van het bedrijf' : 'voor- en achternaam';
@@ -35979,6 +36029,7 @@ function _pipeToggleStageFields(stage) {
   const lbl = document.getElementById('pipe-modal-naam-label');
   if (lbl) lbl.innerHTML = isBezoek ? 'Bedrijf <span class="pm-req">*</span> <span class="pm-l" style="display:inline;color:#8a92a3;">· uit RLDV-lijst en KAM</span>'
                         : isAanb ? 'Naam <span class="pm-req">*</span> <span class="pm-l" style="display:inline;color:#8a92a3;">· uit de intakes</span>'
+                        : isIntake ? 'Naam kandidaat <span class="pm-req">*</span> <span class="pm-l" style="display:inline;color:#8a92a3;">· uit het CRM</span>'
                         : 'Naam kandidaat <span class="pm-req">*</span>';
   const secOpdr = document.getElementById('pipe-modal-sec-opdrachtgever'); if (secOpdr) secOpdr.textContent = isContract ? 'Voorstel' : 'Plaatsing';
   _pipeSoortPillen();
@@ -36064,6 +36115,11 @@ async function _pipeConfirmAddInner() {
   if (!eisWijzig('medewerkers')) return;
   const naam = document.getElementById('pipe-modal-naam').value.trim();
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
+  // Een intake komt uit het CRM (17-09): een naam die daar niet staat wordt geweigerd.
+  if (_pipeModalCtx.stage === 'Intake' && !_crmKandBestaat(naam)) {
+    alert(CRM_ONTBREEKT ? 'Draai eerst supabase/crm.sql — zonder CRM-tabellen kun je geen intake opvoeren.' : 'Kies een kandidaat uit het CRM. Staat ' + naam + ' er nog niet in, gebruik dan "+ Nieuwe kandidaat in CRM".');
+    return;
+  }
   const notitie = document.getElementById('pipe-modal-notitie').value.trim();
   const { bmNaam, stage, week, jaar, cardId } = _pipeModalCtx;
   const isIntake   = stage === 'Intake';
@@ -36333,6 +36389,8 @@ function pipeDelete(bmNaam, cardId) {
     <!-- Bij Aanbieden: kiezen uit de intakes; bij Bezoeken: uit de RLDV-lijst en KAM. "Anders/nieuw" opent het vrije veld. -->
     <select id="pipe-modal-naam-keuze" style="display:none;" onchange="_pipeNaamKeuze()"></select>
     <input type="text" id="pipe-modal-naam" placeholder="voor- en achternaam" autocomplete="off" oninput="_pipeAanbRldvBij()"/>
+    <!-- Intake (17-09): knop naar de CRM-wizard of de aanwijzing dat de naam/tabel ontbreekt. -->
+    <div id="pipe-modal-naam-crm" class="pm-hint" style="display:none;"></div>
     <div id="pipe-modal-aanb-rldv" style="display:none;"></div>
     <div id="pipe-modal-intake-fields" style="display:none;">
       <div class="pm-r">
