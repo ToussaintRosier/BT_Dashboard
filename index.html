@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-1207 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260917-1220 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8581,7 +8581,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-1207';
+const APP_VERSIE = '20260917-1220';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -8957,7 +8957,16 @@ function rechtVoor(gebruiker, sleutel) {
   return rechtSjabloon(gebruiker)[sleutel] || 'geen';
 }
 
-function magZien(sleutel)    { return rechtVoor(CURRENT_USER, sleutel === 'accoverzicht' || sleutel === 'accarchief' ? 'accounts' : sleutel === 'kandarchief' || sleutel === 'kanban' ? 'kandidaten' : sleutel) !== 'geen'; }   // Overzicht bezoeken volgt Accountmanagement, Archief volgt Kandidaten (16-09)
+// Afgeleide pagina's hebben geen eigen recht: Overzicht bezoeken en Archief
+// bezoeken volgen Accountmanagement, Archief kandidaten en Kanban volgen
+// Kandidaten (16-09). Eén vertaling voor zien én wijzigen — de leesmodus
+// vroeg eerst magWijzigen('accoverzicht'), kreeg 'geen' en zette de hele
+// pagina op alleen-lezen voor iedereen behalve de beheerder (melding 17-09).
+function _rechtSleutel(sleutel) {
+  return sleutel === 'accoverzicht' || sleutel === 'accarchief' ? 'accounts'
+       : sleutel === 'kandarchief' || sleutel === 'kanban' ? 'kandidaten' : sleutel;
+}
+function magZien(sleutel)    { return rechtVoor(CURRENT_USER, _rechtSleutel(sleutel)) !== 'geen'; }
 
 // Het slot op elke schrijfactie.
 //
@@ -8996,7 +9005,7 @@ function _magHierWijzigen() {
   }
   const sleutel = _huidigOnderdeel();
   if (!sleutel || sleutel === 'beheer') return true;   // Beheer bewaakt zichzelf
-  return magWijzigen(sleutel);
+  return magWijzigen(_rechtSleutel(sleutel));
 }
 
 let _LEESMODUS_RE = null;
