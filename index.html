@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260917-2031 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260918-0753 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3850,6 +3850,11 @@
   .st-tik   { position:absolute; top:-3px; bottom:-3px; width:2px;
               background:rgba(255,255,255,.8); border-radius:1px; }
   .st-pct   { font-size:var(--t-xs); font-variant-numeric:tabular-nums; flex-shrink:0; }
+  /* Nog niet gestart (18-09): kop en balk gedempt, de pil blijft leesbaar. */
+  .st-kaart.nog-niet .st-kop, .st-kaart.nog-niet .st-balkrij { opacity:.42; filter:saturate(.35); }
+  tr.nog-niet td { opacity:.42; filter:saturate(.35); }
+  tr.nog-niet td:first-child { opacity:1; filter:none; color:rgba(255,255,255,.5); }
+  .st-start-pil { display:inline-flex; align-items:center; height:18px; padding:0 8px; border-radius:9px; font-size:.66rem; background:rgba(244,203,60,.18); color:#F4CB3C; border:1px dashed rgba(244,203,60,.5); vertical-align:middle; white-space:nowrap; }
   .st-sub   { font-size:var(--t-xs); color:rgba(255,255,255,.5); margin-top:5px;
               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
@@ -4915,6 +4920,26 @@ function bmsZichtbaar() { return BMS.filter(b => !b.inactief); }
 // heeft geen jaardoel en hoort daar niet bij: die verschijnt alleen nog waar je
 // iemand toewijst, zoals in de recorder-dropdowns.
 function bmsMetResultaat() { return BMS.filter(b => !b.inactief && !b.special); }
+// Nog niet gestart (18-09): de datum "in dienst sinds" onder Beheer (mijlpalen)
+// is de startdatum. Ligt die in de toekomst, dan staat de collega gedempt met
+// de pil "start DD-MM-JJJJ"; op die dag licht hij vanzelf op. Zonder datum =
+// gestart (volle kleur).
+function collegaStartDatum(naam) {
+  const m = (typeof MIJLPALEN_CACHE !== 'undefined' && Array.isArray(MIJLPALEN_CACHE) ? MIJLPALEN_CACHE : []).find(x => x.naam === naam);
+  if (!m || !m.in_dienst_sinds) return null;
+  const d = new Date(String(m.in_dienst_sinds).slice(0, 10) + 'T00:00:00');
+  return isNaN(d) ? null : d;
+}
+function collegaNogNietGestart(naam) {
+  const d = collegaStartDatum(naam); if (!d) return false;
+  const nu = new Date(); nu.setHours(0, 0, 0, 0);
+  return d > nu;
+}
+function collegaStartPilHtml(naam) {
+  if (!collegaNogNietGestart(naam)) return '';
+  const d = collegaStartDatum(naam);
+  return '<span class="st-start-pil" title="Nog niet gestart: in dienst vanaf ' + _crmDatum(d.getTime()) + ' (Beheer → mijlpalen)">start ' + _crmDatum(d.getTime()) + '</span>';
+}
 
 // Iedereen die cijfers kán maken. Uit dienst blijft hier wél in staan: hun
 // historie hoort in de overzichten thuis. Backoffice valt af — die heeft geen
@@ -8872,7 +8897,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260917-2031';
+const APP_VERSIE = '20260918-0753';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11929,13 +11954,14 @@ function renderMedewerkersOverzicht() {
   // omhulsel dan inhoud. Naam links, cijfer rechts, context eronder — en de
   // getallen met gelijke breedte zodat ze echt onder elkaar staan.
   const rankRows = ranking.map((r) => {
+    const nogNiet = collegaNogNietGestart(r.bm.naam);
     const kleur = barColorWide(r.p);
     // De balk gaat over de weg naar het jaardoel, niet over het percentage:
     // 165% van je weekverwachting kan nog steeds halverwege je jaar zijn.
     const doel  = r.bm.doel || 0;
     const vul   = doel > 0 ? Math.max(0, Math.min(100, r.starters  / doel * 100)) : 0;
     const tik   = doel > 0 ? Math.max(0, Math.min(100, r.ytdTarget / doel * 100)) : 0;
-    return `<div class="st-kaart">
+    return `<div class="${'st-kaart' + (nogNiet ? ' nog-niet' : '')}">
       <div class="st-kop">
         <span class="st-wie">
           <span class="st-streep" style="background:${r.bm.kleur};"></span>
@@ -11945,12 +11971,12 @@ function renderMedewerkersOverzicht() {
       </div>
       <div class="st-balkrij">
         <span class="st-baan" title="${fmt(r.starters, 1)} van ${doel} — het streepje is waar je deze week hoort te staan (${fmt(r.ytdTarget, 1)})">
-          <span class="st-vul" style="width:${vul.toFixed(1)}%;background:${kleur};"></span>
-          ${doel > 0 ? `<span class="st-tik" style="left:${tik.toFixed(1)}%;"></span>` : ''}
+          <span class="st-vul" style="width:${nogNiet ? 0 : vul.toFixed(1)}%;background:${kleur};"></span>
+          ${doel > 0 && !nogNiet ? `<span class="st-tik" style="left:${tik.toFixed(1)}%;"></span>` : ''}
         </span>
-        <span class="st-pct" style="color:${kleur};">${r.p}%</span>
+        <span class="st-pct" style="color:${kleur};">${nogNiet ? '—' : r.p + '%'}</span>
       </div>
-      <div class="st-sub">verwacht ${fmt(r.ytdTarget, 1)} · jaardoel ${doel}${r.bm.doelOnbekend
+      <div class="st-sub">${nogNiet ? collegaStartPilHtml(r.bm.naam) + ' · jaardoel ' : 'verwacht ' + fmt(r.ytdTarget, 1) + ' · jaardoel '}${doel}${r.bm.doelOnbekend
         ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>`
         : ''}</div>
     </div>`;
@@ -12167,7 +12193,6 @@ function renderMedewerkersOverzicht() {
         '<span class="meta-pill">Stand t/m week ' + CUR.week + '</span>' +
       '</div>' +
     '</div>' +
-    dataWaarschuwingHtml() +
     '<div style="font-size:var(--t-xs);color:rgba(255,255,255,.45);letter-spacing:.04em;margin:6px 0 6px 2px;">STARTERS DIT JAAR</div>' +
     '<div class="bt-venster"><div class="st-rooster">' + rankRows + '</div></div>' +
     renderGebruikBalk(CUR.year, CUR.week) +
@@ -12237,6 +12262,7 @@ function renderTeam(opties) {
   // intakes/aanbiedingen/matchgesprekken) en zou deze ratio-vergelijking vertekenen.
   const bmRatioRows = bmsMetResultaat().filter(bm => !EXCL_RATIO.has(bm.naam)).map(bm => {
     const rt = INDIVIDUAL_RATIOS[bm.naam];
+    if (collegaNogNietGestart(bm.naam)) return `<tr class="nog-niet"><td>${bm.naam} ${collegaStartPilHtml(bm.naam)}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
     return `<tr>
       <td>${bm.naam}</td>
       <td>${fmt(rt.intakes,2)}</td><td>${fmt(rt.bezoeken,2)}</td>
@@ -12368,7 +12394,7 @@ function renderTeam(opties) {
         <span class="meta-pill">Ratio's over 26 weken</span>
       </div>
     </div>
-    ${dataWaarschuwingHtml()}${deelHtml}
+    ${deelHtml}
   </div>`;
   setTimeout(grafieken, 50);
 }
@@ -14745,11 +14771,13 @@ function _controleerTeamcijfers(persoonInDb) {
       ' konden de cijfers van ' + CUR.year + ' niet worden opgehaald. Hun regels hieronder staan daarom op 0 — ' +
       'dat is dus geen resultaat maar een leesrecht dat ontbreekt. Vraag de beheerder om ' +
       'supabase/leesrechten_teamcijfers.sql uit te voeren.';
+    // Sinds 18-09 niet meer in beeld (de balk is weg); wel in het foutenlogboek.
+    _meldStil('teamcijfers', DATA_WAARSCHUWING);
   } catch (e) { _meldStil('teamcijfers controleren', e); }
 }
 
-// De gele balk zelf. Staat boven de ranglijst en boven Team Resultaten: precies
-// de twee schermen waar cijfers van collega's te zien zijn.
+// De gele balk. Sinds 18-09 niet meer in beeld (aanwijzing: "dit kan weg");
+// de tekst staat nog in het foutenlogboek. Blijft bestaan voor de tests.
 function dataWaarschuwingHtml() {
   if (!DATA_WAARSCHUWING) return '';
   return '<div style="display:flex;align-items:flex-start;gap:10px;background:rgba(244,203,60,.14);' +
