@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260918-0945 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260918-1243 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1654,6 +1654,8 @@
   .crm-lijstrij { cursor:pointer; }
   .crm-lijstrij:hover td { background:rgba(255,255,255,.05); }
   .crm-lijstrij td.naam { color:#fff; font-weight:var(--w-nadruk); white-space:nowrap; }
+  .crm-tabel th.nr, .crm-tabel td.nr { width:34px; text-align:right; color:rgba(255,255,255,.45); font-variant-numeric:tabular-nums; padding-right:10px; }   /* volgnummer (18-09) */
+  .crm-tabel td .crm-mail { color:#9ec8f4; text-decoration:none; }
   .crm-tabel th.a, .crm-tabel td.a { text-align:center; }
   .crm-tabel th.crm-th { cursor:pointer; user-select:none; white-space:nowrap; }
   .crm-tabel th.crm-th:hover { color:#fff; }
@@ -8957,7 +8959,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260918-0945';
+const APP_VERSIE = '20260918-1243';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10815,6 +10817,7 @@ const VERWACHT_SCHEMA = [
   { bestand: 'bedrijf_kaarten.sql',          soort: 'kolom',   naam: 'crm_bedrijven.betalingstermijn' },
   { bestand: 'bedrijf_kaarten.sql',          soort: 'kolom',   naam: 'crm_bedrijven.cao' },
   { bestand: 'bedrijf_kaarten.sql',          soort: 'kolom',   naam: 'crm_bedrijven.afspraken' },
+  { bestand: 'bedrijf_kaarten.sql',          soort: 'kolom',   naam: 'crm_bedrijven.email' },
   { bestand: 'bedrijf_kaarten.sql',          soort: 'functie', naam: 'bt_bedrijf_samenvoeg/2' },
   { bestand: 'accountmanagement_overzicht.sql', soort: 'tabel', naam: 'account_notities' },
   { bestand: 'accountmanagement_overzicht.sql', soort: 'tabel', naam: 'bezoek_vervolg' },
@@ -25513,7 +25516,7 @@ let CRM_KANDIDATEN = null;   // rijen uit crm_kandidaten; null = nog niet gelade
 let CRM_BEDRIJVEN = null;    // rijen uit crm_bedrijven; null = nog niet geladen
 let CRM_ONTBREEKT = false;   // crm.sql nog niet gedraaid: de pagina's zeggen dat
 let CRM_KAND_TAB = { zoek: '', filter: '', alles: false, sort: 'naam', dir: 1 };   // de pagina Kandidaten; opent op naam A→Z (18-09)
-let CRM_BEDR_TAB = { zoek: '', filter: '', alles: false, sort: '', dir: 1 };   // de pagina Bedrijven
+let CRM_BEDR_TAB = { zoek: '', filter: '', alles: false, sort: 'naam', dir: 1 };   // de pagina Bedrijven; opent op naam A→Z (18-09)
 let CRM_WIZ = null;          // de open wizard: { soort, stap, id, w, velden, titel, fout }
 let _CRM_WIZ_NA = null;      // wat er na Opslaan in de wizard moet gebeuren (bijv. terug naar het pipeline-venster); null = dossier openen
 let CRM_BEWERK = null;       // dossier in bewerkmodus (17-09): { soort: 'kand'|'bedrijf', sleutel, w: {veld: waarde} }; null = kijken
@@ -25741,7 +25744,7 @@ function crmBedrijfBewerk(sleutel) {
   if (!magWijzigen('crm')) { alert('Je hebt geen recht om bedrijven te wijzigen.'); return; }
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
   const r = k.crm || {}, a = k.account, g = (v) => v == null ? '' : String(v);
-  CRM_BEWERK = { soort: 'bedrijf', sleutel: k.sleutel, w: { adres: g(r.adres), postcode: g(r.postcode), plaats: g(r.plaats), website: g(r.website), telefoon: g(r.telefoon), kvk: g(r.kvk), opmerking: g(r.opmerking),
+  CRM_BEWERK = { soort: 'bedrijf', sleutel: k.sleutel, w: { adres: g(r.adres), postcode: g(r.postcode), plaats: g(r.plaats), website: g(r.website), telefoon: g(r.telefoon), email: g(r.email), kvk: g(r.kvk), opmerking: g(r.opmerking),
     strat_cp: g(a ? a.strat_cp : ''), op_cp: g(a ? a.op_cp : '') } };
   crmBedrijfOpen(k.sleutel, true);
   const el = document.getElementById('crm-b-adres'); if (el && el.focus) el.focus();
@@ -25752,7 +25755,7 @@ async function crmBedrijfBewerkOpslaan() {
   _crmBewerkLees();
   const k = crmBedrijfLijst().find(x => x.sleutel === B.sleutel); if (!k) return;
   const val = (x) => { const v = String(B.w[x] == null ? '' : B.w[x]).trim(); return v || null; };
-  const velden = { adres: val('adres'), postcode: val('postcode'), plaats: val('plaats'), website: val('website'), telefoon: val('telefoon'), kvk: val('kvk'), opmerking: val('opmerking') };
+  const velden = { adres: val('adres'), postcode: val('postcode'), plaats: val('plaats'), website: val('website'), telefoon: val('telefoon'), email: val('email'), kvk: val('kvk'), opmerking: val('opmerking') };
   let rij;
   if (k.crm) {
     if (k.crm.bron === 'verwijderd') velden.bron = 'handmatig';   // was verwijderd, bleef via KAM zichtbaar: weer een echt dossier
@@ -25844,6 +25847,22 @@ function _crmDatum(ms) {
   return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear();
 }
 function _crmContactKort(ms) { return ms > 0 ? _crmDatum(ms) : '<span class="stil">—</span>'; }
+function _crmMailCel(email, z) {
+  const e = String(email || '').trim(); if (!e) return '<span class="stil">—</span>';
+  return '<a class="crm-mail" href="mailto:' + escHtml(e) + '" onclick="event.stopPropagation()">' + _oneMarkeer(e, z) + '</a>';
+}
+function _crmTelCel(tel, z) {
+  const t = String(tel || '').trim(); if (!t) return '<span class="stil">—</span>';
+  return '<a class="crm-mail" href="tel:' + escHtml(t.replace(/\s/g, '')) + '" onclick="event.stopPropagation()">' + _oneMarkeer(t, z) + '</a>';
+}
+// E-mail van een bedrijf (18-09): het algemene adres op de CRM-rij; anders dat
+// van de eerste contactpersoon.
+function _crmBedrijfEmail(k) {
+  const r = k.crm || {};
+  if (r.email) return String(r.email).trim();
+  const cp = (k.contacten || []).find(c => c && c.email);
+  return cp ? String(cp.email).trim() : '';
+}
 // Sorteren op een kolom (17-09): klik op de kop is A→Z, nog een klik Z→A.
 // Zonder keuze staat de lijst op laatste contact. Lege waarden altijd onderaan.
 function _crmSorteer(lijst, st, waarde) {
@@ -26022,24 +26041,26 @@ function renderCrmKandidatenHtml() {
   const lijst = crmKandLijst();
   const proj = _crmProjectKandidaten();
   const gevonden = _crmSorteer(lijst.filter(k => _crmKandPast(k, st)), st, (k, col) =>
-    col === 'naam' ? k.naam : col === 'woonplaats' ? k.woonplaats : col === 'functie' ? k.functie : col === 'intake' ? ((i) => i.ms > 0 ? -i.ms : '')(_crmKandIntake(k))
-    : col === 'collega' ? (k.invoerder || '') : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '') : '');
+    col === 'naam' ? k.naam : col === 'woonplaats' ? k.woonplaats : col === 'functie' ? k.functie : col === 'email' ? ((k.crm || {}).email || '') : col === 'telefoon' ? ((k.crm || {}).telefoon || '')
+    : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '') : '');
   const beperkt = !z && !st.alles && gevonden.length > CRM_TOON;
   const toon = beperkt ? gevonden.slice(0, CRM_TOON) : gevonden;
-  const rijen = toon.map(k => {
-    const r = k.crm || {}, f = _crmKandIntake(k);
+  // Kolommen (akkoord 18-09): Nr · Kandidaat · E-mail · Telefoon · Woonplaats ·
+  // Functie · Laatste contact. Het nummer volgt de sortering en het zoeken.
+  const rijen = toon.map((k, i) => {
+    const r = k.crm || {};
     const dubbel = k.dubbel && k.dubbel.length ? '<span class="crm-pil dubbel" title="Lijkt op ' + escHtml(k.dubbel.map(sl => (lijst.find(x => x.sleutel === sl) || { naam: sl }).naam).join(', ')) + ' — open het dossier en kies Samenvoegen">dubbel?</span>' : '';
     return '<tr class="crm-lijstrij" onclick="crmKandOpen(\'' + escApos(k.sleutel) + '\')" title="Dossier openen">' +
+      '<td class="nr">' + (i + 1) + '</td>' +
       '<td class="naam">' + _oneMarkeer(k.naam, z) + dubbel + '</td>' +
+      '<td class="d">' + _crmMailCel(r.email, z) + '</td>' +
+      '<td class="d">' + _crmTelCel(r.telefoon, z) + '</td>' +
       '<td class="d">' + (k.woonplaats ? _oneMarkeer(k.woonplaats, z) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + (k.functie ? _oneMarkeer(k.functie, z) : '<span class="stil">—</span>') + '</td>' +
-      '<td><span class="crm-pil' + (f.klasse ? ' ' + f.klasse : '') + '">' + escHtml(f.tekst) + '</span></td>' +
-      '<td class="d">' + (k.invoerder ? _oneMarkeer(String(k.invoerder).split(' ')[0], z) : '<span class="stil">—</span>') + '</td>' +
-      '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td>' +
-      '<td class="a crm-docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
+      '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
   }).join('');
   const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['met', 'Met intake', lijst.filter(k => k.intake).length], ['zonder', 'Zonder intake', lijst.filter(k => !k.intake).length]],
-    { id: 'crm-kand-q', zet: 'crmKandFilter', zoek: 'crmKandZoek', hint: 'naam, woonplaats, functie, collega, e-mail en notities' });
+    { id: 'crm-kand-q', zet: 'crmKandFilter', zoek: 'crmKandZoek', hint: 'naam, e-mail, telefoon, woonplaats, functie, collega en notities' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmKandWizard()">+ Kandidaat</button>' : '') + '</div></div>' +
@@ -26048,7 +26069,7 @@ function renderCrmKandidatenHtml() {
       '<button type="button" class="crm-knop goed" onclick="crmProjectKandidatenVenster()">Bekijken en opvoeren…</button></div>' : '') +
     balk +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'intake', 'Intake', 'crmKandSort') + _crmTh(st, 'collega', 'Collega', 'crmKandSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '<th class="a">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr><th class="nr">Nr.</th>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'email', 'E-mail', 'crmKandSort') + _crmTh(st, 'telefoon', 'Telefoon', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') +
       _crmVoet(gevonden.length, lijst.length, beperkt, 'crmKandAlles()', 'kandidaten') +
     '</div></div>';
@@ -26687,9 +26708,9 @@ function _crmBedrijfPast(k, st) {
   const z = String(st.zoek || '').trim().toLowerCase();
   if (!z) return true;
   const r = k.crm || {};
-  return [k.naam, k.plaats, r.website, r.telefoon, k.lead ? [k.lead.vakgebied, k.lead.regio, k.lead.contactpersoon, k.lead.status].join(' ') : '',
+  return [k.naam, k.plaats, r.website, r.telefoon, r.email, k.lead ? [k.lead.vakgebied, k.lead.regio, k.lead.contactpersoon, k.lead.status].join(' ') : '',
           k.account ? [k.account.strat_cp, k.account.op_cp].join(' ') : '',
-          k.contacten.map(c => [c.naam, c.functie, c.afdeling].join(' ')).join(' '), _crmBedrijfStatus(k).tekst,
+          k.contacten.map(c => [c.naam, c.functie, c.afdeling, c.email, c.telefoon].join(' ')).join(' '), _crmBedrijfStatus(k).tekst,
           ((nid => nid && ACC_NOTITIES[nid] ? ACC_NOTITIES[nid] : [])(_crmBedrijfNotitieId(k))).map(n => n.tekst).join(' ')].filter(Boolean).join(' ').toLowerCase().includes(z);
 }
 // ── Medewerkers tussen de bedrijven (akkoord 18-09) ─────────────────────────
@@ -26724,25 +26745,32 @@ function renderCrmBedrijvenHtml() {
   const st = CRM_BEDR_TAB, z = String(st.zoek || '').trim().toLowerCase();
   const lijst = crmBedrijfLijst();
   const medew = _crmMedewerkerRegels().filter(m => m.aan), medewSl = new Set(medew.map(m => m.sleutel));
+  // Project? (18-09): aantal projecten per bedrijf uit de projectenlijst, één keer geteld.
+  const projecten = {};
+  (typeof getCombinedProjectRanges === 'function' ? getCombinedProjectRanges() : []).forEach(p => { if (p.verwijderdOp) return; const sl = _itkSleutel(p.opdrachtgever || ''); if (sl) projecten[sl] = (projecten[sl] || 0) + 1; });
   const gevonden = _crmSorteer(lijst.filter(k => _crmBedrijfPast(k, st)), st, (k, col) =>
-    col === 'naam' ? k.naam : col === 'plaats' ? k.plaats : col === 'team' ? (k.account ? [k.account.strat_cp, k.account.op_cp].map(x => String(x || '').toUpperCase()).join(' ') : '') : col === 'contact' ? (k.contacten[0] ? k.contacten[0].naam : '') : col === 'status' ? _crmBedrijfStatus(k).tekst
-    : col === 'bezoeken' ? (k.bezoeken ? -k.bezoeken : '') : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '') : '');
+    col === 'naam' ? k.naam : col === 'plaats' ? k.plaats : col === 'telefoon' ? ((k.crm || {}).telefoon || '') : col === 'email' ? _crmBedrijfEmail(k)
+    : col === 'sector' ? (k.lead ? (k.lead.vakgebied || '') : '') : col === 'project' ? (projecten[k.sleutel] ? -projecten[k.sleutel] : '') : col === 'plan' ? (k.plan ? -Date.parse(k.plan.updated_at || 0) || -1 : '')
+    : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '') : '');
   const beperkt = !z && !st.alles && gevonden.length > CRM_TOON;
   const toon = beperkt ? gevonden.slice(0, CRM_TOON) : gevonden;
-  const rijen = toon.map(k => {
-    const r = k.crm || {}, s = _crmBedrijfStatus(k), cp = k.contacten[0] || null;
+  // Kolommen (akkoord 18-09): Nr · Bedrijf · Woonplaats · Telefoon · E-mail ·
+  // Sector · Project? · Accountplan? · Laatste contact.
+  const rijen = toon.map((k, i) => {
+    const r = k.crm || {}, np = projecten[k.sleutel] || 0;
     return '<tr class="crm-lijstrij" onclick="crmBedrijfOpen(\'' + escApos(k.sleutel) + '\')" title="Dossier openen">' +
+      '<td class="nr">' + (i + 1) + '</td>' +
       '<td class="naam">' + _oneMarkeer(k.naam, z) + (medewSl.has(k.sleutel) ? '<span class="crm-pil dubbel" title="Alleen evaluatiebezoeken, geen collega toegewezen: waarschijnlijk een medewerker, geen bedrijf">medewerker?</span>' : '') + '</td>' +
       '<td class="d">' + (k.plaats ? _oneMarkeer(k.plaats, z) : (k.lead && k.lead.regio ? '<span class="stil">' + _oneMarkeer(k.lead.regio, z) + '</span>' : '<span class="stil">—</span>')) + '</td>' +
-      '<td class="d">' + _crmTeamCelHtml(k) + '</td>' +
-      '<td class="d">' + (cp ? _oneMarkeer(cp.naam + (cp.functie ? ' · ' + cp.functie : ''), z) : '<span class="stil">—</span>') + '</td>' +
-      '<td><span class="crm-pil' + (s.klasse ? ' ' + s.klasse : '') + '">' + escHtml(s.tekst) + '</span></td>' +
-      '<td class="a">' + (k.bezoeken || '<span class="stil">—</span>') + '</td>' +
-      '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td>' +
-      '<td class="a crm-docs">' + _crmDocIcoon(r.swo_link, 'Samenwerkingsovereenkomst', 'swo') + _crmDocIcoon(r.offerte_link, 'Offerte', 'off') + '</td></tr>';
+      '<td class="d">' + _crmTelCel(r.telefoon, z) + '</td>' +
+      '<td class="d">' + _crmMailCel(_crmBedrijfEmail(k), z) + '</td>' +
+      '<td class="d">' + (k.lead && k.lead.vakgebied ? _oneMarkeer(k.lead.vakgebied, z) : '<span class="stil">—</span>') + '</td>' +
+      '<td>' + (np ? '<span class="crm-pil ok" title="' + np + ' project' + (np === 1 ? '' : 'en') + ' in de projectenlijst">ja · ' + np + '</span>' : '<span class="crm-pil leeg">nee</span>') + '</td>' +
+      '<td>' + (k.plan ? '<span class="crm-pil ok" title="Accountplan, laatst bijgewerkt ' + escHtml(datumNL(String(k.plan.updated_at || '').slice(0, 10))) + '">ja · ' + escHtml(_crmDatum(Date.parse(k.plan.updated_at || '')).slice(0, 5)) + '</span>' : '<span class="crm-pil leeg">nee</span>') + '</td>' +
+      '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
   }).join('');
   const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['kam', 'KAM-klanten', lijst.filter(k => k.account).length], ['rldv', 'RLDV', lijst.filter(k => k.lead).length], ['bezoeken', 'Met bezoeken', lijst.filter(k => k.bezoeken).length]],
-    { id: 'crm-bedr-q', zet: 'crmBedrijfFilter', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, team (initialen), contactpersoon, vakgebied en notities' });
+    { id: 'crm-bedr-q', zet: 'crmBedrijfFilter', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, telefoon, e-mail, sector, team (initialen), contactpersoon en notities' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Bedrijven' + btUitlegKnop('accounts') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' bedrijven</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmBedrijfWizard()">+ Bedrijf</button>' : '') + '</div></div>' +
@@ -26751,7 +26779,7 @@ function renderCrmBedrijvenHtml() {
       '<button type="button" class="crm-knop goed" onclick="crmMedewerkersOmzetten()">Omzetten naar kandidaten…</button></div>' : '') +
     balk +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr>' + _crmTh(st, 'naam', 'Bedrijf', 'crmBedrijfSort') + _crmTh(st, 'plaats', 'Plaats', 'crmBedrijfSort') + _crmTh(st, 'team', 'Team', 'crmBedrijfSort') + _crmTh(st, 'contact', 'Contactpersoon', 'crmBedrijfSort') + _crmTh(st, 'status', 'Status', 'crmBedrijfSort') + _crmTh(st, 'bezoeken', 'Bezoeken', 'crmBedrijfSort', 'a') + _crmTh(st, 'laatste', 'Laatste contact', 'crmBedrijfSort') + '<th class="a">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr><th class="nr">Nr.</th>' + _crmTh(st, 'naam', 'Bedrijf', 'crmBedrijfSort') + _crmTh(st, 'plaats', 'Woonplaats', 'crmBedrijfSort') + _crmTh(st, 'telefoon', 'Telefoon', 'crmBedrijfSort') + _crmTh(st, 'email', 'E-mail', 'crmBedrijfSort') + _crmTh(st, 'sector', 'Sector', 'crmBedrijfSort') + _crmTh(st, 'project', 'Project?', 'crmBedrijfSort') + _crmTh(st, 'plan', 'Accountplan?', 'crmBedrijfSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmBedrijfSort') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') +
       _crmVoet(gevonden.length, lijst.length, beperkt, 'crmBedrijfAlles()', 'bedrijven') +
     '</div></div>';
@@ -26958,11 +26986,13 @@ function crmBedrijfDossierHtml(sleutel) {
       rijB('Postcode · plaats', _crmBewerkVeld('postcode', { kort: true, ph: '1234 AB' }) + _crmBewerkVeld('plaats', { ph: 'plaats' })) +
       rijB('Website', _crmBewerkVeld('website', { type: 'url', ph: 'https://…' })) +
       rijB('Telefoon', _crmBewerkVeld('telefoon', { type: 'tel' })) +
+      rijB('E-mail', _crmBewerkVeld('email', { type: 'email', ph: 'info@…' })) +
       rijB('KvK', _crmBewerkVeld('kvk', { kort: true }))
     : rijA('Adres', escHtml(r.adres || '')) +
       rijA('Postcode · plaats', escHtml([r.postcode, r.plaats].filter(Boolean).join(' '))) +
       rijA('Website', _crmLink(r.website)) +
       rijA('Telefoon', r.telefoon ? '<a class="crm-link" href="tel:' + escHtml(String(r.telefoon).replace(/\s/g, '')) + '">' + escHtml(r.telefoon) + '</a>' : '') +
+      rijA('E-mail', r.email ? '<a class="crm-link" href="mailto:' + escHtml(r.email) + '">' + escHtml(r.email) + '</a>' : '') +
       rijA('KvK', escHtml(r.kvk || ''))) + '</div>');
   // Ons team: uit de KAM-tabel, en terug ernaartoe. Zonder KAM-rij is er niets te kiezen.
   const team = blok('BrighTech-team', a
