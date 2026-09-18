@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260918-1304 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260918-1426 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1695,7 +1695,24 @@
   .crm-zoek svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; flex-shrink:0; }
   .crm-zoek input { flex:1; min-width:0; background:transparent; border:none; outline:none; color:#fff; font-family:inherit; font-size:.84rem; padding:0; }
   .crm-zoek input::placeholder { color:rgba(255,255,255,.35); }
-  @media (max-width:640px) { .crm-balk { flex-direction:column; align-items:stretch; gap:4px; } .crm-tabs { gap:14px; overflow-x:auto; } .crm-zoek { width:100%; max-width:none; } }
+  /* Sinds 18-09 is dit de zoekbalk van álle lijstpagina's (ontwerp A). Extra
+     filters staan links tussen de tabjes (keuzelijst, RLDV-uitklapfilters),
+     knoppen rechts naast het zoekveld — alles in dezelfde letter, zonder kader. */
+  .crm-tabs { align-items:flex-end; flex-wrap:wrap; }
+  .crm-tabs .crm-select { background:transparent; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:8px 0 9px; color:rgba(255,255,255,.75); font-family:inherit; font-size:.82rem; cursor:pointer; max-width:220px; }
+  .crm-tabs .crm-select:hover, .crm-tabs .crm-select:focus { color:#fff; outline:none; }
+  .crm-tabs .crm-select option { background:#253151; color:#fff; }
+  .crm-tabs > .ms-dropdown { display:flex; }
+  .crm-tabs > .ms-dropdown > summary { height:auto; border:none; border-radius:0; border-bottom:2px solid transparent; margin-bottom:-1px; padding:8px 0 9px; background:transparent; color:rgba(255,255,255,.75); font-size:.82rem; font-weight:var(--w-normaal); }
+  .crm-tabs > .ms-dropdown > summary:hover { color:#fff; }
+  .crm-tabs > .ms-dropdown[open] > summary,
+  .crm-tabs > .ms-dropdown.active > summary { color:#fff; border-bottom:2px solid #F4CB3C; }
+  .crm-tabs .ms-dropdown-panel { background:#2b3653; border-color:rgba(255,255,255,.2); color:#fff; }
+  .crm-zoekgroep { display:flex; align-items:flex-end; gap:10px; flex-shrink:0; max-width:60%; }
+  .crm-zoekgroep > :not(.crm-zoek) { margin-bottom:6px; }
+  .crm-zoekgroep .filter-reset-link { margin-bottom:8px; }
+  .crm-balk + .bt-chiprij { margin-top:-2px; }
+  @media (max-width:640px) { .crm-balk { flex-direction:column; align-items:stretch; gap:4px; } .crm-tabs { gap:14px; overflow-x:auto; } .crm-zoek { width:100%; max-width:none; } .crm-zoekgroep { max-width:none; flex-wrap:wrap; } }
   /* Wijzigen ter plekke (17-09): de waarden in de rijen worden velden. */
   .kk-rij.bewerk { align-items:center; gap:6px; }
   .kk-rij.bewerk input, .kk-rij.bewerk select, .kk-rij.bewerk textarea { flex:1; min-width:0; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:6px; padding:5px 8px; font-family:inherit; font-size:.8rem; box-sizing:border-box; }
@@ -8974,7 +8991,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260918-1304';
+const APP_VERSIE = '20260918-1426';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -22520,14 +22537,7 @@ function renderPrognose() {
 
     return `<div class="section-title" style="text-align:left;">Bonussen</div>` +
       `<div class="bt-venster" style="padding:12px 14px;">` +
-      `<div class="filter-toolbar">` +
-        `<div class="bt-strook">` +
-        `<input id="bonus-search" type="text" class="filter-search-pill"` +
-          ` placeholder="Zoek op naam, medewerker, collega…"` +
-          ` value="${escHtml(window._bonussenQ||'')}"` +
-          ` oninput="window._bonussenQ=this.value;bonusFiltApply()">` +
-        `</div>` +
-      `</div>` +
+      _zoekBalkHtml({ id: 'bonus-search', waarde: window._bonussenQ||'', tabs: [['', 'Alle', bonussenRanges.length]], hint: 'naam, medewerker, collega', input: 'oninput="window._bonussenQ=this.value;bonusFiltApply()"' }) +
       `<div style="margin-bottom:8px;font-size:.7rem;color:var(--muted);">Kolommen: ${colToggles}</div>` +
       `<div id="bonus-totaal" style="font-size:.78rem;font-weight:700;color:#0e9f6e;margin-bottom:8px;text-align:left;"></div>` +
       `<div style="overflow-x:auto;">` +
@@ -22648,14 +22658,7 @@ function renderPrognose() {
         <button onclick="projExportExcel()" title="De lijst als Excel-bestand">Exporteer Excel</button>
       </span>
     </div>
-    <div class="filter-toolbar">
-      <div class="bt-strook">
-        <input id="proj-filter-q" type="text" class="filter-search-pill"
-          placeholder="Zoek medewerker, opdrachtgever of initialen…"
-          value="${(window._projFilt||{}).q||''}"
-          oninput="window._projFilt.q=this.value;projFiltApply()">
-      </div>
-    </div>
+    ${_zoekBalkHtml({ id: 'proj-filter-q', waarde: (window._projFilt||{}).q||'', tabs: [['', 'Alle projecten', overzichtRanges.length]], hint: 'medewerker, opdrachtgever of initialen', input: 'oninput="window._projFilt.q=this.value;projFiltApply()"' })}
     <div class="bt-venster" style="padding:12px 14px;">
       <div class="sub" style="margin-bottom:9px;font-size:.75rem;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;">
         <span style="display:inline-flex;align-items:center;gap:5px;"><span class="proj-stip proj-stip-loopt"></span>Loopt</span>
@@ -22902,14 +22905,7 @@ function renderKandidaten() {
         <span class="meta-pill">Laatste 10 weken</span>
       </div>
     </div>
-    <div class="filter-toolbar">
-      <div class="bt-strook">
-        <input id="kand-search-q" type="text" class="filter-search-pill"
-          placeholder="Zoek kandidaat, BM, functie, regio…"
-          value="${escHtml(KAND_SEARCH)}"
-          oninput="kandSetSearch(this.value)">
-      </div>
-    </div>
+    ${_zoekBalkHtml({ id: 'kand-search-q', waarde: KAND_SEARCH, tabs: [['', 'Alle intakes', allIntakeCards.length]], hint: 'kandidaat, BM, functie, regio', input: 'oninput="kandSetSearch(this.value)"' })}
     ${_kandLegendaHtml()}
     ${weekSections}
     ${kandArchiefHtml(excludedCards, canExclude)}
@@ -24114,6 +24110,10 @@ function accSetFilter(kind, val) {
   else if (kind === 'strat')  ACC_FILTER_STRAT = val;
   else if (kind === 'op')     ACC_FILTER_OP = val;
   renderAccounts();
+  if (kind === 'search') {
+    const inp = document.getElementById('kam-zoek');
+    if (inp) { inp.focus(); try { inp.setSelectionRange(val.length, val.length); } catch (_) {} }
+  }
 }
 
 function accHeatClass(val) {
@@ -25055,9 +25055,12 @@ function accOverzichtSoort(k) { ACC_OVERZICHT_SOORT = String(k || ''); renderAcc
 function renderAccOverzichtHtml(subTabBtns) {
   // Sinds 17-09 alle types, met een filter: het tegeltje draagt zelf zijn
   // type (bedrijfsbezoek / matchgesprek / evaluatie) en toont dat als pil.
-  const lijst = accBezoekenLijst().filter(b => !ACC_OVERZICHT_SOORT || b.soortBezoek === ACC_OVERZICHT_SOORT);
-  const soortFilter = '<div class="acc-soort-filter">' + [['', 'Alle']].concat(Object.entries(BEZOEK_SOORTEN)).map(([k, l]) =>
-    '<button type="button" class="acc-soort-knop' + ((ACC_OVERZICHT_SOORT || '') === k ? ' aan' : '') + '" onclick="accOverzichtSoort(\'' + k + '\')">' + escHtml(l) + '</button>').join('') + '</div>';
+  const alles = accBezoekenLijst();
+  const lijst = alles.filter(b => !ACC_OVERZICHT_SOORT || b.soortBezoek === ACC_OVERZICHT_SOORT);
+  // Zoekbalk A (18-09): de soorten als tabjes met teller, zoekveld rechts.
+  const balk = _zoekBalkHtml({ id: 'acc-overzicht-q', waarde: ACC_OVERZICHT_ZOEK, actief: ACC_OVERZICHT_SOORT || '', zet: 'accOverzichtSoort',
+    tabs: [['', 'Alle', alles.length]].concat(Object.entries(BEZOEK_SOORTEN).map(([k, l]) => [k, l, alles.filter(b => b.soortBezoek === k).length])),
+    hint: 'bedrijf, contactpersoon, afdeling, collega', input: 'oninput="accOverzichtZoek(this.value)"' });
   const z = String(ACC_OVERZICHT_ZOEK || '').trim().toLowerCase();
   let secties;
   if (z) {
@@ -25081,8 +25084,7 @@ function renderAccOverzichtHtml(subTabBtns) {
   }
   return '<div><div class="person-header"><div class="person-name">Overzicht bezoeken' + btUitlegKnop('accounts') + '</div>' +
     '<div class="person-meta"></div></div>' + (subTabBtns || '') +
-    '<div class="filter-toolbar"><div class="bt-strook"><input id="acc-overzicht-q" type="text" class="filter-search-pill" placeholder="Zoek bedrijf, contactpersoon, afdeling, collega…" value="' + escHtml(ACC_OVERZICHT_ZOEK) + '" oninput="accOverzichtZoek(this.value)">' + soortFilter + '</div></div>' +
-    secties + '</div>';
+    balk + secties + '</div>';
 }
 function renderAccOverzicht() {
   if (currentTab !== 'accoverzicht') return;
@@ -25910,11 +25912,26 @@ function _crmSortZet(st, col) {
 }
 // Zoekbalk en filters (ontwerp A, 17-09): tabbladen met het aantal erbij en
 // een gele streep onder de gekozen; rechts een zoekveld zonder kader.
+// De zoekbalk van alle lijstpagina's (ontwerp A, akkoord 18-09): links tabjes
+// met teller (o.tabs = [[waarde, tekst, aantal]], o.actief, o.zet = functie die
+// de waarde krijgt; zonder zet is één tabje een label) plus eventueel extra
+// filters (o.links), rechts het zoekveld met onderlijn (o.id, o.waarde, o.hint,
+// o.input = de gebeurtenis-attributen) en eventueel knoppen (o.rechts).
+function _zoekBalkHtml(o) {
+  const tabs = (o.tabs || []).map(([v, tekst, n]) => {
+    const aan = (o.actief || '') === (v || '');
+    const binnen = escHtml(tekst) + (n == null ? '' : '<small>' + n + '</small>');
+    return o.zet ? '<button type="button" class="crm-tab' + (aan ? ' aan' : '') + '" onclick="' + o.zet + '(\'' + escApos(v || '') + '\')">' + binnen + '</button>'
+                 : '<span class="crm-tab aan">' + binnen + '</span>';
+  }).join('');
+  const zoek = '<div class="crm-zoek"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
+    '<input id="' + o.id + '" type="text" value="' + escHtml(o.waarde || '') + '" placeholder="' + escHtml(o.placeholder || 'Zoeken…') + '"' +
+    (o.hint ? ' title="Zoekt op ' + escHtml(o.hint) + '"' : '') + (o.input ? ' ' + o.input : '') + '></div>';
+  return '<div class="crm-balk"><div class="crm-tabs">' + tabs + (o.links || '') + '</div>' +
+    (o.rechts ? '<div class="crm-zoekgroep">' + zoek + o.rechts + '</div>' : zoek) + '</div>';
+}
 function _crmZoekBalkHtml(st, tabs, o) {
-  return '<div class="crm-balk"><div class="crm-tabs">' +
-    tabs.map(([v, tekst, n]) => '<button type="button" class="crm-tab' + ((st.filter || '') === v ? ' aan' : '') + '" onclick="' + o.zet + '(\'' + v + '\')">' + escHtml(tekst) + '<small>' + n + '</small></button>').join('') +
-    '</div><div class="crm-zoek"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
-    '<input id="' + o.id + '" type="text" value="' + escHtml(st.zoek || '') + '" placeholder="Zoeken…" title="Zoekt op ' + escHtml(o.hint) + '" oninput="' + o.zoek + '(this.value)"></div></div>';
+  return _zoekBalkHtml({ id: o.id, waarde: st.zoek || '', tabs, actief: st.filter || '', zet: o.zet, hint: o.hint, input: 'oninput="' + o.zoek + '(this.value)"' });
 }
 function _crmVoet(gevonden, totaal, beperkt, alles, wat) {
   return '<div class="kand-archief-voet"><span>' +
@@ -27455,10 +27472,9 @@ function renderKanbanHtml() {
       '<div class="kb-lijst">' + (lijst.map(kanbanKaartHtml).join('') || '<div class="kb-leeg">leeg</div>') + '</div></div>';
   }).join('');
   return '<div><div class="person-header"><div class="person-name">Kanban · lopende procedures' + btUitlegKnop('kandidaten') + '</div><div class="person-meta"></div></div>' +
-    '<div class="filter-toolbar"><div class="bt-strook">' +
-      '<input id="kb-zoek" type="text" class="filter-search-pill" placeholder="Zoek kandidaat, klant, functie of collega…" value="' + escHtml(KANBAN.zoek || '') + '" oninput="kanbanZoek(this.value)">' +
-      '<select class="kb-collega" onchange="kanbanFilterCollega(this.value)"><option value="">Alle collega\'s</option>' + collegas.map(n => '<option value="' + escHtml(n) + '"' + (KANBAN.collega === n ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>' +
-    '</div></div>' +
+    _zoekBalkHtml({ id: 'kb-zoek', waarde: KANBAN.zoek || '', tabs: [['', 'Op het bord', Object.values(per).reduce((n, l) => n + l.length, 0)]],
+      links: '<select class="crm-select" onchange="kanbanFilterCollega(this.value)"><option value="">Alle collega\'s</option>' + collegas.map(n => '<option value="' + escHtml(n) + '"' + (KANBAN.collega === n ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>',
+      hint: 'kandidaat, klant, functie of collega', input: 'oninput="kanbanZoek(this.value)"' }) +
     '<div class="kb-bord">' + kolommen + '</div></div>';
 }
 function renderKanban() {
@@ -30484,19 +30500,17 @@ function slFilterBalkHtml(extraKnoppen) {
   const iets = SL_SEARCH || SL_FILTER_VAKGEBIED.length || SL_FILTER_REGIO.length ||
                SL_FILTER_CP.length || SL_FILTER_STATUS.length || SL_FILTER_VOORW.length ||
                SL_FILTER_SC || SL_FILTER_MONTEUR || SL_FILTER_WVB || SL_FILTER_ENG || SL_FILTER_PM;
-  return '<div class="filter-toolbar"><div class="bt-strook">' +
-    '<input type="text" id="sl-zoekveld" class="filter-search-pill" placeholder="naam, vakgebied, regio, status…" ' +
-      'value="' + escHtml(SL_SEARCH) + '" oninput="SL_SEARCH=this.value;clearTimeout(window._slST);window._slST=setTimeout(render,250)">' +
-    slMsFilterHtml('vakgebied', 'vakgebied', o.vakgebied, SL_FILTER_VAKGEBIED) +
-    slMsFilterHtml('regio', 'regio', o.regio, SL_FILTER_REGIO) +
-    slMsFilterHtml('cp', 'contactpersoon', o.cp, SL_FILTER_CP) +
-    slMsFilterHtml('status', 'status', o.status, SL_FILTER_STATUS) +
-    slMsFilterHtml('voorw', 'voorwaarden', o.voorw, SL_FILTER_VOORW) +
-    '</div>' +
-    '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">' +
-      (iets ? '<button class="filter-reset-link" onclick="slResetFilters()">↺ wis filters</button>' : '') +
-      (extraKnoppen || '') +
-    '</div></div>' +
+  // Zoekbalk A (18-09): het tabje Alle met teller, daarnaast de vijf
+  // uitklapfilters; rechts het zoekveld met wis en de knoppen. De vakgebied-
+  // knoppen houden hun eigen rij: vijf naast vijf filters past niet leesbaar op één regel.
+  return _zoekBalkHtml({ id: 'sl-zoekveld', waarde: SL_SEARCH, tabs: [['', 'Alle', SALES_LEADS_CACHE.length]],
+    links: slMsFilterHtml('vakgebied', 'vakgebied', o.vakgebied, SL_FILTER_VAKGEBIED) +
+      slMsFilterHtml('regio', 'regio', o.regio, SL_FILTER_REGIO) +
+      slMsFilterHtml('cp', 'contactpersoon', o.cp, SL_FILTER_CP) +
+      slMsFilterHtml('status', 'status', o.status, SL_FILTER_STATUS) +
+      slMsFilterHtml('voorw', 'voorwaarden', o.voorw, SL_FILTER_VOORW),
+    hint: 'naam, vakgebied, regio, status', input: 'oninput="SL_SEARCH=this.value;clearTimeout(window._slST);window._slST=setTimeout(render,250)"',
+    rechts: (iets ? '<button class="filter-reset-link" onclick="slResetFilters()">↺ wis filters</button>' : '') + (extraKnoppen || '') }) +
     '<div class="bt-chiprij">' +
       slBoolChipHtml('sc', 'SC', SL_FILTER_SC) +
       slBoolChipHtml('monteur', 'Monteur', SL_FILTER_MONTEUR) +
@@ -31075,24 +31089,12 @@ function renderStrategischeLeadsHtml(subTabBtns) {
     </div>
     ${canEditAccounts ? '' : ''}
     ${subTabBtns}
-    <div class="filter-toolbar">
-      <div class="bt-strook">
-        <input type="text" class="filter-search-pill" placeholder="klantnaam…" value="${escHtml(ACC_SEARCH)}" onchange="accSetFilter('search', this.value)">
-        <select class="acc-select-pill" onchange="accSetFilter('strat', this.value)">
-          <option value="" ${!ACC_FILTER_STRAT?'selected':''}>Alle Strat CP</option>
-          ${stratOptHtml}
-        </select>
-        <select class="acc-select-pill" onchange="accSetFilter('op', this.value)">
-          <option value="" ${!ACC_FILTER_OP?'selected':''}>Alle OP CP</option>
-          ${opOptHtml}
-        </select>
-      </div>
-        ${(ACC_SEARCH||ACC_FILTER_STRAT||ACC_FILTER_OP) ? `<button class="filter-reset-link" onclick="accSetFilter('search','');accSetFilter('strat','');accSetFilter('op','')">↺ wis</button>` : ''}
-        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
-          ${canEditAccounts ? `<button class="bt-actieknop hoofd" onclick="accountsOpenNewModal()">Nieuwe klant</button>` : ''}
-        </div>
-      </div>
-    </div>
+    ${_zoekBalkHtml({ id: 'kam-zoek', waarde: ACC_SEARCH, tabs: [['', 'Alle klanten', list.length]],
+      links: `<select class="crm-select" onchange="accSetFilter('strat', this.value)"><option value="" ${!ACC_FILTER_STRAT?'selected':''}>Alle Strat CP</option>${stratOptHtml}</select>` +
+             `<select class="crm-select" onchange="accSetFilter('op', this.value)"><option value="" ${!ACC_FILTER_OP?'selected':''}>Alle OP CP</option>${opOptHtml}</select>`,
+      hint: 'klantnaam', input: `oninput="accSetFilter('search', this.value)"`,
+      rechts: ((ACC_SEARCH||ACC_FILTER_STRAT||ACC_FILTER_OP) ? `<button class="filter-reset-link" onclick="accSetFilter('search','');accSetFilter('strat','');accSetFilter('op','')">↺ wis</button>` : '') +
+              (canEditAccounts ? `<button class="bt-actieknop hoofd" onclick="accountsOpenNewModal()">Nieuwe klant</button>` : '') })}
     <div class="bt-venster" style="overflow:visible;">
       <table class="acc-table bt-lijst">
         <colgroup>
