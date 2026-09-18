@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260918-1300 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260918-1304 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4005,6 +4005,19 @@
                  cursor:pointer; }
   .rec-collega:hover { color:var(--primary); }
   .rec-actie { display:flex; align-items:center; gap:5px; }
+  /* Kandidaat koppelen ín het record (18-09). Oranje zolang de naam ontbreekt,
+     neutraal daarna; dezelfde regel staat in de ITK-Recorder. */
+  .rec-kand { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#fff; border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin-bottom:12px; font-size:.84rem; color:var(--text); }
+  .rec-kand.mist { background:#fff8e1; border-color:#f59e0b; }
+  .rec-kand b { font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:var(--w-nadruk); }
+  .rec-kand.mist b { color:#92400e; }
+  .rec-kand select { border:1px solid var(--border); border-radius:6px; padding:4px 8px; background:#fff; font-family:inherit; font-size:.82rem; color:var(--text); min-width:260px; max-width:100%; }
+  .rec-kand.mist select { border-color:#f59e0b; }
+  .rec-kand .n { font-weight:var(--w-nadruk); }
+  .rec-kand .hint { margin-left:auto; font-size:.74rem; color:#92400e; }
+  .rec-kand .wijzig { margin-left:auto; font-size:.76rem; color:var(--primary); background:none; border:none; cursor:pointer; padding:0; font-family:inherit; }
+  .rec-kand .wijzig:hover { text-decoration:underline; }
+  .rec-pil-geen { font-size:.7rem; background:#fef3c7; color:#92400e; border:1px solid #f59e0b; border-radius:4px; padding:1px 6px; flex-shrink:0; }
   /* Op smalle schermen vervallen de zijkolommen; de titel blijft leidend. */
   @media (max-width:900px) {
     .rec-kop { grid-template-columns:14px 40px minmax(0,1fr) 96px 26px; }
@@ -8961,7 +8974,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260918-1300';
+const APP_VERSIE = '20260918-1304';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -32530,6 +32543,7 @@ function renderGesprek() {
   const zf = r ? (r.zachteFactoren || {}) : {};
 
   const resultHtml = r ? `
+    ${_recNaamRegelHtml(g.naam, 'gesprekNaamZetHuidig(this.value)')}
     <div class="chart-card" style="margin-bottom:14px;">
       <h3 style="margin-bottom:8px;">Samenvatting gesprek</h3>
       <p style="line-height:1.7;white-space:pre-wrap;margin:0;">${escHtml(r.samenvatting || '')}</p>
@@ -33100,9 +33114,11 @@ function addGesprekRecord() {
       ? oudTranscript.trim() + '\n\n---\n\n' + g.transcript.trim()
       : (g.transcript || oudTranscript);
     GESPREK_RECORDS[dupIdx] = { ...GESPREK_RECORDS[dupIdx], ...record, id: bestaandId, transcript: samen };
+    g.recordId = bestaandId;
     _updateGesprekVerslagInSupa(bestaandId, g.result, samen);
   } else {
     const nieuw = { ...record, id: _nieuwVerslagId(), ongedeeld: true };
+    g.recordId = nieuw.id;
     GESPREK_RECORDS.unshift(nieuw);
     // Lukt het opslaan, dan krijgt het record meteen zijn server-ID en is het
     // definitief. Lukt het niet, dan blijft het staan met het label "alleen op
@@ -33257,6 +33273,18 @@ async function publiceerLokaleToewijzingen(stil) {
   if (gelukt) { await gesprekHerlaadRecords(); await bezoekHerlaadRecords(); }
 }
 
+// De regel "Kandidaat" bovenin een verslag (18-09). Zonder naam: oranje met
+// keuzelijst; met naam: leesregel + "wijzigen" (zet de keuzelijst ernaast).
+// `zet` is de JS die de gekozen naam verwerkt; `bewerk` opent de lijst direct.
+function _recNaamRegelHtml(naam, zet, bewerk) {
+  naam = String(naam || '').trim();
+  const lijst = '<select onclick="event.stopPropagation()" onchange="event.stopPropagation();' + zet + '" title="Kandidaat koppelen" aria-label="Kandidaat">' +
+    '<option value="">— kies de kandidaat —</option>' + _recNaamKeuzes().map(n => '<option value="' + escHtml(n) + '"' + (n === naam ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>';
+  if (!naam) return '<div class="rec-kand mist" onclick="event.stopPropagation()"><b>Kandidaat</b>' + lijst + '<span class="hint">zonder naam vinden de RLDV-check en de kandidaatkaart dit verslag niet</span></div>';
+  if (bewerk) return '<div class="rec-kand" onclick="event.stopPropagation()"><b>Kandidaat</b>' + lijst + '</div>';
+  return '<div class="rec-kand" onclick="event.stopPropagation()"><b>Kandidaat</b><span class="n">' + escHtml(naam) + '</span>' +
+    '<button type="button" class="wijzig" onclick="event.stopPropagation();this.parentNode.querySelector(\'.n\').hidden=true;this.hidden=true;this.parentNode.insertAdjacentHTML(\'beforeend\',' + JSON.stringify(lijst).replace(/"/g, '&quot;') + ')">wijzigen</button></div>';
+}
 // Kandidaten om aan een naamloos verslag te koppelen: CRM · Kandidaten plus
 // de intake-namen uit de pipelines, zonder dubbelen.
 function _recNaamKeuzes() {
@@ -33268,6 +33296,14 @@ function _recNaamKeuzes() {
 // Naam alsnog koppelen (18-09): verslagen van 17/18-09 kwamen zonder naam
 // binnen. De naam gaat naar meta.naam op de server, zodat de RLDV-check en de
 // kandidaatkaart het verslag daarna wél vinden.
+// In de recorder zelf (18-09): naam kiezen boven het verse verslag zet hem op
+// GESPREK én op het zojuist opgeslagen record (lokaal + server).
+async function gesprekNaamZetHuidig(naam) {
+  naam = String(naam || '').trim(); if (!naam) return;
+  GESPREK.naam = naam;
+  if (GESPREK.recordId) { await gesprekRecordNaamZet(GESPREK.recordId, naam); return; }
+  renderGesprek();
+}
 async function gesprekRecordNaamZet(id, naam) {
   if (!eisWijzig('gesprek')) return;
   naam = String(naam || '').trim(); if (!naam) return;
@@ -33275,9 +33311,9 @@ async function gesprekRecordNaamZet(id, naam) {
   rec.naam = naam;
   _saveGesprekRec();
   const fout = await _verslagMetaNaarServer(id, { naam });
+  if (fout && rec.ongedeeld) { renderGesprek(); return; }   // nog niet gedeeld: de naam gaat mee zodra het delen lukt
   if (fout) alert('De naam staat wel in jouw scherm, maar is niet op de server opgeslagen:\n\n' + fout);
   renderGesprek();
-  if (typeof renderGesprekRecords === 'function' && currentTab === 'records') renderGesprekRecords();
 }
 async function gesprekRecordToewijzen(id, naam) {
   if (!naam) return; // lege optie genegeerd
@@ -33691,7 +33727,7 @@ function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
           <span>${soortPil||''}</span>
           <span class="rec-titel">${escHtml(title)}</span>
           <span class="rec-status">
-            ${rec.naam ? '' : `<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag heeft geen kandidaatnaam; de RLDV-check en de kandidaatkaart vinden het daardoor niet. Kies hiernaast de kandidaat.">geen naam</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();gesprekRecordNaamZet('${rec.id}',this.value)" style="font-size:.72rem;border:1px solid #f59e0b;border-radius:5px;padding:2px 4px;max-width:180px;color:var(--text);background:#fff;" title="Kandidaat koppelen"><option value="">— kandidaat koppelen —</option>${_recNaamKeuzes().map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</select>`}
+            ${rec.naam ? '' : `<span class="rec-pil-geen" title="Dit verslag heeft geen kandidaatnaam; de RLDV-check en de kandidaatkaart vinden het daardoor niet. Klap het verslag open en kies de kandidaat.">geen naam</span>`}
             ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
             ${afsprakenStatusPil(rec.id)}
             ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
@@ -33709,6 +33745,7 @@ function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
           <span onclick="event.stopPropagation();gesprekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;" title="Verwijder">${btActie('prullenbak')}</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--card);">
+          ${_recNaamRegelHtml(rec.naam, "gesprekRecordNaamZet('" + rec.id + "',this.value)")}
           <div class="chart-card" style="padding:12px 14px;margin-bottom:12px;">
             <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Samenvatting</div>
             ${verslagTekstHtml(r.samenvatting)}
