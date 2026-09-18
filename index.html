@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260918-0912 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260918-0922 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5436,7 +5436,6 @@ let medewerkersOpen = true;
 let managementOpen = false;
 let toolsOpen = false;
 let accountsOpen = false;     // Accountmanagement klapt uit: Overzicht en KAM & RLDV (16-09)
-let crmOpen = true;           // CRM klapt uit: Kandidaten en Bedrijven (17-09)
 let kandidatenOpen = false;   // keuze T2 (10-09): Kandidaten klapt uit
 let sidebarOpen = false;
 // Welk sub-tabblad ('kpis' of 'plan') op de huidige medewerkerpagina actief is.
@@ -8944,7 +8943,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260918-0912';
+const APP_VERSIE = '20260918-0922';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9606,7 +9605,6 @@ function renderTabs() {
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
         </div>
       </div>`)}
-      ${_sidebarCrmHtml()}
       ${mi('kanban', `<div class="sidebar-cat"><button class="sidebar-cat-btn ${currentTab==='kanban'?'active-cat':''}" onclick="selectTab('kanban')">${btCatLabel('kanban','Kanban')}</button></div>`)}
       ${_sidebarAccountsHtml()}
       ${_sidebarKandidatenHtml()}
@@ -9666,7 +9664,6 @@ function renderTabs() {
         ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
       </div>
     </div>`)}
-    ${_sidebarCrmHtml()}
     ${mi('kanban', `<div class="sidebar-cat"><button class="sidebar-cat-btn ${currentTab==='kanban'?'active-cat':''}" onclick="selectTab('kanban')">${btCatLabel('kanban','Kanban')}</button></div>`)}
     ${_sidebarAccountsHtml()}
     ${_sidebarKandidatenHtml()}
@@ -9710,36 +9707,20 @@ function toggleAccounts(event) {
 // Accountmanagement als uitklapkopje (aanwijzing 16-09): Overzicht bezoeken
 // is een eigen pagina, KAM & RLDV de bestaande tabellen. Eén stuk zijbalk
 // voor beide varianten. Het label gaat naar het overzicht.
-// CRM (17-09): Kandidaten en Bedrijven. De pagina's volgen het recht op
+// CRM (18-09): Kandidaten staat onder het kopje Kandidaten, Bedrijven onder
+// Accountmanagement — geen eigen kopje meer. De pagina's volgen het recht op
 // Kandidaten respectievelijk Accountmanagement (zie _rechtSleutel).
-function toggleCrm(event) {
-  if (event) event.stopPropagation();
-  crmOpen = !crmOpen;
-  renderTabs();
-}
-function _sidebarCrmHtml() {
-  const erin = currentTab === 'crmkand' || currentTab === 'crmbedrijf';
-  return miGroep(['crmkand', 'crmbedrijf'], `<div class="sidebar-cat">
-    <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleCrm(event)">
-      <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="${magZien('crmkand') ? "selectTab('crmkand'); event.stopPropagation();" : "toggleCrm(event);"}">${btIcon('crm')}CRM</span>
-      <span class="sidebar-caret ${crmOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
-    </div>
-    <div class="sidebar-sub" style="display:${crmOpen ? 'flex' : 'none'};">
-      ${mi('crmkand', `<button class="sidebar-item ${currentTab === 'crmkand' ? 'active' : ''}" onclick="selectTab('crmkand')">${btIcon('kandidaten')}Kandidaten</button>`)}
-      ${mi('crmbedrijf', `<button class="sidebar-item ${currentTab === 'crmbedrijf' ? 'active' : ''}" onclick="selectTab('crmbedrijf')">${btIcon('accounts')}Bedrijven</button>`)}
-    </div>
-  </div>`);
-}
 function _sidebarAccountsHtml() {
-  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht';
-  return mi('accounts', `<div class="sidebar-cat">
+  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'crmbedrijf';
+  return miGroep(['accounts', 'crmbedrijf'], `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleAccounts(event)">
       <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="selectTab('accoverzicht'); event.stopPropagation();">${btIcon('accounts')}Accountmanagement</span>
       <span class="sidebar-caret ${accountsOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
     </div>
     <div class="sidebar-sub" style="display:${accountsOpen ? 'flex' : 'none'};">
       <button class="sidebar-item ${currentTab === 'accoverzicht' ? 'active' : ''}" onclick="selectTab('accoverzicht')">${btIcon('overzicht')}Overzicht</button>
-      <button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>
+      ${mi('crmbedrijf', `<button class="sidebar-item ${currentTab === 'crmbedrijf' ? 'active' : ''}" onclick="selectTab('crmbedrijf')">${btIcon('crm')}CRM</button>`)}
+      ${mi('accounts', `<button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>`)}
     </div>
   </div>`);
 }
@@ -9755,9 +9736,9 @@ function toggleKandidaten(event) {
 // beide varianten, zodat ze niet uit elkaar kunnen lopen. Het label gaat naar
 // het overzicht, het pijltje klapt alleen open en dicht (zoals Medewerkers).
 function _sidebarKandidatenHtml() {
-  const erin = currentTab === 'kandidaten' || currentTab === 'rldvtool' || currentTab === 'rldvcheck';
+  const erin = currentTab === 'kandidaten' || currentTab === 'crmkand' || currentTab === 'rldvtool' || currentTab === 'rldvcheck';
   const open = magZien('rldvcheck') ? rldvCheckOpenAantal() : 0;
-  return miGroep(['kandidaten', 'rldvtool', 'rldvcheck'], `<div class="sidebar-cat">
+  return miGroep(['kandidaten', 'crmkand', 'rldvtool', 'rldvcheck'], `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleKandidaten(event)">
       ${/* Staat het overzicht uit, dan klapt het label alleen open (test_onderdelen). */''}
       <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="${magZien('kandidaten') ? "selectTab('kandidaten'); event.stopPropagation();" : "toggleKandidaten(event);"}">${btIcon('kandidaten')}Kandidaten</span>
@@ -9765,6 +9746,7 @@ function _sidebarKandidatenHtml() {
     </div>
     <div class="sidebar-sub" style="display:${kandidatenOpen ? 'flex' : 'none'};">
       ${mi('kandidaten', `<button class="sidebar-item ${currentTab === 'kandidaten' ? 'active' : ''}" onclick="selectTab('kandidaten')">${btIcon('overzicht')}Overzicht</button>`)}
+      ${mi('crmkand', `<button class="sidebar-item ${currentTab === 'crmkand' ? 'active' : ''}" onclick="selectTab('crmkand')">${btIcon('crm')}CRM</button>`)}
       ${mi('rldvtool', `<button class="sidebar-item ${currentTab === 'rldvtool' ? 'active' : ''}" onclick="selectTab('rldvtool')">${btIcon('rldvtool')}RLDV-tool</button>`)}
       ${mi('rldvcheck', `<button class="sidebar-item ${currentTab === 'rldvcheck' ? 'active' : ''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-check${open ? ' <span class="sidebar-teller">' + open + '</span>' : ''}</button>`)}
     </div>
@@ -11691,8 +11673,8 @@ function _kiesStartTab() {
   else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
   else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
   else if (hersteld === 'accounts' || hersteld === 'accoverzicht') accountsOpen = true;
-  else if (['kandidaten','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
-  else if (hersteld === 'crmkand' || hersteld === 'crmbedrijf') crmOpen = true;
+  else if (['kandidaten','crmkand','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
+  else if (hersteld === 'crmbedrijf') accountsOpen = true;
 }
 
 function selectTab(i) {
@@ -11712,9 +11694,9 @@ function selectTab(i) {
   if (i === 'financieel' || i === 'hrm' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   if (i === 'records') managementOpen = true;
-  if (i === 'kandidaten' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
+  if (i === 'kandidaten' || i === 'crmkand' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
   if (i === 'accounts' || i === 'accoverzicht') accountsOpen = true;
-  if (i === 'crmkand' || i === 'crmbedrijf') crmOpen = true;
+  if (i === 'crmbedrijf') accountsOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
