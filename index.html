@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260921-0806 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260921-0828 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4110,6 +4110,27 @@
   .cr .cr-legenda { display:flex; gap:16px; font-size:.74rem; color:#6b7280; margin-top:4px; flex-wrap:wrap; }
   .cr .cr-legenda i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
   @media (max-width:760px) { .cr .cr-twee { grid-template-columns:1fr; } }
+  /* Dagstart-kompas voor managers (21-09). */
+  .dk-sub { display:block; font-size:.82rem; font-weight:400; color:#6b7280; margin-top:4px; }
+  .dk-balk { display:flex; align-items:center; gap:10px; margin-top:8px; font-size:.78rem; color:#4b5563; }
+  .dk-balk .spoor { flex:1; height:8px; background:#eef2ff; border-radius:4px; position:relative; overflow:hidden; }
+  .dk-balk .spoor i { position:absolute; left:0; top:0; bottom:0; background:#253151; border-radius:4px; }
+  .dk-kop { margin-top:16px; font-size:.7rem; color:#6b7280; letter-spacing:.04em; }
+  .dk-tekst { margin-top:5px; font-size:.9rem; line-height:1.6; color:#1f2937; }
+  .dk-tekst b { color:#253151; }
+  .dk-twee { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+  .dk-cijfer { background:#f7f8fb; border-radius:9px; padding:8px 10px; }
+  .dk-cijfer b { display:block; font-size:1.05rem; color:#253151; }
+  .dk-cijfer.oranje b { color:#b45309; }
+  .dk-cijfer.groen b { color:#166534; }
+  .dk-cijfer span { font-size:.74rem; color:#6b7280; }
+  .dk-lijst { margin:6px 0 0; padding:0; list-style:none; }
+  .dk-lijst li { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px solid #f3f4f6; font-size:.86rem; color:#1f2937; }
+  .dk-lijst li:last-child { border-bottom:none; }
+  .dk-lijst .r { color:#6b7280; font-size:.78rem; white-space:nowrap; text-align:right; }
+  .dk-lijst .r.oud { color:#b45309; }
+  .dk-pil { display:inline-block; font-size:.68rem; padding:1px 7px; border-radius:99px; background:#eef2ff; color:#253151; margin-left:6px; vertical-align:1px; }
+  .dk-vandaag { margin-top:6px; background:#fff8e1; border-left:3px solid #F4CB3C; border-radius:0 8px 8px 0; padding:9px 12px; font-size:.9rem; line-height:1.55; color:#1f2937; }
   .rec-pil-geen { font-size:.7rem; background:#fef3c7; color:#92400e; border:1px solid #f59e0b; border-radius:4px; padding:1px 6px; flex-shrink:0; }
   /* Op smalle schermen vervallen de zijkolommen; de titel blijft leidend. */
   @media (max-width:900px) {
@@ -9067,7 +9088,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260921-0806';
+const APP_VERSIE = '20260921-0828';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16001,6 +16022,185 @@ const DAGSTART_BOODSCHAPPEN = [
   }
 ];
 
+// ── Dagstart-kompas voor managers (21-09) ────────────────────────────────────
+// Eén vaste meetlat, elke dag dezelfde: lopende projecten tegen de begrote
+// lijn (Begroting.xlsx · Projectenstand). Het oude teambericht zette de
+// starters tegen de optelsom van de doelcurves; die curve loopt op, dus het
+// gat leek klein en het bericht sloeg om van "vóór" naar "onder" door één
+// magere week — terwijl de projectenlijn een veel groter tekort liet zien.
+// Alles hieronder is rekenwerk van het dashboard; het model formuleert alleen.
+function _kompasNorm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+function _dagstartKompas() {
+  const jaar = CUR.year, week = CUR.week, nu = new Date();
+  const lopend  = countActiveProjectsPerWeek(jaar);
+  const begroot = getBegroteLijnPerWeek(jaar);
+  const lopendNu  = lopend[week - 1] || 0;
+  const begrootNu = begroot[week - 1];
+  const wk4 = Math.max(1, week - 4);
+  const gat  = begrootNu == null ? null : +(lopendNu - begrootNu).toFixed(1);
+  const gat4 = begroot[wk4 - 1] == null ? null : +((lopend[wk4 - 1] || 0) - begroot[wk4 - 1]).toFixed(1);
+  // Netto groei sinds week 1: zo zou het moeten lopen, zo liep het echt.
+  const groeiBegroot = (begrootNu == null || begroot[0] == null) ? null : +(begrootNu - begroot[0]).toFixed(1);
+  const groeiEcht    = +(lopendNu - (lopend[0] || 0)).toFixed(1);
+
+  // Starters dit jaar (per collega, tegen het eigen schema) en stoppers.
+  const bms = bmsMetResultaat();
+  let starters = 0, schema = 0;
+  const perBm = bms.map(bm => {
+    const s = jaarTotalen(bm.naam, jaar).starters || 0, v = cumDoel(bm, week, 52);
+    starters += s; schema += v;
+    return { naam: bm.naam, doel: bm.doel, starters: +s.toFixed(1), verwacht: +v.toFixed(1), gat: +(s - v).toFixed(1), matchOpen: 0, contrOpen: 0 };
+  });
+  const ranges = getCombinedProjectRanges();
+  const jaarStart = new Date(Date.UTC(jaar, 0, 1)), eindJaar = new Date(Date.UTC(jaar, 11, 31, 23, 59));
+  const eindVan = r => { const d = projDefEindLoad(r.source, r.id); return d ? new Date(d) : null; };
+  const stopVan = r => { const d = projPrognoseLoad(r.source, r.id); return d ? new Date(d) : null; };
+  const stoppers = ranges.filter(r => { const e = eindVan(r); return e && e >= jaarStart && e <= nu; }).length;
+  const stoppersKomend = ranges.filter(r => { if (r.verwijderdOp) return false; const e = eindVan(r) || stopVan(r); return e && e > nu && e <= eindJaar; }).length;
+
+  // Wat nodig is om op 31 december op de begrote lijn te staan.
+  const begrootEind = begroot[51] != null ? begroot[51] : begroot.filter(x => x != null).pop();
+  const wkOver = Math.max(1, 52 - week);
+  const nodig = begrootEind == null ? null : Math.max(0, +(begrootEind - lopendNu + stoppersKomend).toFixed(1));
+  const perWeekNodig = nodig == null ? null : +(nodig / wkOver).toFixed(1);
+  const reeks8 = _comrapWeekreeks(week, jaar, 8);
+  const tempo = +(reeks8.reduce((t, r) => t + (r.team.starters || 0), 0) / 8).toFixed(1);
+
+  // De pijplijn: open contractvoorstellen (gedeeld telt 0,5), oude zonder vervolgstap,
+  // open matchgesprekken per collega, en welke klanten al een vervolg hebben.
+  const grens = _weekVerschoven(jaar, week, -2);
+  const open = [], oud = [], klantenMetVervolg = new Set();
+  const isOud = c => c.jaar && c.week && (c.jaar < grens.year || (c.jaar === grens.year && c.week <= grens.week));
+  let matchOudste = null;
+  for (const bm of bms) for (const c of pipeLoad(bm.naam)) {
+    if (c.verwijderd_op) continue;
+    const p = perBm.find(x => x.naam === bm.naam);
+    if (c.stage === 'Matchgesprekken') {
+      if (p) p.matchOpen++;
+      if (!matchOudste || (c.jaar || 0) * 100 + (c.week || 0) < (matchOudste.jaar || 0) * 100 + (matchOudste.week || 0)) matchOudste = { naam: c.naam, klant: _kanbanKlantVan(c), collega: bm.naam, week: c.week, jaar: c.jaar };
+    }
+    if (c.stage === 'Contractvoorstel' || (c.stage === 'Starter' && c.goedkeuring !== 'niet_akkoord')) klantenMetVervolg.add(_kompasNorm(_kanbanKlantVan(c)));
+    if (c.stage !== 'Contractvoorstel') continue;
+    const telt = telKaarten([c], 'Contractvoorstel');   // gedeeld telt 0,5 — één telregel (test_pipeline_telling)
+    if (p) p.contrOpen += telt;
+    const rij = { naam: c.naam, klant: _kanbanKlantVan(c), collega: bm.naam, telt, week: c.week, jaar: c.jaar };
+    open.push(rij);
+    if (isOud(c)) oud.push(rij);
+  }
+  const contrOpen = +open.reduce((t, r) => t + r.telt, 0).toFixed(1);
+  // Doorstroom contractvoorstel → starter over de laatste twaalf weken (output
+  // van een week tegen de input van de week ervoor); zonder meting 0,8.
+  const r12 = _comrapWeekreeks(week, jaar, 12);
+  let cv = 0, st = 0;
+  for (let i = 1; i < r12.length; i++) { cv += r12[i - 1].team.contractvoorstellen || 0; st += r12[i].team.starters || 0; }
+  const doorstroom = cv > 0 ? Math.min(1, +(st / cv).toFixed(2)) : 0.8;
+  const verwachtUitContr = +(contrOpen * doorstroom).toFixed(1);
+
+  // Stoppers binnen vier weken zonder opvolger bij dezelfde opdrachtgever.
+  const over4 = new Date(nu.getTime() + 28 * 864e5), over2 = new Date(nu.getTime() + 14 * 864e5);
+  const stoppersZonder = ranges.filter(r => {
+    if (r.verwijderdOp) return false;
+    const e = eindVan(r) || stopVan(r);
+    return e && e > nu && e <= over4 && !klantenMetVervolg.has(_kompasNorm(r.opdrachtgever));
+  }).map(r => ({ naam: r.naam, klant: r.opdrachtgever || '', eind: eindVan(r) || stopVan(r) }))
+    .sort((a, b) => a.eind - b.eind);
+
+  perBm.sort((a, b) => a.gat - b.gat);
+  const achterste = perBm[0] || null;
+
+  // Vandaag: de eerste regel die geldt.
+  let vandaag;
+  if (oud.length) vandaag = { soort: 'contract', items: oud.slice(0, 3) };
+  else if (stoppersZonder.some(x => x.eind <= over2)) vandaag = { soort: 'stopper', items: stoppersZonder.filter(x => x.eind <= over2).slice(0, 3) };
+  else if (achterste && achterste.gat < 0 && achterste.matchOpen >= 3) vandaag = { soort: 'collega', item: achterste };
+  else if (matchOudste) vandaag = { soort: 'match', item: matchOudste };
+  else vandaag = { soort: 'geen' };
+
+  return { jaar, week, lopendNu, begrootNu, gat, gat4, groeiBegroot, groeiEcht, starters: +starters.toFixed(1), schema: +schema.toFixed(1),
+           stoppers, stoppersKomend, begrootEind, wkOver, nodig, perWeekNodig, tempo,
+           contrOpen, doorstroom, verwachtUitContr, open, oud, stoppersZonder, perBm, achterste, matchOudste, vandaag };
+}
+
+// De vaste teksten (zonder model): dezelfde regels, maar in het Nederlands van het dashboard.
+function _dagstartKompasTekst(k) {
+  const kern = k.gat == null
+    ? `${fmtNl(k.lopendNu,0)} projecten lopend; er is geen begrote lijn voor week ${k.week}.`
+    : k.gat >= 0
+      ? `${fmtNl(k.lopendNu,0)} projecten lopend, ${fmtNl(k.begrootNu,0)} begroot: ${fmtNl(k.gat,0)} boven de lijn.`
+      : `${fmtNl(k.lopendNu,0)} projecten lopend, ${fmtNl(k.begrootNu,0)} begroot: ${fmtNl(Math.abs(k.gat),0)} tekort.`;
+  const v = k.vandaag;
+  const wie = r => `${r.naam}${r.klant ? ` (${r.klant}, ${_dagstartVoornaam(r.collega)})` : ` (${_dagstartVoornaam(r.collega)})`}`;
+  let vandaag;
+  if (v.soort === 'contract') vandaag = `${v.items.length === 1 ? 'Eén contractvoorstel staat' : v.items.length + ' contractvoorstellen staan'} al twee weken of langer zonder vervolgstap: ${v.items.map(wie).join(', ')}. Bel vandaag beide partijen.`;
+  else if (v.soort === 'stopper') vandaag = `${v.items.length === 1 ? 'Eén project stopt' : v.items.length + ' projecten stoppen'} binnen twee weken zonder opvolger bij die klant: ${v.items.map(x => `${x.naam} (${x.klant})`).join(', ')}. Vraag vandaag naar verlenging of een vervolgpositie.`;
+  else if (v.soort === 'collega') vandaag = `${_dagstartVoornaam(v.item.naam)} staat ${fmtNl(Math.abs(v.item.gat),1)} onder zijn lijn met ${v.item.matchOpen} open matchgesprekken. Loop die vandaag samen door: welke kunnen deze week naar een contractvoorstel?`;
+  else if (v.soort === 'match') vandaag = `Het oudste open matchgesprek is ${wie(v.item)}${v.item.week ? `, uit week ${v.item.week}` : ''}. Vraag vandaag wat de volgende stap is.`;
+  else vandaag = `Geen open contractvoorstellen of stoppers om na te bellen. Kijk vandaag naar wie de meeste kandidaten vooraan heeft staan.`;
+  return { kern, vandaag };
+}
+
+// De kaart: kompasbalk, waar het zit, wat nodig is, waar het kan komen, vandaag.
+function _dagstartKompasHtml(k, t) {
+  const n0 = x => fmtNl(x, 0), n1 = x => fmtNl(x, 1);
+  const ondertitel = k.gat4 == null ? `Week ${k.week}.` : `Vier weken geleden was het gat ${n0(Math.abs(k.gat4))}${k.gat4 >= 0 ? ' boven' : ''}. Week ${k.week}.`;
+  const breedte = k.begrootNu ? Math.max(4, Math.min(100, Math.round(k.lopendNu / Math.max(k.begrootNu, k.lopendNu) * 100))) : 100;
+  const sGat = +(k.starters - k.schema).toFixed(1);
+  const groei = k.groeiBegroot == null ? '' :
+    `<div class="dk-tekst">Sinds week 1 zou de bezetting met <b>${k.groeiBegroot >= 0 ? '+' : ''}${n0(k.groeiBegroot)}</b> moeten groeien; ze groeide met <b>${k.groeiEcht >= 0 ? '+' : ''}${n0(k.groeiEcht)}</b> (${n1(k.starters)} starters, ${k.stoppers} stoppers).</div>`;
+  const perBmTop = k.perBm.slice(0, 2).map(p => `${_dagstartVoornaam(p.naam)} ${p.gat >= 0 ? '+' : '−'}${n1(Math.abs(p.gat))} (${p.matchOpen} open gesprekken)`).join(' · ');
+  const contrPer = k.perBm.filter(p => p.contrOpen > 0).sort((a, b) => b.contrOpen - a.contrOpen).map(p => `${_dagstartVoornaam(p.naam)} ${n1(p.contrOpen)}`).join(' · ');
+  return `
+      <span class="dk-sub">${escHtml(ondertitel)}</span>
+      ${k.begrootNu != null ? `<div class="dk-balk"><span>${n0(k.lopendNu)}</span><div class="spoor"><i style="width:${breedte}%"></i></div><span>${n0(k.begrootNu)}</span></div>` : ''}
+      <div class="dk-kop">WAAR HET ZIT</div>
+      <div class="dk-twee">
+        <div class="dk-cijfer ${sGat < 0 ? 'oranje' : 'groen'}"><b>${sGat >= 0 ? '+' : '−'}${n1(Math.abs(sGat))} starters</b><span>${n1(k.starters)} gedaan · ${n1(k.schema)} volgens het schema t/m week ${k.week}</span></div>
+        <div class="dk-cijfer"><b>${k.stoppers} stoppers</b><span>dit jaar gestopt · ${k.stoppersKomend} volgen nog voor 31 december</span></div>
+      </div>
+      ${groei}
+      ${k.nodig != null ? `<div class="dk-kop">WAT NODIG IS</div>
+      <div class="dk-tekst">Om op 31 december op de begrote lijn (${n0(k.begrootEind)}) te staan: <b>${n0(k.nodig)} starters in ${k.wkOver} weken, ${n1(k.perWeekNodig)} per week</b>. Tempo van de laatste acht weken: ${n1(k.tempo)} per week.</div>` : ''}
+      <div class="dk-kop">WAAR HET KAN KOMEN</div>
+      <ul class="dk-lijst">
+        <li><span>${n1(k.contrOpen)} open contractvoorstellen<span class="dk-pil">≈ ${n1(k.verwachtUitContr)} starters</span></span><span class="r">${escHtml(contrPer || '—')}</span></li>
+        <li><span>${k.stoppersZonder.length} ${k.stoppersZonder.length === 1 ? 'project stopt' : 'projecten stoppen'} binnen 4 weken zonder opvolger</span><span class="r">${escHtml(k.stoppersZonder.slice(0, 4).map(x => x.klant || x.naam).join(' · ') || '—')}</span></li>
+        <li><span>Grootste gat per collega</span><span class="r${k.achterste && k.achterste.gat < 0 ? ' oud' : ''}">${escHtml(perBmTop || '—')}</span></li>
+      </ul>
+      <div class="dk-kop">VANDAAG</div>
+      <div class="dk-vandaag">${escHtml(t.vandaag)}</div>`;
+}
+
+// Sonnet formuleert alleen de eerste regel en het Vandaag-blok; de cijfers
+// komen uit _dagstartKompas en gaan als vaststaande feiten mee.
+async function _dagstartKompasAiTekst(k) {
+  if (!supa) return null;
+  const vast = _dagstartKompasTekst(k);
+  const { data, error } = await supa.functions.invoke('dagstart-tekst', {
+    body: { soort: 'kompas', kompas: {
+      week: k.week, lopend: k.lopendNu, begroot: k.begrootNu, gat: k.gat, gat_vier_weken_geleden: k.gat4,
+      starters: k.starters, starters_schema: k.schema, stoppers: k.stoppers, stoppers_komend: k.stoppersKomend,
+      nodig_tot_eind_jaar: k.nodig, weken_over: k.wkOver, per_week_nodig: k.perWeekNodig, tempo_laatste_8_weken: k.tempo,
+      contractvoorstellen_open: k.contrOpen, verwachte_starters_daaruit: k.verwachtUitContr,
+      oude_contractvoorstellen: k.oud.map(r => ({ kandidaat: r.naam, klant: r.klant, collega: r.collega, week: r.week })),
+      stoppers_zonder_opvolger: k.stoppersZonder.map(x => ({ kandidaat: x.naam, klant: x.klant, stopt_op: x.eind ? x.eind.toISOString().slice(0, 10) : null })),
+      per_collega: k.perBm.map(p => ({ naam: p.naam, gat: p.gat, open_matchgesprekken: p.matchOpen, open_contractvoorstellen: p.contrOpen })),
+      vandaag_soort: k.vandaag.soort, vaste_kern: vast.kern, vaste_vandaag: vast.vandaag,
+    } },
+  });
+  if (error || !data || data.error || !data.kern || !data.vandaag) return null;
+  return { kern: String(data.kern), vandaag: String(data.vandaag) };
+}
+
+async function _dagstartKompasBoodschap() {
+  let k = null;
+  try { k = _dagstartKompas(); } catch (e) { _meldStil('dagstart kompas', e); return null; }
+  if (!k) return null;
+  let t = null;
+  try { t = await _dagstartKompasAiTekst(k); } catch (e) { _meldStil('dagstart kompas tekst', e); }
+  if (!t) t = _dagstartKompasTekst(k);
+  return { kern: t.kern, waarom: '', focus: t.vandaag, html: _dagstartKompasHtml(k, t) };
+}
+
 // Voor managers zonder eigen KPI-profiel: dezelfde opzet, maar over het team.
 function _dagstartTeamBoodschap() {
   const jaar = CUR.year;
@@ -16338,8 +16538,10 @@ async function toonDagstart() {
     }
   }
   if (!boodschap && isManagerLevel()) {
-    // Ook hier eerst de geschreven tekst, met de vaste teamtekst als vangnet.
-    boodschap = await _dagstartTeamAiTekst();
+    // Het kompas (21-09): projecten tegen de begrote lijn. Lukt dat niet
+    // (geen begroting geladen, rekenfout), dan de oude teamtekst als vangnet.
+    boodschap = await _dagstartKompasBoodschap();
+    if (!boodschap) boodschap = await _dagstartTeamAiTekst();
     if (!boodschap) {
       try { boodschap = _dagstartTeamBoodschap(); } catch (e) { _meldStil('dagstart teamcijfers', e); }
     }
@@ -16366,10 +16568,11 @@ async function toonDagstart() {
       <div style="font-size:var(--t-xs);color:var(--muted);letter-spacing:.05em;">${_dagstartGroet().toUpperCase()}, ${escHtml(naam.toUpperCase())}</div>
       <div style="height:3px;width:34px;background:#F4CB3C;border-radius:2px;margin:12px 0 16px;"></div>
       <div style="font-size:1.18rem;line-height:1.45;color:var(--primary);font-weight:var(--w-nadruk);">${escHtml(boodschap.kern)}</div>
+      ${boodschap.html ? boodschap.html : `
       <div style="margin-top:18px;font-size:var(--t-sm);color:var(--muted);letter-spacing:.04em;">WAAROM JE DIT NU LEEST</div>
       <div style="margin-top:5px;font-size:var(--t-md);line-height:1.6;color:var(--text);">${escHtml(boodschap.waarom)}</div>
       <div style="margin-top:18px;font-size:var(--t-sm);color:var(--muted);letter-spacing:.04em;">VANDAAG</div>
-      <div style="margin-top:5px;font-size:var(--t-md);line-height:1.6;color:var(--text);">${escHtml(boodschap.focus)}</div>
+      <div style="margin-top:5px;font-size:var(--t-md);line-height:1.6;color:var(--text);">${escHtml(boodschap.focus)}</div>`}
       ${tedoenHtml()}
       ${(() => { try { return mijlpalenHtml(); } catch (_) { return ''; } })()}
       <button id="dagstart-knop" disabled style="margin-top:26px;width:100%;padding:12px;border:0;border-radius:9px;background:#e6e8ee;color:var(--muted);font-size:var(--t-md);font-weight:var(--w-nadruk);cursor:default;transition:background .25s,color .25s;">Nog even lezen…</button>
