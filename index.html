@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260921-1948 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260921-2006 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9139,7 +9139,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260921-1948';
+const APP_VERSIE = '20260921-2006';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13005,7 +13005,12 @@ async function saveWeeklyEntryDirect(bmNaam, week, year, knop) {
     const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
     if (error) {
       if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
-      alert('❌ Fout bij opslaan: ' + error.message);
+      // "invalid input syntax for type integer: "1.5"" (21-09): een gedeeld
+      // gesprek telt 0,5 en de kolom is nog een geheel getal.
+      const m = /invalid input syntax for type integer/i.test(String(error.message || ''))
+        ? 'draai supabase/kpi_weekly_halve_getallen.sql — een gedeeld gesprek telt 0,5 en de kolom in de database kan nog geen halve getallen aan. (' + error.message + ')'
+        : error.message;
+      alert('❌ Fout bij opslaan: ' + m);
       return;
     }
     WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${year}|${week}`);
@@ -24399,8 +24404,70 @@ function pipeLoad(bmNaam) {
 }
 
 function pipeSave(bmNaam, cards) {
-  if (supa) { PIPE_CACHE[bmNaam] = cards; return; }
-  try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {}
+  const vorige = pipeLoad(bmNaam);
+  if (supa) { PIPE_CACHE[bmNaam] = cards; }
+  else { try { localStorage.setItem(pipeKey(bmNaam), JSON.stringify(cards)); } catch(e) {} }
+  // Elke wijziging komt hier langs: "+" in de pipeline, slepen, de
+  // aanbiedingen-teller, vervolgafspraken, het Kanban. Raakt hij een week
+  // die al opgeslagen is, dan wordt die week bijgetrokken (21-09).
+  _pipeWekenBijtrekken(bmNaam, vorige, cards);
+}
+
+// ── Opgeslagen week bijtrekken (21-09) ───────────────────────────────────────
+// De weekcijfers zijn een archief (24-08): Opslaan bevriest de telling van dat
+// moment. Daarna leeft de pipeline door, en Team Resultaten zette "opg." bij
+// elke collega van wie de pipeline meer telde dan er bevroren stond. Tot
+// 21-09 werd de week alleen opnieuw bevroren door het Kanban, kandidaat
+// verwijderen en de kandidaatkaart — niet door de "+" in de pipeline, slepen
+// naar een andere week of de aanbiedingen-teller.
+//
+// DE REGEL (besluit 21-09, tweede ronde): de pipeline is leidend, in beide
+// richtingen. Gaat een intake niet door en haalt de collega het tegeltje weg,
+// dan gaat het cijfer van die week omlaag — zonder Wijzigen + Opslaan. Wat
+// bevroren staat is dus altijd precies wat de pipeline telt.
+//
+// Wat daarvan de grens is: alleen weken die al opgeslagen zijn, alleen vanaf
+// de aanvulgrens (week 25 van 2026), en alleen de weken die de wijziging
+// zelf raakt. De les van 24-08 (Charlotte 4,5 → 2 starters) kwam door
+// tegeltjes die in de pipeline van fase wisselden; sinds het Kanban (16-09)
+// maakt doorzetten een nieuw tegeltje en blijft het oude staan. Het enige
+// pad dat nog in de oude fase kan verlagen, is een tegeltje op het
+// pipelinebord naar een andere fase slépen.
+const _BIJTREK_KLOK = {};
+function _pipeWekenBijtrekken(bmNaam, vorige, cards) {
+  if (!supa || !bmNaam) return;
+  const weken = new Set();
+  for (const c of (vorige || []).concat(cards || [])) if (c && c.week && c.jaar) weken.add(c.jaar + '-' + c.week);
+  for (const key of weken) {
+    const [jaar, week] = key.split('-').map(Number);
+    // Even wachten: één sleep- of typreeks geeft anders een schrijfactie per stap.
+    const sl = bmNaam + '|' + key;
+    if (_BIJTREK_KLOK[sl]) clearTimeout(_BIJTREK_KLOK[sl]);
+    _BIJTREK_KLOK[sl] = setTimeout(() => { delete _BIJTREK_KLOK[sl]; _weekBijtrekken(bmNaam, week, jaar); }, 400);
+  }
+}
+async function _weekBijtrekken(bmNaam, week, jaar) {
+  if (!magWijzigen('medewerkers')) return;   // zelfde slot als Opslaan in het weekschema; stil, want dit loopt na een andere actie
+  if (!supa || !CURRENT_USER || !bmNaam || !week || !jaar) return;
+  try {
+    if (!_magPipeAanvullen(jaar, week)) return;           // vóór de aanvulgrens is de pipeline geen bron
+    const saved = RAW.find(d => d.naam === bmNaam && d.jaar === jaar && d.week === week);
+    if (!saved) return;                                     // nog "live": niet stiekem bevriezen
+    const pipe = getPipeCountsForWeek(bmNaam, week, jaar);
+    const payload = { bm_naam: bmNaam, jaar, week };
+    let anders = false;
+    for (const k of KPIS) {
+      payload[k] = +pipe[k] || 0;                           // de pipeline, omhoog én omlaag
+      if ((parseFloat(saved[k]) || 0) !== payload[k]) anders = true;
+    }
+    if (!anders) return;                                    // gelijk: niets schrijven
+    payload.updated_by = CURRENT_USER.id; payload.updated_at = new Date().toISOString();
+    const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+    if (error) { _meldStil('week bijtrekken', error); return; }
+    await loadKpiWeekly();
+    recomputeRatios();
+    _RT_WACHTRIJ.delete('kpi_weekly');
+  } catch (e) { _meldStil('week bijtrekken', e); }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -28239,24 +28306,12 @@ async function _kanbanSchrijf(bmNaam, payload) {
   return kaart;
 }
 // Een Kanban-wijziging raakt de pipeline, en daarmee de opgeslagen week in
-// Team Resultaten ("opg." in oranje zolang de pipeline meer telt dan er is
-// opgeslagen). Aanwijzing 16-09: dan de week meteen opnieuw opslaan, zodat
-// het vinkje groen blijft. Alleen voor weken die al opgeslagen wáren — een
-// week die nog "live" is, blijft live (die bevriezen we niet stiekem).
+// Team Resultaten. Aanwijzing 16-09: dan de week meteen opnieuw opslaan.
+// Sinds 21-09 doet pipeSave dat voor élke wijziging; deze schil blijft voor
+// de drie plekken die hem al aanriepen.
 async function _kanbanWeekHersla(bmNaam, week, jaar) {
-  if (!magWijzigen('medewerkers')) return;   // zelfde slot als Opslaan in het weekschema; stil, want dit loopt na een andere actie
-  if (!supa || !CURRENT_USER || !bmNaam || !week || !jaar) return;
-  try {
-    const wk = weekcijfersVoor(bmNaam, jaar, week);
-    if (!wk || !wk.isSaved) return;
-    const pipeCounts = getPipeCountsForWeek(bmNaam, week, jaar);
-    const payload = { bm_naam: bmNaam, jaar: jaar, week: week, ...pipeCounts, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
-    const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
-    if (error) { _meldStil('week opnieuw opslaan na kanban', error); return; }
-    await loadKpiWeekly();
-    recomputeRatios();
-    _RT_WACHTRIJ.delete('kpi_weekly');
-  } catch (e) { _meldStil('week opnieuw opslaan na kanban', e); }
+  // Sinds 21-09 dezelfde regel als elke andere pipeline-wijziging: de pipeline is leidend.
+  return _weekBijtrekken(bmNaam, week, jaar);
 }
 async function _kanbanUpdate(bmNaam, id, payload) {
   if (!eisWijzig('medewerkers')) return false;
