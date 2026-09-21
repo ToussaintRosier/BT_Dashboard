@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260921-2018 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260921-2028 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9139,7 +9139,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260921-2018';
+const APP_VERSIE = '20260921-2028';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11711,6 +11711,9 @@ function closeSidebar() {
 
 // ── Projectenlijn Y-as zoom (+ / −) ─────────────────────────────────────────
 window._projYZoom = window._projYZoom || 0;  // 0 = auto, 1-6 = ingezoomd
+// Verschuiving (21-09): hoeveel het venster omhoog (+) of omlaag (−) is
+// gesleept, in projecten. Blijft staan bij verder in- of uitzoomen; ↺ wist hem.
+window._projYPan  = window._projYPan  || 0;
 
 function projChartApplyZoom() {
   const chart = charts['chartProjLine'];
@@ -11740,16 +11743,28 @@ function projChartApplyZoom() {
     // Geen vloer op bereik — yMin stijgt mee zodat verder inzoomen altijd werkt.
     const baseRange = Math.max(dataMax * 1.35, curVal * 2, 20);
     const range     = Math.max(baseRange / Math.pow(1.6, z), 4); // absoluut minimum 4
-    // Symmetrisch centreren op curVal
-    let yMin = Math.round(curVal - range / 2);
-    let yMax = Math.round(curVal + range / 2);
-    // Niet onder 0 gaan — eventueel compenseren naar boven
-    if (yMin < 0) { yMax -= yMin; yMin = 0; }
+    // Centreren op curVal plus de verschuiving door slepen (21-09). Grenzen:
+    // niet onder 0, en niet verder omhoog dan een stukje boven het hoogste
+    // punt (de begrote lijn) — anders sleep je het lege niets in beeld.
+    const half   = range / 2;
+    const plafond = Math.max(dataMax + range * 0.25, half);
+    let midden = curVal + (window._projYPan || 0);
+    midden = Math.min(midden, plafond - half);
+    midden = Math.max(midden, half);
+    window._projYPan = midden - curVal;
+    const yMin = Math.round((midden - half) * 100) / 100;
+    const yMax = Math.round((midden + half) * 100) / 100;
     chart.options.scales.y.min = yMin;
     chart.options.scales.y.max = yMax;
     chart.options.scales.y.beginAtZero = (yMin === 0);
   }
   chart.update('none');
+  // Slepen kan alleen ingezoomd: handje, geen pagina-scroll op het canvas
+  // (telefoon), en de hint erbij.
+  const cv = document.getElementById('chartProjLine');
+  if (cv) { cv.style.cursor = z > 0 ? 'grab' : ''; cv.style.touchAction = z > 0 ? 'none' : ''; }
+  const hint = document.getElementById('proj-pan-hint');
+  if (hint) hint.hidden = !(z > 0);
 
   // Knoppen + label bijwerken
   const btnIn  = document.getElementById('proj-zoom-in');
@@ -11763,6 +11778,44 @@ function projChartApplyZoom() {
 function projChartZoom(dir) {
   window._projYZoom = Math.max(0, Math.min(6, (window._projYZoom || 0) + dir));
   projChartApplyZoom();
+}
+
+// Vastpakken en verticaal verschuiven (21-09). Eén keer per canvas aangezet
+// na het tekenen; werkt alleen ingezoomd. Omlaag slepen = de lijnen gaan mee
+// omlaag = het venster schuift omhoog (je ziet hogere waarden), zoals een
+// kaart op je telefoon. Pixels → projecten via de hoogte van het tekenvlak.
+function projChartSleepInit() {
+  const cv = document.getElementById('chartProjLine');
+  if (!cv || cv.dataset.sleep) return;
+  cv.dataset.sleep = '1';
+  let bezig = null;
+  cv.addEventListener('pointerdown', (ev) => {
+    if (!(window._projYZoom > 0)) return;
+    if (ev.button != null && ev.button !== 0) return;
+    const chart = charts['chartProjLine']; if (!chart) return;
+    const y = chart.options.scales.y;
+    const hoogte = chart.chartArea ? (chart.chartArea.bottom - chart.chartArea.top) : 0;
+    if (!hoogte || y.max == null) return;
+    bezig = { y0: ev.clientY, pan0: window._projYPan || 0, perPx: (y.max - y.min) / hoogte };
+    if (cv.setPointerCapture) cv.setPointerCapture(ev.pointerId);
+    cv.style.cursor = 'grabbing';
+    if (ev.preventDefault) ev.preventDefault();
+  });
+  cv.addEventListener('pointermove', (ev) => {
+    if (!bezig) return;
+    window._projYPan = bezig.pan0 + (ev.clientY - bezig.y0) * bezig.perPx;
+    projChartApplyZoom();
+    cv.style.cursor = 'grabbing';
+  });
+  const los = (ev) => {
+    if (!bezig) return;
+    bezig = null;
+    // Loslaten zonder vangst (bijv. pointercancel) gooit in sommige browsers; hasPointerCapture voorkomt dat.
+    if (cv.releasePointerCapture && ev && ev.pointerId != null && (!cv.hasPointerCapture || cv.hasPointerCapture(ev.pointerId))) cv.releasePointerCapture(ev.pointerId);
+    cv.style.cursor = window._projYZoom > 0 ? 'grab' : '';
+  };
+  cv.addEventListener('pointerup', los);
+  cv.addEventListener('pointercancel', los);
 }
 
 // ── Desktop viewport zoom: schaalt de pagina proportioneel mee als het venster
@@ -23102,7 +23155,8 @@ function renderPrognose() {
           <button id="proj-zoom-out" onclick="projChartZoom(-1)" title="Uitzoomen" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.95rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);">−</button>
           <span id="proj-zoom-lbl" style="font-size:.68rem;color:var(--muted);min-width:28px;text-align:center;">auto</span>
           <button id="proj-zoom-in" onclick="projChartZoom(1)" title="Inzoomen" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.95rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);">+</button>
-          <button onclick="window._projYZoom=0;projChartApplyZoom()" title="Reset" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.75rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--muted);">↺</button>
+          <span id="proj-pan-hint" hidden style="font-size:.68rem;color:var(--muted);margin-right:6px;">sleep om te verschuiven</span>
+          <button onclick="window._projYZoom=0;window._projYPan=0;projChartApplyZoom()" title="Reset" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.75rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--muted);">↺</button>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chartProjLine"></canvas></div>
@@ -23287,6 +23341,7 @@ function renderPrognose() {
       xTick: (i) => maandLabels[i],
       plugins: [_projVandaagPlugin(nuIdx, nuIdx >= 0 ? projLineCounts[nuIdx] : null, nuIdx >= 0 ? begroteLijn[nuIdx] : null)],
     });
+    projChartSleepInit();
     if (isBeheerder()) bonusFiltApply();
   }, 50);
 }
