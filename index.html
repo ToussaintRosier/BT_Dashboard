@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260921-0856 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260921-1948 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9139,7 +9139,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260921-0856';
+const APP_VERSIE = '20260921-1948';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10999,8 +10999,6 @@ const VERWACHT_SCHEMA = [
   { bestand: 'bedrijf_kaarten.sql',          soort: 'kolom',   naam: 'crm_bedrijven.afspraken' },
   { bestand: 'bedrijf_kaarten.sql',          soort: 'kolom',   naam: 'crm_bedrijven.email' },
   { bestand: 'bedrijf_kaarten.sql',          soort: 'functie', naam: 'bt_bedrijf_samenvoeg/2' },
-  { bestand: 'project_bonus.sql',            soort: 'tabel',   naam: 'project_bonus' },
-  { bestand: 'project_bonus.sql',            soort: 'functie', naam: 'bt_is_beheerder/0' },
   { bestand: 'accountmanagement_overzicht.sql', soort: 'tabel', naam: 'account_notities' },
   { bestand: 'accountmanagement_overzicht.sql', soort: 'tabel', naam: 'bezoek_vervolg' },
   { bestand: 'accountmanagement_overzicht.sql', soort: 'kolom', naam: 'accounts.contacten' },
@@ -12495,7 +12493,7 @@ function renderTeam(opties) {
   // Key Accountmanagers uitgesloten: hun funnel is fundamenteel anders (geen
   // intakes/aanbiedingen/matchgesprekken) en zou deze ratio-vergelijking vertekenen.
   const bmRatioRows = bmsMetResultaat().filter(bm => !EXCL_RATIO.has(bm.naam)).map(bm => {
-    const rt = INDIVIDUAL_RATIOS[bm.naam];
+    const rt = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS;
     if (collegaNogNietGestart(bm.naam)) return `<tr class="nog-niet"><td>${bm.naam} ${collegaStartPilHtml(bm.naam)}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
     return `<tr>
       <td>${bm.naam}</td>
@@ -15278,7 +15276,7 @@ function renderDocumentatieEC() {
                 style="background:#253151;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;margin-right:6px;">
                 Openen
               </button>
-              ${isManager ? `<button onclick="ecDocumentenVerwijder(${d.id}, ${JSON.stringify(d.naam)})"
+              ${isManager ? `<button onclick="ecDocumentenVerwijder(${d.id}, '${escApos(d.naam)}')"
                 style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:5px 10px;font-size:.78rem;cursor:pointer;">
                
               </button>` : ''}
@@ -15684,7 +15682,6 @@ async function loadAllData() {
     stap('pipeline', pipeFetchAll),
     stap('projecten', loadProjecten),
     stap('contractstatus', loadProjStatus),
-    stap('bonussen', loadProjBonus),
     stap('wijzigingslogboek', loadWijzigingen),
     stap('projectevaluaties', loadProjEvaluaties),
     stap('plannen van aanpak', loadPlanVanAanpak),
@@ -16703,7 +16700,6 @@ async function stilVerversen() {
       laadPoging('BUM (verversen)', loadBumGesprekken),
       laadPoging('memos (verversen)', loadMemos),
       laadPoging('contractstatus (verversen)', loadProjStatus),
-      laadPoging('bonussen (verversen)', loadProjBonus),
       laadPoging('wijzigingen (verversen)', loadWijzigingen),
     ]);
     recomputeRatios();
@@ -19583,34 +19579,10 @@ async function loadProjStatus() {
   }
   PROJ_STATUS_CACHE = {};
   for (const r of (data || [])) {
-    // De bonus staat sinds 21-09 niet meer in deze tabel (project_bonus.sql).
-    PROJ_STATUS_CACHE[`${r.src}_${r.project_id}`] = { bevroren: !!r.bevroren,
+    PROJ_STATUS_CACHE[`${r.src}_${r.project_id}`] = { bevroren: !!r.bevroren, bonus: r.bonus || '',
       bevroren_op: r.bevroren_op || null, bijgewerkt_door: r.bijgewerkt_door || null };
   }
   _projStatusGeladen = true;
-}
-
-// ── Bonussen (21-09): eigen tabel, alleen de beheerder ──────────────────────
-// Stonden in project_contract_status.bonus, leesbaar voor iedereen die
-// Projecten mag zien. Nu in project_bonus met een leesregel op de beheerder;
-// anderen vragen de tabel niet eens op.
-let PROJ_BONUS_CACHE = {};
-async function loadProjBonus() {
-  if (!supa || !isBeheerder()) return;
-  const { data, error } = await supa.from('project_bonus').select('src, project_id, bonus');
-  if (error) { _meldStil('project_bonus laden (draai supabase/project_bonus.sql)', error); return; }
-  PROJ_BONUS_CACHE = {};
-  for (const r of (data || [])) PROJ_BONUS_CACHE[`${r.src}_${r.project_id}`] = r.bonus || '';
-}
-function _projBonus(src, id) { return PROJ_BONUS_CACHE[`${src}_${id}`] || ''; }
-function _projBonusSchrijf(src, id, bonus) {
-  if (!isBeheerder()) return;
-  PROJ_BONUS_CACHE[`${src}_${id}`] = bonus || '';
-  if (!supa) return;
-  supa.from('project_bonus').upsert({ src, project_id: String(id), bonus: bonus || null, bijgewerkt: new Date().toISOString() },
-    { onConflict: 'src,project_id' }).then(({ error }) => {
-    if (error) meldFout('bonus opslaan: ' + error.message, 'projBonusSchrijf');
-  });
 }
 
 function _projStatus(src, id) { return PROJ_STATUS_CACHE[`${src}_${id}`]; }
@@ -19618,11 +19590,11 @@ function _projStatus(src, id) { return PROJ_STATUS_CACHE[`${src}_${id}`]; }
 function _projStatusSchrijf(src, id, velden) {
   if (!magWijzigen('projecten') && !magWijzigen('hrm')) return;
   const sleutel = `${src}_${id}`;
-  const nu = Object.assign({ bevroren: false }, PROJ_STATUS_CACHE[sleutel], velden);
+  const nu = Object.assign({ bevroren: false, bonus: '' }, PROJ_STATUS_CACHE[sleutel], velden);
   PROJ_STATUS_CACHE[sleutel] = nu;
   if (!supa) return;
   supa.from('project_contract_status').upsert({
-    src, project_id: String(id), bevroren: nu.bevroren,
+    src, project_id: String(id), bevroren: nu.bevroren, bonus: nu.bonus || null,
     // Het stempel (CRM 28-08): wanneer werd dit contract vastgezet? Alleen
     // zetten op het moment van bevriezen zelf, niet bij elke andere wijziging.
     ...(velden.bevroren === true ? { bevroren_op: new Date().toISOString() } : {}),
@@ -19646,7 +19618,10 @@ function projStatusMigreer() {
       }
       if ((m = /^bt_proj_contract_(excel|pipeline)_(.+)$/.exec(k))) {
         const oud = (() => { try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch (_) { return {}; } })();
-        if (oud.bonus && isBeheerder() && !_projBonus(m[1], m[2])) _projBonusSchrijf(m[1], m[2], oud.bonus);
+        if (oud.bonus) {
+          const st = _projStatus(m[1], m[2]);
+          if (!st || !st.bonus) _projStatusSchrijf(m[1], m[2], { bonus: oud.bonus });
+        }
       }
     }
   } catch (e) { _meldStil('contractstatus overzetten', e); }
@@ -21494,7 +21469,7 @@ function renderComrapOpgeslagenHtml(w, y) {
             <button onclick="event.stopPropagation();comrapPdfOpgeslagen(${i});"
               title="Openen als afdrukpagina — kies daar Opslaan als PDF"
               style="background:#253151;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">Exporteer PDF</button>
-            <button onclick="event.stopPropagation();btBevestig('Analyse week ${a.week}/${a.jaar} verwijderen?').then(ok=>{if(ok)comrapVerwijder(${JSON.stringify(a.id)})});"
+            <button onclick="event.stopPropagation();btBevestig('Analyse week ${a.week}/${a.jaar} verwijderen?').then(ok=>{if(ok)comrapVerwijder('${escApos(a.id)}')});"
               style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:3px 10px;font-size:.75rem;cursor:pointer;">${btActie('prullenbak')}</button>
             </span>
           </div>
@@ -26268,7 +26243,7 @@ async function crmKandBewerkOpslaan() {
                     bron_bm: (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || null, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
     if (supa) {
       _echoVanZelf('crm_kandidaten');
-      const { data, error } = await supa.from('crm_kandidaten').insert(nieuw).select().single();
+      const { data, error } = await supa.from('crm_kandidaten').upsert(nieuw, { onConflict: 'sleutel' }).select().single();
       if (error) { meldFout('kandidaat opslaan mislukt: ' + error.message, 'crmKandBewerkOpslaan'); alert('Niet opgeslagen: ' + _crmSqlFout(error)); return; }
       rij = data;
     } else rij = { id: 'local-' + Date.now(), ...nieuw };
@@ -26381,7 +26356,7 @@ async function crmBedrijfBewerkOpslaan() {
     const nieuw = { ...velden, naam: k.naam, sleutel: k.sleutel, contacten: [], bron: 'handmatig', created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
     if (supa) {
       _echoVanZelf('crm_bedrijven');
-      const { data, error } = await supa.from('crm_bedrijven').insert(nieuw).select().single();
+      const { data, error } = await supa.from('crm_bedrijven').upsert(nieuw, { onConflict: 'sleutel' }).select().single();
       if (error) { meldFout('bedrijf opslaan mislukt: ' + error.message, 'crmBedrijfBewerkOpslaan'); alert('Niet opgeslagen: ' + _crmSqlFout(error)); return; }
       rij = data;
     } else rij = { id: 'local-' + Date.now(), ...nieuw };
@@ -26893,7 +26868,12 @@ function _crmWizWaarden(velden, w) {
   return uit;
 }
 function _crmSqlFout(error) {
-  return /does not exist|42P01|schema cache|PGRST20/i.test(String(error.message || '')) ? 'draai supabase/crm.sql in de SQL-editor — de CRM-tabellen ontbreken nog. (' + error.message + ')' : error.message;
+  const m = String((error && error.message) || '');
+  if (/does not exist|42P01|schema cache|PGRST20/i.test(m)) return 'draai supabase/crm.sql in de SQL-editor — de CRM-tabellen ontbreken nog. (' + m + ')';
+  // 23505 (21-09): de naam staat al in het CRM, maar niet (meer) in het
+  // geheugen van dit scherm — bijvoorbeeld net door een collega ingevoerd.
+  if (/duplicate key|23505/i.test(m)) return 'deze naam staat al in het CRM. Ververs de pagina en open dat dossier; is het een dubbele, gebruik dan Samenvoegen. (' + m + ')';
+  return m;
 }
 async function crmKandOpslaan() {
   if (!eisWijzig('crm')) return;
@@ -26929,7 +26909,7 @@ async function crmKandOpslaan() {
       _echoVanZelf('crm_kandidaten');
       const { data, error } = eerder && !String(eerder.id).startsWith('local-')
         ? await supa.from('crm_kandidaten').update(nieuw).eq('id', eerder.id).select().single()
-        : await supa.from('crm_kandidaten').insert(nieuw).select().single();
+        : await supa.from('crm_kandidaten').upsert(nieuw, { onConflict: 'sleutel' }).select().single();
       if (error) { meldFout('kandidaat opslaan mislukt: ' + error.message, 'crmKandOpslaan'); alert('Niet opgeslagen: ' + _crmSqlFout(error)); return; }
       rij = data;
     } else rij = { id: eerder ? eerder.id : 'local-' + Date.now(), ...nieuw };
@@ -27641,7 +27621,7 @@ async function crmBedrijfOpslaan() {
       _echoVanZelf('crm_bedrijven');
       const { data, error } = eerder && !String(eerder.id).startsWith('local-')
         ? await supa.from('crm_bedrijven').update(nieuw).eq('id', eerder.id).select().single()
-        : await supa.from('crm_bedrijven').insert(nieuw).select().single();
+        : await supa.from('crm_bedrijven').upsert(nieuw, { onConflict: 'sleutel' }).select().single();
       if (error) { meldFout('bedrijf opslaan mislukt: ' + error.message, 'crmBedrijfOpslaan'); alert('Niet opgeslagen: ' + _crmSqlFout(error)); return; }
       rij = data;
     } else rij = { id: eerder ? eerder.id : 'local-' + Date.now(), ...nieuw };
@@ -34430,7 +34410,7 @@ function _recRegelGesprek(rec, groepTelling, soortPil, aardPil) {
             ${rec.ongedeeld?`<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;flex-shrink:0;" title="Dit verslag staat nog niet op de gedeelde server. Het dashboard probeert het automatisch opnieuw; collega's zien het pas daarna.">alleen op dit apparaat</span>`:''}
             ${afsprakenStatusPil(rec.id)}
             ${isDup?`<span style="font-size:.7rem;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;flex-shrink:0;">deel</span>`:''}
-            ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep(${JSON.stringify(groepKey)})" style="font-size:.72rem;padding:2px 7px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
+            ${isDup?`<button class="btn-secondary" onclick="event.stopPropagation();gesprekSamenvoegGroep('${escApos(groepKey)}')" style="font-size:.72rem;padding:2px 7px;flex-shrink:0;background:#fff8e1;border-color:#f59e0b;color:#92400e;">Samenvoegen (${groepTelling[groepKey]}×)</button>`:''}
             <span id="samenvoeg-status-${safeKey}" style="display:none;font-size:.74rem;color:var(--primary);flex-shrink:0;"></span>
             ${GESPREK_HERANALYSE_BUSY.has(rec.id)?`<span style="font-size:.7rem;font-weight:700;background:#eef2ff;color:var(--primary);border:1px solid #c7d2fe;border-radius:20px;padding:2px 8px;flex-shrink:0;" title="Het samenvoegen is klaar — de AI werkt de analyse nog bij">Analyse loopt</span>`:''}
           </span>
@@ -37477,7 +37457,7 @@ function projContractLoad(src, id) {
   if (src === 'excel') {
     const p = PROJECTEN.find(x => String(x.id) === String(id));
     if (!p) return {};
-    const lsBonus = _projBonus(src, id)
+    const lsBonus = (_projStatus(src, id) || {}).bonus
       || (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
     return {
       projectnr:   String(p.projectnr   ?? ''),
@@ -37505,7 +37485,7 @@ function projContractLoad(src, id) {
   const hit = _pipeCardById(id);
   if (!hit) return {};
   const card = hit.card;
-  const lsBonus = _projBonus(src, id)
+  const lsBonus = (_projStatus(src, id) || {}).bonus
     || (() => { try { return JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}').bonus||''; } catch(_){ return ''; } })();
   return {
     projectnr:   String(card.projectnr ?? ''),
@@ -37536,8 +37516,8 @@ function projContractLoad(src, id) {
 function projContractSave(src, id, obj) {
   if (!magWijzigen('projecten') && !magWijzigen('medewerkers')) return;
   if (src === 'excel') {
-    // Bonus: naar de afgeschermde bonustabel (21-09); localStorage blijft reserve.
-    _projBonusSchrijf(src, id, obj.bonus || '');
+    // Bonus: naar de gedeelde statustabel (21-08); localStorage blijft reserve.
+    _projStatusSchrijf(src, id, { bonus: obj.bonus || '' });
     try {
       const ls = JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}');
       ls.bonus = obj.bonus || '';
@@ -37582,8 +37562,8 @@ function projContractSave(src, id, obj) {
     });
     return;
   }
-  // pipeline → Supabase UPDATE op pipeline_cards; bonus naar de afgeschermde bonustabel (21-09)
-  _projBonusSchrijf(src, id, obj.bonus || '');
+  // pipeline → Supabase UPDATE op pipeline_cards; bonus naar de statustabel (21-08)
+  _projStatusSchrijf(src, id, { bonus: obj.bonus || '' });
   try {
     const ls = JSON.parse(localStorage.getItem(projContractKey(src,id))||'{}');
     ls.bonus = obj.bonus || '';
