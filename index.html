@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260921-2006 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260921-2018 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9139,7 +9139,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260921-2006';
+const APP_VERSIE = '20260921-2018';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16119,8 +16119,7 @@ function _dagstartKompas() {
   const wkOver = Math.max(1, 52 - week);
   const nodig = begrootEind == null ? null : Math.max(0, +(begrootEind - lopendNu + stoppersKomend).toFixed(1));
   const perWeekNodig = nodig == null ? null : +(nodig / wkOver).toFixed(1);
-  const reeks8 = _comrapWeekreeks(week, jaar, 8);
-  const tempo = +(reeks8.reduce((t, r) => t + (r.team.starters || 0), 0) / 8).toFixed(1);
+  const tempo = _prognoseTempo(week, jaar);
 
   // De pijplijn: open contractvoorstellen (gedeeld telt 0,5), oude zonder vervolgstap,
   // open matchgesprekken per collega, en welke klanten al een vervolg hebben.
@@ -16215,7 +16214,7 @@ function _dagstartKompasHtml(k, t) {
       </div>
       ${groei}
       ${k.nodig != null ? `<div class="dk-kop">WAT NODIG IS</div>
-      <div class="dk-tekst">Om op 31 december op de begrote lijn (${n0(k.begrootEind)}) te staan: <b>${n0(k.nodig)} starters in ${k.wkOver} weken, ${n1(k.perWeekNodig)} per week</b>. Tempo van de laatste acht weken: ${n1(k.tempo)} per week.</div>` : ''}
+      <div class="dk-tekst">Om op 31 december op de begrote lijn (${n0(k.begrootEind)}) te staan: <b>${n0(k.nodig)} starters in ${k.wkOver} weken, ${n1(k.perWeekNodig)} per week</b>. Tempo van de laatste twaalf weken: ${n1(k.tempo)} per week.</div>` : ''}
       <div class="dk-kop">WAAR HET KAN KOMEN</div>
       <ul class="dk-lijst">
         <li><span>${n1(k.contrOpen)} open contractvoorstellen<span class="dk-pil">≈ ${n1(k.verwachtUitContr)} starters</span></span><span class="r">${escHtml(contrPer || '—')}</span></li>
@@ -20184,6 +20183,58 @@ function getPrognoseStopperLijnPerWeek(year) {
   return counts;
 }
 
+// ── De prognose (21-09) ──────────────────────────────────────────────────────
+// De gele lijn was een afloopcurve: lopend, minus ingevulde stoppers — alleen
+// maar omlaag, "wat overblijft als er nooit meer een starter bijkomt". Een
+// prognose heeft twee kanten: uitstroom (definitieve einddatum of ingevulde
+// prognose-stopper; einde contract telt níet, dat wordt verlengd) én instroom.
+//
+// Instroom, cumulatief per toekomstige week: het hoogste van
+//   (a) Starter-tegeltjes die al op het bord staan (nog niet akkoord; akkoord
+//       zit al in de projectenlijn zelf) met een startdatum t/m die week, en
+//   (b) tempo × aantal weken vooruit.
+// Zo tellen de zekere starters eerst en neemt het tempo het over zodra dat
+// hoger uitkomt — niets dubbel. Tempo = teamstarters van de laatste 12
+// opgeslagen weken ÷ 12; het dagstart-kompas rekent met hetzelfde getal.
+function _prognoseTempo(week, jaar) {
+  const reeks = _comrapWeekreeks(week, jaar, 12);
+  if (!reeks.length) return 0;
+  return reeks.reduce((t, r) => t + (+(r.team && r.team.starters) || 0), 0) / reeks.length;
+}
+// Per week (index 0 = week 1) de starters die al op het bord staan, ná vandaag.
+function _prognoseGeplandPerWeek(year, nuWeek) {
+  const per = Array(52).fill(0);
+  for (const bm of bmsMetCijfers()) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.stage !== 'Starter' || c.verwijderd_op || c.goedkeuring === 'akkoord' || c.goedkeuring === 'niet_akkoord') continue;
+      let wk = null;
+      if (c.start_datum) { const iw = isoWeek(new Date(c.start_datum)); if (iw.year === year) wk = iw.week; }
+      else if (+c.jaar === year && c.week) wk = +c.week;
+      if (!wk || wk <= nuWeek || wk > 52) continue;
+      per[wk - 1] += telKaarten([c], 'Starter');
+    }
+  }
+  return per;
+}
+function getPrognoseLijnPerWeek(year) {
+  const nowIso = isoWeek(new Date());
+  if (year < nowIso.year) return Array(52).fill(null);
+  const afloop  = getPrognoseStopperLijnPerWeek(year);     // lopend − ingevulde stoppers
+  const nuWeek  = year === nowIso.year ? nowIso.week : 0;
+  const tempo   = _prognoseTempo(nowIso.week, nowIso.year);
+  const gepland = _prognoseGeplandPerWeek(year, nuWeek);
+  const uit = [];
+  let geplandCum = 0;
+  for (let w = 1; w <= 52; w++) {
+    if (afloop[w - 1] == null) { uit.push(null); continue; }
+    const vooruit = w - nuWeek;                              // 0 in de huidige week
+    if (vooruit <= 0) { uit.push(afloop[w - 1]); continue; }
+    geplandCum += gepland[w - 1];
+    uit.push(afloop[w - 1] + Math.max(geplandCum, tempo * vooruit));
+  }
+  return uit;
+}
+
 // ── Excel-import van de Projectenlijst ──────────────────────────────────────
 // Ondersteunt twee formaten:
 // • Basis (Begin OVK / Einde OVK aanwezig): schrijft naar Supabase-tabel projecten
@@ -23214,8 +23265,10 @@ function renderPrognose() {
   </div>`;
 
   setTimeout(() => {
-    const prognoseLijn   = getPrognoseStopperLijnPerWeek(year);
+    const prognoseLijn   = getPrognoseLijnPerWeek(year);
     const heeftPrognose  = prognoseLijn.some(v => v !== null);
+    const prognoseTempo  = _prognoseTempo(isoWeek(TODAY).week, isoWeek(TODAY).year);
+    const prognoseEind   = prognoseLijn[51] != null ? prognoseLijn[51] : (prognoseLijn.filter(v => v != null).pop() || 0);
     // G1 (11-09): vandaag als index in de 52 weken van dít jaar; in een ander
     // jaar is er geen vandaag-lijn.
     const nuW   = isoWeek(TODAY);
@@ -23225,7 +23278,7 @@ function renderPrognose() {
         segment: { borderDash: (c) => c.p0DataIndex >= nuIdx ? [5, 4] : undefined } },
       { label: 'Begrote lijn', data: begroteLijn, borderColor: '#E87400', borderDash: [6,4], pointRadius: 0, borderWidth: 2, fill: false },
     ];
-    if (heeftPrognose) datasets.push({ label: 'Prognose stoppers', data: prognoseLijn, borderColor: '#EAB308', borderDash: [4,3], pointRadius: 0, borderWidth: 1.5, fill: false });
+    if (heeftPrognose) datasets.push({ label: 'Prognose · tempo ' + fmtNl(prognoseTempo) + ' starter/week · wk 52: ' + Math.round(prognoseEind), data: prognoseLijn, borderColor: '#EAB308', borderDash: [4,3], pointRadius: 0, borderWidth: 1.5, fill: false });
     const maandLabels = projWeekMaandLabels(year);
     window._projYAuto = projLijnYMin(projLineCounts, begroteLijn);
     makeChart('chartProjLine', wkLabels, datasets, 'line', {
