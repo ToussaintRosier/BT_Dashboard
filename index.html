@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1143 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1208 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3122,6 +3122,8 @@
   .pipe-grid-wrap { overflow-x:auto; margin-top:4px; }
   .pipe-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; min-width:750px; }
   .pipe-grid-corner { }
+  /* Fase-kiezers (pipeline, Kanban) en dossier-tabjes bestaan alleen op een telefoon (mobiel blok, 22-09). */
+  .pipe-fase-kiezer, .kb-fase-kiezer, .kk-mtabs { display:none; }
   .pipe-col-hdr { padding:8px 10px; border-radius:8px; font-weight:700; font-size:.78rem; text-align:center; display:flex; align-items:center; justify-content:center; gap:6px; }
   .pipe-count-sm { border-radius:99px; padding:1px 6px; font-size:.7rem; font-weight:700; background:rgba(0,0,0,.1); }
   .pipe-row { display:contents; }
@@ -4680,6 +4682,82 @@
   .comrap-result-btns { flex-wrap: wrap !important; gap: 6px !important; justify-content: flex-start !important; }
   .comrap-result-btns button { flex: 1 1 auto; min-width: 140px; min-height: 44px; font-size: .79rem; }
 }
+@media (max-width:640px) {
+  /* ═ MOBIEL 22-09 (ontwerp_mobiel.html) ═══════════════════════════════════
+     Zes onderdelen, alleen voor de telefoon. Op een breed scherm bestaat dit
+     blok niet; test_mobiel.js bewijst dat er buiten @media niets verandert. */
+
+  /* 1 · Actietabel (MT-acties, MT-coaching) → kaartjes: vinkje + tekst op de
+     eerste regel, deadline · initialen · iconen op de tweede. */
+  .act-tab { table-layout:auto; }
+  .act-tab colgroup { display:none; }
+  .act-tab tr:first-child:has(th) { display:none; }
+  .act-tab, .act-tab tbody { display:block; }
+  .act-tab tr { display:flex; flex-wrap:wrap; align-items:flex-start; gap:4px 8px; background:rgba(255,255,255,.06); border-radius:10px; padding:8px 10px; margin-bottom:8px; }
+  .act-tab td { display:block; border:none !important; padding:0 !important; }
+  .act-tab td:first-child { flex:0 0 24px; }
+  .act-tab td:nth-child(2) { flex:1 1 calc(100% - 40px); min-width:0; }
+  .act-tab td.kol-deadline { flex:0 0 auto; margin-left:32px; white-space:nowrap; }
+  .act-tab td.kol-wie { flex:1 1 auto; white-space:normal; }
+  .act-tab td.kol-iconen { flex:0 0 auto; margin-left:auto; }
+  .act-tab td[colspan] { flex:1 1 100%; margin-left:0; }
+  .act-tab th.kol-actie { padding-left:0; }
+
+  /* 2 · Wie-paneel → blad van onderaf, met een donkere laag erachter. Een tik
+     op die laag raakt de cel (geen anker) en sluit het paneel. */
+  .act-tab td.kol-wie:has(.act-wie-pop)::before { content:'';
+    position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:9498; }
+  .act-wie-pop { position:fixed; left:0; right:0; bottom:0; top:auto; width:auto; border-radius:16px 16px 0 0; padding:14px 16px calc(18px + env(safe-area-inset-bottom)); z-index:9499; box-shadow:0 -10px 30px rgba(0,0,0,.45); }
+  .act-wie-pop .act-ini-chip { font-size:.86rem; padding:6px 12px 6px 6px; min-height:36px; }
+  .act-wie-pop .act-ini-chip i { width:24px; height:24px; }
+  .act-wie-pop .klaar { padding:9px 18px; font-size:.86rem; }
+
+  /* 3 · Pipeline en Kanban: één fase tegelijk, fase-pillen bovenaan. */
+  .pipe-fase-kiezer { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:2px 0 8px; -webkit-overflow-scrolling:touch; }
+  .pipe-fase-kiezer::-webkit-scrollbar, .kb-fase-kiezer::-webkit-scrollbar { display:none; }
+  .kb-fase-kiezer { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:2px 0 8px; -webkit-overflow-scrolling:touch; }
+  .pipe-fase-kiezer button, .kb-fase-kiezer button { flex:0 0 auto; font-family:inherit; font-size:.76rem; padding:6px 12px; border-radius:99px; border:1px solid rgba(255,255,255,.22); background:transparent; color:rgba(255,255,255,.75); min-height:34px; }
+  .pipe-fase-kiezer button .n, .kb-fase-kiezer button .n { margin-left:5px; opacity:.7; }
+  .pipe-fase-kiezer button.aan, .kb-fase-kiezer button.aan { background:#F4CB3C; border-color:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); }
+  .pipe-grid { min-width:0; grid-template-columns:1fr; }
+  .pipe-cell:not(.pipe-cell-mob-aan) { display:none; }
+  .kb-bord { grid-template-columns:1fr; }
+  .kb-kolom:not(.kb-kolom-mob-aan) { display:none; }
+
+  /* 4a · CRM-lijsten → kaartjes, dezelfde omzetting als de KAM-tabel
+     (mobielTabelLabels zet de kolomkop in data-label). */
+  .crm-tabel, .crm-tabel thead, .crm-tabel tbody, .crm-tabel tr, .crm-tabel th, .crm-tabel td { display:block; width:auto !important; }
+  .crm-tabel { min-width:0 !important; table-layout:auto !important; }
+  .crm-tabel thead, .crm-tabel colgroup, .crm-tabel td.nr { display:none; }
+  .crm-tabel tbody tr { background:rgba(255,255,255,.06) !important; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:9px 11px; margin-bottom:8px; }
+  .crm-tabel tbody td { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:3px 0 !important; text-align:right !important; white-space:normal !important; overflow:visible !important; border:none !important; }
+  .crm-tabel tbody td::before { content:attr(data-label); flex:0 0 auto; text-align:left; font-size:var(--t-xs); color:rgba(255,255,255,.5); font-weight:var(--w-normaal); }
+  .crm-tabel tbody td.naam { justify-content:flex-start; text-align:left !important; font-size:var(--t-md); font-weight:var(--w-nadruk); white-space:normal; padding-bottom:6px !important; margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,.1) !important; }
+  .crm-tabel tbody td.naam::before { content:none; }
+  .crm-tabel tbody td:empty { display:none; }
+  .crm-tabel tbody td.a { text-align:right !important; }
+
+  /* 4b · Cijfertabellen: de eerste kolom blijft staan terwijl de rest schuift. */
+  .crk th.l, .crk td.l { position:sticky; left:0; z-index:1; background:#2c3a5e; }
+  .crk tr.team td.l { background:#F4CB3C; }
+  .crk tr.groep td.l { background:#2c3a5e; }
+  table.bt-cijfers th:first-child, table.bt-cijfers td:first-child, table.rr th:first-child, table.rr td:first-child { position:sticky; left:0; z-index:1; background:#364160; }
+
+  /* 5 · Dossiers (bedrijfskaart, kandidaatkaart, wizard) over het hele scherm,
+     tabjes bovenin die naar de koppen springen, knoppenrij vast onderaan. */
+  .crm-laag { padding:0; align-items:stretch; }
+  .crm-kaart.crm-dossier, .crm-kaart.kand-kaart, .crm-kaart.klant-kaart, .crm-kaart.beheer-kaart, .crm-kaart.crm-wizard { width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:none; }
+  .kk-mtabs { display:flex; gap:4px; background:#2c3a5e; border-radius:9px; padding:3px; margin:6px 0 10px; position:sticky; top:-18px; z-index:3; }
+  .kk-mtabs button { flex:1; font-family:inherit; font-size:.74rem; padding:8px 0; border-radius:7px; border:none; background:transparent; color:rgba(255,255,255,.65); min-height:34px; }
+  .kk-mtabs button.aan { background:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); }
+  .crm-knoppen.kand-rij { position:sticky; bottom:0; background:#253151; padding:8px 0 calc(8px + env(safe-area-inset-bottom)); margin-top:8px; z-index:2; }
+
+  /* 6 · Kleinere punten. */
+  .person-header .meta-pill { font-size:.66rem; padding:2px 7px; }
+  .bm-subtabs { -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent); mask-image:linear-gradient(90deg,#000 88%,transparent); }
+  .col-chip, .pm-cp-r, .act-ini-chip { min-height:36px; }
+  .pipe-modal .pipe-modal-btns { position:sticky; bottom:-20px; background:#fff; padding:10px 0 4px; z-index:2; }
+}
 </style>
 </head>
 <body>
@@ -5830,6 +5908,13 @@ let bmSubTab = 'kpis';
 // vandaag. 0 = standaardvenster (-2 t/m +1 week). Wordt gereset bij wisselen
 // van medewerker, zodat je niet per ongeluk in een oude week blijft hangen.
 let pipeWeekOffset = 0;
+// Telefoon (22-09): één fase tegelijk in de pipeline en op het Kanban. Op de
+// desktop doet dit niets: de kiezer is daar verborgen en de klasse heeft er
+// geen opmaak.
+let PIPE_MOB_FASE = 'Intake';
+function pipeMobFaseZet(stage) { PIPE_MOB_FASE = stage; render(); }
+let KB_MOB_FASE = 'g1';
+function kanbanMobFaseZet(fase) { KB_MOB_FASE = fase; render(); }
 let PIPE_WEEK_COLLAPSED = null; // null = nog niet geïnitialiseerd; Set zodra renderPipeline loopt
 
 // ── Menu-iconen ─────────────────────────────────────────────────────────────
@@ -9363,7 +9448,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1143';
+const APP_VERSIE = '20260922-1208';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -10130,6 +10215,8 @@ function toggleAccounts(event) {
 // CRM (18-09): Kandidaten staat onder het kopje Kandidaten, Bedrijven onder
 // Accountmanagement — geen eigen kopje meer. De pagina's volgen het recht op
 // Kandidaten respectievelijk Accountmanagement (zie _rechtSleutel).
+// Sinds 22-09 staat CRM als eerste regel onder het kopje (aanwijzing); het
+// kopje zelf gaat nog steeds naar het Overzicht.
 function _sidebarAccountsHtml() {
   const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'crmbedrijf';
   return miGroep(['accounts', 'crmbedrijf'], `<div class="sidebar-cat">
@@ -10138,8 +10225,8 @@ function _sidebarAccountsHtml() {
       <span class="sidebar-caret ${accountsOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
     </div>
     <div class="sidebar-sub" style="display:${accountsOpen ? 'flex' : 'none'};">
-      <button class="sidebar-item ${currentTab === 'accoverzicht' ? 'active' : ''}" onclick="selectTab('accoverzicht')">${btIcon('overzicht')}Overzicht</button>
       ${mi('crmbedrijf', `<button class="sidebar-item ${currentTab === 'crmbedrijf' ? 'active' : ''}" onclick="selectTab('crmbedrijf')">${btIcon('crm')}CRM</button>`)}
+      <button class="sidebar-item ${currentTab === 'accoverzicht' ? 'active' : ''}" onclick="selectTab('accoverzicht')">${btIcon('overzicht')}Overzicht</button>
       ${mi('accounts', `<button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>`)}
     </div>
   </div>`);
@@ -10165,8 +10252,8 @@ function _sidebarKandidatenHtml() {
       <span class="sidebar-caret ${kandidatenOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
     </div>
     <div class="sidebar-sub" style="display:${kandidatenOpen ? 'flex' : 'none'};">
-      ${mi('kandidaten', `<button class="sidebar-item ${currentTab === 'kandidaten' ? 'active' : ''}" onclick="selectTab('kandidaten')">${btIcon('overzicht')}Overzicht</button>`)}
       ${mi('crmkand', `<button class="sidebar-item ${currentTab === 'crmkand' ? 'active' : ''}" onclick="selectTab('crmkand')">${btIcon('crm')}CRM</button>`)}
+      ${mi('kandidaten', `<button class="sidebar-item ${currentTab === 'kandidaten' ? 'active' : ''}" onclick="selectTab('kandidaten')">${btIcon('overzicht')}Overzicht</button>`)}
       ${mi('rldvtool', `<button class="sidebar-item ${currentTab === 'rldvtool' ? 'active' : ''}" onclick="selectTab('rldvtool')">${btIcon('rldvtool')}RLDV-tool</button>`)}
       ${mi('rldvcheck', `<button class="sidebar-item ${currentTab === 'rldvcheck' ? 'active' : ''}" onclick="selectTab('rldvcheck')">${btIcon('rldvcheck')}RLDV-check${open ? ' <span class="sidebar-teller">' + open + '</span>' : ''}</button>`)}
     </div>
@@ -12965,7 +13052,7 @@ function snapshotPvaInputs() {
 // stopt; zo pakken we élke hertekening mee, ook die van de sub-schermen.
 function mobielTabelLabels() {
   if (window.innerWidth > 768) return;
-  document.querySelectorAll('#main table.acc-table').forEach(tab => {
+  document.querySelectorAll('#main table.acc-table, #main table.crm-tabel').forEach(tab => {
     const koppen = Array.from(tab.querySelectorAll('thead th'))
       .map(th => (th.textContent || '').trim());
     if (!koppen.length) return;
@@ -18226,8 +18313,32 @@ function crmKaartToon(html, klasse, bijSluiten) {
     <button class="crm-x" onclick="crmKaartSluit()" aria-label="Sluiten">&times;</button>${html}</div>`;
   laag.addEventListener('click', (e) => { if (e.target === laag) crmKaartSluit(); });
   document.body.appendChild(laag);
+  _crmKaartMobielTabs(laag);
   document.addEventListener('keydown', _crmEsc);
   _CRM_BIJ_SLUITEN = bijSluiten || null;
+}
+// Telefoon (22-09): een dossier met twee kolommen wordt één lange strook.
+// Tabjes bovenin springen naar de koppen (Gegevens · Contacten · Afspraak ·
+// Log), zodat je niet hoeft te zoeken. Op een breed scherm gebeurt er niets.
+function _crmKaartMobielTabs(laag) {
+  if (!(typeof window !== 'undefined' && window.innerWidth <= 640)) return;
+  const kaart = laag.querySelector('.crm-kaart'); if (!kaart || !kaart.querySelector('.kk-2k')) return;
+  const wil = [['Bedrijfsgegevens', 'Gegevens'], ['Gegevens', 'Gegevens'], ['Acties', 'Acties'], ['Contactpersonen', 'Contacten'], ['Afspraak', 'Afspraak'], ['Proces', 'Proces'], ['Gesprekslog', 'Log']];
+  const koppen = Array.from(kaart.querySelectorAll('.crm-kop'));
+  const tabs = [];
+  wil.forEach(([start, label]) => {
+    const el = koppen.find(k => String(k.textContent || '').trim().indexOf(start) === 0);
+    if (el && !tabs.some(x => x.label === label)) tabs.push({ label, el });
+  });
+  if (tabs.length < 2) return;
+  const balk = document.createElement('div'); balk.className = 'kk-mtabs';
+  tabs.forEach((x, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = x.label; if (!i) b.className = 'aan';
+    b.onclick = () => { balk.querySelectorAll('button').forEach(y => y.classList.toggle('aan', y === b)); x.el.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+    balk.appendChild(b);
+  });
+  const na = kaart.querySelector('.crm-sub') || kaart.querySelector('h4');
+  if (na) na.insertAdjacentElement('afterend', balk);
 }
 function _crmEsc(e) { if (e.key === 'Escape') crmKaartSluit(); }
 function crmKaartSluit() {
@@ -28094,10 +28205,17 @@ function crmBedrijfLijst() {
     k.klant = kl; k.bezoeken += kl.bezoeken.length;
     if (!k.laatste || (kl.laatste && kl.laatste.datumMs > k.laatste.datumMs)) k.laatste = kl.laatste;
   });
+  // Projecten per bedrijf (22-09, filter "Met projecten"): één keer tellen.
+  const projPer = {};
+  (typeof getCombinedProjectRanges === 'function' ? getCombinedProjectRanges() : []).forEach(r => {
+    if (!r || r.verwijderdOp) return;
+    const sl = _itkSleutel(r.opdrachtgever || ''); if (sl) projPer[sl] = (projPer[sl] || 0) + 1;
+  });
   Object.values(per).forEach(k => {
     if (k.crm && k.crm.naam && !k.account) k.naam = k.crm.naam;
     k.plaats = (k.crm && k.crm.plaats) || '';
     k.plan = _accPlanVan(k.naam);
+    k.projecten = projPer[k.sleutel] || 0;
     k.contacten = _crmBedrijfContacten(k);
     const nid = _crmBedrijfNotitieId(k);
     const n = nid ? ACC_NOTITIES[nid] : null;
@@ -28219,6 +28337,8 @@ function _crmBedrijfPast(k, st) {
   if (f === 'kam' && !k.account) return false;
   if (f === 'rldv' && !k.lead) return false;
   if (f === 'bezoeken' && !k.bezoeken) return false;
+  if (f === 'projecten' && !k.projecten) return false;
+  if (f === 'plan' && !k.plan) return false;
   const z = String(st.zoek || '').trim().toLowerCase();
   if (!z) return true;
   const r = k.crm || {};
@@ -28283,7 +28403,7 @@ function renderCrmBedrijvenHtml() {
       '<td>' + (k.plan ? '<span class="crm-pil ok" title="Accountplan, laatst bijgewerkt ' + escHtml(datumNL(String(k.plan.updated_at || '').slice(0, 10))) + '">ja · ' + escHtml(_crmDatum(Date.parse(k.plan.updated_at || '')).slice(0, 5)) + '</span>' : '<span class="crm-pil leeg">nee</span>') + '</td>' +
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
   }).join('');
-  const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['kam', 'KAM-klanten', lijst.filter(k => k.account).length], ['rldv', 'RLDV', lijst.filter(k => k.lead).length], ['bezoeken', 'Met bezoeken', lijst.filter(k => k.bezoeken).length]],
+  const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['kam', 'KAM-klanten', lijst.filter(k => k.account).length], ['rldv', 'RLDV', lijst.filter(k => k.lead).length], ['bezoeken', 'Met bezoeken', lijst.filter(k => k.bezoeken).length], ['projecten', 'Met projecten', lijst.filter(k => k.projecten).length], ['plan', 'Met accountplan', lijst.filter(k => k.plan).length]],
     { id: 'crm-bedr-q', sugg: 'crmBedrijfSugg', zet: 'crmBedrijfFilter', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, telefoon, e-mail, sector, team (initialen), contactpersoon en notities' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Bedrijven' + btUitlegKnop('accounts') + '</div>' +
@@ -29098,7 +29218,7 @@ function renderKanbanHtml() {
   const kolommen = KANBAN_FASES.map(f => {
     const lijst = per[f.sleutel].filter(_kanbanPast);
     const plus = f.sleutel === 'starboy' ? 'kanbanStarboyVenster()' : 'kanbanNieuwVenster(\'' + f.sleutel + '\')';
-    return '<div class="kb-kolom' + (f.sleutel === 'starboy' ? ' star' : f.sleutel === 'starter' ? ' groen' : '') + '" data-fase="' + f.sleutel + '" ondragover="kanbanSleepOver(event, this)" ondragleave="kanbanSleepWeg(event, this)" ondrop="kanbanSleepDrop(event, this)">' +
+    return '<div class="kb-kolom' + (f.sleutel === 'starboy' ? ' star' : f.sleutel === 'starter' ? ' groen' : '') + (f.sleutel === KB_MOB_FASE ? ' kb-kolom-mob-aan' : '') + '" data-fase="' + f.sleutel + '" ondragover="kanbanSleepOver(event, this)" ondragleave="kanbanSleepWeg(event, this)" ondrop="kanbanSleepDrop(event, this)">' +
       '<div class="kb-kolomkop"><span class="kb-kolomnaam">' + escHtml(f.label) + '</span><span class="kb-tel">' + lijst.length + '</span>' +
         (magWijzigen('medewerkers') ? '<button class="kb-plus" type="button" title="' + (f.sleutel === 'starboy' ? 'Kandidaat uit de intakes kiezen' : 'Nieuw kaartje in ' + escHtml(f.label)) + '" onclick="' + plus + '">+</button>' : '') + '</div>' +
       '<div class="kb-lijst">' + (lijst.map(kanbanKaartHtml).join('') || '<div class="kb-leeg">leeg</div>') + '</div></div>';
@@ -29107,6 +29227,7 @@ function renderKanbanHtml() {
     _zoekBalkHtml({ id: 'kb-zoek', sugg: 'kanbanSugg', waarde: KANBAN.zoek || '', tabs: [['', 'Op het bord', Object.values(per).reduce((n, l) => n + l.length, 0)]],
       links: '<select class="crm-select" onchange="kanbanFilterCollega(this.value)"><option value="">Alle collega\'s</option>' + collegas.map(n => '<option value="' + escHtml(n) + '"' + (KANBAN.collega === n ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>',
       hint: 'kandidaat, klant, functie, collega of initialen', input: 'oninput="kanbanZoek(this.value)"' }) +
+    '<div class="kb-fase-kiezer">' + KANBAN_FASES.map(f => '<button type="button" class="' + (f.sleutel === KB_MOB_FASE ? 'aan' : '') + '" onclick="kanbanMobFaseZet(\'' + f.sleutel + '\')">' + escHtml(f.label) + '<span class="n">' + per[f.sleutel].filter(_kanbanPast).length + '</span></button>').join('') + '</div>' +
     '<div class="kb-bord">' + kolommen + '</div></div>';
 }
 function renderKanban() {
@@ -39242,7 +39363,8 @@ function renderPipeline(bm) {
         </div>`;
       }).join('');
 
-      return `<div class="pipe-cell${isCur?' pipe-cell-now':isPast?' pipe-cell-past':''}${cellCount ? '' : ' leeg'}"
+      return `<div class="pipe-cell${isCur?' pipe-cell-now':isPast?' pipe-cell-past':''}${cellCount ? '' : ' leeg'}${stage === PIPE_MOB_FASE ? ' pipe-cell-mob-aan' : ''}"
+        data-stage="${escHtml(stage)}"
         ondragover="${weekEditable ? 'pipeDragOver(event)' : ''}"
         ondragleave="${weekEditable ? 'pipeDragLeave(event)' : ''}"
         ondrop="${weekEditable ? `pipeDrop(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year})` : ''}">
@@ -39281,6 +39403,11 @@ function renderPipeline(bm) {
     </div>`;
   }).join('');
 
+  // Telefoon (22-09): fase-pillen met het aantal over de getoonde weken.
+  const faseKiezer = PIPE_STAGES.map(st => {
+    const n = telKaarten(cards.filter(c => c.stage === st && !c.verwijderd_op && weeks.some(wk => c.week === wk.week && c.jaar === wk.year)), st);
+    return `<button type="button" class="${st === PIPE_MOB_FASE ? 'aan' : ''}" onclick="pipeMobFaseZet('${escApos(st)}')">${st === 'Matchgesprekken' ? 'Match' : st === 'Contractvoorstel' ? 'Contract' : st}<span class="n">${telFmt(n)}</span></button>`;
+  }).join('');
   // Titel en weeknavigatie op één regel: ze horen bij elkaar en scheelt een
   // hele regel hoogte.
   return `<div class="section-title" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
@@ -39295,6 +39422,7 @@ function renderPipeline(bm) {
         <svg viewBox="0 0 14 12" aria-hidden="true"><path d="M1 6h11M8 1l5 5-5 5"/></svg></button>
     </span>
   </div>
+  <div class="pipe-fase-kiezer">${faseKiezer}</div>
   <div class="pipe-accordeon">${blocks}</div>`;
 }
 
