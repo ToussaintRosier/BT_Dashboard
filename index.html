@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1609 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1911 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2950,6 +2950,24 @@
   #wa-knop svg { width:26px; height:26px; fill:currentColor; }
   #wa-knop.alleen { right:18px; }
   #wa-knop.verborgen { display:none; }
+  /* Feestje bij een nieuwe starter (22-09, ontwerp A) */
+  #bt-feest { position:fixed; inset:0; z-index:9700; background:radial-gradient(ellipse at center, rgba(37,49,81,.15), rgba(20,27,48,.72)); animation:feest-in .5s ease; }
+  @keyframes feest-in { from { opacity:0 } to { opacity:1 } }
+  #bt-feest canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #bt-feest .kaart { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:460px; max-width:92vw; background:#2c3a5e; border:1px solid rgba(244,203,60,.5); border-radius:16px; padding:28px 28px 22px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.5); animation:feest-pop .6s cubic-bezier(.2,1.4,.4,1); cursor:pointer; color:#fff; }
+  @keyframes feest-pop { 0% { transform:translate(-50%,-50%) scale(.6); opacity:0 } 100% { transform:translate(-50%,-50%) scale(1); opacity:1 } }
+  #bt-feest .ster { position:absolute; left:50%; top:-26px; transform:translateX(-50%); width:52px; height:52px; border-radius:50%; background:#F4CB3C; color:#253151; display:flex; align-items:center; justify-content:center; font-size:1.5rem; box-shadow:0 0 0 8px rgba(244,203,60,.2); animation:feest-puls 1.2s ease-in-out infinite; }
+  @keyframes feest-puls { 0%,100% { box-shadow:0 0 0 8px rgba(244,203,60,.2) } 50% { box-shadow:0 0 0 18px rgba(244,203,60,0) } }
+  #bt-feest .lbl { font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; color:#F4CB3C; font-weight:var(--w-nadruk); }
+  #bt-feest .naam { font-size:1.9rem; font-weight:var(--w-nadruk); margin:6px 0 2px; line-height:1.15; }
+  #bt-feest .bij { font-size:1rem; color:rgba(255,255,255,.85); } #bt-feest .bij b { color:#F4CB3C; }
+  #bt-feest .crm-feest-meta { margin-top:12px; color:rgba(255,255,255,.6); font-size:.8rem; }
+  #bt-feest .wie { margin-top:14px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+  #bt-feest .chip { display:inline-flex; align-items:center; gap:6px; padding:3px 9px 3px 4px; border-radius:99px; background:rgba(255,255,255,.12); font-size:.74rem; }
+  #bt-feest .chip i { width:18px; height:18px; border-radius:50%; background:#F4CB3C; color:#253151; font-style:normal; font-weight:var(--w-nadruk); font-size:.6rem; display:inline-flex; align-items:center; justify-content:center; }
+  #bt-feest .teller { margin-top:14px; font-size:.78rem; color:#F4CB3C; font-weight:var(--w-nadruk); }
+  #bt-feest .sluit { position:absolute; right:12px; top:8px; color:rgba(255,255,255,.5); font-size:1.1rem; }
+  @media (max-width:640px) { #bt-feest .kaart { width:auto; left:12px; right:12px; transform:translateY(-50%); padding:24px 16px 18px; } #bt-feest .naam { font-size:1.5rem; } }
   .wa-tel { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .wa-bol { width:16px; height:16px; border-radius:50%; background:#25D366; display:inline-flex; align-items:center; justify-content:center; flex:0 0 16px; margin-right:6px; vertical-align:middle; }
   .wa-bol svg { width:10px; height:10px; fill:#fff; }
@@ -7950,6 +7968,104 @@ function waKnopZorg() {
   const snel = document.getElementById('snelchat-knop');
   knop.classList.toggle('alleen', !snel || snel.classList.contains('verborgen'));
 }
+// ── Feestje bij een nieuwe starter (22-09, ontwerp A) ───────────────────────
+// Zodra een kaart op Starter komt (pipeline of Kanban), bij wie dan ook, verschijnt
+// bij iedereen een filter met confetti en een kaart in het midden. Nieuw = een
+// Starter-kaart die er bij de vorige scan nog niet was; de eerste scan (bij het
+// laden) maakt alles stil bekend, zodat inloggen nooit een feestje geeft. Een halve
+// plaatsing (0,5) telt pas als de tweede helft er is — één feestje voor de twee.
+let _FEEST_BEKEND = null;   // sleutels van gevierde/bekende starters; null = nog niet gestart
+let _FEEST_TIMER = null;
+// 1ste, 2de, 3de, 8ste, 10de, 20ste, 21ste, 100ste, 110de — en 22,5e bij een halve.
+function btRangtelwoord(n) {
+  if (!Number.isInteger(n)) return String(n).replace('.', ',') + 'e';
+  const r = n % 100;
+  return n + ((r >= 2 && r <= 19 && r !== 8) ? 'de' : 'ste');
+}
+// Alle Starter-kaarten die meetellen, gegroepeerd: losse kaarten op id, halve
+// plaatsingen op naam (twee helften = één groep). Alleen groepen die compleet zijn.
+function _feestKaarten() {
+  const alle = [];
+  Object.values(PIPE_CACHE || {}).forEach(lijst => (lijst || []).forEach(c => {
+    if (c && c.stage === 'Starter' && !c.verwijderd_op && c.goedkeuring !== 'niet_akkoord') alle.push(c);
+  }));
+  const groepen = [];
+  const halve = {};
+  alle.forEach(c => {
+    if (c.gedeeld) { const sl = _itkSleutel(c.naam); (halve[sl] = halve[sl] || []).push(c); }
+    else groepen.push({ sleutel: String(c.id), kaarten: [c] });
+  });
+  Object.entries(halve).forEach(([sl, ks]) => { if (ks.length >= 2) groepen.push({ sleutel: 'half:' + sl, kaarten: ks }); });
+  return { groepen, alle };
+}
+function _feestTekst(kaarten, alle) {
+  const c = kaarten[0];
+  const klant = c.opdrachtgever || c.kanban_klant || '';
+  const functie = c.functie || c.kanban_functie || '';
+  const start = c.start_datum ? _crmDatum(Date.parse(c.start_datum)) : '';
+  const bms = [...new Set(kaarten.map(k => k.bm_naam).filter(Boolean))];
+  // Collega's van de plaatsing: de aangevinkte initialen; anders de BM('s) van de kaart(en).
+  let ini = [];
+  kaarten.forEach(k => { try { const l = JSON.parse(k.collega_initials || '[]'); if (Array.isArray(l)) ini = ini.concat(l); } catch (_) {} });
+  if (!ini.length) ini = bms.map(bmInitialen);
+  ini = [...new Set(ini)];
+  const naamVan = (i) => { const b = (typeof bmsMetCijfers === 'function' ? bmsMetCijfers() : []).find(x => bmInitialen(x.naam) === i); return b ? b.naam : i; };
+  const jaar = new Date().getFullYear();
+  const teller = (alle || []).filter(k => +k.jaar === jaar).reduce((s, k) => s + (k.gedeeld ? 0.5 : 1), 0);
+  return {
+    kop: escHtml(c.naam) + (klant ? ' start bij <b>' + escHtml(klant) + '</b>' : ' is Starter') + (start ? ' op ' + escHtml(start) : ''),
+    meta: [functie, kaarten.length > 1 ? 'gedeelde plaatsing · samen gezet door ' + bms.map(escHtml).join(' en ') : 'zojuist gezet door ' + escHtml(bms[0] || '')].filter(Boolean).join(' · '),
+    chips: ini.map(i => '<span class="chip"><i>' + escHtml(i) + '</i>' + escHtml(naamVan(i)) + '</span>').join(''),
+    teller: btRangtelwoord(teller) + ' starter dit jaar'
+  };
+}
+function feestScan() {
+  if (!PIPE_CACHE || !Object.keys(PIPE_CACHE).length) return;
+  const { groepen, alle } = _feestKaarten();
+  if (_FEEST_BEKEND === null) { _FEEST_BEKEND = new Set(groepen.map(g => g.sleutel)); return; }
+  const nieuw = groepen.filter(g => !_FEEST_BEKEND.has(g.sleutel));
+  nieuw.forEach(g => _FEEST_BEKEND.add(g.sleutel));
+  if (!nieuw.length || document.getElementById('bt-feest')) return;
+  feestToon(_feestTekst(nieuw[0].kaarten, alle), nieuw[0].kaarten[0].naam);
+}
+function feestToon(tk, naam) {
+  feestSluit();
+  const laag = document.createElement('div'); laag.id = 'bt-feest';
+  laag.innerHTML = '<canvas></canvas><div class="kaart" role="dialog" aria-label="Nieuwe starter"><div class="ster">★</div><div class="lbl">Nieuwe starter</div>' +
+    '<div class="naam">' + escHtml(naam) + '</div><div class="bij">' + tk.kop + '</div>' +
+    (tk.meta ? '<div class="crm-feest-meta">' + tk.meta + '</div>' : '') +
+    (tk.chips ? '<div class="wie">' + tk.chips + '</div>' : '') +
+    '<div class="teller">' + escHtml(tk.teller) + '</div><div class="sluit">×</div></div>';
+  laag.addEventListener('click', feestSluit);
+  document.body.appendChild(laag);
+  const beweging = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (beweging) { try { _feestConfetti(laag.querySelector('canvas')); } catch (e) { console.error('Confetti mislukt:', e); } }
+  _FEEST_TIMER = setTimeout(feestSluit, 9000);
+}
+function feestSluit() {
+  clearTimeout(_FEEST_TIMER); _FEEST_TIMER = null;
+  const el = document.getElementById('bt-feest'); if (el) el.remove();
+}
+function _feestConfetti(canvas) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d'); const W = canvas.width = canvas.offsetWidth || 800, H = canvas.height = canvas.offsetHeight || 600;
+  const kl = ['#F4CB3C', '#E87400', '#25D366', '#9ec8f4', '#ffffff', '#d9c2ff']; const P = [];
+  const maak = (x, y) => P.push({ x, y, vx: (Math.random() - .5) * 1.5, vy: 1 + Math.random() * 2.5, r: 3 + Math.random() * 4, k: kl[Math.floor(Math.random() * kl.length)], rot: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, vorm: Math.random() < .5 ? 'r' : 'c' });
+  for (let i = 0; i < 160; i++) maak(Math.random() * W, -Math.random() * H);
+  const t0 = performance.now();
+  (function stap(t) {
+    ctx.clearRect(0, 0, W, H);
+    if (t - t0 < 5000 && Math.random() < .6) maak(Math.random() * W, -10);
+    for (const p of P) {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vx += Math.sin(t / 300 + p.r) * .05;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.k;
+      if (p.vorm === 'r') ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); else { ctx.beginPath(); ctx.arc(0, 0, p.r / 1.6, 0, 7); ctx.fill(); }
+      ctx.restore();
+    }
+    for (let i = P.length - 1; i >= 0; i--) if (P[i].y > H + 20) P.splice(i, 1);
+    if (t - t0 < 9000 && document.getElementById('bt-feest')) requestAnimationFrame(stap);
+  })(t0);
+}
 // De knop neerzetten of verbergen; wordt bij elke render() aangeroepen.
 function snelchatZorg() {
   let knop = document.getElementById('snelchat-knop');
@@ -9654,7 +9770,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1609';
+const APP_VERSIE = '20260922-1911';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13375,6 +13491,7 @@ function render() {
   try { _leesmodusToepassen(); } catch (e) { console.error('Leesmodus mislukt:', e); }
   try { snelchatZorg(); } catch (e) { console.error('Snelchat mislukt:', e); }
   try { waKnopZorg(); } catch (e) { console.error('WhatsApp-knop mislukt:', e); }
+  try { feestScan(); } catch (e) { console.error('Feestje mislukt:', e); }
 }
 
 function _renderKern() {
@@ -25618,6 +25735,7 @@ async function pipeFetchAll() {
     }
   });
   PIPE_CACHE = next;
+  try { feestScan(); } catch (e) { console.error('Feestje mislukt:', e); }
 }
 
 // Zoekt een pipeline-card op via ID (over alle BMs)
