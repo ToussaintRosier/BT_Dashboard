@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1601 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1607 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9654,7 +9654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1601';
+const APP_VERSIE = '20260922-1607';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -28516,7 +28516,7 @@ function crmKandOpen(sleutel, stil) {
 // OF (twee vakgebieden = beide tellen); tussen de velden EN (alle voorwaarden) of
 // OF (één volstaat), naar keuze. Leest alleen; kopiëren, Excel en ONE-bericht
 // zijn de uitgangen. Zonder voorwaarden: iedereen.
-let CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {}, alles: false };
+let CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {}, alles: false, sort: 'naam', dir: 1 };
 function _crmSearchVoorwaarden() {
   const S = CRM_SEARCH, z = (x) => String(x || '').trim().toLowerCase(), v = [];
   if (z(S.naam)) v.push(k => z(k.naam).includes(z(S.naam)));
@@ -28535,7 +28535,18 @@ function crmSearchPast(k) {
   if (!v.length) return true;
   return CRM_SEARCH.modus === 'of' ? v.some(f => f(k)) : v.every(f => f(k));
 }
-function _crmSearchTreffers(lijst) { return (lijst || crmKandLijst()).filter(crmSearchPast).sort((a, b) => a.naam.localeCompare(b.naam, 'nl')); }
+// Sorteren (22-09): via _crmSorteer, met dezelfde waarden per kolom als CRM · Kandidaten.
+function _crmSearchWaarde(k, col) {
+  const r = k.crm || {};
+  return col === 'naam' ? k.naam : col === 'functie' ? (k.functie || '') : col === 'vakgebied' ? _crmVakgebied(k)
+    : col === 'woonregio' ? _crmWoonregio(k) : col === 'woonplaats' ? (k.woonplaats || '') : col === 'telefoon' ? (r.telefoon || '')
+    : col === 'email' ? (r.email || '') : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '')
+    : col === 'docs' ? ((r.cv_link ? 1 : 0) + (r.cr_link ? 1 : 0)) : '';
+}
+function _crmSearchTreffers(lijst) {
+  const S = CRM_SEARCH, st = { sort: S.sort || 'naam', dir: S.dir || 1 };
+  return _crmSorteer((lijst || crmKandLijst()).filter(crmSearchPast), st, _crmSearchWaarde);
+}
 function _crmSearchGekozen() { const T = _crmSearchTreffers(); return T.filter(k => CRM_SEARCH.sel[k.sleutel]); }
 function _crmSearchOmschrijving() {
   const S = CRM_SEARCH, d = [];
@@ -28584,7 +28595,7 @@ function renderCrmSearchHtml() {
     _crmSqlHint() + paneel +
     '<div class="crm-s-tel"><b>' + T.length + '</b> kandidaten voldoen · ' + escHtml(_crmSearchOmschrijving()) + '</div>' +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:34px"><col style="width:23%"><col style="width:18%"><col style="width:130px"><col style="width:70px"><col style="width:140px"><col style="width:15%"><col><col style="width:92px"><col style="width:96px"></colgroup><thead><tr><th class="vink"></th><th>Kandidaat</th><th>Functie</th><th>Vakgebied</th><th>Regio</th><th>Woonplaats</th><th>Telefoon</th><th>E-mail</th><th>Laatste contact</th><th class="docs">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:34px"><col style="width:23%"><col style="width:18%"><col style="width:130px"><col style="width:70px"><col style="width:140px"><col style="width:15%"><col><col style="width:92px"><col style="width:96px"></colgroup><thead><tr><th class="vink"></th>' + _crmTh(S, 'naam', 'Kandidaat', 'crmSearchSort') + _crmTh(S, 'functie', 'Functie', 'crmSearchSort') + _crmTh(S, 'vakgebied', 'Vakgebied', 'crmSearchSort') + _crmTh(S, 'woonregio', 'Regio', 'crmSearchSort') + _crmTh(S, 'woonplaats', 'Woonplaats', 'crmSearchSort') + _crmTh(S, 'telefoon', 'Telefoon', 'crmSearchSort') + _crmTh(S, 'email', 'E-mail', 'crmSearchSort') + _crmTh(S, 'laatste', 'Laatste contact', 'crmSearchSort') + _crmTh(S, 'docs', 'Documenten', 'crmSearchSort', 'docs') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niemand voldoet aan deze voorwaarden.</div>') +
       _crmVoet(T.length, alle.length, beperkt, 'crmSearchToonAlles()', 'kandidaten') +
       '<div class="crm-s-voet"><span><b id="crm-s-nsel">' + nSel + '</b> geselecteerd</span>' +
@@ -28618,7 +28629,8 @@ function crmSearchKies(sleutel) {
   const sel = CRM_SEARCH.sel; n.textContent = String(_crmSearchTreffers().filter(k => sel[k.sleutel]).length);
 }
 function crmSearchAlles(aan) { if (!aan) CRM_SEARCH.sel = {}; else _crmSearchTreffers().forEach(k => { CRM_SEARCH.sel[k.sleutel] = true; }); renderCrmSearch(); }
-function crmSearchWis() { CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {}, alles: false }; renderCrmSearch(); }
+function crmSearchWis() { CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {}, alles: false, sort: 'naam', dir: 1 }; renderCrmSearch(); }
+function crmSearchSort(col) { _crmSortZet(CRM_SEARCH, col); renderCrmSearch(); }
 function crmSearchToonAlles() { CRM_SEARCH.alles = true; renderCrmSearch(); }
 // De selectie (of, zonder vinkjes, alle treffers) is wat je meeneemt.
 function _crmSearchMee() { const g = _crmSearchGekozen(); return g.length ? g : _crmSearchTreffers(); }
