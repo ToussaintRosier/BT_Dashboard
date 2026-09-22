@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1552 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1601 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9654,7 +9654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1552';
+const APP_VERSIE = '20260922-1601';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -28575,6 +28575,7 @@ function renderCrmSearchHtml() {
       '<td class="d">' + (k.woonplaats ? escHtml(k.woonplaats) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmTelCel(r.telefoon, '', k.naam) + '</td>' +
       '<td class="d" title="' + escHtml(r.email || '') + '">' + _crmMailCel(r.email, '') + '</td>' +
+      '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td>' +
       '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
   const knop = (tekst, onclick, klasse) => '<button type="button" class="crm-knop ' + (klasse || '') + '" onclick="' + onclick + '">' + tekst + '</button>';
@@ -28583,7 +28584,7 @@ function renderCrmSearchHtml() {
     _crmSqlHint() + paneel +
     '<div class="crm-s-tel"><b>' + T.length + '</b> kandidaten voldoen · ' + escHtml(_crmSearchOmschrijving()) + '</div>' +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:34px"><col style="width:23%"><col style="width:18%"><col style="width:130px"><col style="width:70px"><col style="width:140px"><col style="width:15%"><col><col style="width:96px"></colgroup><thead><tr><th class="vink"></th><th>Kandidaat</th><th>Functie</th><th>Vakgebied</th><th>Regio</th><th>Woonplaats</th><th>Telefoon</th><th>E-mail</th><th class="docs">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:34px"><col style="width:23%"><col style="width:18%"><col style="width:130px"><col style="width:70px"><col style="width:140px"><col style="width:15%"><col><col style="width:92px"><col style="width:96px"></colgroup><thead><tr><th class="vink"></th><th>Kandidaat</th><th>Functie</th><th>Vakgebied</th><th>Regio</th><th>Woonplaats</th><th>Telefoon</th><th>E-mail</th><th>Laatste contact</th><th class="docs">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niemand voldoet aan deze voorwaarden.</div>') +
       _crmVoet(T.length, alle.length, beperkt, 'crmSearchToonAlles()', 'kandidaten') +
       '<div class="crm-s-voet"><span><b id="crm-s-nsel">' + nSel + '</b> geselecteerd</span>' +
@@ -28647,10 +28648,10 @@ async function crmSearchMail() {
 }
 function crmSearchExcel() {
   const mee = _crmSearchMee();
-  const header = ['Kandidaat', 'Functie', 'Vakgebied', 'Woonregio', 'Woonplaats', 'Telefoon', 'E-mail', 'CV', 'CR'];
-  const rows = mee.map(k => { const r = k.crm || {}; return [k.naam, k.functie || '', _crmVakgebied(k), _crmWoonregio(k), k.woonplaats || '', r.telefoon || '', r.email || '', r.cv_link || '', r.cr_link || '']; });
+  const header = ['Kandidaat', 'Functie', 'Vakgebied', 'Woonregio', 'Woonplaats', 'Telefoon', 'E-mail', 'Laatste contact', 'CV', 'CR'];
+  const rows = mee.map(k => { const r = k.crm || {}; return [k.naam, k.functie || '', _crmVakgebied(k), _crmWoonregio(k), k.woonplaats || '', r.telefoon || '', r.email || '', k.laatsteMs > 0 ? _crmDatum(k.laatsteMs) : '', r.cv_link || '', r.cr_link || '']; });
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  ws['!cols'] = [26, 30, 18, 16, 18, 16, 30, 40, 40].map(w => ({ wch: w }));
+  ws['!cols'] = [26, 30, 18, 16, 18, 16, 30, 14, 40, 40].map(w => ({ wch: w }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'CRM-Search');
   const d = new Date(), datum = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   XLSX.writeFile(wb, 'CRM-Search_' + datum + '.xlsx');
