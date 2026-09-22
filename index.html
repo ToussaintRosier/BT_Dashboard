@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-0756 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-0803 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4161,6 +4161,8 @@
   .cr .cr-legenda { display:flex; gap:16px; font-size:.74rem; color:#6b7280; margin-top:4px; flex-wrap:wrap; }
   .cr .cr-legenda i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
   @media (max-width:760px) { .cr .cr-twee { grid-template-columns:1fr; } }
+  /* KPI's per week (22-09): pil "huidig" in de gesloten weeklijst. */
+  .wk-pil-huidig { display:inline-block; font-size:.66rem; padding:1px 7px; border-radius:99px; background:#166534; color:#dcfce7; margin-left:8px; vertical-align:1px; font-weight:var(--w-normaal); }
   /* Dagstart-kaart (22-09, ontwerp A): nooit hoger dan het scherm. Kop en
      knop staan vast, alleen het middenstuk scrolt. */
   .ds-kaart { background:#fff; border-radius:var(--radius-groot); max-width:520px; width:100%; box-shadow:0 18px 50px rgba(37,49,81,.3); display:flex; flex-direction:column; max-height:calc(100vh - 40px); overflow:hidden; }
@@ -9147,7 +9149,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-0756';
+const APP_VERSIE = '20260922-0803';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12302,8 +12304,11 @@ function renderMedewerkersOverzicht() {
   // Alle weken inklapbaar; initialiseer de open-set eenmalig met alleen de huidige week
   const recentWks = getRecentWeeks(10); // index 0 = CUR-1, index 1 = CUR-2, ...
   const allWeeks  = [NEXT, CUR, ...recentWks.slice(0, 10)].filter(Boolean);
+  // Standaard alles dicht (22-09, ontwerp A): de huidige week stond altijd
+  // open en dat oogde onrustig. Hij is nu alleen gemarkeerd in de lijst; wat
+  // je openklapt blijft open zolang je op de pagina bent.
   if (MEDEW_WEEK_OPEN === null) {
-    MEDEW_WEEK_OPEN = new Set([CUR.year + '-' + CUR.week]);
+    MEDEW_WEEK_OPEN = new Set();
   }
 
   // Badge naast weeknummer
@@ -12438,10 +12443,11 @@ function renderMedewerkersOverzicht() {
              (v ? '' : 'color:rgba(255,255,255,.4);') + '">' +
              (leeg ? '·' : fmt(v, k === 'starters' ? 1 : 0)) + '</td>';
     }).join('');
+    const huidig = jaar === CUR.year && week === CUR.week;
     return '<tr onclick="toggleMedewerkersWeek(' + jaar + ',' + week + ')" ' +
-           'style="cursor:pointer;border-top:1px solid rgba(255,255,255,.08);">' +
+           'style="cursor:pointer;border-top:1px solid rgba(255,255,255,.08);' + (huidig ? 'box-shadow:inset 3px 0 0 #F4CB3C;background:rgba(244,203,60,.08);' : '') + '">' +
       '<td style="padding:7px 10px;white-space:nowrap;font-weight:var(--w-nadruk);color:#fff;">Week ' + week +
-        '<span style="color:rgba(255,255,255,.4);font-weight:var(--w-normaal);"> · ' + jaar + '</span></td>' +
+        '<span style="color:rgba(255,255,255,.4);font-weight:var(--w-normaal);"> · ' + jaar + '</span>' + (huidig ? '<span class="wk-pil-huidig">huidig</span>' : '') + '</td>' +
       cellen +
       '<td style="text-align:right;padding:7px 10px;color:rgba(255,255,255,.4);font-size:var(--t-xs);">openen</td>' +
     '</tr>';
