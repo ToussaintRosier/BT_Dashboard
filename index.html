@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1014 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1049 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1766,7 +1766,38 @@
   .crm-actie.aan { border-color:#F4CB3C; color:#F4CB3C; background:rgba(244,203,60,.12); }
   .crm-actie.goed { border-color:#0e9f6e; color:#8be0c0; }
   .crm-actie.uit { border-style:dashed; border-color:rgba(255,255,255,.2); color:rgba(255,255,255,.35); cursor:default; }
-  .crm-actie-groep { display:inline-flex; align-items:center; gap:8px; font-size:.76rem; }
+  .crm-actie-groep { display:inline-flex; align-items:center; gap:8px; font-size:.76rem; flex-wrap:wrap; }
+  /* Collega-chips (22-09): initialen in de vaste ONE-kleur + voornaam; geel = aan, gestippeld = geen wijzigrecht. */
+  .col-chips { display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .col-chip { display:inline-flex; align-items:center; gap:6px; font-family:inherit; font-size:.76rem; padding:3px 10px 3px 4px; border-radius:99px; border:1px solid rgba(255,255,255,.22); color:rgba(255,255,255,.75); background:transparent; cursor:pointer; }
+  .col-chip:hover { border-color:rgba(255,255,255,.5); color:#fff; }
+  .col-chip i { width:20px; height:20px; border-radius:50%; font-style:normal; font-size:.62rem; font-weight:var(--w-nadruk); display:inline-flex; align-items:center; justify-content:center; color:#16142e; }
+  .col-chip.aan { background:rgba(244,203,60,.16); border-color:#F4CB3C; color:#fff; }
+  .col-chip.slot, .col-chip:disabled { opacity:.4; cursor:default; border-style:dashed; }
+  .col-chip.slot:hover, .col-chip:disabled:hover { border-color:rgba(255,255,255,.22); color:rgba(255,255,255,.75); }
+  /* Kop met een knop rechts ("+ contactpersoon", "+ Afspraak plannen"). */
+  .crm-kop.met-knop { display:flex; align-items:center; gap:8px; }
+  .crm-kop-knop { margin-left:auto; background:none; border:0; padding:0; color:#9ec8f4; font-family:inherit; font-size:.72rem; text-transform:none; letter-spacing:0; cursor:pointer; }
+  .crm-kop-knop:hover { text-decoration:underline; }
+  .kk-cp-sluit { background:none; border:0; padding:0; color:#9ec8f4; font-family:inherit; font-size:inherit; cursor:pointer; }
+  /* Afspraak plannen (22-09): vorm in twee kolommen, type bezoek als pillen. */
+  .crm-afspraak { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 12px 12px; margin:0 0 10px; }
+  .crm-afspraak .af2 { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+  /* Pillen en chips staan in een .veld, niet in een <label>: een klik op de tekst zou anders de eerste knop indrukken. */
+  .crm-afspraak label, .crm-afspraak .veld { display:flex; flex-direction:column; gap:4px; font-size:.66rem; color:rgba(255,255,255,.55); min-width:0; }
+  .crm-afspraak .breed { grid-column:1 / -1; }
+  .crm-afspraak label b, .crm-afspraak .veld b { color:#E87400; font-weight:var(--w-nadruk); }
+  .crm-afspraak .veld small { color:rgba(255,255,255,.35); margin-left:6px; font-size:.64rem; }
+  .crm-afspraak .vast { background:#364160; border:1px solid rgba(255,255,255,.15); border-radius:8px; padding:0 9px; height:34px; line-height:34px; font-size:.8rem; color:#fff; box-sizing:border-box; }
+  .crm-afspraak .kand-vervolg-veld { height:34px; padding:0 9px; font-size:.8rem; }
+  .col-pillen { display:flex; gap:6px; flex-wrap:wrap; min-height:34px; align-items:center; }
+  .col-pil { border:1px solid rgba(255,255,255,.22); border-radius:99px; background:transparent; color:rgba(255,255,255,.75); font-family:inherit; font-size:.76rem; padding:5px 11px; cursor:pointer; }
+  .col-pil:hover { border-color:rgba(255,255,255,.5); color:#fff; }
+  .col-pil.aan { background:#F4CB3C; border-color:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); }
+  .crm-afspraak-status { font-size:.76rem; color:#ffb3b3; margin-top:6px; min-height:0; }
+  .crm-afspraak .crm-knoppen { align-items:center; margin-top:8px; }
+  .crm-afspraak-hint { margin-left:auto; font-size:.72rem; color:rgba(255,255,255,.5); }
+  @media (max-width:640px) { .crm-afspraak .af2 { grid-template-columns:1fr; } }
   .person-meta .crm-nieuw { font-size:.76rem; padding:5px 12px; margin-left:8px; }
   /* Wizard (17-09): elke stap exact dezelfde maat. Kop, subregel en stappenbalk
      op vaste hoogte zodat het eerste veld op elke stap op dezelfde hoogte
@@ -3273,11 +3304,14 @@
   .kk-tekst.stil { color:rgba(255,255,255,.4); font-style:italic; }
   .kk-scores span { background:#364160; border-radius:6px; font-size:.72rem; color:rgba(255,255,255,.75); }
   .kk-scores b { color:#F4CB3C; font-weight:var(--w-nadruk); }
-  .kk-cp { display:grid; grid-template-columns:28px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) auto auto; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:.84rem; color:#fff; }
+  .kk-cp { display:grid; grid-template-columns:28px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) auto auto auto; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:.84rem; color:#fff; }
   .kk-cp .n { font-weight:var(--w-nadruk); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .kk-cp .rol { color:rgba(255,255,255,.5); font-size:.76rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .kk-cp .rol.r { text-align:right; }
   .kk-cp .kk-afd { justify-self:start; }
-  @media (max-width:640px) { .kk-cp { grid-template-columns:28px 1fr auto; } .kk-cp .rol, .kk-cp .kk-afd { display:none; } }
+  .kk-cp-ik { display:inline-flex; gap:6px; }
+  .kk-cp-ik a, .kk-cp-ik i { width:22px; height:22px; border-radius:6px; background:rgba(255,255,255,.08); display:inline-flex; align-items:center; justify-content:center; font-style:normal; font-size:.72rem; color:#9ec8f4; text-decoration:none; }
+  .kk-cp-ik i.leeg { color:rgba(255,255,255,.25); }
+  @media (max-width:640px) { .kk-cp { grid-template-columns:28px 1fr auto; } .kk-cp .rol, .kk-cp .kk-afd, .kk-cp .kk-cp-ik { display:none; } }
   .kk-afd { font-size:.68rem; background:rgba(255,255,255,.1); border-radius:8px; padding:1px 7px; color:rgba(255,255,255,.8); }
   .kk-cp-nieuw { display:grid; grid-template-columns:1.2fr 1.2fr 1fr .9fr auto; gap:6px; margin-top:8px; }
   .kk-cp-nieuw input, .kk-cp-nieuw select { min-width:0; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.78rem; }
@@ -3719,6 +3753,8 @@
   .bm-balk i { display:block; height:100%; border-radius:3px; }
   .bm-balk u { position:absolute; left:50%; top:-3px; width:1.5px; height:12px;
                background:rgba(255,255,255,.55); }
+  /* Deze week (22-09): de norm klein achter het cijfer. */
+  .bm-norm { font-size:.7rem; font-weight:var(--w-normaal); color:rgba(255,255,255,.45); margin-left:4px; }
 
   /* ── De deadline-keuze ─────────────────────────────────────────────────
      Een kaal datumveld kan geen "on-going" aanbieden — de kalender van de
@@ -6709,6 +6745,40 @@ function _oneInitialen(naam) {
   const d = String(naam || '?').trim().split(/\s+/);
   return ((d[0] || '?')[0] + (d.length > 1 ? d[d.length - 1][0] : '')).toUpperCase();
 }
+// ── Collega-chips (22-09) ───────────────────────────────────────────────────
+// Eén rij chips met initialen (in de vaste ONE-kleur) en voornaam, overal
+// waar je een collega kiest: "in de pipeline van" bij CRM Kandidaten en
+// "Collega's" bij Afspraak plannen op de bedrijfskaart. max 1 = één tegelijk
+// aan (klik wisselt), max 2 = twee tegelijk (een derde verdringt de oudste).
+// Wie de pipeline van een collega niet mag wijzigen, ziet die chip grijs en
+// gestippeld — het hele team blijft zichtbaar, maar je kunt niet per ongeluk
+// bij een ander opvoeren. De stand staat in CHIPS_STAND (per id), niet in de
+// DOM, zodat een venster de chips opnieuw kan tekenen zonder de keuze te
+// verliezen.
+let CHIPS_STAND = {};
+function _collegaChipsHtml(o) {
+  const max = o.max || 1;
+  const mag = o.mag || (() => true);
+  const aan = (o.aan || []).filter(n => o.namen.includes(n) && mag(n)).slice(0, max);
+  CHIPS_STAND[o.id] = { aan, max, na: o.na || null };
+  const idE = escApos(o.id);
+  return '<span class="col-chips" id="' + escHtml(o.id) + '" data-max="' + max + '">' + o.namen.map(n => {
+    const kan = mag(n), isAan = aan.includes(n);
+    return '<button type="button" class="col-chip' + (isAan ? ' aan' : '') + (kan ? '' : ' slot') + '" data-naam="' + escHtml(n) + '"' +
+      (kan ? ' title="' + escHtml(n) + '" onclick="collegaChipKlik(\'' + idE + '\',\'' + escApos(n) + '\')"' : ' disabled title="Je mag de pipeline van ' + escHtml(n) + ' niet wijzigen"') +
+      '><i style="background:' + _oneAvatarKleur(n) + '">' + escHtml(_oneInitialen(n)) + '</i>' + escHtml(String(n).split(' ')[0]) + '</button>';
+  }).join('') + '</span>';
+}
+function collegaChipKlik(id, naam) {
+  const st = CHIPS_STAND[id]; if (!st) return;
+  if (st.max === 1) st.aan = [naam];
+  else if (st.aan.includes(naam)) st.aan = st.aan.filter(n => n !== naam);
+  else { st.aan = st.aan.concat([naam]); while (st.aan.length > st.max) st.aan.shift(); }
+  const el = document.getElementById(id);
+  if (el) el.querySelectorAll('.col-chip').forEach(b => b.classList.toggle('aan', st.aan.includes(b.getAttribute('data-naam'))));
+  if (st.na) st.na(st.aan);
+}
+function _collegaChipsAan(id) { const st = CHIPS_STAND[id]; return st ? st.aan.slice() : []; }
 // Vaste kleur per naam: dezelfde collega krijgt altijd dezelfde cirkel, zodat
 // je hem in een lange lijst herkent zonder te lezen.
 function _oneAvatarKleur(naam) {
@@ -9226,7 +9296,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1014';
+const APP_VERSIE = '20260922-1049';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -9637,7 +9707,7 @@ const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag', 'ka
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
   'mtNotuleOudeWijzig', 'mtNotuleOudeOpslaanKnop', 'mtNotuleVerwijder',
   'mtNotuleOpslaanKnop', 'mtNotuleWijzig', 'mtCoachOpslaan', 'mtCoachWijzig',
-  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'kandVervolgOpslaan', 'bezoekVervolgOpslaan', 'bezoekAfgerondToggle', 'bedrijfHernoemOpslaan', 'crmKandOpslaan', 'crmBedrijfOpslaan', 'crmKandBewerkOpslaan', 'crmBedrijfBewerkOpslaan', 'crmKandSamenvoegen', 'crmBedrijfContactToevoegen', 'crmBedrijfContactWeghalen', 'crmBedrijfVerwijderen', 'crmMedewerkersOmzettenDoe', 'crmProjectKandidatenOpvoeren', 'crmKandStarboy', 'accountKaartBewerkOpslaan', 'crmBedrijfSamenvoegen', 'kandKaartBewerkOpslaan', 'crmKandVerwijderen', 'beheerEvalAfvinken', 'accNotitiePlaats', 'accNotitieVerwijder', 'kandNotitiePlaats', 'kandNotitieVerwijder', 'accContactToevoegen', 'accContactWeghalen', 'apNieuwVoor', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projVensterWijzig', 'projVensterOpslaan', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'kandidaatFaseZet', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'rldvSelectieVerwijder', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordNaamZet', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
+  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'kandVervolgOpslaan', 'bezoekVervolgOpslaan', 'bezoekAfgerondToggle', 'bedrijfHernoemOpslaan', 'crmKandOpslaan', 'crmBedrijfOpslaan', 'crmKandBewerkOpslaan', 'crmBedrijfBewerkOpslaan', 'crmKandSamenvoegen', 'crmBedrijfContactToevoegen', 'crmBedrijfContactWeghalen', 'crmBedrijfAfspraakPlaats', 'crmBedrijfVerwijderen', 'crmMedewerkersOmzettenDoe', 'crmProjectKandidatenOpvoeren', 'crmKandStarboy', 'accountKaartBewerkOpslaan', 'crmBedrijfSamenvoegen', 'kandKaartBewerkOpslaan', 'crmKandVerwijderen', 'beheerEvalAfvinken', 'accNotitiePlaats', 'accNotitieVerwijder', 'kandNotitiePlaats', 'kandNotitieVerwijder', 'accContactToevoegen', 'accContactWeghalen', 'apNieuwVoor', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projVensterWijzig', 'projVensterOpslaan', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'kandidaatFaseZet', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'rldvSelectieVerwijder', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apNew', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordNaamZet', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
 
 // Welk onderdeel hoort bij het scherm waar je nu naar kijkt.
 function _huidigOnderdeel() {
@@ -12185,16 +12255,6 @@ function renderBM(bm) {
   const opNorm = KPIS.filter(k => (normWeek[k] || 0) > 0 ? weekNu[k] >= normWeek[k] : weekNu[k] > 0).length;
   // Getal en norm zijn klikbaar (CRM-ronde 28-08): het getal opent de
   // opbouw (opgeslagen vs pipeline, welke kaartjes), de norm de rekensom.
-  const dezeWeekRijen = KPIS.map(k => {
-    const w = weekNu[k], n = normWeek[k] || 0;
-    const ok = n > 0 ? w >= n : w > 0;
-    return `<tr>
-      <td style="width:20px;">${ok ? '<span style="color:#34d399;">✓</span>' : '<span style="color:rgba(255,255,255,.35);">○</span>'}</td>
-      <td class="bm-kpi">${KPI_LABELS[k]}</td>
-      <td style="text-align:right;color:#fff;font-weight:var(--w-nadruk);"><span class="crm-klik" title="Waar komt dit getal vandaan?" onclick="uitlegWeekGetal('${escApos(bm.naam)}','${k}')">${fmt(w, w % 1 ? 1 : 0)}</span></td>
-      <td style="text-align:right;color:rgba(255,255,255,.45);"><span class="crm-klik" title="Hoe is deze norm berekend?" onclick="uitlegNorm('${escApos(bm.naam)}','${k}')">norm ${nfmt(n)}</span></td>
-    </tr>`;
-  }).join('');
   // Boven de 100% is de balk altijd groen, en hoe verder erboven, hoe
   // voller het groen (aanwijzing 20-08). De kleur zegt daarmee in één blik
   // niet alleen dát iemand boven norm zit, maar ook hoe ruim. Het percentage
@@ -12207,6 +12267,19 @@ function renderBM(bm) {
     }
     return p >= 60 ? '#f0a020' : '#e02424';
   };
+  // Deze week in dezelfde opmaak als Dit jaar (22-09, ontwerp B): label,
+  // balk tegen de weeknorm (streepje = norm, balk tot 200%), rechts het
+  // weekcijfer met de norm er klein achter. Getal en norm blijven klikbaar.
+  const dezeWeekRijen = KPIS.map(k => {
+    const w = weekNu[k], n = normWeek[k] || 0;
+    const ok = n > 0 ? w >= n : w > 0;
+    const p = n > 0 ? Math.round(w / n * 100) : (w > 0 ? 200 : 0);
+    return `<tr>
+      <td class="bm-kpi">${KPI_LABELS[k]}</td>
+      <td style="width:132px;"><span class="bm-balk"><i style="width:${Math.min(100, p / 2)}%;background:${kleurJaar(p)};"></i><u></u></span></td>
+      <td style="text-align:right;font-weight:var(--w-nadruk);white-space:nowrap;color:${ok ? '#86efac' : '#fdba74'};"><span class="crm-klik" title="Waar komt dit getal vandaan?" onclick="uitlegWeekGetal('${escApos(bm.naam)}','${k}')">${fmt(w, w % 1 ? 1 : 0)}</span><small class="bm-norm crm-klik" title="Hoe is deze norm berekend?" onclick="uitlegNorm('${escApos(bm.naam)}','${k}')">/ ${nfmt(n)}</small></td>
+    </tr>`;
+  }).join('');
   const ditJaarRijen = KPIS.map(k => {
     const p = pJaar(k);
     return `<tr>
@@ -12228,7 +12301,7 @@ function renderBM(bm) {
 
     <div class="bm-duo">
       <div class="bm-paneel">
-        <div class="kop">Deze week<small>W${CUR.week} tegen de weeknorm</small></div>
+        <div class="kop">Deze week<small>W${CUR.week} tegen de weeknorm &middot; streepje = norm</small></div>
         <table>${dezeWeekRijen}</table>
         <div class="voet">${opNorm} van de ${KPIS.length} op of boven de norm deze week.</div>
       </div>
@@ -27473,13 +27546,17 @@ function _crmKandActiesHtml(k) {
   const starKnop = !magWijzigen('medewerkers') ? '' : intake
     ? '<button type="button" class="crm-actie' + (star ? ' aan' : '') + '" onclick="crmKandStarboy(\'' + sE + '\')" title="' + (star ? 'Ster weghalen van het Intake-tegeltje' : 'Ster op het Intake-tegeltje: komt bij StarBoys op de Kanban') + '">★ ' + (star ? 'StarBoy ✓' : 'StarBoy maken') + '</button>'
     : '<span class="crm-actie uit" title="StarBoy kan pas na een intake — voer eerst een intake op">★ StarBoy maken</span>';
-  const bms = bmsMetCijfers().map(b => b.naam).filter(n => canEdit(n));
-  const std = _kanbanStandaardBm(null);
+  // Sinds 22-09 chips met initialen (ontwerp_crm_kand_chips): alle collega's
+  // zichtbaar, alleen die je mag wijzigen klikbaar, standaard jijzelf.
+  const alle = bmsMetCijfers().map(b => b.naam);
+  const bms = alle.filter(n => canEdit(n));
+  const std0 = _kanbanStandaardBm(null);
+  const std = canEdit(std0) ? std0 : bms[0];
   const intakeKnop = intake
     ? '<span class="crm-actie uit" title="' + escHtml(k.naam) + ' heeft al een intake (' + escHtml(_crmDatum(_crmKandIntake(k).ms)) + ')">+ Intake opvoeren</span>'
     : !bms.length ? ''
     : '<span class="crm-actie-groep"><button type="button" class="crm-actie goed" onclick="crmKandIntakeOpvoeren(\'' + sE + '\')">+ Intake opvoeren</button><span class="stil">in de pipeline van</span>' +
-      '<select id="crm-intake-bm" class="rldv-aanb-bmkeuze">' + bms.map(n => '<option value="' + escHtml(n) + '"' + (n === std ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select></span>';
+      _collegaChipsHtml({ id: 'crm-intake-bm', namen: alle, aan: [std], max: 1, mag: (n) => canEdit(n) }) + '</span>';
   return '<div class="crm-acties">' + starKnop + intakeKnop + '</div>';
 }
 async function crmKandStarboy(sleutel) {
@@ -27493,8 +27570,7 @@ async function crmKandStarboy(sleutel) {
 }
 function crmKandIntakeOpvoeren(sleutel) {
   const k = crmKandLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
-  const sel = document.getElementById('crm-intake-bm');
-  const bm = _kanbanStandaardBm(sel ? sel.value : null);
+  const bm = _kanbanStandaardBm(_collegaChipsAan('crm-intake-bm')[0] || null);
   if (!canEdit(bm)) { alert('Je mag de pipeline van ' + bm + ' niet wijzigen.'); return; }
   const nu = isoWeek(new Date());
   crmKaartSluit();
@@ -27748,6 +27824,8 @@ function _teamRijHtml(label, key, waarde, bewerk, klasse) {
   return '<div class="kk-rij"><span>' + escHtml(label) + '</span>' + (w ? '<span class="kk-team-pil' + (klasse ? ' ' + klasse : '') + '">' + escHtml(w.toUpperCase()) + '</span>' + (naam ? '<span class="kk-team-naam">' + escHtml(naam) + '</span>' : '<span class="kk-team-naam">niet herkend — kies via Wijzigen</span>') : '<span class="stil">—</span>') + '</div>';
 }
 // Contactpersoon toevoegen (17-09): labels boven de velden, één duidelijke knop.
+// Sinds 22-09 staat de vorm dicht tot je op "+ contactpersoon" klikt (de
+// bedrijfskaart werd er lomp van); de hintregel kreeg een sluitknop.
 function _cpFormHtml(prefix, onclick) {
   // Enter in een veld voegt ook toe; de knop staat in dezelfde rij.
   const enter = ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();' + escHtml(onclick) + '}"';
@@ -27760,7 +27838,15 @@ function _cpFormHtml(prefix, onclick) {
     '<label><span>E-mail</span><input type="email" id="' + prefix + '-mail" placeholder="naam@bedrijf.nl" maxlength="120"' + enter + '></label>' +
     '<label><span>Rol voor ons</span><select id="' + prefix + '-rol"><option value="">kies…</option><option value="strategisch">strategisch</option><option value="operationeel">operationeel</option></select></label>' +
     '<button type="button" class="kk-cp-toev" onclick="' + onclick + '">+ Toevoegen</button>' +
-    '</div><div class="kk-cp-hint">Enter in een veld voegt ook toe · alleen de naam is verplicht</div>';
+    '</div><div class="kk-cp-hint">Enter in een veld voegt ook toe · alleen de naam is verplicht · <button type="button" class="kk-cp-sluit" onclick="crmBedrijfContactVorm(false)">sluiten</button></div>';
+}
+// De vorm open- of dichtklappen; zonder argument wisselen. Open = cursor in het naamveld.
+function crmBedrijfContactVorm(open) {
+  const vorm = document.getElementById('crm-cp-vorm'); if (!vorm) return;
+  const wil = open === undefined ? !!vorm.hidden : !!open;
+  vorm.hidden = !wil;
+  const knop = document.getElementById('crm-cp-knop'); if (knop) knop.textContent = wil ? 'sluiten' : '+ contactpersoon';
+  if (wil) { const el = document.getElementById('crm-cp-naam'); if (el && el.focus) el.focus(); }
 }
 // Eén contactpersoon-regel (18-09): naam met telefoon/e-mail eronder, functie,
 // afdeling, rol, weghaalknop. Gedeeld door de Bedrijfskaart en de KAM-lijst.
@@ -27771,6 +27857,9 @@ function _cpRijHtml(c, weghaal) {
     (tel || mail ? '<small>' + [tel, mail].filter(Boolean).join(' · ') + '</small>' : '') + '</span>' +
     (c.functie ? '<span class="rol">' + escHtml(c.functie) + '</span>' : '<span></span>') + (c.afdeling ? '<span class="kk-afd">' + escHtml(c.afdeling) + '</span>' : '<span></span>') +
     (c.rol ? '<span class="rol r">' + escHtml(c.rol) + '</span>' : '<span></span>') +
+    // Bellen en mailen als iconen (22-09); gedempt als het gegeven ontbreekt.
+    '<span class="kk-cp-ik">' + (c.telefoon ? '<a href="tel:' + escHtml(String(c.telefoon).replace(/\s/g, '')) + '" title="Bellen: ' + escHtml(c.telefoon) + '">☎</a>' : '<i class="leeg" title="geen telefoonnummer">☎</i>') +
+      (c.email ? '<a href="mailto:' + escHtml(c.email) + '" title="Mailen: ' + escHtml(c.email) + '">✉</a>' : '<i class="leeg" title="geen e-mailadres">✉</i>') + '</span>' +
     (weghaal ? '<button class="one-dn-knop weg" title="Weghalen" onclick="' + weghaal + '">×</button>' : '') + '</div>';
 }
 // De cel Team in de lijst (17-09): S/O uit de KAM-tabel; zonder KAM-rij de
@@ -28087,7 +28176,7 @@ function crmBedrijfDossierHtml(sleutel) {
   const functies = lead ? SL_BOOL_FIELDS.filter(([x]) => lead[x]).map(([, l]) => l).join(', ') : '';
   const rijA = (label, waarde, extra) => rij(label, (waarde === '' || waarde === null || waarde === undefined) ? '<span class="stil">—</span>' : waarde, extra);
   const rijB = (label, velden) => '<div class="kk-rij bewerk"><span>' + escHtml(label) + '</span>' + velden + '</div>';
-  const blok = (kop, inhoud, klein) => '<div class="crm-kop">' + kop + (klein ? '<small class="crm-kop-klein">' + klein + '</small>' : '') + '</div>' + inhoud;
+  const blok = (kop, inhoud, klein, knop) => '<div class="crm-kop' + (knop ? ' met-knop' : '') + '">' + kop + (klein ? '<small class="crm-kop-klein">' + klein + '</small>' : '') + (knop || '') + '</div>' + inhoud;
   const gegevens = blok('Bedrijfsgegevens', '<div class="kk-lijst">' + (bewerk
     ? rijB('Adres', _crmBewerkVeld('adres', { ph: 'straat en huisnummer' })) +
       rijB('Postcode · plaats', _crmBewerkVeld('postcode', { kort: true, ph: '1234 AB' }) + _crmBewerkVeld('plaats', { ph: 'plaats' })) +
@@ -28106,11 +28195,14 @@ function crmBedrijfDossierHtml(sleutel) {
     ? '<div class="kk-lijst">' + _teamRijHtml('Strategisch', 'strat_cp', bewerk ? (CRM_BEWERK.w.strat_cp || '') : a.strat_cp, bewerk, '') + _teamRijHtml('Operationeel', 'op_cp', bewerk ? (CRM_BEWERK.w.op_cp || '') : a.op_cp, bewerk, 'op') + '</div>'
     : '<div class="kk-tekst stil">alleen voor KAM-klanten — zet ' + escHtml(k.naam) + ' in de KAM-tabel om een strategisch en operationeel verantwoordelijke te kiezen</div>', a ? 'gelijk aan de KAM-lijst' : '');
   const contacten = k.contacten;
+  // Compact (22-09): regels met iconen; de toevoeg-vorm staat dicht achter "+ contactpersoon".
+  const magCp = magAcc && (a || k.crm);
   const contactHtml = blok('Contactpersonen bij ' + escHtml(k.naam), (contacten.length ? contacten.map((c, i) =>
     _cpRijHtml(c, magAcc ? "crmBedrijfContactWeghalen('" + sE + "'," + i + ')' : '')).join('')
     : '<div class="kk-tekst stil">nog geen contactpersonen — voeg het aanspreekpunt bij het bedrijf toe</div>') +
-    (magAcc && (a || k.crm) ? _cpFormHtml('crm-cp', 'crmBedrijfContactToevoegen(\'' + sE + '\')')
-      : (magAcc ? '<div class="kk-tekst stil">Sla het bedrijf eerst op in het CRM (Wijzigen) om contactpersonen te bewaren.</div>' : '')));
+    (magCp ? '<div id="crm-cp-vorm" hidden>' + _cpFormHtml('crm-cp', 'crmBedrijfContactToevoegen(\'' + sE + '\')') + '</div>'
+      : (magAcc ? '<div class="kk-tekst stil">Sla het bedrijf eerst op in het CRM (Wijzigen) om contactpersonen te bewaren.</div>' : '')),
+    null, magCp ? '<button type="button" id="crm-cp-knop" class="crm-kop-knop" onclick="crmBedrijfContactVorm()">+ contactpersoon</button>' : '');
   const opm = blok('Opmerking', bewerk ? '<div class="kk-rij bewerk">' + _crmBewerkVeld('opmerking', { type: 'textarea' }) + '</div>'
     : (r.opmerking ? '<div class="kk-tekst">' + escHtml(r.opmerking) + '</div>' : '<div class="kk-tekst stil">—</div>'));
   const nid = _crmBedrijfNotitieId(k);
@@ -28123,15 +28215,153 @@ function crmBedrijfDossierHtml(sleutel) {
     '<div class="crm-body"><div class="kk-2k"><div>' +
       gegevens + team + contactHtml + opm +
     '</div><div>' +
-      '<div class="crm-kop">Gesprekslog</div>' + log +
+      _crmAfspraakBlokHtml(k) + '<div class="crm-kop">Gesprekslog</div>' + log +
     '</div></div></div>' + knoppen;
+}
+// ── Afspraak plannen vanaf de bedrijfskaart (22-09) ─────────────────────────
+// Een bezoek dat je met een klant afspreekt, is een Bezoeken-tegeltje in de
+// pipeline van de collega die erheen gaat — in de week van de afspraak, zodat
+// het meetelt in de KPI's als elk ander bezoek. Twee collega's samen: in beide
+// pipelines een tegeltje (het overzicht Bezoeken voegt ze samen tot "samen"),
+// precies zoals bezoeken die twee collega's nu al los opvoeren. Bezoeken
+// tellen per collega vol (telKaarten); het tegeltje wordt daarom niet als
+// 'gedeeld' gemerkt. Wat de bedrijfskaart erbij doet: de opdrachtgever staat
+// vast, de contactpersoon komt uit de lijst (een nieuwe naam wordt erbij
+// gezet), datum/tijd wordt week + gesprek_op, en er komt een regel in het
+// gesprekslog. Schrijven gaat via _kanbanSchrijf (slot, database, pipeSave,
+// week bijtrekken).
+let CRM_AFSPRAAK = null;   // { sleutel, soort } zolang de vorm open staat
+function _crmAfspraakGepland(k) {
+  // Bezoeken-tegeltjes van dit bedrijf in deze of een latere week, op volgorde.
+  const sl = _itkSleutel(k.naam), nu = isoWeek(new Date());
+  const lijst = [];
+  for (const bm of bmsMetCijfers()) for (const c of pipeLoad(bm.naam)) {
+    if (c.verwijderd_op || c.stage !== 'Bezoeken') continue;
+    if (_itkSleutel(c.naam || c.opdrachtgever || '') !== sl) continue;
+    if (+c.jaar < nu.year || (+c.jaar === nu.year && +c.week < nu.week)) continue;
+    lijst.push({ kaart: c, bm: bm.naam });
+  }
+  lijst.sort((a, b) => (+a.kaart.jaar - +b.kaart.jaar) || (+a.kaart.week - +b.kaart.week) || String(a.kaart.gesprek_op || '').localeCompare(String(b.kaart.gesprek_op || '')));
+  return lijst;
+}
+// "wo 30 sep 14:00" (lokale tijd); zonder tijd als die op 00:00 staat.
+function _afspraakTijdKort(iso) {
+  const d = new Date(iso); if (isNaN(d)) return '';
+  const dag = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'][d.getDay()];
+  const mnd = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'][d.getMonth()];
+  const p = (n) => String(n).padStart(2, '0');
+  return dag + ' ' + d.getDate() + ' ' + mnd + (d.getHours() || d.getMinutes() ? ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) : '');
+}
+function _crmAfspraakBlokHtml(k) {
+  const open = !!(CRM_AFSPRAAK && CRM_AFSPRAAK.sleutel === k.sleutel);
+  const namen = bmsMetCijfers().map(b => b.naam);
+  const mag = magWijzigen('medewerkers') && namen.some(n => _kanbanMag(n));
+  const rijen = _crmAfspraakGepland(k).map(g => {
+    const c = g.kaart;
+    return '<div class="kk-rij"><span>' + (c.gesprek_op ? escHtml(_afspraakTijdKort(c.gesprek_op)) : 'week ' + escHtml(c.week)) + '</span><div>' +
+      escHtml([BEZOEK_SOORTEN[c.bezoek_soort] || '', c.bezoek_contactpersoon ? 'met ' + c.bezoek_contactpersoon : '', String(g.bm).split(' ')[0]].filter(Boolean).join(' · ')) + '</div></div>';
+  }).join('');
+  const knop = mag ? '<button type="button" id="crm-afspraak-knop" class="crm-kop-knop" onclick="crmBedrijfAfspraakVorm(\'' + escApos(k.sleutel) + '\')">' + (open ? 'sluiten' : '+ Afspraak plannen') + '</button>' : '';
+  return '<div class="crm-kop' + (knop ? ' met-knop' : '') + '">Afspraak' + knop + '</div>' +
+    (open ? _crmAfspraakVormHtml(k) : '') +
+    '<div class="kk-lijst">' + (rijen || '<div class="kk-tekst stil">Nog geen afspraak gepland.' + (mag ? ' Eerdere bezoeken staan op de Beheerkaart.' : '') + '</div>') + '</div>';
+}
+function _crmAfspraakVormHtml(k) {
+  const sE = escApos(k.sleutel);
+  const contacten = _crmBedrijfContacten(k);
+  const namen = bmsMetCijfers().map(b => b.naam);
+  // Voorgevuld: de strategisch (anders operationeel) verantwoordelijke uit de
+  // KAM-lijst; zonder KAM-rij jijzelf; anders de eerste collega die je mag.
+  const team = k.account ? [k.account.strat_cp, k.account.op_cp].map(ini => ini ? _teamNaam(ini) : '').filter(n => n && namen.includes(n) && _kanbanMag(n)) : [];
+  const eigen = _kanbanStandaardBm(null);
+  const stdAan = team.length ? [team[0]] : (eigen && namen.includes(eigen) && _kanbanMag(eigen)) ? [eigen] : namen.filter(n => _kanbanMag(n)).slice(0, 1);
+  const soort = (CRM_AFSPRAAK && CRM_AFSPRAAK.soort) || 'bedrijfsbezoek';
+  return '<div class="crm-afspraak" id="crm-afspraak-vorm">' +
+    '<div class="af2">' +
+      '<label><span>Opdrachtgever</span><div class="vast">' + escHtml(k.naam) + '</div></label>' +
+      '<label><span>Contactpersoon <b>*</b></span><input type="text" id="crm-afspraak-cp" class="kand-vervolg-veld" list="crm-afspraak-cp-lijst" placeholder="kies uit de lijst of typ een nieuwe naam" maxlength="80" value="' + escHtml(contacten.length === 1 ? contacten[0].naam : '') + '">' +
+        '<datalist id="crm-afspraak-cp-lijst">' + contacten.map(c => '<option value="' + escHtml(c.naam) + '">' + escHtml(c.functie || '') + '</option>').join('') + '</datalist></label>' +
+      '<label><span>Datum en tijd <b>*</b></span><input type="datetime-local" id="crm-afspraak-op" class="kand-vervolg-veld" oninput="_crmAfspraakHintBij()"></label>' +
+      '<div class="veld"><span>Type bezoek <b>*</b></span><span class="col-pillen">' + Object.keys(BEZOEK_SOORTEN).map(x => '<button type="button" class="col-pil' + (x === soort ? ' aan' : '') + '" data-soort="' + x + '" onclick="crmBedrijfAfspraakSoort(\'' + x + '\')">' + BEZOEK_SOORTEN[x] + '</button>').join('') + '</span></div>' +
+      '<div class="veld breed"><span>Collega\'s <b>*</b><small>twee collega\'s = samen op bezoek, in beide pipelines</small></span>' +
+        _collegaChipsHtml({ id: 'crm-afspraak-bms', namen, aan: stdAan, max: 2, mag: (n) => _kanbanMag(n), na: () => _crmAfspraakHintBij() }) + '</div>' +
+      '<label class="breed"><span>Reden / notitie</span><input type="text" id="crm-afspraak-reden" class="kand-vervolg-veld" placeholder="bijv. kennismaking, evaluatie project, vervolg op bezoek van 21 sep" maxlength="160"></label>' +
+    '</div>' +
+    '<div id="crm-afspraak-status" class="crm-afspraak-status"></div>' +
+    '<div class="crm-knoppen"><button type="button" class="crm-knop goed" onclick="crmBedrijfAfspraakPlaats(\'' + sE + '\')">In de pipeline zetten</button>' +
+      '<button type="button" class="crm-knop" onclick="crmBedrijfAfspraakVorm(\'' + sE + '\', false)">Annuleren</button>' +
+      '<span id="crm-afspraak-hint" class="crm-afspraak-hint">' + escHtml(_crmAfspraakHintTekst(null, stdAan)) + '</span></div></div>';
+}
+function _crmAfspraakHintTekst(op, bms) {
+  const wie = (bms || []).map(n => String(n).split(' ')[0]).join(' en ');
+  if (!op) return 'vul een datum in' + (wie ? ' · komt bij ' + wie : '');
+  const w = isoWeek(new Date(op));
+  return 'komt in week ' + w.week + (w.year !== new Date().getFullYear() ? ' (' + w.year + ')' : '') + (wie ? ' bij ' + wie : '');
+}
+function _crmAfspraakHintBij() {
+  const el = document.getElementById('crm-afspraak-hint'); if (!el) return;
+  const veld = document.getElementById('crm-afspraak-op');
+  el.textContent = _crmAfspraakHintTekst(_uitVeldTijd(veld ? veld.value : ''), _collegaChipsAan('crm-afspraak-bms'));
+}
+// Vorm open/dicht (zonder tweede argument: wisselen); de kaart tekent opnieuw.
+function crmBedrijfAfspraakVorm(sleutel, open) {
+  const nu = !!(CRM_AFSPRAAK && CRM_AFSPRAAK.sleutel === String(sleutel));
+  const wil = open === undefined ? !nu : !!open;
+  CRM_AFSPRAAK = wil ? { sleutel: String(sleutel), soort: 'bedrijfsbezoek' } : null;
+  crmBedrijfOpen(sleutel, true);
+  if (wil) setTimeout(() => { const el = document.getElementById('crm-afspraak-cp'); if (el && el.focus) el.focus(); }, 30);
+}
+function crmBedrijfAfspraakSoort(soort) {
+  if (!CRM_AFSPRAAK || !BEZOEK_SOORTEN[soort]) return;
+  CRM_AFSPRAAK.soort = soort;
+  document.querySelectorAll('#crm-afspraak-vorm .col-pil').forEach(p => p.classList.toggle('aan', p.getAttribute('data-soort') === soort));
+}
+async function crmBedrijfAfspraakPlaats(sleutel) {
+  if (!eisWijzig('medewerkers')) return;
+  const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
+  const val = (id) => { const el = document.getElementById(id); return String((el && el.value) || '').trim(); };
+  const status = (t) => { const el = document.getElementById('crm-afspraak-status'); if (el) el.textContent = t; };
+  const cp = val('crm-afspraak-cp'), op = _uitVeldTijd(val('crm-afspraak-op')), reden = val('crm-afspraak-reden');
+  const soort = CRM_AFSPRAAK && CRM_AFSPRAAK.soort;
+  const bms = _collegaChipsAan('crm-afspraak-bms');
+  if (!cp) { status('Kies of typ de contactpersoon.'); return; }
+  if (!op) { status('Vul de datum (en tijd) van de afspraak in.'); return; }
+  if (!BEZOEK_SOORTEN[soort]) { status('Kies het type bezoek.'); return; }
+  if (!bms.length) { status('Kies de collega die op bezoek gaat.'); return; }
+  const nietMag = bms.find(n => !_kanbanMag(n));
+  if (nietMag) { status('Je mag de pipeline van ' + nietMag + ' niet wijzigen.'); return; }
+  const w = isoWeek(new Date(op));
+  const contacten = _crmBedrijfContacten(k);
+  const bestaand = contacten.find(c => _itkSleutel(c.naam) === _itkSleutel(cp)) || null;
+  const payload = { naam: k.naam, stage: 'Bezoeken', week: w.week, jaar: w.year, opdrachtgever: k.naam, bezoek_soort: soort, bezoek_reden: reden || null,
+    bezoek_contactpersoon: bestaand ? bestaand.naam : cp, bezoek_contactpersoon_functie: (bestaand && bestaand.functie) || null, gesprek_op: op };
+  let gelukt = true;
+  for (const bm of bms) { const kaart = await _kanbanSchrijf(bm, payload); if (!kaart) gelukt = false; }
+  if (!gelukt) { status('Niet (helemaal) in de pipeline gezet — zie de melding.'); return; }
+  CRM_AFSPRAAK = null;
+  // Nieuwe naam? Dan meteen als contactpersoon bij het bedrijf (als dat mag en kan).
+  if (!bestaand && magWijzigen('crm') && (k.account || k.crm)) await _crmBedrijfContactenOpslaan(k, contacten.concat([{ naam: cp, functie: '', afdeling: '', rol: '', telefoon: '', email: '' }]));
+  await _crmBedrijfLogRegel(k, 'Afspraak gepland: ' + BEZOEK_SOORTEN[soort] + ' met ' + (bestaand ? bestaand.naam : cp) + ' op ' + _afspraakTijdKort(op) + ' · ' + bms.map(n => String(n).split(' ')[0]).join(' + ') + (reden ? ' · ' + reden : ''));
+  crmBedrijfOpen(k.sleutel, true);
+  render();
+}
+// Een regel in het gesprekslog van het bedrijf, zonder invoerveld (22-09).
+async function _crmBedrijfLogRegel(k, tekst) {
+  if (!magWijzigen('medewerkers')) return;
+  const nid = _crmBedrijfNotitieId(k);
+  if (!nid || !supa || !CURRENT_USER) return;
+  const rij = { account_id: String(nid), tekst, auteur: String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), created_by: ONE_MIJN_ID || CURRENT_USER.id || null };
+  _echoVanZelf('account_notities');
+  const { data, error } = await supa.from('account_notities').insert(rij).select().single();
+  if (error) { meldFout('logregel plaatsen mislukt: ' + error.message, '_crmBedrijfLogRegel'); return; }
+  ACC_NOTITIES[String(nid)] = [data].concat(ACC_NOTITIES[String(nid)] || []);
 }
 function crmBedrijfOpen(sleutel, stil) {
   const oud = document.getElementById('acc-notitie-invoer');
   const concept = oud ? String(oud.value || '') : '';
   if (CRM_BEWERK && CRM_BEWERK.sleutel !== String(sleutel)) CRM_BEWERK = null;
   _crmBewerkLees();
-  crmKaartToon(crmBedrijfDossierHtml(sleutel), 'crm-dossier crm-dossier-bedrijf', () => { CRM_BEWERK = null; });
+  crmKaartToon(crmBedrijfDossierHtml(sleutel), 'crm-dossier crm-dossier-bedrijf', () => { CRM_BEWERK = null; CRM_AFSPRAAK = null; });
   if (concept) { const t = document.getElementById('acc-notitie-invoer'); if (t) { t.value = concept; _oneBerGroei(t); } }
   const k = !stil ? crmBedrijfLijst().find(x => x.sleutel === String(sleutel)) : null;
   const nid = k ? _crmBedrijfNotitieId(k) : null;
@@ -38500,7 +38730,9 @@ function _pipeKaartMeta(c) {
     kbKlant || c.functie,
     c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : '', kandIntakeTekst(c),
     c.opdrachtgever && String(c.opdrachtgever).trim() !== kbKlant ? ('Opdrachtgever: ' + c.opdrachtgever) : '',
-    c.salaris ? ('Salaris: ' + c.salaris) : '', c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '',
+    c.salaris ? ('Salaris: ' + c.salaris) : '',
+    c.stage === 'Bezoeken' && c.gesprek_op ? _afspraakTijdKort(c.gesprek_op) : '',   // gepland vanaf de bedrijfskaart (22-09)
+    c.bezoek_reden ? ('Reden bezoek: ' + c.bezoek_reden) : '',
     c.bezoek_contactpersoon ? ('Contact: ' + c.bezoek_contactpersoon + (c.bezoek_contactpersoon_functie ? ' (' + c.bezoek_contactpersoon_functie + ')' : '')) : '',
     c.gedeeld ? 'Gedeeld (0,5)' : '',
   ].filter(Boolean);
