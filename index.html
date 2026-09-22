@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-0815 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-0850 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1680,6 +1680,9 @@
   .crm-doc { display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:24px; padding:0 6px; border-radius:6px; font-size:.64rem; font-weight:var(--w-nadruk); letter-spacing:.03em;
              border:1px solid #F4CB3C; color:#F4CB3C; background:rgba(244,203,60,.12); text-decoration:none; margin:0 2px; }
   .crm-doc:hover { background:#F4CB3C; color:#253151; }
+  /* Kolom Documenten in de kandidatenlijst (22-09). */
+  .crm-tabel td.docs { white-space:nowrap; width:1%; }
+  .crm-tabel td.docs .crm-doc { margin-right:5px; }
   .crm-doc.leeg { border-color:rgba(255,255,255,.2); color:rgba(255,255,255,.35); background:transparent; cursor:default; }
   .crm-link { color:#9ec8f4; text-decoration:underline; }
   /* Zoekbalk en filters CRM (ontwerp A, 17-09) */
@@ -9176,7 +9179,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-0815';
+const APP_VERSIE = '20260922-0850';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26984,11 +26987,13 @@ function renderCrmKandidatenHtml() {
   const proj = _crmProjectKandidaten();
   const gevonden = _crmSorteer(lijst.filter(k => _crmKandPast(k, st)), st, (k, col) =>
     col === 'naam' ? k.naam : col === 'woonplaats' ? k.woonplaats : col === 'functie' ? k.functie : col === 'email' ? ((k.crm || {}).email || '') : col === 'telefoon' ? ((k.crm || {}).telefoon || '')
+    : col === 'docs' ? (((k.crm || {}).cv_link ? 1 : 0) + ((k.crm || {}).cr_link ? 1 : 0))
     : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '') : '');
   const beperkt = !z && !st.alles && gevonden.length > CRM_TOON;
   const toon = beperkt ? gevonden.slice(0, CRM_TOON) : gevonden;
   // Kolommen (akkoord 18-09): Nr · Kandidaat · E-mail · Telefoon · Woonplaats ·
-  // Functie · Laatste contact. Het nummer volgt de sortering en het zoeken.
+  // Functie · Documenten (22-09: de CV/CR-pillen van de NAW-kaart) · Laatste
+  // contact. Het nummer volgt de sortering en het zoeken.
   const rijen = toon.map((k, i) => {
     const r = k.crm || {};
     const dubbel = k.dubbel && k.dubbel.length ? '<span class="crm-pil dubbel" title="Lijkt op ' + escHtml(k.dubbel.map(sl => (lijst.find(x => x.sleutel === sl) || { naam: sl }).naam).join(', ')) + ' — open het dossier en kies Samenvoegen">dubbel?</span>' : '';
@@ -26999,6 +27004,7 @@ function renderCrmKandidatenHtml() {
       '<td class="d">' + _crmTelCel(r.telefoon, z) + '</td>' +
       '<td class="d">' + (k.woonplaats ? _oneMarkeer(k.woonplaats, z) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + (k.functie ? _oneMarkeer(k.functie, z) : '<span class="stil">—</span>') + '</td>' +
+      '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td>' +
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
   }).join('');
   const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['met', 'Met intake', lijst.filter(k => k.intake).length], ['zonder', 'Zonder intake', lijst.filter(k => !k.intake).length]],
@@ -27011,7 +27017,7 @@ function renderCrmKandidatenHtml() {
       '<button type="button" class="crm-knop goed" onclick="crmProjectKandidatenVenster()">Bekijken en opvoeren…</button></div>' : '') +
     balk +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr><th class="nr">Nr.</th>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'email', 'E-mail', 'crmKandSort') + _crmTh(st, 'telefoon', 'Telefoon', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr><th class="nr">Nr.</th>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'email', 'E-mail', 'crmKandSort') + _crmTh(st, 'telefoon', 'Telefoon', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'docs', 'Documenten', 'crmKandSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') +
       _crmVoet(gevonden.length, lijst.length, beperkt, 'crmKandAlles()', 'kandidaten') +
     '</div></div>';
