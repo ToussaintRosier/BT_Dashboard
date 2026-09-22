@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1447 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1506 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2936,6 +2936,29 @@
   #snelchat-knop .n { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; border-radius:10px; background:#E87400; color:#fff; font-size:.7rem; font-weight:var(--w-nadruk); display:flex; align-items:center; justify-content:center; padding:0 5px; box-sizing:border-box; border:2px solid #1c2540; font-family:inherit; }
   #snelchat-knop .n[hidden] { display:none; }
   #snelchat-knop.verborgen { display:none; }
+  /* WhatsApp (22-09): groene knop links van ONE; opent WhatsApp Web in een eigen venster. */
+  #wa-knop { position:fixed; right:82px; bottom:18px; width:52px; height:52px; border-radius:50%; background:#25D366; color:#fff; border:none; box-shadow:0 8px 24px rgba(0,0,0,.4); z-index:9420; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+  #wa-knop:hover { background:#3ddc75; }
+  #wa-knop svg { width:26px; height:26px; fill:currentColor; }
+  #wa-knop.alleen { right:18px; }
+  #wa-knop.verborgen { display:none; }
+  .wa-tel { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .wa-bol { width:16px; height:16px; border-radius:50%; background:#25D366; display:inline-flex; align-items:center; justify-content:center; flex:0 0 16px; margin-right:6px; vertical-align:middle; }
+  .wa-bol svg { width:10px; height:10px; fill:#fff; }
+  a.wa { display:inline-flex; align-items:center; }
+  .kk-lijst a.crm-mail { color:#9ec8f4; text-decoration:none; } .kk-lijst a.crm-mail:not(.wa) { text-decoration:underline; }
+  .crm-tabel td a.wa:hover, .kk-lijst a.wa:hover, .kk-cp .c a.wa:hover { color:#5ee08f; }
+  .kk-cp .c a.wa .wa-bol { margin-right:0; }
+  .wa-menu { position:fixed; z-index:9460; width:300px; background:#364160; border:1px solid rgba(255,255,255,.15); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.45); padding:6px; font-size:.84rem; color:#fff; }
+  .wa-menu .wa-k { display:flex; gap:10px; align-items:center; width:100%; text-align:left; padding:9px 10px; border-radius:7px; border:0; background:transparent; color:#fff; font-family:inherit; font-size:inherit; cursor:pointer; }
+  .wa-menu .wa-k:hover { background:rgba(255,255,255,.08); }
+  .wa-menu .wa-k.eerste { background:rgba(37,211,102,.15); } .wa-menu .wa-k.eerste:hover { background:rgba(37,211,102,.25); }
+  .wa-menu .wa-k i { font-style:normal; width:16px; text-align:center; flex:0 0 16px; }
+  .wa-menu .wa-k .wa-bol { margin:0; }
+  .wa-menu .wa-k b { display:block; font-weight:var(--w-nadruk); } .wa-menu .wa-k small { display:block; font-size:.74rem; color:rgba(255,255,255,.55); }
+  .wa-menu .wa-log { display:flex; align-items:center; gap:8px; padding:8px 10px 4px; margin-top:4px; border-top:1px solid rgba(255,255,255,.1); font-size:.76rem; color:rgba(255,255,255,.7); cursor:pointer; }
+  .wa-menu .wa-log input { accent-color:#F4CB3C; margin:0; }
+  @media (max-width:640px) { #wa-knop { display:none; } .wa-menu { left:8px !important; right:8px; width:auto; } }
   @keyframes snelchat-puls { 0% { transform:scale(1); } 50% { transform:scale(1.14); } 100% { transform:scale(1); } }
   #snelchat-knop.licht { animation:snelchat-puls .5s ease 2; }
   #snelchat { position:fixed; right:18px; bottom:82px; width:380px; height:560px; max-height:calc(100vh - 100px); background:#253151; border:1px solid rgba(255,255,255,.14); border-radius:12px; box-shadow:0 18px 50px rgba(0,0,0,.45); z-index:9420; display:flex; flex-direction:column; overflow:hidden; }
@@ -7791,6 +7814,134 @@ function _snelchatMag() {
   return !!(typeof CURRENT_USER !== 'undefined' && CURRENT_USER) && !!ONE_BER_BESCHIKBAAR &&
     (typeof onderdeelAan !== 'function' || onderdeelAan('one')) && (typeof magZien !== 'function' || magZien('one'));
 }
+// ── WhatsApp (22-09) ────────────────────────────────────────────────────────
+// Elk mobiel nummer is een WhatsApp-link; vaste nummers blijven bel-links. WhatsApp
+// staat niet toe dat het ín het dashboard getekend wordt, dus het opent in een eigen
+// venster (bt-whatsapp, 420×760) naast het dashboard; op de telefoon opent de app.
+// Op de kaarten kies je: bericht, WhatsApp-bellen (het dashboard zet je in het
+// gesprek, de belknop zit in WhatsApp zelf) of gewoon bellen — en of het in het
+// gesprekslog komt. Er is geen link die een WhatsApp-gesprek meteen laat rinkelen.
+const WA_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm5.6 14.2c-.2.7-1.4 1.3-1.9 1.3-.5.1-1.1.1-1.8-.1-.4-.1-.9-.3-1.6-.6-2.8-1.2-4.6-4-4.8-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .7.5l.9 2.2c.1.2.1.4 0 .6l-.4.6-.5.6c-.2.2-.3.4-.1.7.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.7-.1l1-1.2c.2-.3.4-.2.7-.1l2.1 1c.3.1.5.2.6.4.1.1.1.7-.1 1.3z"/></svg>';
+let WA_LOG_AAN = (() => { try { return localStorage.getItem('bt_wa_log') !== '0'; } catch (_) { return true; } })();
+let WA_MENU = null;
+// Internationaal zonder plus (wa.me wil "31612345678"), of null als het geen mobiel
+// nummer is. NL 06 → 316; +32/0032 4x → BE mobiel; +49 15/16/17 → DE mobiel. Een
+// 04x-nummer zónder landcode is hier Limburgs vast (046 Sittard, 047 Venlo), geen BE.
+function btMobielNummer(tel) {
+  let t = String(tel || '').replace(/\(0\)/g, '').replace(/[^\d+]/g, '');
+  if (!t) return null;
+  if (t.startsWith('00')) t = '+' + t.slice(2);
+  if (t.startsWith('+')) t = t.slice(1);
+  else if (t.startsWith('0')) t = '31' + t.slice(1);
+  else return null;
+  if (/^316\d{8}$/.test(t)) return t;
+  if (/^324[5-9]\d{7}$/.test(t)) return t;
+  if (/^491[5-7]\d{7,10}$/.test(t)) return t;
+  return null;
+}
+function btWaUrl(nummer, tekst) { return 'https://wa.me/' + nummer + (tekst ? '?text=' + encodeURIComponent(tekst) : ''); }
+function btWaTekst(naam) { const v = String(naam || '').trim().split(/\s+/)[0]; return v ? 'Hallo ' + v + ',' : ''; }
+function _waMobielScherm() { return typeof window !== 'undefined' && window.innerWidth <= 640; }
+function btWaOpen(url) {
+  if (_waMobielScherm()) { window.open(url, '_blank'); return; }
+  const w = window.open(url, 'bt-whatsapp', 'width=420,height=760,popup=yes');
+  if (w) { try { w.focus(); } catch (_) {} }
+}
+// Het nummer als link. o.naam = voor de begroeting ("Hallo Marcel,") en het gesprekslog;
+// o.z = zoekterm om te markeren; o.menu = { soort: 'kand'|'bedr', id, naam } → klik opent het
+// keuzemenu (kaarten); zonder menu opent klik meteen het bericht (lijsten, CRM-Search).
+function btTelHtml(tel, o) {
+  o = o || {};
+  const t = String(tel || '').trim(); if (!t) return '';
+  const toon = o.z ? _oneMarkeer(t, o.z) : escHtml(t);
+  const bel = 'tel:' + escHtml(t.replace(/\s/g, ''));
+  const m = btMobielNummer(t);
+  if (!m) return '<a class="crm-mail" href="' + bel + '" onclick="event.stopPropagation()">' + toon + '</a>';
+  const naam = o.naam || (o.menu && o.menu.naam) || '';
+  const href = escHtml(btWaUrl(m, btWaTekst(o.naam)));
+  const bol = '<span class="wa-bol" aria-hidden="true">' + WA_SVG + '</span>';
+  const onc = o.menu
+    ? "event.stopPropagation();event.preventDefault();btTelMenu(event,'" + escApos(t) + "','" + escApos(naam) + "','" + escApos(o.menu.soort) + "','" + escApos(String(o.menu.id)) + "')"
+    : 'event.stopPropagation();event.preventDefault();btWaOpen(this.href)';
+  return '<span class="wa-tel"><a class="crm-mail wa" href="' + href + '" title="WhatsApp" onclick="' + onc + '">' + bol + toon + '</a></span>';
+}
+function btTelMenuSluit() {
+  const el = document.getElementById('wa-menu'); if (el) el.remove();
+  if (WA_MENU) { document.removeEventListener('click', WA_MENU.klik, true); document.removeEventListener('keydown', WA_MENU.toets); WA_MENU = null; }
+}
+function btTelMenu(ev, tel, naam, soort, id) {
+  btTelMenuSluit();
+  if (!btMobielNummer(tel)) return;
+  const el = document.createElement('div'); el.className = 'wa-menu'; el.id = 'wa-menu'; el.setAttribute('role', 'menu');
+  const arg = "'" + escApos(tel) + "','" + escApos(naam) + "','" + escApos(soort) + "','" + escApos(String(id)) + "'";
+  const k = (wat, ico, kop, sub, kl) => '<button type="button" class="wa-k' + (kl ? ' ' + kl : '') + '" onclick="btTelKeuze(\'' + wat + '\',' + arg + ')">' + ico + '<span><b>' + kop + '</b><small>' + sub + '</small></span></button>';
+  el.innerHTML = k('bericht', '<span class="wa-bol">' + WA_SVG + '</span>', 'WhatsApp-bericht', 'opent het gesprek' + (btWaTekst(naam) ? ' met "' + escHtml(btWaTekst(naam)) + '"' : ''), 'eerste') +
+    k('wabel', '<i>📞</i>', 'WhatsApp-bellen', 'opent het gesprek — druk daar op het belicoontje') +
+    k('bel', '<i>☎</i>', 'Gewoon bellen', escHtml(tel) + ' via je telefoon') +
+    (magWijzigen('medewerkers') ? '<label class="wa-log"><input type="checkbox"' + (WA_LOG_AAN ? ' checked' : '') + ' onchange="btWaLogZet(this.checked)"> noteer in het gesprekslog</label>' : '');
+  // Onder het nummer; binnen het scherm houden.
+  const a = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : { left: 40, bottom: 40 };
+  const links = Math.max(8, Math.min(a.left, (window.innerWidth || 1200) - 308));
+  const boven = a.bottom + 6 + 240 > (window.innerHeight || 800) ? Math.max(8, a.top - 246) : a.bottom + 6;
+  el.style.left = links + 'px'; el.style.top = boven + 'px';
+  document.body.appendChild(el);
+  WA_MENU = {
+    klik: (e) => { if (!el.contains || !el.contains(e.target)) btTelMenuSluit(); },
+    toets: (e) => { if (e.key === 'Escape') btTelMenuSluit(); }
+  };
+  setTimeout(() => { if (WA_MENU) { document.addEventListener('click', WA_MENU.klik, true); document.addEventListener('keydown', WA_MENU.toets); } }, 0);
+}
+function btWaLogZet(aan) { WA_LOG_AAN = !!aan; try { localStorage.setItem('bt_wa_log', aan ? '1' : '0'); } catch (_) {} }
+async function btTelKeuze(wat, tel, naam, soort, id) {
+  btTelMenuSluit();
+  const m = btMobielNummer(tel);
+  if (wat === 'bel' || !m) window.location.href = 'tel:' + String(tel).replace(/\s/g, '');
+  else btWaOpen(btWaUrl(m, wat === 'bericht' ? btWaTekst(naam) : ''));
+  if (!WA_LOG_AAN) return;
+  const tekst = wat === 'bericht' ? 'WhatsApp-bericht aan ' + naam : wat === 'wabel' ? 'Gebeld (WhatsApp): ' + naam : 'Gebeld: ' + naam + ' (' + tel + ')';
+  await waLogNoteer(soort, id, naam, tekst);
+}
+// In het gesprekslog zetten — via de bestaande notitietabellen, zelfde recht als een
+// notitie typen. Zonder recht: stil overslaan (WhatsApp zelf werkt altijd).
+async function waLogNoteer(soort, id, naam, tekst) {
+  if (!magWijzigen('medewerkers')) return;
+  if (!supa || !CURRENT_USER) return;
+  const auteur = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), created_by = ONE_MIJN_ID || CURRENT_USER.id || null;
+  if (soort === 'kand') {
+    const k = crmKandLijst().find(x => x.sleutel === id);
+    _echoVanZelf('kandidaat_notities');
+    const { data, error } = await supa.from('kandidaat_notities').insert({ kand_sleutel: id, kand_naam: k ? k.naam : naam, tekst, auteur, created_by }).select().single();
+    if (error) { meldFout('WhatsApp-notitie mislukt: ' + error.message, 'waLogNoteer'); btMeld('Niet in het gesprekslog gezet: ' + error.message, 'rood'); return; }
+    KAND_NOTITIES = KAND_NOTITIES || {};
+    KAND_NOTITIES[id] = [data].concat(KAND_NOTITIES[id] || []);
+    _kandKaartHerteken(); _crmDossierHerteken();
+  } else {
+    const k = crmBedrijfLijst().find(x => x.sleutel === id);
+    const nid = k ? _crmBedrijfNotitieId(k) : null;
+    if (!nid) { btMeld('Niet in het gesprekslog gezet: sla het bedrijf eerst op in het CRM (Wijzigen).', 'geel'); return; }
+    _echoVanZelf('account_notities');
+    const { data, error } = await supa.from('account_notities').insert({ account_id: nid, tekst, auteur, created_by }).select().single();
+    if (error) { meldFout('WhatsApp-notitie mislukt: ' + error.message, 'waLogNoteer'); btMeld('Niet in het gesprekslog gezet: ' + error.message, 'rood'); return; }
+    ACC_NOTITIES[nid] = [data].concat(ACC_NOTITIES[nid] || []);
+    _accKaartHerteken(nid); _crmDossierHerteken();
+  }
+  btMeld('In het gesprekslog gezet.');
+}
+// De groene knop naast ONE; wordt bij elke render() aangeroepen (na snelchatZorg).
+function waKnopZorg() {
+  let knop = document.getElementById('wa-knop');
+  if (!(typeof CURRENT_USER !== 'undefined' && CURRENT_USER)) { if (knop) knop.classList.add('verborgen'); return; }
+  if (!knop) {
+    knop = document.createElement('button');
+    knop.id = 'wa-knop'; knop.type = 'button'; knop.title = 'WhatsApp openen (eigen venster)'; knop.setAttribute('aria-label', 'WhatsApp');
+    knop.onclick = () => btWaOpen('https://web.whatsapp.com/');
+    knop.innerHTML = WA_SVG;
+    document.body.appendChild(knop);
+  }
+  knop.classList.remove('verborgen');
+  const snel = document.getElementById('snelchat-knop');
+  knop.classList.toggle('alleen', !snel || snel.classList.contains('verborgen'));
+}
 // De knop neerzetten of verbergen; wordt bij elke render() aangeroepen.
 function snelchatZorg() {
   let knop = document.getElementById('snelchat-knop');
@@ -9495,7 +9646,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1447';
+const APP_VERSIE = '20260922-1506';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13216,6 +13367,7 @@ function render() {
   _renderKern();
   try { _leesmodusToepassen(); } catch (e) { console.error('Leesmodus mislukt:', e); }
   try { snelchatZorg(); } catch (e) { console.error('Snelchat mislukt:', e); }
+  try { waKnopZorg(); } catch (e) { console.error('WhatsApp-knop mislukt:', e); }
 }
 
 function _renderKern() {
@@ -27418,9 +27570,10 @@ function _crmMailCel(email, z) {
   const e = String(email || '').trim(); if (!e) return '<span class="stil">—</span>';
   return '<a class="crm-mail" href="mailto:' + escHtml(e) + '" onclick="event.stopPropagation()">' + _oneMarkeer(e, z) + '</a>';
 }
-function _crmTelCel(tel, z) {
+function _crmTelCel(tel, z, naam) {
   const t = String(tel || '').trim(); if (!t) return '<span class="stil">—</span>';
-  return '<a class="crm-mail" href="tel:' + escHtml(t.replace(/\s/g, '')) + '" onclick="event.stopPropagation()">' + _oneMarkeer(t, z) + '</a>';
+  // Mobiel → WhatsApp (22-09), met de voornaam in de begroeting; vast → bellen.
+  return btTelHtml(tel, { z: z, naam: naam });
 }
 // E-mail van een bedrijf (18-09): het algemene adres op de CRM-rij; anders dat
 // van de eerste contactpersoon.
@@ -27746,7 +27899,7 @@ function renderCrmKandidatenHtml() {
       '<td class="nr">' + (i + 1) + '</td>' +
       '<td class="naam">' + _oneMarkeer(k.naam, z) + dubbel + '</td>' +
       '<td class="d">' + _crmMailCel(r.email, z) + '</td>' +
-      '<td class="d">' + _crmTelCel(r.telefoon, z) + '</td>' +
+      '<td class="d">' + _crmTelCel(r.telefoon, z, k.naam) + '</td>' +
       '<td class="d">' + (k.woonplaats ? _oneMarkeer(k.woonplaats, z) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmRegioPil(_crmWoonregio(k), true) + '</td>' +
       '<td class="d">' + (k.functie ? _oneMarkeer(k.functie, z) : '<span class="stil">—</span>') + '</td>' +
@@ -28072,7 +28225,7 @@ function crmKandDossierHtml(sleutel) {
     blok('Werk',
       rijA('Vakgebied', _crmVakPil(_crmVakgebied(k)) + (r.vakgebied ? '' : '<span class="crm-auto">uit de functie</span>'))) +
     blok('Contact',
-      rijA('Telefoon', r.telefoon ? '<a class="crm-link" href="tel:' + escHtml(String(r.telefoon).replace(/\s/g, '')) + '">' + escHtml(r.telefoon) + '</a>' : '') +
+      rijA('Telefoon', btTelHtml(r.telefoon, { naam: k.naam, menu: { soort: 'kand', id: k.sleutel } })) +
       rijA('E-mail', r.email ? '<a class="crm-link" href="mailto:' + escHtml(r.email) + '">' + escHtml(r.email) + '</a>' : '') +
       rijA('LinkedIn', _crmLink(r.linkedin, 'profiel openen'))) +
     blok('Documenten',
@@ -28377,7 +28530,7 @@ function renderCrmSearchHtml() {
       '<td class="d">' + _crmVakPil(_crmVakgebied(k)) + '</td>' +
       '<td class="d">' + _crmRegioPil(_crmWoonregio(k), true) + '</td>' +
       '<td class="d">' + (k.woonplaats ? escHtml(k.woonplaats) : '<span class="stil">—</span>') + '</td>' +
-      '<td class="d">' + _crmTelCel(r.telefoon, '') + '</td>' +
+      '<td class="d">' + _crmTelCel(r.telefoon, '', k.naam) + '</td>' +
       '<td class="d">' + _crmMailCel(r.email, '') + '</td>' +
       '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
@@ -28568,11 +28721,15 @@ function crmBedrijfContactWijzig(sleutel, i) {
 }
 // Eén contactpersoon-regel (18-09): naam met telefoon/e-mail eronder, functie,
 // afdeling, rol, weghaalknop. Gedeeld door de Bedrijfskaart en de KAM-lijst.
-function _cpRijHtml(c, weghaal, wijzig) {
+function _cpRijHtml(c, weghaal, wijzig, doel) {
   // Ontwerp A (22-09): regel 1 naam + functie · afdeling · rol in grijs; regel 2 telefoon
   // en e-mail als klikbare tekst, gedempt "geen nummer"/"geen e-mail" als het ontbreekt.
   const sub = [c.functie, c.afdeling, c.rol].map(x => String(x || '').trim()).filter(Boolean).join(' · ');
-  const tel = c.telefoon ? '<a href="tel:' + escHtml(String(c.telefoon).replace(/\s/g, '')) + '"><i>☎</i>' + escHtml(c.telefoon) + '</a>' : '<span class="stil"><i>☎</i>geen nummer</span>';
+  // Mobiel nummer (22-09): WhatsApp-bolletje en, op de kaart, het keuzemenu; vast: bellen.
+  const tel = c.telefoon
+    ? (btMobielNummer(c.telefoon) ? btTelHtml(c.telefoon, { naam: c.naam, menu: doel || { soort: 'bedr', id: '', naam: '' } })
+       : '<a href="tel:' + escHtml(String(c.telefoon).replace(/\s/g, '')) + '"><i>☎</i>' + escHtml(c.telefoon) + '</a>')
+    : '<span class="stil"><i>☎</i>geen nummer</span>';
   const mail = c.email ? '<a href="mailto:' + escHtml(c.email) + '"><i>✉</i>' + escHtml(c.email) + '</a>' : '<span class="stil"><i>✉</i>geen e-mail</span>';
   const knoppen = (wijzig ? '<button class="one-dn-knop wijzig" title="Wijzigen" onclick="' + wijzig + '">✎</button>' : '') +
     (weghaal ? '<button class="one-dn-knop weg" title="Weghalen" onclick="' + weghaal + '">×</button>' : '');
@@ -28907,7 +29064,7 @@ function crmBedrijfDossierHtml(sleutel) {
     : rijA('Adres', escHtml(r.adres || '')) +
       rijA('Postcode · plaats', escHtml([r.postcode, r.plaats].filter(Boolean).join(' '))) +
       rijA('Website', _crmLink(r.website)) +
-      rijA('Telefoon', r.telefoon ? '<a class="crm-link" href="tel:' + escHtml(String(r.telefoon).replace(/\s/g, '')) + '">' + escHtml(r.telefoon) + '</a>' : '') +
+      rijA('Telefoon', btTelHtml(r.telefoon, { menu: { soort: 'bedr', id: k.sleutel, naam: k.naam } })) +
       rijA('E-mail', r.email ? '<a class="crm-link" href="mailto:' + escHtml(r.email) + '">' + escHtml(r.email) + '</a>' : '') +
       rijA('KvK', escHtml(r.kvk || ''))) + '</div>');
   // Ons team: uit de KAM-tabel, en terug ernaartoe. Zonder KAM-rij is er niets te kiezen.
@@ -28918,7 +29075,7 @@ function crmBedrijfDossierHtml(sleutel) {
   // Compact (22-09): regels met iconen; de toevoeg-vorm staat dicht achter "+ contactpersoon".
   const magCp = magAcc && (a || k.crm);
   const contactHtml = blok('Contactpersonen bij ' + escHtml(k.naam), (contacten.length ? contacten.map((c, i) =>
-    _cpRijHtml(c, magAcc ? "crmBedrijfContactWeghalen('" + sE + "'," + i + ')' : '', magCp ? "crmBedrijfContactWijzig('" + sE + "'," + i + ')' : '')).join('')
+    _cpRijHtml(c, magAcc ? "crmBedrijfContactWeghalen('" + sE + "'," + i + ')' : '', magCp ? "crmBedrijfContactWijzig('" + sE + "'," + i + ')' : '', { soort: 'bedr', id: k.sleutel, naam: k.naam })).join('')
     : '<div class="kk-tekst stil">nog geen contactpersonen — voeg het aanspreekpunt bij het bedrijf toe</div>') +
     (magCp ? '<div id="crm-cp-vorm" hidden>' + _cpFormHtml('crm-cp', 'crmBedrijfContactToevoegen(\'' + sE + '\')') + '</div>'
       : (magAcc ? '<div class="kk-tekst stil">Sla het bedrijf eerst op in het CRM (Wijzigen) om contactpersonen te bewaren.</div>' : '')),
