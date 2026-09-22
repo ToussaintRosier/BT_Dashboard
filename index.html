@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-0850 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-0948 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3333,6 +3333,12 @@
   .kb-plus { width:26px; height:26px; border:1px dashed rgba(255,255,255,.4); border-radius:7px; background:transparent; color:#F4CB3C; font-size:1.05rem; line-height:1; cursor:pointer; font-family:inherit; }
   .kb-plus:hover { background:rgba(244,203,60,.15); border-color:#F4CB3C; }
   .kb-lijst { display:flex; flex-direction:column; gap:6px; }
+  /* Slepen (22-09): handje op het kaartje; toegestane kolommen krijgen een
+     gestippelde gele rand, de kolom eronder licht op. */
+  .kb-kaart[draggable="true"] { cursor:grab; }
+  .kb-kaart.kb-sleept { opacity:.45; }
+  .kb-kolom.kb-doel { outline:2px dashed rgba(244,203,60,.55); outline-offset:-2px; }
+  .kb-kolom.kb-over { background:#3f4c72; outline-color:#F4CB3C; }
   .kb-leeg { font-size:.78rem; color:rgba(255,255,255,.35); padding:8px 4px; }
   .kb-kaart { background:#253151; border:1px solid rgba(255,255,255,.1); border-left:4px solid rgba(255,255,255,.22); border-radius:8px; padding:6px 8px 6px; color:#fff; }
   .kb-kaart.geel  { border-left-color:#f59e0b; background:rgba(245,158,11,.14); }
@@ -9179,7 +9185,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-0850';
+const APP_VERSIE = '20260922-0948';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -28365,7 +28371,8 @@ function kanbanKaartHtml(c) {
       '<button class="kb-knop af" type="button" title="Van het bord halen (het tegeltje blijft in de pipeline)" onclick="kanbanAfVenster(\'' + bmE + '\',\'' + idE + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4 10-10"/></svg></button>'
     : '';
   const bms = Array.isArray(c.bms) && c.bms.length ? c.bms : [c.bmNaam];
-  return '<div class="kb-kaart' + (kleur.klasse ? ' ' + kleur.klasse : '') + '" data-id="' + escHtml(c.id) + '">' +
+  return '<div class="kb-kaart' + (kleur.klasse ? ' ' + kleur.klasse : '') + '" data-id="' + escHtml(c.id) + '" data-bm="' + escHtml(c.bmNaam) + '" data-fase="' + fase + '"' +
+    (mag && volgende ? ' draggable="true" ondragstart="kanbanSleepStart(event, this)" ondragend="kanbanSleepEind()"' : '') + '>' +
     '<div class="kb-kop">' + kandKaartKnopHtml(c.bmNaam, c.id) + '<span class="kb-naam" title="' + escHtml(c.naam || '') + '">' + escHtml(c.naam || 'zonder naam') + '</span>' +
       (c.gedeeld ? '<span class="kb-half" title="Twee collega\'s: telt bij elk voor 0,5">0,5</span>' : '') +
       bms.map(bm => '<span class="one-ber-av klein" style="background:' + _oneAvatarKleur(bm) + ';" title="' + escHtml(bm) + '">' + escHtml(_oneInitialen(bm)) + '</span>').join('') + '</div>' +
@@ -28374,16 +28381,25 @@ function kanbanKaartHtml(c) {
     (pil || knoppen ? '<div class="kb-voet">' + pil + knoppen + '</div>' : '') +
     '</div>';
 }
+// Past een bordkaartje bij het collega-filter en de zoekterm? (22-09)
+// Een gedeeld kaartje heeft twee collega's (bms); het filter keek alleen naar
+// de eerste, waardoor het bij de tweede collega ontbrak. Zoeken kent nu ook
+// de initialen (MW, RA) — die staan op het kaartje, dus die typ je.
+function _kanbanPast(c) {
+  const bms = Array.isArray(c.bms) && c.bms.length ? c.bms : [c.bmNaam];
+  if (KANBAN.collega && !bms.includes(KANBAN.collega)) return false;
+  const z = String(KANBAN.zoek || '').trim().toLowerCase();
+  if (!z) return true;
+  const tekst = [c.naam, _kanbanKlantVan(c), c.kanban_functie, c.functie].concat(bms, bms.map(_oneInitialen)).join(' ').toLowerCase();
+  return tekst.includes(z);
+}
 function renderKanbanHtml() {
   const per = kanbanKaarten();
-  const z = String(KANBAN.zoek || '').trim().toLowerCase();
-  const past = (c) => (!KANBAN.collega || c.bmNaam === KANBAN.collega) &&
-    (!z || [c.naam, _kanbanKlantVan(c), c.kanban_functie, c.functie, c.bmNaam].join(' ').toLowerCase().includes(z));
   const collegas = bmsMetCijfers().map(b => b.naam);
   const kolommen = KANBAN_FASES.map(f => {
-    const lijst = per[f.sleutel].filter(past);
+    const lijst = per[f.sleutel].filter(_kanbanPast);
     const plus = f.sleutel === 'starboy' ? 'kanbanStarboyVenster()' : 'kanbanNieuwVenster(\'' + f.sleutel + '\')';
-    return '<div class="kb-kolom' + (f.sleutel === 'starboy' ? ' star' : f.sleutel === 'starter' ? ' groen' : '') + '">' +
+    return '<div class="kb-kolom' + (f.sleutel === 'starboy' ? ' star' : f.sleutel === 'starter' ? ' groen' : '') + '" data-fase="' + f.sleutel + '" ondragover="kanbanSleepOver(event, this)" ondragleave="kanbanSleepWeg(event, this)" ondrop="kanbanSleepDrop(event, this)">' +
       '<div class="kb-kolomkop"><span class="kb-kolomnaam">' + escHtml(f.label) + '</span><span class="kb-tel">' + lijst.length + '</span>' +
         (magWijzigen('medewerkers') ? '<button class="kb-plus" type="button" title="' + (f.sleutel === 'starboy' ? 'Kandidaat uit de intakes kiezen' : 'Nieuw kaartje in ' + escHtml(f.label)) + '" onclick="' + plus + '">+</button>' : '') + '</div>' +
       '<div class="kb-lijst">' + (lijst.map(kanbanKaartHtml).join('') || '<div class="kb-leeg">leeg</div>') + '</div></div>';
@@ -28391,7 +28407,7 @@ function renderKanbanHtml() {
   return '<div><div class="person-header"><div class="person-name">Kanban · lopende procedures' + btUitlegKnop('kandidaten') + '</div><div class="person-meta"></div></div>' +
     _zoekBalkHtml({ id: 'kb-zoek', sugg: 'kanbanSugg', waarde: KANBAN.zoek || '', tabs: [['', 'Op het bord', Object.values(per).reduce((n, l) => n + l.length, 0)]],
       links: '<select class="crm-select" onchange="kanbanFilterCollega(this.value)"><option value="">Alle collega\'s</option>' + collegas.map(n => '<option value="' + escHtml(n) + '"' + (KANBAN.collega === n ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>',
-      hint: 'kandidaat, klant, functie of collega', input: 'oninput="kanbanZoek(this.value)"' }) +
+      hint: 'kandidaat, klant, functie, collega of initialen', input: 'oninput="kanbanZoek(this.value)"' }) +
     '<div class="kb-bord">' + kolommen + '</div></div>';
 }
 function renderKanban() {
@@ -28399,6 +28415,43 @@ function renderKanban() {
   document.getElementById('main').innerHTML = renderKanbanHtml();
 }
 function kanbanFilterCollega(v) { KANBAN.collega = v || ''; renderKanban(); }
+
+// ── Slepen op het bord (22-09) ───────────────────────────────────────────────
+// Een kaartje naar een volgende kolom slepen opent het doorzetvenster van
+// díe kolom — hetzelfde venster als de pijlknop, met de stap alvast gekozen.
+// Er wordt niets geschreven bij het loslaten; dat doet pas de knop Doorzetten.
+// Toegestaan: de stappen ná de huidige (t/m Contractvoorstel) en Starters
+// vanuit Contractvoorstel. Terug of dezelfde kolom: niets.
+let KANBAN_SLEEP = null;
+function kanbanSleepStart(ev, el) {
+  const fase = el.dataset.fase;
+  const doelen = _kanbanStappenNa(fase).concat(fase === 'contract' ? ['starter'] : []);
+  KANBAN_SLEEP = { id: el.dataset.id, bm: el.dataset.bm, fase, doelen };
+  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', el.dataset.id); }
+  el.classList.add('kb-sleept');
+  document.querySelectorAll('.kb-kolom[data-fase]').forEach(k => { if (doelen.includes(k.dataset.fase)) k.classList.add('kb-doel'); });
+}
+function kanbanSleepOver(ev, kolom) {
+  if (!KANBAN_SLEEP || !kolom.classList.contains('kb-doel')) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+  kolom.classList.add('kb-over');
+}
+function kanbanSleepWeg(ev, kolom) { if (!kolom.contains(ev.relatedTarget)) kolom.classList.remove('kb-over'); }
+function kanbanSleepEind() {
+  KANBAN_SLEEP = null;
+  document.querySelectorAll('.kb-doel, .kb-over, .kb-sleept').forEach(k => k.classList.remove('kb-doel', 'kb-over', 'kb-sleept'));
+}
+function kanbanSleepDrop(ev, doel) {
+  ev.preventDefault();
+  const s = KANBAN_SLEEP;
+  if (!s) return;
+  if (!doel.classList.contains('kb-doel')) return;
+  const fase = doel.dataset.fase;
+  kanbanSleepEind();
+  if (!s.doelen.includes(fase)) return;
+  kanbanDoorVenster(s.bm, s.id, fase);
+}
 function kanbanZoek(v) {
   KANBAN.zoek = v;
   renderKanban();
