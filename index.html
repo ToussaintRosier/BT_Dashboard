@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1937 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1953 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1316,6 +1316,29 @@
   .ch-rij.wacht { opacity:.55; }
   .ch .voet { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; } .ch .voet .tijd { margin-left:auto; color:rgba(255,255,255,.5); font-size:.74rem; }
   .ch-kop { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  /* Racebaan op Medewerkers (ontwerp B, 22-09): één regel per lopende challenge. */
+  .ch-baan-kop { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .ch-baan-kop .ch-baan-tel { font-size:.72rem; background:rgba(244,203,60,.15); color:#F4CB3C; border-radius:12px; padding:2px 10px; font-weight:var(--w-nadruk); }
+  .ch-baan-kop .ch-baan-link { margin-left:auto; font-size:.78rem; color:#F4CB3C; text-decoration:none; }
+  .ch-baan-bord { padding:6px 18px; }
+  .ch-baan-regel { display:grid; grid-template-columns:230px minmax(0,1fr) 140px; gap:18px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; }
+  .ch-baan-regel:last-child { border-bottom:0; }
+  .ch-baan-regel .ti { font-weight:var(--w-nadruk); font-size:.92rem; color:#fff; }
+  .ch-baan-regel .sub { font-size:.72rem; color:rgba(255,255,255,.5); margin-top:2px; }
+  .ch-baan { position:relative; height:44px; }
+  .ch-baan .lijn { position:absolute; left:0; right:0; top:50%; height:2px; background:rgba(255,255,255,.12); }
+  .ch-baan .finish { position:absolute; right:0; top:4px; bottom:4px; width:0; border-right:2px dashed #F4CB3C; }
+  .ch-baan .finish::after { content:'🏁'; position:absolute; right:-8px; top:-18px; font-size:.75rem; }
+  .ch-loper { position:absolute; top:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .ch-loper .one-ber-av { width:26px; height:26px; font-size:.6rem; box-shadow:0 0 0 2px #2c3a5e; }
+  .ch-loper .sc { font-size:.66rem; font-weight:var(--w-nadruk); background:#1d2743; color:#fff; border-radius:8px; padding:0 6px; }
+  .ch-loper.leid .one-ber-av { box-shadow:0 0 0 2px #F4CB3C; }
+  .ch-baan-regel .rechts { text-align:right; }
+  .ch-baan-regel .leider { font-size:.82rem; color:#fff; } .ch-baan-regel .leider b { color:#F4CB3C; }
+  .ch-baan-regel .dagen { font-size:.72rem; color:rgba(255,255,255,.55); } .ch-baan-regel .dagen.urgent { color:#E87400; }
+  .ch-baan-leeg { padding:14px 18px; color:rgba(255,255,255,.55); font-size:.85rem; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .ch-baan-leeg a { color:#F4CB3C; text-decoration:none; font-weight:var(--w-nadruk); }
+  @media (max-width: 700px) { .ch-baan-regel { grid-template-columns:1fr; gap:8px; } .ch-baan-regel .rechts { text-align:left; } .ch-baan { margin:6px 14px 0 8px; } }
   .ch-vorm label { display:block; font-size:.7rem; color:rgba(255,255,255,.55); margin:12px 0 4px; }
   .ch-vorm input, .ch-vorm textarea, .ch-vorm select { width:100%; box-sizing:border-box; background:#364160; color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:.88rem; }
   .ch-vorm .twee { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -8153,6 +8176,46 @@ function chFeestScan() {
 }
 // ── Het scherm ──
 function chZetFilter(f) { CH_FILTER = f; _oneOpnieuw(); }
+// ── Racebaan op Medewerkers (ontwerp B, akkoord 22-09) ─────────────────────
+// Eén regel per lopende challenge: titel + doel, de deelnemers als poppetjes op
+// een baan naar de finish, rechts wie leidt en hoeveel dagen nog. Klik → ONE › Challenge.
+function chNaarOne() { ONE_WEERGAVE = 'challenge'; CH_FILTER = 'lopend'; selectTab('one'); }
+function chRacebaanHtml(nu) {
+  nu = nu || Date.now();
+  if (!CH_BESCHIKBAAR) return '';
+  const lopend = (CHALLENGES || []).filter(c => _chStatus(c, nu) === 'lopend').sort((a, b) => Date.parse(a.eind_op) - Date.parse(b.eind_op));
+  const kop = '<div class="ch-baan-kop"><div class="section-title" style="margin:0"><span style="color:#fff;">Lopende challenges</span></div>' +
+    (lopend.length ? '<span class="ch-baan-tel">' + lopend.length + ' lopend</span>' : '') +
+    '<a href="#" class="ch-baan-link" onclick="chNaarOne();return false;">Alle challenges →</a></div>';
+  if (!lopend.length) return '<div style="margin-top:26px;">' + kop + '<div class="bt-venster ch-baan-leeg">🏆 Geen lopende challenge op dit moment. <a href="#" onclick="chNaarOne();return false;">Daag een collega uit →</a></div></div>';
+  return '<div style="margin-top:26px;">' + kop + '<div class="bt-venster ch-baan-bord">' + lopend.map(c => _chBaanRegel(c, nu)).join('') + '</div></div>';
+}
+// Positie op de baan in procenten (4 = start, 96 = finish); gelijke standen schuiven iets uit elkaar.
+function _chBaanPosities(st, doelN) {
+  const pos = st.map(x => ({ naam: x.naam, stand: x.stand, p: 4 + 92 * Math.min(1, x.stand / doelN) }));
+  const groep = {};
+  pos.forEach(x => { const k = Math.round(x.p); (groep[k] = groep[k] || []).push(x); });
+  Object.values(groep).forEach(g => { if (g.length > 1) g.forEach((x, i) => { x.p = Math.max(2, Math.min(98, x.p + (i - (g.length - 1) / 2) * 3)); }); });
+  return pos;
+}
+function _chBaanRegel(ch, nu) {
+  const ml = _chMeetlat(ch), st = _chStand(ch);
+  const doelN = ch.winvorm === 'doel' ? Math.max(1, +ch.doel || 1) : Math.max(1, ...st.map(x => x.stand));
+  const top = st.length ? st[0].stand : 0;
+  const leiders = top > 0 ? st.filter(x => x.stand === top).map(x => x.naam.split(' ')[0]) : [];
+  const lopers = _chBaanPosities(st, doelN).map(x => '<div class="ch-loper' + (top > 0 && x.stand === top ? ' leid' : '') + '" style="left:' + x.p.toFixed(1) + '%" title="' + escHtml(x.naam) + '">' +
+    '<span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span class="sc">' + x.stand + '</span></div>').join('');
+  const sub = ch.winvorm === 'doel'
+    ? 'Eerste bij ' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + ' · t/m ' + escHtml(_crmDatum(Date.parse(ch.eind_op)))
+    : 'Meeste ' + escHtml(ml.mv) + ' op ' + escHtml(_crmDatum(Date.parse(ch.eind_op)));
+  const rest = Math.ceil((Date.parse(ch.eind_op) - nu) / 86400000);
+  const leider = !st.length ? 'nog geen deelnemers' : !top ? 'nog geen stand'
+    : '<b>' + escHtml(leiders.join(' & ')) + '</b> ' + (leiders.length > 1 ? 'gelijk' : 'leidt') + ' · ' + top + (ch.winvorm === 'doel' ? '/' + ch.doel : '');
+  return '<div class="ch-baan-regel" onclick="chNaarOne()">' +
+    '<div><div class="ti">' + escHtml(ch.titel) + '</div><div class="sub">' + sub + (ch.bedrijf ? ' · ' + escHtml(ch.bedrijf) : '') + '</div></div>' +
+    '<div class="ch-baan"><div class="lijn"></div>' + (ch.winvorm === 'doel' ? '<div class="finish"></div>' : '') + lopers + '</div>' +
+    '<div class="rechts"><div class="leider">' + leider + '</div><div class="dagen' + (rest <= 3 ? ' urgent' : '') + '">' + escHtml(_chDagenTekst(ch, nu)) + '</div></div></div>';
+}
 function _chKaartHtml(ch, nu) {
   const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
   const status = _chStatus(ch, nu), ml = _chMeetlat(ch), st = _chStand(ch), deel = _chDeelnemers(ch);
@@ -10133,7 +10196,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1937';
+const APP_VERSIE = '20260922-1953';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13487,6 +13550,7 @@ function renderMedewerkersOverzicht() {
     '</div>' +
     '<div style="font-size:var(--t-xs);color:rgba(255,255,255,.45);letter-spacing:.04em;margin:6px 0 6px 2px;">STARTERS DIT JAAR</div>' +
     '<div class="bt-venster"><div class="st-rooster">' + rankRows + '</div></div>' +
+    chRacebaanHtml() +
     renderGebruikBalk(CUR.year, CUR.week) +
     '<div class="section-title" style="margin-top:28px;"><span style="color:#fff;">KPI\'s per week — teamtotaal</span></div>' +
     weekHtml +
@@ -18094,9 +18158,9 @@ const _RT_TAKEN = {
   // als je erin zit, anders een kaartje. Een nieuw gesprek waar je aan bent
   // toegevoegd komt via one_gesprek_leden binnen.
   one_berichten:     async () => { await loadOneBerichten(); _oneBerichtenCheck(); _oneBerHerteken(); },
-  challenges:            async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); chFeestScan(); },
-  challenge_deelnemers:  async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); },
-  challenge_voordrachten: async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); chWinnaarScan(); },
+  challenges:            async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); chFeestScan(); },
+  challenge_deelnemers:  async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); },
+  challenge_voordrachten: async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); chWinnaarScan(); },
   one_gesprek_leden: async () => { await loadOneBerichten(); _oneBerHerteken(); },
   one_gesprekken:    async () => { await loadOneBerichten(); _oneBerHerteken(); },
   // Het MT-scherm is het enige dat tijdens een overleg door meerdere mensen
