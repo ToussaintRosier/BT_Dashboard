@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1519 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1543 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9654,7 +9654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1519';
+const APP_VERSIE = '20260922-1543';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -27548,6 +27548,33 @@ function _crmLijktOp(a, b) {
   }
   return verschil + (a.length - i) + (b.length - j) <= 1;
 }
+// Dubbelen zoeken (22-09): niet alles met alles (5.761² = 16,6 miljoen keer, dat was de
+// seconde wachten in het hele CRM), maar via een buurtenkaart. Twee sleutels die één
+// letter verschillen (extra, minder of anders) delen altijd een "weglating" — de sleutel
+// met één teken eruit — of de ene ís een weglating van de andere. Elke sleutel zet zichzelf
+// en zijn weglatingen in de kaart; wie iets deelt wordt daarna met _crmLijktOp bevestigd,
+// zodat de uitkomst exact dezelfde is als voorheen (ook de grens van 6 tekens).
+function _crmDubbelen(alle) {
+  const kaart = new Map();
+  const zet = (v, i) => { const l = kaart.get(v); if (l) l.push(i); else kaart.set(v, [i]); };
+  alle.forEach((k, i) => {
+    k.dubbel = [];
+    const d = k.dubbelSleutel || '';
+    if (!d) return;
+    zet(d, i);
+    if (d.length >= 6) for (let p = 0; p < d.length; p++) zet(d.slice(0, p) + d.slice(p + 1), i);
+  });
+  const gezien = new Set();
+  kaart.forEach(lijst => {
+    if (lijst.length < 2) return;
+    for (let a = 0; a < lijst.length; a++) for (let b = a + 1; b < lijst.length; b++) {
+      const i = lijst[a], j = lijst[b]; if (i === j) continue;
+      const paar = i < j ? i + ':' + j : j + ':' + i;
+      if (gezien.has(paar)) continue; gezien.add(paar);
+      if (_crmLijktOp(alle[i].dubbelSleutel, alle[j].dubbelSleutel)) { alle[i].dubbel.push(alle[j].sleutel); alle[j].dubbel.push(alle[i].sleutel); }
+    }
+  });
+}
 function _crmNaamSplits(naam) {
   const delen = String(naam || '').trim().replace(/\s+/g, ' ').split(' ');
   return { voornaam: delen[0] || '', achternaam: delen.slice(1).join(' ') };
@@ -27789,9 +27816,7 @@ function crmKandLijst() {
   // hij bij het opstarten niet terug uit de pipeline), maar staat nergens meer.
   const alle = Object.values(per).filter(k => !(k.crm && k.crm.bron === 'verwijderd'));
   alle.forEach(k => { k.dubbelSleutel = _crmDubbelSleutel(k.naam); k.dubbel = []; });
-  for (let i = 0; i < alle.length; i++) for (let j = i + 1; j < alle.length; j++) {
-    if (_crmLijktOp(alle[i].dubbelSleutel, alle[j].dubbelSleutel)) { alle[i].dubbel.push(alle[j].sleutel); alle[j].dubbel.push(alle[i].sleutel); }
-  }
+  _crmDubbelen(alle);
   return alle.sort((a, b) => b.laatsteMs - a.laatsteMs || a.naam.localeCompare(b.naam, 'nl'));
 }
 // De intake-pil (aanwijzing 17-09): alleen óf er een intake was — met de datum
@@ -28491,7 +28516,7 @@ function crmKandOpen(sleutel, stil) {
 // OF (twee vakgebieden = beide tellen); tussen de velden EN (alle voorwaarden) of
 // OF (één volstaat), naar keuze. Leest alleen; kopiëren, Excel en ONE-bericht
 // zijn de uitgangen. Zonder voorwaarden: iedereen.
-let CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {} };
+let CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {}, alles: false };
 function _crmSearchVoorwaarden() {
   const S = CRM_SEARCH, z = (x) => String(x || '').trim().toLowerCase(), v = [];
   if (z(S.naam)) v.push(k => z(k.naam).includes(z(S.naam)));
@@ -28535,10 +28560,14 @@ function renderCrmSearchHtml() {
       '<span class="l">Contact ' + vlag('mail', 'met e-mail') + vlag('tel', 'met telefoon') + '</span>' +
       '<span class="crm-s-schak"><button type="button" class="' + (S.modus === 'en' ? 'aan' : '') + '" onclick="crmSearchModus(\'en\')">EN · alle voorwaarden</button><button type="button" class="' + (S.modus === 'of' ? 'aan' : '') + '" onclick="crmSearchModus(\'of\')">OF · één volstaat</button></span></div>' +
     '</div></div>';
-  const rijen = T.map(k => {
+  // Zonder voorwaarden alleen de eerste CRM_TOON regels (22-09): 5.761 rijen tekenen kost
+  // de browser een seconde; de teller, "alles", kopiëren en Excel gaan wél over alles.
+  const beperkt = !_crmSearchVoorwaarden().length && !S.alles && T.length > CRM_TOON;
+  const toon = beperkt ? T.slice(0, CRM_TOON) : T;
+  const rijen = toon.map(k => {
     const r = k.crm || {}, sE = escApos(k.sleutel), aan = !!S.sel[k.sleutel];
     return '<tr class="crm-lijstrij" onclick="crmKandOpen(\'' + sE + '\')" title="Dossier openen">' +
-      '<td class="vink"><span class="crm-vink' + (aan ? ' aan' : '') + '" role="checkbox" aria-checked="' + aan + '" onclick="event.stopPropagation();crmSearchKies(\'' + sE + '\')"></span></td>' +
+      '<td class="vink"><span class="crm-vink' + (aan ? ' aan' : '') + '" data-vink="' + escHtml(k.sleutel) + '" role="checkbox" aria-checked="' + aan + '" onclick="event.stopPropagation();crmSearchKies(\'' + sE + '\')"></span></td>' +
       '<td class="naam">' + escHtml(k.naam) + '</td>' +
       '<td class="d" title="' + escHtml(k.functie || '') + '">' + (k.functie ? escHtml(k.functie) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmVakPil(_crmVakgebied(k)) + '</td>' +
@@ -28556,7 +28585,8 @@ function renderCrmSearchHtml() {
     '<div class="kand-archief open" style="margin-top:0;">' +
       (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:34px"><col style="width:23%"><col style="width:18%"><col style="width:130px"><col style="width:70px"><col style="width:140px"><col style="width:15%"><col><col style="width:96px"></colgroup><thead><tr><th class="vink"></th><th>Kandidaat</th><th>Functie</th><th>Vakgebied</th><th>Regio</th><th>Woonplaats</th><th>Telefoon</th><th>E-mail</th><th class="docs">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niemand voldoet aan deze voorwaarden.</div>') +
-      '<div class="crm-s-voet"><span><b>' + nSel + '</b> geselecteerd</span>' +
+      _crmVoet(T.length, alle.length, beperkt, 'crmSearchToonAlles()', 'kandidaten') +
+      '<div class="crm-s-voet"><span><b id="crm-s-nsel">' + nSel + '</b> geselecteerd</span>' +
         knop('alles', 'crmSearchAlles(true)') + knop('niets', 'crmSearchAlles(false)') +
         '<span class="rechts">' + knop('kopieer e-mailadressen', "crmSearchKopieer('email')") + knop('kopieer telefoonnummers', "crmSearchKopieer('telefoon')") +
         knop('Zet in ONE-bericht', 'crmSearchNaarOne()') + knop('Exporteer naar Excel', 'crmSearchExcel()', 'goed') + '</span></div>' +
@@ -28576,9 +28606,19 @@ function crmSearchZet(k, v) {
 }
 function crmSearchChip(soort, w) { const L = CRM_SEARCH[soort]; const i = L.indexOf(w); if (i >= 0) L.splice(i, 1); else L.push(w); renderCrmSearch(); }
 function crmSearchModus(m) { CRM_SEARCH.modus = m === 'of' ? 'of' : 'en'; renderCrmSearch(); }
-function crmSearchKies(sleutel) { CRM_SEARCH.sel[sleutel] = !CRM_SEARCH.sel[sleutel]; renderCrmSearch(); }
+// Vinkje (22-09): ter plekke omzetten — het vinkje en de teller — in plaats van de hele
+// lijst opnieuw te tekenen. Staat het vinkje niet in beeld, dan gewoon hertekenen.
+function crmSearchKies(sleutel) {
+  const aan = !CRM_SEARCH.sel[sleutel];
+  if (aan) CRM_SEARCH.sel[sleutel] = true; else delete CRM_SEARCH.sel[sleutel];
+  const v = document.querySelector('[data-vink="' + String(sleutel).replace(/"/g, '\\"') + '"]'), n = document.getElementById('crm-s-nsel');
+  if (!v || !n) { renderCrmSearch(); return; }
+  v.classList.toggle('aan', aan); v.setAttribute('aria-checked', String(aan));
+  const sel = CRM_SEARCH.sel; n.textContent = String(_crmSearchTreffers().filter(k => sel[k.sleutel]).length);
+}
 function crmSearchAlles(aan) { if (!aan) CRM_SEARCH.sel = {}; else _crmSearchTreffers().forEach(k => { CRM_SEARCH.sel[k.sleutel] = true; }); renderCrmSearch(); }
-function crmSearchWis() { CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {} }; renderCrmSearch(); }
+function crmSearchWis() { CRM_SEARCH = { naam: '', functie: '', plaats: '', vak: [], regio: [], cv: false, cr: false, mail: false, tel: false, modus: 'en', sel: {}, alles: false }; renderCrmSearch(); }
+function crmSearchToonAlles() { CRM_SEARCH.alles = true; renderCrmSearch(); }
 // De selectie (of, zonder vinkjes, alle treffers) is wat je meeneemt.
 function _crmSearchMee() { const g = _crmSearchGekozen(); return g.length ? g : _crmSearchTreffers(); }
 async function crmSearchKopieer(veld) {
