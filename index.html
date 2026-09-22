@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1506 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1519 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1723,6 +1723,14 @@
   /* Kolom Documenten in de kandidatenlijst (22-09). */
   .crm-tabel td.docs { white-space:nowrap; width:1%; }
   .crm-tabel td.docs .crm-doc { margin-right:5px; }
+  /* Vaste kolomindeling (22-09): CRM-Search en CRM · Kandidaten. De browser rekte de kolommen
+     naar de langste waarde en duwde Documenten buiten het vak; nu staat alles vast en levert
+     E-mail het overschot in. Lange tekst wordt … met de volledige tekst in de title. */
+  .crm-tabel.crm-vast { table-layout:fixed; width:100%; }
+  .crm-tabel.crm-vast td, .crm-tabel.crm-vast th { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .crm-tabel.crm-vast th.docs, .crm-tabel.crm-vast td.docs { text-align:right; width:auto; padding-right:10px; }
+  .crm-tabel.crm-vast td.docs .crm-doc:last-child { margin-right:0; }
+  .crm-tabel.crm-vast .wa-tel { flex-wrap:nowrap; }
   .crm-doc.leeg { border-color:rgba(255,255,255,.2); color:rgba(255,255,255,.35); background:transparent; cursor:default; }
   .crm-link { color:#9ec8f4; text-decoration:underline; }
   /* Zoekbalk en filters CRM (ontwerp A, 17-09) */
@@ -9646,7 +9654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1506';
+const APP_VERSIE = '20260922-1519';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -27898,11 +27906,11 @@ function renderCrmKandidatenHtml() {
     return '<tr class="crm-lijstrij" onclick="crmKandOpen(\'' + escApos(k.sleutel) + '\')" title="Dossier openen">' +
       '<td class="nr">' + (i + 1) + '</td>' +
       '<td class="naam">' + _oneMarkeer(k.naam, z) + dubbel + '</td>' +
-      '<td class="d">' + _crmMailCel(r.email, z) + '</td>' +
+      '<td class="d" title="' + escHtml(r.email || '') + '">' + _crmMailCel(r.email, z) + '</td>' +
       '<td class="d">' + _crmTelCel(r.telefoon, z, k.naam) + '</td>' +
       '<td class="d">' + (k.woonplaats ? _oneMarkeer(k.woonplaats, z) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmRegioPil(_crmWoonregio(k), true) + '</td>' +
-      '<td class="d">' + (k.functie ? _oneMarkeer(k.functie, z) : '<span class="stil">—</span>') + '</td>' +
+      '<td class="d" title="' + escHtml(k.functie || '') + '">' + (k.functie ? _oneMarkeer(k.functie, z) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmVakPil(_crmVakgebied(k)) + '</td>' +
       '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td>' +
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
@@ -27917,7 +27925,7 @@ function renderCrmKandidatenHtml() {
       '<button type="button" class="crm-knop goed" onclick="crmProjectKandidatenVenster()">Bekijken en opvoeren…</button></div>' : '') +
     balk +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr><th class="nr">Nr.</th>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'email', 'E-mail', 'crmKandSort') + _crmTh(st, 'telefoon', 'Telefoon', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'woonregio', 'Regio', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'vakgebied', 'Vakgebied', 'crmKandSort') + _crmTh(st, 'docs', 'Documenten', 'crmKandSort') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:44px"><col style="width:20%"><col><col style="width:15%"><col style="width:140px"><col style="width:70px"><col style="width:18%"><col style="width:130px"><col style="width:96px"><col style="width:120px"></colgroup><thead><tr><th class="nr">Nr.</th>' + _crmTh(st, 'naam', 'Kandidaat', 'crmKandSort') + _crmTh(st, 'email', 'E-mail', 'crmKandSort') + _crmTh(st, 'telefoon', 'Telefoon', 'crmKandSort') + _crmTh(st, 'woonplaats', 'Woonplaats', 'crmKandSort') + _crmTh(st, 'woonregio', 'Regio', 'crmKandSort') + _crmTh(st, 'functie', 'Functie', 'crmKandSort') + _crmTh(st, 'vakgebied', 'Vakgebied', 'crmKandSort') + _crmTh(st, 'docs', 'Documenten', 'crmKandSort', 'docs') + _crmTh(st, 'laatste', 'Laatste contact', 'crmKandSort') + '</tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niets gevonden.</div>') +
       _crmVoet(gevonden.length, lijst.length, beperkt, 'crmKandAlles()', 'kandidaten') +
     '</div></div>';
@@ -27929,11 +27937,17 @@ function renderCrmKandidaten() {
 function crmKandAlles() { CRM_KAND_TAB.alles = true; renderCrmKandidaten(); }
 function crmKandFilter(v) { CRM_KAND_TAB.filter = v || ''; renderCrmKandidaten(); }
 function crmKandSort(col) { _crmSortZet(CRM_KAND_TAB, col); renderCrmKandidaten(); }
+// Typen (22-09): pas hertekenen als je even niet typt — de browser hoeft dan niet bij
+// elke letter duizenden rijen opnieuw op te bouwen. Het veld zelf houdt je tekst.
+let _CRM_ZOEK_TIMER = null;
+function _crmZoekLater(fn) { clearTimeout(_CRM_ZOEK_TIMER); _CRM_ZOEK_TIMER = setTimeout(fn, 160); }
 function crmKandZoek(v) {
   CRM_KAND_TAB.zoek = v;
-  renderCrmKandidaten();
-  const inp = document.getElementById('crm-kand-q');
-  if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
+  _crmZoekLater(() => {
+    renderCrmKandidaten();
+    const inp = document.getElementById('crm-kand-q');
+    if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
+  });
 }
 
 // ── De wizard (kandidaat én bedrijf): drie stappen in één donker venster ───
@@ -28496,7 +28510,7 @@ function crmSearchPast(k) {
   if (!v.length) return true;
   return CRM_SEARCH.modus === 'of' ? v.some(f => f(k)) : v.every(f => f(k));
 }
-function _crmSearchTreffers() { return crmKandLijst().filter(crmSearchPast).sort((a, b) => a.naam.localeCompare(b.naam, 'nl')); }
+function _crmSearchTreffers(lijst) { return (lijst || crmKandLijst()).filter(crmSearchPast).sort((a, b) => a.naam.localeCompare(b.naam, 'nl')); }
 function _crmSearchGekozen() { const T = _crmSearchTreffers(); return T.filter(k => CRM_SEARCH.sel[k.sleutel]); }
 function _crmSearchOmschrijving() {
   const S = CRM_SEARCH, d = [];
@@ -28509,7 +28523,7 @@ function _crmSearchOmschrijving() {
   return d.length ? d.join(S.modus === 'of' ? ' óf ' : ' · ') : 'geen voorwaarden — alle kandidaten';
 }
 function renderCrmSearchHtml() {
-  const S = CRM_SEARCH, T = _crmSearchTreffers(), nSel = T.filter(k => S.sel[k.sleutel]).length;
+  const S = CRM_SEARCH, alle = crmKandLijst(), T = _crmSearchTreffers(alle), nSel = T.filter(k => S.sel[k.sleutel]).length;
   const chip = (soort, w) => '<button type="button" class="crm-s-chip' + (S[soort].includes(w) ? ' aan' : '') + '" onclick="crmSearchChip(\'' + soort + '\',\'' + escApos(w) + '\')">' + escHtml(w) + '</button>';
   const vlag = (k, tekst) => '<button type="button" class="crm-s-chip' + (S[k] ? ' aan' : '') + '" onclick="crmSearchZet(\'' + k + '\', !CRM_SEARCH.' + k + ')">' + tekst + '</button>';
   const veld = (k, label, ph) => '<label>' + label + '<input type="text" id="crm-s-' + k + '" value="' + escHtml(S[k]) + '" placeholder="' + ph + '" oninput="crmSearchZet(\'' + k + '\', this.value)"></label>';
@@ -28526,21 +28540,21 @@ function renderCrmSearchHtml() {
     return '<tr class="crm-lijstrij" onclick="crmKandOpen(\'' + sE + '\')" title="Dossier openen">' +
       '<td class="vink"><span class="crm-vink' + (aan ? ' aan' : '') + '" role="checkbox" aria-checked="' + aan + '" onclick="event.stopPropagation();crmSearchKies(\'' + sE + '\')"></span></td>' +
       '<td class="naam">' + escHtml(k.naam) + '</td>' +
-      '<td class="d">' + (k.functie ? escHtml(k.functie) : '<span class="stil">—</span>') + '</td>' +
+      '<td class="d" title="' + escHtml(k.functie || '') + '">' + (k.functie ? escHtml(k.functie) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmVakPil(_crmVakgebied(k)) + '</td>' +
       '<td class="d">' + _crmRegioPil(_crmWoonregio(k), true) + '</td>' +
       '<td class="d">' + (k.woonplaats ? escHtml(k.woonplaats) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmTelCel(r.telefoon, '', k.naam) + '</td>' +
-      '<td class="d">' + _crmMailCel(r.email, '') + '</td>' +
+      '<td class="d" title="' + escHtml(r.email || '') + '">' + _crmMailCel(r.email, '') + '</td>' +
       '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
   const knop = (tekst, onclick, klasse) => '<button type="button" class="crm-knop ' + (klasse || '') + '" onclick="' + onclick + '">' + tekst + '</button>';
   return '<div><div class="person-header"><div class="person-name">CRM-Search' + btUitlegKnop('kandidaten') + '</div>' +
-    '<div class="person-meta"><span class="meta-pill">' + crmKandLijst().length + ' kandidaten</span><button type="button" class="crm-knop" onclick="crmSearchWis()">wis alles</button></div></div>' +
+    '<div class="person-meta"><span class="meta-pill">' + alle.length + ' kandidaten</span><button type="button" class="crm-knop" onclick="crmSearchWis()">wis alles</button></div></div>' +
     _crmSqlHint() + paneel +
     '<div class="crm-s-tel"><b>' + T.length + '</b> kandidaten voldoen · ' + escHtml(_crmSearchOmschrijving()) + '</div>' +
     '<div class="kand-archief open" style="margin-top:0;">' +
-      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel"><thead><tr><th class="vink"></th><th>Kandidaat</th><th>Functie</th><th>Vakgebied</th><th>Regio</th><th>Woonplaats</th><th>Telefoon</th><th>E-mail</th><th>Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel crm-vast"><colgroup><col style="width:34px"><col style="width:23%"><col style="width:18%"><col style="width:130px"><col style="width:70px"><col style="width:140px"><col style="width:15%"><col><col style="width:96px"></colgroup><thead><tr><th class="vink"></th><th>Kandidaat</th><th>Functie</th><th>Vakgebied</th><th>Regio</th><th>Woonplaats</th><th>Telefoon</th><th>E-mail</th><th class="docs">Documenten</th></tr></thead><tbody>' + rijen + '</tbody></table>'
              : '<div class="kand-archief-leeg">Niemand voldoet aan deze voorwaarden.</div>') +
       '<div class="crm-s-voet"><span><b>' + nSel + '</b> geselecteerd</span>' +
         knop('alles', 'crmSearchAlles(true)') + knop('niets', 'crmSearchAlles(false)') +
@@ -28556,7 +28570,10 @@ function renderCrmSearch() {
   document.getElementById('main').innerHTML = renderCrmSearchHtml();
   if (id) { const el = document.getElementById(id); if (el) { el.focus(); if (pos != null) { try { el.setSelectionRange(pos, pos); } catch (_) {} } } }
 }
-function crmSearchZet(k, v) { CRM_SEARCH[k] = typeof v === 'boolean' ? v : String(v == null ? '' : v); renderCrmSearch(); }
+function crmSearchZet(k, v) {
+  CRM_SEARCH[k] = typeof v === 'boolean' ? v : String(v == null ? '' : v);
+  if (typeof v === 'boolean') renderCrmSearch(); else _crmZoekLater(renderCrmSearch);
+}
 function crmSearchChip(soort, w) { const L = CRM_SEARCH[soort]; const i = L.indexOf(w); if (i >= 0) L.splice(i, 1); else L.push(w); renderCrmSearch(); }
 function crmSearchModus(m) { CRM_SEARCH.modus = m === 'of' ? 'of' : 'en'; renderCrmSearch(); }
 function crmSearchKies(sleutel) { CRM_SEARCH.sel[sleutel] = !CRM_SEARCH.sel[sleutel]; renderCrmSearch(); }
