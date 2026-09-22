@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260922-1543 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260922-1552 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -9654,7 +9654,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260922-1543';
+const APP_VERSIE = '20260922-1552';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -28588,7 +28588,7 @@ function renderCrmSearchHtml() {
       _crmVoet(T.length, alle.length, beperkt, 'crmSearchToonAlles()', 'kandidaten') +
       '<div class="crm-s-voet"><span><b id="crm-s-nsel">' + nSel + '</b> geselecteerd</span>' +
         knop('alles', 'crmSearchAlles(true)') + knop('niets', 'crmSearchAlles(false)') +
-        '<span class="rechts">' + knop('kopieer e-mailadressen', "crmSearchKopieer('email')") + knop('kopieer telefoonnummers', "crmSearchKopieer('telefoon')") +
+        '<span class="rechts">' + knop('Mail (BCC)', 'crmSearchMail()') + knop('kopieer e-mailadressen', "crmSearchKopieer('email')") + knop('kopieer telefoonnummers', "crmSearchKopieer('telefoon')") +
         knop('Zet in ONE-bericht', 'crmSearchNaarOne()') + knop('Exporteer naar Excel', 'crmSearchExcel()', 'goed') + '</span></div>' +
     '</div></div>';
 }
@@ -28627,6 +28627,23 @@ async function crmSearchKopieer(veld) {
   const tekst = lijst.join(veld === 'email' ? '; ' : '\n');
   try { await navigator.clipboard.writeText(tekst); btMeld(lijst.length + (veld === 'email' ? ' e-mailadressen' : ' telefoonnummers') + ' gekopieerd.'); }
   catch (_) { window.prompt('Kopieer met Cmd/Ctrl+C:', tekst); }
+}
+// Mail (BCC) (22-09): één mail aan de selectie, iedereen in BCC. Boven de mailto-grens
+// (±60 adressen) kopiëren we naar het klembord, zodat je ze zelf in BCC plakt.
+const CRM_MAIL_MAX = 60;
+async function crmSearchMail() {
+  const mee = _crmSearchMee();
+  const adressen = [...new Set(mee.map(k => String((k.crm || {}).email || '').trim().toLowerCase()).filter(a => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a)))];
+  const zonder = mee.length - mee.filter(k => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String((k.crm || {}).email || '').trim())).length;
+  if (!adressen.length) { btMeld('Niemand in de selectie heeft een e-mailadres.'); return; }
+  if (adressen.length > CRM_MAIL_MAX) {
+    const tekst = adressen.join('; ');
+    try { await navigator.clipboard.writeText(tekst); btMeld(adressen.length + ' adressen gekopieerd — te veel voor één klik; plak ze in je mailprogramma in het BCC-veld.', 'geel'); }
+    catch (_) { window.prompt('Te veel adressen voor één klik. Kopieer met Cmd/Ctrl+C en plak in BCC:', tekst); }
+    return;
+  }
+  window.location.href = 'mailto:?bcc=' + encodeURIComponent(adressen.join(',')) + '&subject=' + encodeURIComponent('Brightech');
+  btMeld('Mail geopend aan ' + adressen.length + ' kandidaten (BCC)' + (zonder ? ' · ' + zonder + ' zonder e-mailadres overgeslagen' : '') + '.');
 }
 function crmSearchExcel() {
   const mee = _crmSearchMee();
