@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260923-0956 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260923-1003 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1337,6 +1337,25 @@
   .ch-rij.wacht { opacity:.55; }
   .ch .voet { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; } .ch .voet .tijd { margin-left:auto; color:rgba(255,255,255,.5); font-size:.74rem; }
   .ch-kop { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  /* Arena (keuze C, 23-09): aankondiging van een nieuwe challenge en van winst, op elk scherm. */
+  #bt-arena { position:fixed; inset:0; z-index:9800; background:rgba(15,9,47,.92); display:grid; place-items:center; animation:feest-in .4s ease; padding:20px; box-sizing:border-box; }
+  #bt-arena canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #bt-arena .arena { position:relative; width:680px; max-width:94vw; text-align:center; color:#fff; animation:feest-pop .6s cubic-bezier(.2,1.4,.4,1); }
+  #bt-arena .kop { font-size:.8rem; letter-spacing:.22em; text-transform:uppercase; color:#F4CB3C; } #bt-arena .kop.groen { color:#25D366; }
+  #bt-arena h3 { font-size:2.2rem; margin:10px 0; line-height:1.1; font-weight:var(--w-nadruk); }
+  #bt-arena .vs { display:flex; align-items:center; justify-content:center; gap:22px; margin:18px 0; flex-wrap:wrap; }
+  #bt-arena .p { display:flex; flex-direction:column; align-items:center; gap:6px; font-size:.82rem; }
+  #bt-arena .p .one-ber-av { width:56px; height:56px; font-size:1rem; }
+  #bt-arena .p.win .one-ber-av { width:96px; height:96px; font-size:1.7rem; box-shadow:0 0 0 6px #F4CB3C; }
+  #bt-arena .tegen { font-size:1.5rem; font-weight:800; color:#E87400; letter-spacing:.05em; }
+  #bt-arena .m { color:rgba(255,255,255,.75); font-size:.95rem; line-height:1.6; }
+  #bt-arena .knoppen { display:flex; gap:10px; justify-content:center; margin-top:20px; flex-wrap:wrap; }
+  #bt-arena .ak { border:0.5px solid rgba(255,255,255,.35); color:#fff; background:none; border-radius:99px; padding:10px 24px; font-size:.92rem; font-weight:var(--w-nadruk); cursor:pointer; font-family:inherit; }
+  #bt-arena .ak:hover { border-color:#F4CB3C; }
+  #bt-arena .ak.groen { background:#25D366; color:#0d2a17; border-color:#25D366; } #bt-arena .ak.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; }
+  #bt-arena .ak.stil { border:0; color:rgba(255,255,255,.5); font-weight:var(--w-normaal); }
+  #bt-arena .dicht { position:absolute; top:-6px; right:0; background:none; border:0; color:rgba(255,255,255,.5); font-size:1.6rem; cursor:pointer; line-height:1; }
+  @media (max-width: 600px) { #bt-arena h3 { font-size:1.5rem; } #bt-arena .p .one-ber-av { width:44px; height:44px; } }
   /* Records 5C (23-09) */
   .rec-balk { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
   .rec-balk .tel { margin-left:auto; font-size:.74rem; color:rgba(255,255,255,.5); }
@@ -8361,20 +8380,86 @@ async function chWinnaarScan(nu) {
     } catch (e) { console.error('Challenge-bericht mislukt:', e); }
   }
 }
-function chFeestScan() {
-  if (!Array.isArray(CHALLENGES)) return;
-  const gewonnen = CHALLENGES.filter(c => c.winnaar_naam && c.gewonnen_op);
-  if (_CH_GEVIERD === null) { _CH_GEVIERD = new Set(gewonnen.map(c => String(c.id))); return; }
-  const nieuw = gewonnen.filter(c => !_CH_GEVIERD.has(String(c.id)));
-  nieuw.forEach(c => _CH_GEVIERD.add(String(c.id)));
-  if (!nieuw.length || document.getElementById('bt-feest')) return;
-  const ch = nieuw[0], st = _chStand(ch);
-  feestToon({
-    kop: 'wint <b>' + escHtml(ch.titel) + '</b>',
-    meta: escHtml(_chMeetlat(ch).mv) + (ch.winvorm === 'doel' ? ' · doel ' + escHtml(String(ch.doel)) : ' · hoogste stand') + (ch.inzet ? ' · inzet: ' + escHtml(ch.inzet) : ''),
-    chips: st.map(x => '<span class="chip"' + (String(ch.winnaar_naam).includes(x.naam) ? '' : ' style="opacity:.55"') + '><i>' + escHtml(bmInitialen(x.naam)) + '</i>' + escHtml(x.naam.split(' ')[0]) + ' ' + x.stand + '</span>').join(''),
-    teller: 'uitgedaagd door ' + (ch.uitdager_naam || 'een collega')
-  }, ch.winnaar_naam, { icoon: '🏆', lbl: 'Challenge gewonnen' });
+// ── Arena (keuze C, 23-09) ─────────────────────────────────────────────────
+// Volledig scherm bij een nieuwe challenge (deelnemers tegenover elkaar,
+// accepteren kan direct) en bij winst (winnaar groot, confetti). Bij iedereen,
+// op elk scherm, één keer per persoon: wat je gezien hebt staat in de browser.
+// Wie niet ingelogd was krijgt hem bij de eerstvolgende keer, tot 7 dagen terug.
+// De uitdager ziet zijn eigen nieuwe challenge niet (die heeft hem net gemaakt).
+let _CH_ARENA_TIMER = null;
+function _chArenaGezien() {
+  try { return new Set(JSON.parse(localStorage.getItem('bt_ch_arena') || '[]')); } catch (_) { return new Set(); }
+}
+function _chArenaMarkeer(sleutels) {
+  const g = _chArenaGezien(); sleutels.forEach(k => g.add(k));
+  try { localStorage.setItem('bt_ch_arena', JSON.stringify([...g].slice(-200))); } catch (_) {}
+}
+function chFeestScan(nu) {
+  if (!Array.isArray(CHALLENGES) || !CHALLENGES.length) return;
+  nu = nu || Date.now();
+  const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
+  const gezien = _chArenaGezien(), grens = nu - 7 * 86400000;
+  const winst = CHALLENGES.filter(c => c.winnaar_naam && c.gewonnen_op && Date.parse(c.gewonnen_op) > grens && !gezien.has('w:' + c.id));
+  const nieuw = CHALLENGES.filter(c => !c.gewonnen_op && !c.gestopt_op && c.created_at && Date.parse(c.created_at) > grens && !gezien.has('n:' + c.id) && _chStatus(c, nu) === 'lopend');
+  // Eigen challenges stil als gezien wegschrijven; daar hoort geen aankondiging bij.
+  const eigen = nieuw.filter(c => c.uitdager_naam === ik);
+  if (eigen.length) _chArenaMarkeer(eigen.map(c => 'n:' + c.id));
+  const vreemd = nieuw.filter(c => c.uitdager_naam !== ik);
+  if (document.getElementById('bt-arena') || document.getElementById('bt-feest')) return;
+  if (winst.length) { _chArenaMarkeer(['w:' + winst[0].id]); chArenaToon('winst', winst[0], nu); return; }
+  if (vreemd.length) { _chArenaMarkeer(['n:' + vreemd[0].id]); chArenaToon('nieuw', vreemd[0], nu); }
+}
+function _chArenaHtml(soort, ch, nu) {
+  const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
+  const ml = _chMeetlat(ch), deel = _chDeelnemers(ch), st = _chStand(ch);
+  const av = (naam, groot) => '<div class="p' + (groot ? ' win' : '') + '"><span class="one-ber-av" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(bmInitialen(naam)) + '</span>' + escHtml(naam.split(' ')[0]) + '</div>';
+  const doel = ch.winvorm === 'doel'
+    ? 'eerste bij ' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + ' vóór ' + escHtml(_crmDatum(Date.parse(ch.eind_op)))
+    : 'meeste ' + escHtml(ml.mv) + ' op ' + escHtml(_crmDatum(Date.parse(ch.eind_op)));
+  if (soort === 'winst') {
+    const w = String(ch.winnaar_naam || ''); const eerste = w.split(' & ')[0];
+    return '<canvas></canvas><div class="arena" role="dialog" aria-label="Challenge gewonnen"><div class="kop groen">Challenge gewonnen</div>' +
+      '<div class="vs">' + av(eerste, true) + '</div>' +
+      '<h3>' + escHtml(w.includes(' & ') ? w : eerste.split(' ')[0]) + ' wint!</h3>' +
+      '<div class="m">"' + escHtml(ch.titel) + '" · ' + st.map(x => escHtml(x.naam.split(' ')[0]) + ' ' + x.stand).join(' · ') + (ch.inzet ? '<br>inzet: ' + escHtml(ch.inzet) : '') + '</div>' +
+      '<div class="knoppen"><button type="button" class="ak geel" onclick="chFeliciteer(' + ch.id + ')">🎉 Feliciteer in ONE</button><button type="button" class="ak" onclick="chOpen(' + ch.id + ');chArenaSluit()">Bekijk stand</button></div>' +
+      '<button type="button" class="dicht" onclick="chArenaSluit()" aria-label="Sluiten">×</button></div>';
+  }
+  const mijn = deel.find(x => x.naam === ik);
+  const mag = typeof magWijzigen === 'function' ? magWijzigen('one') : true;
+  const links = deel.slice(0, Math.ceil(deel.length / 2)), rechts = deel.slice(Math.ceil(deel.length / 2));
+  let k = '';
+  if (mag && ((mijn && mijn.status === 'uitgedaagd') || (ch.iedereen && !mijn))) k += '<button type="button" class="ak groen" onclick="chAccepteer(' + ch.id + ');chArenaSluit()">✓ Ik doe mee</button>';
+  if (mag && mijn && mijn.status === 'uitgedaagd') k += '<button type="button" class="ak" onclick="chSlaOver(' + ch.id + ');chArenaSluit()">Sla over</button>';
+  k += '<button type="button" class="ak" onclick="chOpen(' + ch.id + ');chArenaSluit()">Bekijk</button><button type="button" class="ak stil" onclick="chArenaSluit()">later</button>';
+  return '<div class="arena" role="dialog" aria-label="Nieuwe challenge"><div class="kop">Nieuwe challenge</div><h3>' + escHtml(ch.titel) + '</h3>' +
+    (deel.length ? '<div class="vs">' + links.map(x => av(x.naam)).join('') + (rechts.length ? '<span class="tegen">VS</span>' + rechts.map(x => av(x.naam)).join('') : '') + '</div>' : '') +
+    '<div class="m">' + doel + (ch.inzet ? ' · inzet: ' + escHtml(ch.inzet) : '') + ' · uitgedaagd door ' + escHtml((ch.uitdager_naam || 'een collega').split(' ')[0]) + '</div>' +
+    '<div class="knoppen">' + k + '</div><button type="button" class="dicht" onclick="chArenaSluit()" aria-label="Sluiten">×</button></div>';
+}
+function chArenaToon(soort, ch, nu) {
+  chArenaSluit();
+  const laag = document.createElement('div'); laag.id = 'bt-arena';
+  laag.innerHTML = _chArenaHtml(soort, ch, nu || Date.now());
+  laag.addEventListener('click', (e) => { if (e.target === laag) chArenaSluit(); });
+  document.body.appendChild(laag);
+  const beweging = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (soort === 'winst' && beweging) { try { _feestConfetti(laag.querySelector('canvas')); } catch (e) { console.error('Confetti mislukt:', e); } }
+  _CH_ARENA_TIMER = setTimeout(chArenaSluit, soort === 'winst' ? 20000 : 30000);
+}
+function chArenaSluit() {
+  clearTimeout(_CH_ARENA_TIMER); _CH_ARENA_TIMER = null;
+  const el = document.getElementById('bt-arena'); if (el) el.remove();
+}
+// Feliciteren: naar het winstbericht in de feed, met het reactieveld open.
+function chFeliciteer(chId) {
+  chArenaSluit();
+  const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId));
+  const post = ch ? (ONE_POSTS || []).find(p => String(p.onderwerp || '').includes('wint de challenge "' + ch.titel + '"')) : null;
+  if (currentTab !== 'one') selectTab('one');
+  if (!post) { chOpen(chId); return; }
+  ONE_OPEN_REACTIES.add('p' + post.id);
+  setTimeout(() => oneSpringNaar(post.id), 120);
 }
 // ── Het scherm ──
 function chZetFilter(f) { CH_FILTER = f; _oneOpnieuw(); }
@@ -10514,7 +10599,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260923-0956';
+const APP_VERSIE = '20260923-1003';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
