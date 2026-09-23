@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260923-1204 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260923-1246 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5850,6 +5850,12 @@ function teltMeeInWeek(bm, jaar, week) {
   return maandag <= eind;
 }
 
+// Is dit profiel inactief? Dezelfde regel als in BMS: einddatum in het verleden.
+function _profielInactief(p) {
+  if (!p || !p.einddatum) return false;
+  const d = new Date(p.einddatum);
+  return !isNaN(d) && d < new Date();
+}
 // Is deze naam van een inactieve collega? (voor opnames, dropdowns e.d.)
 function isInactieveCollega(naam) {
   const bm = BMS.find(b => b.naam === naam);
@@ -8401,8 +8407,13 @@ function _chTelt(ch, naam) {
   return n;
 }
 // Alle deelnemers met status: de uitdager (als hij meedoet) + de uitgedaagden.
+// Wie kun je uitdagen: collega's met cijfers, zonder jezelf en zonder wie uit dienst is (23-09).
+function _chCollegas(ik) {
+  return (typeof bmsMetCijfers === 'function' ? bmsMetCijfers() : []).filter(b => !b.inactief).map(b => b.naam).filter(n => n !== ik);
+}
 function _chDeelnemers(ch) {
-  const lijst = (CH_DEELNEMERS || []).filter(x => String(x.challenge_id) === String(ch.id)).map(x => ({ naam: x.naam, status: x.status, id: x.id }));
+  // Een collega die inmiddels uit dienst is valt uit elke challenge (23-09).
+  const lijst = (CH_DEELNEMERS || []).filter(x => String(x.challenge_id) === String(ch.id) && !isInactieveCollega(x.naam)).map(x => ({ naam: x.naam, status: x.status, id: x.id }));
   if (ch.doet_mee && ch.uitdager_naam && !lijst.some(x => x.naam === ch.uitdager_naam)) lijst.unshift({ naam: ch.uitdager_naam, status: 'accepteert', id: null });
   return lijst;
 }
@@ -8738,7 +8749,7 @@ function chNieuwVenster() {
   CH_NIEUW = { meetlat: 'intakes', winvorm: 'doel', wie: new Set(), iedereen: false, doetmee: true };
   const eind = new Date(Date.now() + 14 * 86400000);
   const eindStr = eind.getFullYear() + '-' + String(eind.getMonth() + 1).padStart(2, '0') + '-' + String(eind.getDate()).padStart(2, '0');
-  const collegas = (typeof bmsMetCijfers === 'function' ? bmsMetCijfers() : []).map(b => b.naam).filter(n => n !== ik);
+  const collegas = _chCollegas(ik);
   crmKaartToon('<h4 class="wit">Nieuwe challenge</h4><div class="ch-vorm">' +
     '<label>Titel *</label><input id="ch-titel" maxlength="80" placeholder="bijv. Lassers voor AAE">' +
     '<div class="twee"><div><label>Waar gaat het om (optioneel: bedrijf uit het CRM)</label><input id="ch-bedrijf" maxlength="80" placeholder="bijv. AAE B.V. — telt alleen kaarten van deze klant"></div>' +
@@ -8782,7 +8793,7 @@ async function chNieuwOpslaan() {
   _echoVanZelf('challenges');
   const { data, error } = await supa.from('challenges').insert(rij).select().single();
   if (error) { zeg('Opslaan mislukt: ' + error.message); meldFout('challenge opslaan mislukt: ' + error.message, 'chNieuwOpslaan'); return; }
-  const wie = CH_NIEUW.iedereen ? (typeof bmsMetCijfers === 'function' ? bmsMetCijfers() : []).map(b => b.naam).filter(n => n !== ik) : [...CH_NIEUW.wie];
+  const wie = CH_NIEUW.iedereen ? _chCollegas(ik) : [...CH_NIEUW.wie];
   if (wie.length) { _echoVanZelf('challenge_deelnemers'); await supa.from('challenge_deelnemers').insert(wie.map(n => ({ challenge_id: data.id, naam: n, status: 'uitgedaagd' }))); }
   try {
     await supa.from('one_posts').insert({ onderwerp: '🏆 Nieuwe challenge: ' + titel, tekst: (rij.omschrijving ? rij.omschrijving + '\n' : '') + 'Meetlat: ' + _chMeetlat(rij).l + (rij.doel ? ' · doel ' + rij.doel : ' · hoogste stand') + ' · tot ' + _crmDatum(Date.parse(rij.eind_op)) + (rij.inzet ? ' · inzet: ' + rij.inzet : '') + '\n[challenge:' + data.id + ']',
@@ -10680,7 +10691,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260923-1204';
+const APP_VERSIE = '20260923-1246';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11499,7 +11510,7 @@ function _sidebarKandidatenHtml() {
   return miGroep(['kandidaten', 'crmkand', 'crmsearch', 'rldvtool', 'rldvcheck'], `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleKandidaten(event)">
       ${/* Staat het overzicht uit, dan klapt het label alleen open (test_onderdelen). */''}
-      <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="${magZien('kandidaten') ? "selectTab('kandidaten'); event.stopPropagation();" : "toggleKandidaten(event);"}">${btIcon('kandidaten')}Kandidaten</span>
+      <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="${magZien('crmkand') ? "selectTab('crmkand'); event.stopPropagation();" : magZien('kandidaten') ? "selectTab('kandidaten'); event.stopPropagation();" : "toggleKandidaten(event);"}">${btIcon('kandidaten')}Kandidaten</span>
       <span class="sidebar-caret ${kandidatenOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
     </div>
     <div class="sidebar-sub" style="display:${kandidatenOpen ? 'flex' : 'none'};">
@@ -17810,6 +17821,14 @@ async function loadProfileAndStart() {
   const { data: profile, error } = await supa.from('profiles').select('*').eq('id', user.id).single();
   if (error || !profile) {
     showLoginError('Geen profiel gevonden voor dit account. Vraag de manager dit aan te maken.');
+    return;
+  }
+  // Uit dienst (23-09): einddatum in het verleden → direct weer afmelden, vóór
+  // er iets geladen wordt. De harde blokkade (ook voor een sessie die al
+  // open stond) zit in supabase/inactief_blokkeren.sql.
+  if (_profielInactief(profile)) {
+    try { await supa.auth.signOut(); } catch (_) {}
+    showLogin('Dit account is niet meer actief (uit dienst per ' + _crmDatum(Date.parse(profile.einddatum)) + '). Neem contact op met de manager.');
     return;
   }
   CURRENT_USER = profile;
