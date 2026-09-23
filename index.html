@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260923-1127 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260923-1138 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4023,9 +4023,14 @@
   .pipe-wk { border:0.5px solid rgba(255,255,255,.2); border-radius:99px; padding:7px 14px; font-size:.8rem; color:rgba(255,255,255,.75); background:none; display:inline-flex; gap:10px; align-items:center; cursor:pointer; font-family:inherit; }
   .pipe-wk:hover { border-color:rgba(255,255,255,.5); color:#fff; }
   .pipe-wk .tel { display:inline-flex; gap:6px; align-items:center; font-size:.72rem; font-weight:var(--w-normaal); }
-  .pipe-wk .tel .pipe-fp { color:inherit; } .pipe-wk .tel .pipe-leeg-tekst { color:rgba(255,255,255,.4); font-size:.7rem; }
+  .pipe-wk .tel .pipe-fp { color:inherit; }
+  /* Huidige week (keuze C, 23-09): geen woord "huidig" meer — dat maakte de chip
+     breder en liet de pijlen verspringen. Het weeknummer kleurt oranje; op de
+     gele chip kan oranje niet, daar wordt het een oranje onderstreping. */
+  .pipe-wk .nr.hu { color:#E87400; }
+  .pipe-wk.aan .nr.hu { color:#253151; text-decoration:underline; text-decoration-color:#E87400; text-underline-offset:3px; text-decoration-thickness:2px; }
   .pipe-wk.aan { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); }
-  .pipe-wk.aan .tel { color:#253151; } .pipe-wk.aan .tel .pipe-fp.nul { color:rgba(37,49,81,.5); } .pipe-wk.aan .tel .pipe-fp[style] { color:#253151 !important; } .pipe-wk.aan .tel .pipe-leeg-tekst { color:rgba(37,49,81,.6); }
+  .pipe-wk.aan .tel { color:#253151; } .pipe-wk.aan .tel .pipe-fp.nul { color:rgba(37,49,81,.5); } .pipe-wk.aan .tel .pipe-fp[style] { color:#253151 !important; }
   .pipe-strip .r { margin-left:auto; display:flex; gap:8px; align-items:center; }
   .pipe-wk-vandaag { border:0.5px solid rgba(255,255,255,.15); border-radius:99px; padding:6px 13px; font-size:.76rem; color:rgba(255,255,255,.55); background:none; cursor:pointer; font-family:inherit; }
   .pipe-wk-vandaag:hover { color:#fff; border-color:rgba(255,255,255,.4); }
@@ -4062,7 +4067,6 @@
      houdt zijn kleur zodat de reeks als maatlat blijft lezen. */
   .pipe-fp.nul { color:rgba(255,255,255,.42); }
   .pipe-fp.nul .d { opacity:.55; }
-  .pipe-leeg-tekst { color:rgba(255,255,255,.4); font-size:.76rem; }
   /* De weekknop: donker uitgevoerd, zoals de rest van de balk (aanwijzing
      20-08 met schermafbeelding). De witte knop van eerst sprong eruit als de
      enige lichte vlek op een donkere accordeon. */
@@ -6342,10 +6346,9 @@ function _pipeWeekSummary(cards, wk) {
   const KPI_LABELS_SHORT = ['Int','Bez','Aanb','Match','Contr','Start'];
   const stageCounts = PIPE_STAGES.map(stage =>
       telKaarten(cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year), stage));
-  const isLeeg = stageCounts.every(n => !n);
-  return isLeeg
-    ? '<span class="pipe-leeg-tekst">nog leeg</span>'
-    : stageCounts.map((n, i) => {
+  // Altijd zes bolletjes, ook bij een lege week (23-09): zo blijven de chips
+  // even lang en staan de pijlen stil als je doorbladert. Een nul dempt.
+  return stageCounts.map((n, i) => {
         const kleur = i === 5 && n > 0 ? ' style="color:#F4CB3C;"' : '';
         return `<span class="pipe-fp${n ? '' : ' nul'}" title="${KPI_LABELS_SHORT[i]}"${kleur}>` +
                `<span class="d" style="background:${PIPE_STAGE_COLORS[i].stip || PIPE_STAGE_COLORS[i].punt};"></span>${telFmt(n)}</span>`;
@@ -10677,7 +10680,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260923-1127';
+const APP_VERSIE = '20260923-1138';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -41093,7 +41096,7 @@ function renderPipeline(bm) {
   // Weekbalk W-a (23-09): pijlen, de gekozen week met de buurweken erin (met
   // tellers), "vandaag" zodra je niet op de huidige week staat, en rechts de
   // knop Opslaan/Wijzigen van de gekozen week.
-  const chips = weeks.map(wk => `<button type="button" class="pipe-wk${wk.offset === 0 ? ' aan' : ''}" onclick="pipeWeekKies(${wk.year},${wk.week})">W${wk.week}${isNuWk(wk) ? ' · huidig' : ''}<span class="tel">${_pipeWeekSummary(cards, wk)}</span></button>`).join('');
+  const chips = weeks.map(wk => `<button type="button" class="pipe-wk${wk.offset === 0 ? ' aan' : ''}" onclick="pipeWeekKies(${wk.year},${wk.week})"><span class="nr${isNuWk(wk) ? ' hu' : ''}"${isNuWk(wk) ? ' title="huidige week"' : ''}>W${wk.week}</span><span class="tel">${_pipeWeekSummary(cards, wk)}</span></button>`).join('');
   const opNu = isNuWk(weeks[1]);
   return `<div class="section-title" style="margin-bottom:8px;"><span>Kandidaten pipeline</span></div>
   <div class="pipe-strip">
