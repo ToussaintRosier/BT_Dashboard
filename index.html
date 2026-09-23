@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260923-1246 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260923-1531 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1352,6 +1352,15 @@
   #bt-arena .p .one-ber-av { width:56px; height:56px; font-size:1rem; }
   #bt-arena .p.win .one-ber-av { width:96px; height:96px; font-size:1.7rem; box-shadow:0 0 0 6px #F4CB3C; }
   #bt-arena .tegen { font-size:1.5rem; font-weight:800; color:#E87400; letter-spacing:.05em; }
+  /* Ontwerp C (23-09): uitdager groot, uitgedaagden in één rij, jij met groene ring. */
+  #bt-arena .uitd { display:flex; flex-direction:column; align-items:center; gap:8px; margin:14px 0 6px; }
+  #bt-arena .uitd .one-ber-av { width:84px; height:84px; font-size:1.5rem; box-shadow:0 0 0 5px #F4CB3C; }
+  #bt-arena .uitd .wie { font-size:.95rem; font-weight:var(--w-nadruk); }
+  #bt-arena .uitd .wie small { display:block; font-size:.66rem; color:#F4CB3C; letter-spacing:.14em; text-transform:uppercase; font-weight:var(--w-normaal); margin-top:2px; }
+  #bt-arena .daagt { font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin:12px 0 8px; }
+  #bt-arena .rij { display:flex; flex-wrap:wrap; justify-content:center; gap:12px 16px; max-width:620px; margin:0 auto 14px; }
+  #bt-arena .rij .p .one-ber-av { width:44px; height:44px; font-size:.82rem; }
+  #bt-arena .p.ik .one-ber-av { box-shadow:0 0 0 3px #25D366; }
   #bt-arena .m { color:rgba(255,255,255,.75); font-size:.95rem; line-height:1.6; }
   #bt-arena .knoppen { display:flex; gap:10px; justify-content:center; margin-top:20px; flex-wrap:wrap; }
   #bt-arena .ak { border:0.5px solid rgba(255,255,255,.35); color:#fff; background:none; border-radius:99px; padding:10px 24px; font-size:.92rem; font-weight:var(--w-nadruk); cursor:pointer; font-family:inherit; }
@@ -8504,7 +8513,7 @@ function chFeestScan(nu) {
 function _chArenaHtml(soort, ch, nu) {
   const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
   const ml = _chMeetlat(ch), deel = _chDeelnemers(ch), st = _chStand(ch);
-  const av = (naam, groot) => '<div class="p' + (groot ? ' win' : '') + '"><span class="one-ber-av" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(bmInitialen(naam)) + '</span>' + escHtml(naam.split(' ')[0]) + '</div>';
+  const av = (naam, groot, ikzelf) => '<div class="p' + (groot ? ' win' : '') + (ikzelf ? ' ik' : '') + '"><span class="one-ber-av" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(bmInitialen(naam)) + '</span>' + escHtml(naam.split(' ')[0]) + '</div>';
   const doel = ch.winvorm === 'doel'
     ? 'eerste bij ' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + ' vóór ' + escHtml(_crmDatum(Date.parse(ch.eind_op)))
     : 'meeste ' + escHtml(ml.mv) + ' op ' + escHtml(_crmDatum(Date.parse(ch.eind_op)));
@@ -8519,14 +8528,23 @@ function _chArenaHtml(soort, ch, nu) {
   }
   const mijn = deel.find(x => x.naam === ik);
   const mag = typeof magWijzigen === 'function' ? magWijzigen('one') : true;
-  const links = deel.slice(0, Math.ceil(deel.length / 2)), rechts = deel.slice(Math.ceil(deel.length / 2));
+  // Ontwerp C (23-09): een challenge is ieder voor zich — geen twee ploegen
+  // met VS ertussen. De uitdager groot bovenaan, de uitgedaagden in één rij.
+  const uitd = String(ch.uitdager_naam || '');
+  const rest = deel.filter(x => x.naam !== uitd);
+  const uitdHtml = uitd
+    ? '<div class="uitd"><span class="one-ber-av" style="background:' + _oneAvatarKleur(uitd) + ';">' + escHtml(bmInitialen(uitd)) + '</span><span class="wie">' + escHtml(uitd) + '<small>daagt uit' + (ch.doet_mee ? '' : ' · doet zelf niet mee') + '</small></span></div>'
+    : '';
+  const restHtml = rest.length
+    ? '<div class="daagt">' + rest.length + (rest.length === 1 ? ' collega' : " collega's") + ' · ieder voor zich</div><div class="rij">' + rest.map(x => av(x.naam, false, x.naam === ik)).join('') + '</div>'
+    : '';
   let k = '';
   if (mag && ((mijn && mijn.status === 'uitgedaagd') || (ch.iedereen && !mijn))) k += '<button type="button" class="ak groen" onclick="chAccepteer(' + ch.id + ');chArenaSluit()">✓ Ik doe mee</button>';
   if (mag && mijn && mijn.status === 'uitgedaagd') k += '<button type="button" class="ak" onclick="chSlaOver(' + ch.id + ');chArenaSluit()">Sla over</button>';
   k += '<button type="button" class="ak" onclick="chOpen(' + ch.id + ');chArenaSluit()">Bekijk</button><button type="button" class="ak stil" onclick="chArenaSluit()">later</button>';
   return '<div class="arena" role="dialog" aria-label="Nieuwe challenge"><div class="kop">Nieuwe challenge</div><h3>' + escHtml(ch.titel) + '</h3>' +
-    (deel.length ? '<div class="vs">' + links.map(x => av(x.naam)).join('') + (rechts.length ? '<span class="tegen">VS</span>' + rechts.map(x => av(x.naam)).join('') : '') + '</div>' : '') +
-    '<div class="m">' + doel + (ch.inzet ? ' · inzet: ' + escHtml(ch.inzet) : '') + ' · uitgedaagd door ' + escHtml((ch.uitdager_naam || 'een collega').split(' ')[0]) + '</div>' +
+    uitdHtml + restHtml +
+    '<div class="m">' + doel + (ch.inzet ? ' · inzet: ' + escHtml(ch.inzet) : '') + (uitd ? '' : ' · uitgedaagd door een collega') + '</div>' +
     '<div class="knoppen">' + k + '</div><button type="button" class="dicht" onclick="chArenaSluit()" aria-label="Sluiten">×</button></div>';
 }
 function chArenaToon(soort, ch, nu) {
@@ -10691,7 +10709,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260923-1246';
+const APP_VERSIE = '20260923-1531';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
