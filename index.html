@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260924-1446 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260924-1811 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3922,6 +3922,12 @@
   .kk-knop:hover { background:rgba(158,200,244,.12); }
   .kk-pil { display:inline-block; font-size:.66rem; background:rgba(255,255,255,.1); border-radius:9px; padding:1px 7px; color:#fff; }
   .kk-pil.klik { cursor:pointer; border:0.5px solid rgba(255,255,255,.3); } .kk-pil.klik:hover { background:rgba(255,255,255,.2); }
+  /* Scrollbalken in de donkere vensters (24-09): smal en donker, ook op Windows (daar is de standaard breed en lichtgrijs). */
+  .crm-kaart *, .bt-venster *, .crm-kaart, .bt-venster { scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.25) transparent; }
+  .crm-kaart ::-webkit-scrollbar, .bt-venster ::-webkit-scrollbar, .crm-kaart::-webkit-scrollbar, .bt-venster::-webkit-scrollbar { width:8px; height:8px; }
+  .crm-kaart ::-webkit-scrollbar-track, .bt-venster ::-webkit-scrollbar-track { background:transparent; }
+  .crm-kaart ::-webkit-scrollbar-thumb, .bt-venster ::-webkit-scrollbar-thumb, .crm-kaart::-webkit-scrollbar-thumb, .bt-venster::-webkit-scrollbar-thumb { background:rgba(255,255,255,.22); border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .crm-kaart ::-webkit-scrollbar-thumb:hover, .bt-venster ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.4); background-clip:padding-box; }
   /* RLDV-blok op de kandidaatkaart (24-09) */
   .kk-rldv { flex:1; min-width:0; }
   .kk-rldv-r1 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .kk-rldv-r1 b { font-weight:var(--w-nadruk); color:#fff; }
@@ -10847,7 +10853,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260924-1446';
+const APP_VERSIE = '20260924-1811';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -29767,6 +29773,30 @@ function _evalLopendeStarters() {
   lijst.forEach(r => { const k = _itkSleutel(r.naam); if (gezien.has(k)) return; gezien.add(k); uit.push({ naam: String(r.naam).trim(), opdrachtgever: r.opdrachtgever || '', projectnr: r.projectnr || '', begin: r.begin || null, eind: r.eind || null, source: r.source, id: r.id, bm: r.bm || '' }); });
   return uit;
 }
+// De kiezer in de BZK-recorder (evaluatie): lopende starters/projecten eerst, daarna
+// oud-medewerkers (project geëindigd of verwijderd) met "uit dienst sinds" — die
+// blijven altijd kiesbaar, want een (eind)evaluatie schuift weleens over de einddatum heen (24-09).
+function _evalKiezerMedewerkers(nuMs) {
+  const nu = nuMs || Date.now();
+  const alle = (typeof getCombinedProjectRanges === 'function' ? getCombinedProjectRanges() : []).filter(r => r.naam)
+    .sort((a, b) => (+(b.begin || 0)) - (+(a.begin || 0)));
+  const per = new Map();
+  alle.forEach(r => {
+    const k = _itkSleutel(r.naam); if (!k) return;
+    const lopend = !r.verwijderdOp && (!r.eind || +r.eind >= nu);
+    const e = per.get(k);
+    if (!e) { per.set(k, { naam: String(r.naam).trim(), opdrachtgever: r.opdrachtgever || '', projectnr: r.projectnr || '', begin: r.begin || null, eind: r.eind || null, lopend, uitDienst: !lopend }); return; }
+    if (lopend && !e.lopend) { Object.assign(e, { opdrachtgever: r.opdrachtgever || '', projectnr: r.projectnr || '', begin: r.begin || null, eind: r.eind || null, lopend: true, uitDienst: false }); }
+  });
+  const uit = Array.from(per.values());
+  uit.forEach(x => {
+    const eind = x.eind ? _crmDatum(+x.eind) : '';
+    x.sub = x.uitDienst
+      ? ['uit dienst sinds ' + (eind || 'onbekend'), x.opdrachtgever ? 'laatst bij ' + x.opdrachtgever : ''].filter(Boolean).join(' · ')
+      : [x.opdrachtgever, x.projectnr ? 'projectnr ' + x.projectnr : '', x.begin ? 'gestart ' + _crmDatum(+x.begin) : ''].filter(Boolean).join(' · ');
+  });
+  return uit.sort((a, b) => (a.uitDienst ? 1 : 0) - (b.uitDienst ? 1 : 0) || (a.uitDienst ? (+(b.eind || 0)) - (+(a.eind || 0)) : (+(b.begin || 0)) - (+(a.begin || 0))));
+}
 function _evalMomentLabel(idx) {
   if (idx == null || idx === '') return '';
   const m = getEvalMilestones(new Date(2026, 0, 1)).find(x => +x.idx === +idx);
@@ -38413,14 +38443,14 @@ function _bzkKlaar(b) {
 function _bzkKlaarMelding(b) {
   b = b || BEZOEK;
   if (!String(b.recorderNaam || '').trim()) return 'Vul eerst jouw naam in bij Opgenomen door.';
-  return 'Kies eerst de medewerker uit het CRM (lopende starters en projecten).';
+  return 'Kies eerst de medewerker uit de lijst (lopende starters en projecten; oud-medewerkers staan onderaan).';
 }
 // De naam in de kiezer: staat hij in de lopende starters/projecten, dan hangt
 // het verslag aan dat CRM-dossier en komt de opdrachtgever uit het project.
 function _bzkEvalMwKies(naam) {
   naam = String(naam || '').trim();
   const s = naam ? _itkSleutel(naam) : '';
-  const st = s ? (_evalLopendeStarters().find(x => _itkSleutel(x.naam) === s) || null) : null;
+  const st = s ? (_evalKiezerMedewerkers().find(x => _itkSleutel(x.naam) === s) || null) : null;   // 24-09: ook oud-medewerkers
   BEZOEK.bedrijf = naam;
   BEZOEK.medewerkerSleutel = st ? s : '';
   if (st && !String(BEZOEK.contactpersoon || '').trim()) BEZOEK.contactpersoon = st.opdrachtgever || '';
@@ -39012,10 +39042,10 @@ function renderBezoekRecorder() {
       </div>
       <div class="two-col" style="gap:18px;margin-bottom:10px;">
         <div>
-          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Medewerker · uit CRM, lopende starters en projecten':'Bedrijfsnaam · uit RLDV-lijst en KAM'}</label>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Medewerker · uit CRM, lopende starters en projecten · oud-medewerkers onderaan':'Bedrijfsnaam · uit RLDV-lijst en KAM'}</label>
           ${b.soortBezoek==='evaluatie_medewerker'
-            ? _kiezerHtml({ id: 'bzk-eval-mw', lijst: () => _evalLopendeStarters().map(x => ({ naam: x.naam, sub: [x.opdrachtgever, x.projectnr ? 'projectnr ' + x.projectnr : '', x.begin ? 'gestart ' + _crmDatum(+x.begin) : ''].filter(Boolean).join(' · ') })),
-                            waarde: b.bedrijf, placeholder: 'typ de naam van de medewerker…', leeg: 'Geen lopende starters of projecten — eerst in CRM · Kandidaten', nieuw: false,
+            ? _kiezerHtml({ id: 'bzk-eval-mw', lijst: () => _evalKiezerMedewerkers().map(x => ({ naam: x.naam, sub: x.sub })),
+                            waarde: b.bedrijf, placeholder: 'typ de naam van de medewerker (ook oud-medewerkers)…', leeg: 'Geen starters of projecten gevonden — eerst in CRM · Kandidaten', nieuw: false,
                             uit: b.recording || b.analyzing, typ: '_bzkEvalMwKies(this.value)', kies: '_bzkEvalMwKies(this.value)', herteken: 'renderBezoekRecorder()' }) +
               (b.bedrijf && !b.medewerkerSleutel ? `<div class="rec-hint let">Kies een naam uit de lijst — een vrije naam kan niet meer (24-09).</div>` : b.medewerkerSleutel ? `<div class="rec-hint ok">✓ gekoppeld aan het CRM-dossier</div>` : '')
             : _opnKeuzeHtml({ lijst: _bedrijfKeuzes, waarde: b.bedrijf, zet: 'BEZOEK.bedrijf', leeg: 'Geen bedrijven in de RLDV-lijst of KAM', nieuw: 'Nieuw bedrijf', placeholder: 'typ de naam van het bedrijf…', uit: b.recording || b.analyzing, herteken: 'renderBezoekRecorder()' })}
