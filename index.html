@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260924-1415 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260924-1420 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3921,6 +3921,7 @@
   .kk-knop { background:transparent; border:1px solid rgba(158,200,244,.45); color:#9ec8f4; border-radius:6px; padding:2px 9px; font-family:inherit; font-size:.7rem; cursor:pointer; flex-shrink:0; }
   .kk-knop:hover { background:rgba(158,200,244,.12); }
   .kk-pil { display:inline-block; font-size:.66rem; background:rgba(255,255,255,.1); border-radius:9px; padding:1px 7px; color:#fff; }
+  .kk-pil.klik { cursor:pointer; border:0.5px solid rgba(255,255,255,.3); } .kk-pil.klik:hover { background:rgba(255,255,255,.2); }
   .kk-pil.let { background:rgba(232,116,0,.2); color:#ffb37a; } .kk-pil.ok { background:rgba(37,211,102,.18); color:#6ee7b7; }   /* 24-09: evaluatieverslagen koppelen */
   .rec-koppel { display:flex; align-items:center; gap:10px; background:rgba(232,116,0,.12); border:1px solid rgba(232,116,0,.4); border-radius:10px; padding:9px 14px; font-size:.82rem; color:#fff; margin-bottom:12px; } .rec-koppel .kk-knop { margin-left:auto; }
   .ev-kop-tabel { width:100%; border-collapse:collapse; font-size:.8rem; color:#fff; } .ev-kop-tabel th { text-align:left; font-size:.64rem; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.5); font-weight:var(--w-normaal); padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.14); background:transparent; }
@@ -10838,7 +10839,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260924-1415';
+const APP_VERSIE = '20260924-1420';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26358,18 +26359,23 @@ function kandKaartHtml(bmNaam, id) {
   const sleutel = _itkSleutel(c0.naam);
   const rec = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(r => _itkSleutel(r.naam) === sleutel) || null;
   const knopRec = rec ? '<button class="kk-knop" onclick="crmKaartSluit();recordsNaarRecord(\'gesprek\',\'' + escApos(String(rec.id)) + '\')">openen</button>' : '';
+  // 24-09: de gedeelde afspraken bekijken (het deelvenster staat boven de kaart; de kaart blijft open).
+  const knopAfspr = rec ? '<button class="kk-knop" onclick="afsprakenDelen(\'' + escApos(String(rec.id)) + '\')">bekijken</button>' : '';
   const verslag = (bewerk ? rijB('Intake', _crmBewerkVeld('intake_op', { type: 'datetime-local', kort: true }) + '<span class="stil">' + escHtml(bmNaam) + '</span>') : rijA('Intake', _kandIntakeRij(intake, bmNaam))) +
     rij('ITK-verslag', rec ? escHtml(rec.datum || '') + ' · ' + escHtml(String(rec.recorder_naam || '').split(' ')[0]) : '<span class="stil">nog geen verslag</span>', knopRec) +
-    rij('Gedeelde afspraken', rec ? '<span class="kk-pil">' + escHtml(afsprakenStatus(rec.id).tekst) + '</span>' : '<span class="stil">—</span>');
-  // RLDV-selectie hangt aan de intakekaart
-  const sel = rldvSelectieVoorKaart(intake.id);
+    rij('Gedeelde afspraken', rec ? '<span class="kk-pil klik" onclick="afsprakenDelen(\'' + escApos(String(rec.id)) + '\')" title="Klik: welke afspraken zijn gedeeld, de link en de reactie">' + escHtml(afsprakenStatus(rec.id).tekst) + '</span>' : '<span class="stil">—</span>', knopAfspr);
+  // RLDV-selectie hangt aan de intakekaart; staat hij aan een ander kaart-id
+  // (zelfde kandidaat, andere pipeline of vervangen kaart), dan op naam (24-09).
+  const sel = rldvSelectieVoorKaart(intake.id) || (typeof rldvSelectieVoorNaam === 'function' ? rldvSelectieVoorNaam(c0.naam) : null);
   const bedrijven = rldvBedrijvenVan(sel).map(b => (b && (b.naam || b.bedrijf)) || String(b || ''));
+  const nOpen = sel && typeof _aanbOpenLijst === 'function' ? _aanbOpenLijst(null).filter(r => _itkSleutel(r.kandidaat) === sleutel).length : 0;
   const knopRldv = sel
     ? '<button class="kk-knop" onclick="crmKaartSluit();rldvAanbiedenVenster(\'' + escApos(String(sel.id)) + '\')">afvinken</button>' +
       '<button class="kk-knop" onclick="crmKaartSluit();rldvCheckOpen(\'' + escApos(String(sel.id)) + '\')">check</button>'
     : '';
   const rldv = rij('RLDV-selectie', sel
-    ? bedrijven.length + (bedrijven.length === 1 ? ' bedrijf · ' : ' bedrijven · ') + escHtml(bedrijven.join(', ')) + ' · <span class="kk-pil">' + escHtml(rldvCheckStand(sel).tekst) + '</span>'
+    ? bedrijven.length + (bedrijven.length === 1 ? ' bedrijf · ' : ' bedrijven · ') + escHtml(bedrijven.join(', ')) + ' · <span class="kk-pil">' + escHtml(rldvCheckStand(sel).tekst) + '</span>' +
+      (nOpen ? ' <span class="kk-pil" style="background:rgba(158,200,244,.16);color:#9ec8f4;">' + nOpen + ' open aanbieding' + (nOpen === 1 ? '' : 'en') + '</span>' : '')
     : '<span class="stil">nog geen selectie</span>', knopRldv);
   // Vervolgafspraak in het lijstje (16-09): altijd zichtbaar, met een knop om
   // te plannen of te wijzigen — iedereen mag dat.
