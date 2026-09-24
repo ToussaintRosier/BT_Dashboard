@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260924-1420 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260924-1446 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3922,6 +3922,14 @@
   .kk-knop:hover { background:rgba(158,200,244,.12); }
   .kk-pil { display:inline-block; font-size:.66rem; background:rgba(255,255,255,.1); border-radius:9px; padding:1px 7px; color:#fff; }
   .kk-pil.klik { cursor:pointer; border:0.5px solid rgba(255,255,255,.3); } .kk-pil.klik:hover { background:rgba(255,255,255,.2); }
+  /* RLDV-blok op de kandidaatkaart (24-09) */
+  .kk-rldv { flex:1; min-width:0; }
+  .kk-rldv-r1 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .kk-rldv-r1 b { font-weight:var(--w-nadruk); color:#fff; }
+  .kk-rldv-stand { display:inline-block; font-size:.66rem; border-radius:9px; padding:1px 7px; background:rgba(255,255,255,.1); color:#fff; }
+  .kk-rldv-stand.akkoord { background:rgba(37,211,102,.18); color:#6ee7b7; } .kk-rldv-stand.open { background:rgba(244,203,60,.16); color:#F4CB3C; }
+  .kk-rldv-sub { flex-basis:100%; color:rgba(255,255,255,.5); font-size:.74rem; }
+  .kk-rldv-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+  .kk-rldv-chip { display:inline-block; font-size:.7rem; background:rgba(255,255,255,.07); border-radius:6px; padding:2px 7px; color:rgba(255,255,255,.85); white-space:nowrap; }
   .kk-pil.let { background:rgba(232,116,0,.2); color:#ffb37a; } .kk-pil.ok { background:rgba(37,211,102,.18); color:#6ee7b7; }   /* 24-09: evaluatieverslagen koppelen */
   .rec-koppel { display:flex; align-items:center; gap:10px; background:rgba(232,116,0,.12); border:1px solid rgba(232,116,0,.4); border-radius:10px; padding:9px 14px; font-size:.82rem; color:#fff; margin-bottom:12px; } .rec-koppel .kk-knop { margin-left:auto; }
   .ev-kop-tabel { width:100%; border-collapse:collapse; font-size:.8rem; color:#fff; } .ev-kop-tabel th { text-align:left; font-size:.64rem; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.5); font-weight:var(--w-normaal); padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.14); background:transparent; }
@@ -10839,7 +10847,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260924-1420';
+const APP_VERSIE = '20260924-1446';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26314,6 +26322,22 @@ function _kandIntakeRij(c, bmNaam) {
   if (ms > 0) { const d = new Date(ms), p = (n) => String(n).padStart(2, '0'); return _crmDatum(ms) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + wie; }
   return c.week ? 'week ' + c.week + wie : '';
 }
+// RLDV-blok op de kandidaatkaart (akkoord 24-09): één regel stand, daaronder de bedrijfsnamen als chips.
+function _kandRldvBlokHtml(sel, bedrijven, nOpen) {
+  const stand = rldvCheckStand(sel);
+  const standTekst = stand.code === 'akkoord'
+    ? 'check akkoord · ' + new Date(sel.akkoord_op).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) + (sel.akkoord_door ? ' · ' + String(sel.akkoord_door).split(' ')[0] : '')
+    : stand.tekst;
+  const weken = _rldvAanbAlle(sel).map(v => (+v.jaar || 0) * 100 + (+v.week || 0)).filter(Boolean);
+  const vanaf = weken.length ? Math.min.apply(null, weken) % 100 : null;
+  const n = bedrijven.length;
+  return '<div class="kk-rldv">' +
+    '<div class="kk-rldv-r1"><b>' + n + (n === 1 ? ' bedrijf' : ' bedrijven') + '</b>' +
+      '<span class="kk-rldv-stand ' + escHtml(stand.klasse || '') + '">' + escHtml(standTekst) + '</span>' +
+      (vanaf ? '<span class="kk-rldv-sub">aangeboden vanaf week ' + vanaf + (nOpen ? ' · ' + nOpen + ' open' : '') + '</span>' : '<span class="kk-rldv-sub">nog niets aangeboden</span>') + '</div>' +
+    (n ? '<div class="kk-rldv-chips">' + bedrijven.map(b => '<span class="kk-rldv-chip">' + escHtml(b) + '</span>').join('') + '</div>' : '') +
+    '</div>';
+}
 function kandKaartHtml(bmNaam, id) {
   const c0 = pipeLoad(bmNaam).find(x => String(x.id) === String(id));
   if (!c0) return '<h4>Kandidaat</h4><div class="crm-sub">Deze kandidaat staat niet (meer) in de pipeline.</div>';
@@ -26373,10 +26397,7 @@ function kandKaartHtml(bmNaam, id) {
     ? '<button class="kk-knop" onclick="crmKaartSluit();rldvAanbiedenVenster(\'' + escApos(String(sel.id)) + '\')">afvinken</button>' +
       '<button class="kk-knop" onclick="crmKaartSluit();rldvCheckOpen(\'' + escApos(String(sel.id)) + '\')">check</button>'
     : '';
-  const rldv = rij('RLDV-selectie', sel
-    ? bedrijven.length + (bedrijven.length === 1 ? ' bedrijf · ' : ' bedrijven · ') + escHtml(bedrijven.join(', ')) + ' · <span class="kk-pil">' + escHtml(rldvCheckStand(sel).tekst) + '</span>' +
-      (nOpen ? ' <span class="kk-pil" style="background:rgba(158,200,244,.16);color:#9ec8f4;">' + nOpen + ' open aanbieding' + (nOpen === 1 ? '' : 'en') + '</span>' : '')
-    : '<span class="stil">nog geen selectie</span>', knopRldv);
+  const rldv = rij('RLDV-selectie', sel ? _kandRldvBlokHtml(sel, bedrijven, nOpen) : '<span class="stil">nog geen selectie</span>', knopRldv);
   // Vervolgafspraak in het lijstje (16-09): altijd zichtbaar, met een knop om
   // te plannen of te wijzigen — iedereen mag dat.
   const vervolgKaart = alle.slice().reverse().find(x => x.vervolg_op) || (c0.vervolg_op ? c0 : intake);
@@ -33088,17 +33109,22 @@ function _rldvAanbiedenRij(sel, b) {
   // Op slot (23-09): alleen dezelfde week door een andere collega. Een eerdere
   // week staat er als herinnering bij en houdt niets tegen.
   const collega = dezeWeek.find(e => _itkSleutel(e.door) !== _itkSleutel(RLDV_AANB.bm));
-  const slot = !!collega;
+  // 24-09: eenmaal aangeboden is aangeboden — een open aanbieding uit een
+  // eerdere week (Aangeboden of in procedure) is niet opnieuw af te vinken;
+  // eerst Afgewezen of Teruggetrokken (mag hier, nog voor het opslaan).
+  const openEerder = !dezeWeek.length && _rldvAanbOpenEerder(sel, id, rldvBedrijfNu(b) || b);
+  const slot = !!collega || openEerder;
   const aan = !slot && RLDV_AANB.nu.has(id);
   const mag = magWijzigen('medewerkers');
   const leeg = x => x ? escHtml(x) : '<span class="rldv-sub">—</span>';
-  const klik = (!slot && mag) ? ' onclick="rldvAanbiedenToggle(\'' + escApos(id) + '\')" style="cursor:pointer;"' : '';
+  const klik = (!slot && mag) ? ' onclick="rldvAanbiedenToggle(\'' + escApos(id) + '\')" style="cursor:pointer;"' : (openEerder ? ' title="Al aangeboden en nog open: eerst afwijzen of terugtrekken, dan kan het opnieuw."' : '');
   const voornaam = d => d ? ' · ' + escHtml(String(d).split(' ')[0]) : '';
   const herinnering = eerder.length
     ? ' <span class="rldv-aanb-week eerder" title="Eerder aangeboden; dat blijft staan">eerder: ' + eerder.map(e => 'W' + escHtml(e.week) + voornaam(e.door)).join(', ') + '</span>'
     : '';
-  const laatste = (slot
+  const laatste = (collega
     ? '<span class="rldv-aanb-week">week ' + escHtml(collega.week) + voornaam(collega.door) + ' · op slot</span>'
+    : openEerder ? '<span class="rldv-aanb-week" title="Al aangeboden en nog open: eerst afwijzen of terugtrekken, dan kan het opnieuw.">al aangeboden · op slot</span>'
     : (aan ? '<span class="rldv-aanb-week nu">week ' + escHtml(RLDV_AANB.week) + '</span>' : '')) + herinnering;
   // 24-09: status (stappenbalk + label) — nog niet opgeslagen keuzes tellen mee.
   const naam = r.naam || b.naam || '';
@@ -33119,6 +33145,12 @@ function _rldvAanbiedenRij(sel, b) {
     '<td class="rldv-st-cel" onclick="event.stopPropagation()">' + _aanbLabelHtml(st, id, mag, extra) + menu + '</td>' +
     '<td class="rldv-sub">' + (st && st.datumMs && !nieuw ? '<span class="rldv-st-d">' + escHtml(_crmDatum(st.datumMs)) + '</span> ' : '') + laatste + '</td>' +
     '</tr>';
+}
+// Staat dit bedrijf nog open uit een eerdere week (Aangeboden of in procedure)?
+// Een nog niet opgeslagen Afgewezen/Teruggetrokken in dit venster telt mee.
+function _rldvAanbOpenEerder(sel, id, r) {
+  const st = _aanbStatusVan(sel, id, (r && (r.naam || r.bedrijf)) || '', (RLDV_AANB && RLDV_AANB.statusNu && RLDV_AANB.statusNu[String(id)]) || null);
+  return !!(st && st.aanb && st.stap !== 'afg' && st.stap !== 'ter');
 }
 // Het keuzemenu in de statuscel: zelf te zetten bovenaan, de Kanban-stappen grijs.
 function _rldvAanbMenuHtml(id, pending, st) {
@@ -33266,8 +33298,11 @@ function rldvAanbiedenToggle(bedrijfId) {
   const sel = _rldvAanbSel();
   if (!sel || RLDV_AANB.bezig || !magWijzigen('medewerkers')) return;
   const id = String(bedrijfId);
-  const collega = _rldvAanbLijst(rldvAangeboden(sel)[id]).some(e => +e.week === RLDV_AANB.week && +e.jaar === RLDV_AANB.jaar && _itkSleutel(e.door) !== _itkSleutel(RLDV_AANB.bm));
+  const lijst = _rldvAanbLijst(rldvAangeboden(sel)[id]);
+  const collega = lijst.some(e => +e.week === RLDV_AANB.week && +e.jaar === RLDV_AANB.jaar && _itkSleutel(e.door) !== _itkSleutel(RLDV_AANB.bm));
   if (collega) return;   // dezelfde week door een collega: op slot
+  const dezeWeek = lijst.some(e => +e.week === RLDV_AANB.week && +e.jaar === RLDV_AANB.jaar);
+  if (!dezeWeek && !RLDV_AANB.nu.has(id)) { const b = rldvBedrijvenVan(sel).find(x => String(x.id) === id); if (_rldvAanbOpenEerder(sel, id, b ? (rldvBedrijfNu(b) || b) : null)) { btMeld('Al aangeboden en nog open — eerst afwijzen of terugtrekken, dan kan het opnieuw.', 'let'); return; } }   // 24-09
   if (RLDV_AANB.nu.has(id)) RLDV_AANB.nu.delete(id); else RLDV_AANB.nu.add(id);
   _rldvAanbiedenBij();
 }
