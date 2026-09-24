@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260923-1531 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260924-0917 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4371,6 +4371,9 @@
   .pipe-card .card-bez-pil.evaluatie { background:rgba(52,211,153,.18); color:#6ee7b7; }
   .pipe-card .card-bez-tijd.leeg { color:rgba(255,255,255,.35); font-style:italic; }
   .pipe-card .card-bez-cp { font-size:.66rem; color:rgba(255,255,255,.55); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pipe-card .card-bez-mw { width:100%; font-size:.78rem; color:rgba(255,255,255,.65); margin-top:2px; } .pipe-card .card-bez-mw b { color:#fff; font-weight:var(--w-nadruk); }
+  .pipe-card .card-bez-los { font-size:.6rem; border-radius:99px; padding:1px 7px; background:rgba(232,116,0,.18); color:#fbbf7a; }
+  .kk-eval .t small.ev-gesprek { color:#6ee7b7; }
   .pipe-card .card-bez-cp b { color:rgba(255,255,255,.85); font-weight:var(--w-normaal); }
   .mt-donker .bum-vorige { background:rgba(244,203,60,.10);
                            border:1px solid rgba(244,203,60,.28); }
@@ -4857,6 +4860,7 @@
   .pipe-modal .pm-pil { border:1px solid #c9cfda; border-radius:99px; background:#fff; color:#253151; font-family:inherit; font-size:.78rem; padding:5px 12px; cursor:pointer; }
   .pipe-modal .pm-pil:hover { border-color:#253151; }
   .pipe-modal .pm-pil.aan { background:#F4CB3C; border-color:#F4CB3C; color:#253151; font-weight:600; }
+  .pipe-modal .pm-pil.af { opacity:.5; text-decoration:line-through; }   /* evaluatiemoment al afgevinkt (24-09) */
   /* Contactpersoon uit het CRM (22-09): keuzelijst met regels, "+ nieuwe contactpersoon" eronder. */
   .pipe-modal .pm-sec-sub { text-transform:none; letter-spacing:0; font-weight:400; }
   .pipe-modal .pm-cp { border:1px solid #c9cfda; border-radius:8px; overflow:hidden; margin:0 0 8px; }
@@ -10709,7 +10713,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260923-1531';
+const APP_VERSIE = '20260924-0917';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12568,6 +12572,8 @@ const VERWACHT_SCHEMA = [
   { bestand: 'kanban.sql',                   soort: 'kolom',   naam: 'pipeline_cards.starboy' },
   { bestand: 'kanban.sql',                   soort: 'kolom',   naam: 'pipeline_cards.kanban_af' },
   { bestand: 'vervolg_tegeltje.sql',         soort: 'kolom',   naam: 'pipeline_cards.vervolg_van' },
+  { bestand: 'evaluatie_koppeling.sql',      soort: 'kolom',   naam: 'pipeline_cards.eval_medewerker' },
+  { bestand: 'evaluatie_koppeling.sql',      soort: 'kolom',   naam: 'pipeline_cards.eval_moment' },
   { bestand: 'vervolg_manier.sql',           soort: 'kolom',   naam: 'pipeline_cards.vervolg_manier' },
   { bestand: 'vervolg_manier.sql',           soort: 'kolom',   naam: 'bezoek_vervolg.vervolg_manier' },
   { bestand: 'vervolg_manier.sql',           soort: 'functie', naam: 'bt_kand_vervolg_zet/4' },
@@ -26712,6 +26718,8 @@ function _pipeCardFromRow(c) {
     regio: c.regio, reisbereidheid: c.reisbereidheid, gesprek: c.gesprek, opdrachtgever: c.opdrachtgever,
     salaris: c.salaris, gedeeld: c.gedeeld, bezoek_reden: c.bezoek_reden,
     bezoek_contactpersoon: c.bezoek_contactpersoon, bezoek_contactpersoon_functie: c.bezoek_contactpersoon_functie, bezoek_soort: c.bezoek_soort || null,
+    // Evaluatie (24-09): aan wie het gesprek hangt en welk moment (supabase/evaluatie_koppeling.sql).
+    eval_medewerker: c.eval_medewerker || null, eval_moment: c.eval_moment == null || c.eval_moment === '' ? null : +c.eval_moment,
     goedkeuring: c.goedkeuring || 'open', start_datum: c.start_datum, eind_datum_verwacht: c.eind_datum_verwacht,
     definitieve_einddatum: c.definitieve_einddatum || null,
     verwijderd_op: c.verwijderd_op, kandidaten_uitgesloten: !!c.kandidaten_uitgesloten,
@@ -27636,7 +27644,7 @@ function accBezoekenLijst() {
     const ms = _recDatumSort(r.datum);
     const wk = ms ? isoWeek(new Date(ms)) : { year: 0, week: 0 };
     items.push({ id: String(r.id), record: r, kaart: null, kaarten: [], bedrijf: r.bedrijf || '', contactpersoon: r.contactpersoon || '', functie: '',
-                 datumMs: ms, week: wk.week, jaar: wk.year, collega: r.recorder_naam || '', collegas: r.recorder_naam ? [r.recorder_naam] : [], soortBezoek: _bezoekSoortNorm(r.soortBezoek), datumTekst: r.datum || '' });
+                 datumMs: ms, week: wk.week, jaar: wk.year, collega: r.recorder_naam || '', collegas: r.recorder_naam ? [r.recorder_naam] : [], soortBezoek: _bezoekSoortNorm(r.soortBezoek), datumTekst: r.datum || '', medewerker: '', evalMoment: null });
   });
   for (const bm of bmsMetCijfers()) {
     for (const c of pipeLoad(bm.naam)) {
@@ -27645,7 +27653,8 @@ function accBezoekenLijst() {
       // Zelfde bedrijf, zelfde week: één kaartje — aan het verslag, of aan het
       // tegeltje van de collega die er ook heen ging (samen op bezoek, 17-09).
       // Ieders eigen tegeltje blijft in zijn pipeline staan en telt daar mee.
-      const zelfde = items.find(b => +b.week === +c.week && +b.jaar === +c.jaar && _itkSleutel(b.bedrijf) === sl);
+      // Twee evaluaties bij dezelfde klant in dezelfde week zijn twee gesprekken als het om andere medewerkers gaat (24-09).
+      const zelfde = items.find(b => +b.week === +c.week && +b.jaar === +c.jaar && _itkSleutel(b.bedrijf) === sl && _itkSleutel(b.medewerker || '') === _itkSleutel(c.eval_medewerker || ''));
       if (zelfde) {
         zelfde.kaarten.push({ kaart: c, bm: bm.naam });
         if (!zelfde.collegas.some(n => _itkSleutel(n) === _itkSleutel(bm.naam))) zelfde.collegas.push(bm.naam);
@@ -27661,7 +27670,7 @@ function accBezoekenLijst() {
       const ma = isoWeekStartDate(+c.jaar, +c.week);
       items.push({ id: String(c.id), record: null, kaart: c, kaartBm: bm.naam, kaarten: [{ kaart: c, bm: bm.naam }], bedrijf: c.naam || c.opdrachtgever || '', contactpersoon: c.bezoek_contactpersoon || '',
                    functie: c.bezoek_contactpersoon_functie || '', datumMs: c.gesprek_op ? Date.parse(c.gesprek_op) : (ma ? ma.getTime() : 0), week: +c.week, jaar: +c.jaar, collega: bm.naam, collegas: [bm.naam],
-                   soortBezoek: _bezoekSoortNorm(c.bezoek_soort), datumTekst: 'week ' + c.week });
+                   soortBezoek: _bezoekSoortNorm(c.bezoek_soort), datumTekst: 'week ' + c.week, medewerker: c.eval_medewerker || '', evalMoment: c.eval_moment == null ? null : +c.eval_moment });
     }
   }
   items.forEach(b => { b.samen = b.collegas.length > 1; b.collega = b.collegas.join(' + ') || b.collega; });
@@ -27969,7 +27978,7 @@ function bezoekKaartHtml(id) {
       (b.account ? ' <span class="kk-fase ok">KAM · score ' + accScore(b.account) + '</span>' : '') +
       (b.afgerond ? ' <span class="kk-fase ok">afgerond</span>' : '') +
       '<span class="kk-iks">' + iconen + '</span></h4>' +
-    '<div class="crm-sub">' + escHtml(soort.charAt(0).toUpperCase() + soort.slice(1) + ' door ' + (b.collega || 'onbekend') + ' · ' + contactTekst) + '</div>' +
+    '<div class="crm-sub">' + escHtml(soort.charAt(0).toUpperCase() + soort.slice(1) + (b.medewerker ? ' van ' + b.medewerker + (b.evalMoment != null ? ' (' + _evalMomentLabel(b.evalMoment) + ')' : '') : '') + ' door ' + (b.collega || 'onbekend') + ' · ' + contactTekst) + '</div>' +
     '<div class="kk-2k"><div>' +
     '<div class="crm-kop">Samenvatting uit het verslag</div>' +
     (samenvatting ? '<div class="kk-tekst">' + escHtml(samenvatting) + '</div>' : '<div class="kk-tekst stil">' + (b.record ? 'het verslag heeft nog geen samenvatting' : 'nog geen verslag van dit bezoek') + '</div>') +
@@ -28343,7 +28352,8 @@ function _accBezoekenBlokHtml(naam) {
     const res = b.record && b.record.result && typeof b.record.result === 'object' ? b.record.result : null;
     const sam = res && res.samenvatting ? String(res.samenvatting) : '';
     return '<div class="kk-rij"><span>' + escHtml(_accDagKort(b.datumMs) || b.datumTekst) + '</span><div>' +
-      escHtml([_accCollegaKort(b) || 'onbekend', b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, _ACC_SOORT[b.soortBezoek] || b.soortBezoek].filter(Boolean).join(' · ')) +
+      (b.soortBezoek === 'evaluatie' ? '<span class="card-bez-pil evaluatie">Evaluatie</span> ' + (b.medewerker ? '<b>' + escHtml(b.medewerker) + '</b>' + (b.evalMoment != null ? ' · ' + escHtml(_evalMomentLabel(b.evalMoment)) : '') + ' · ' : '') : '') +
+      escHtml([_accCollegaKort(b) || 'onbekend', b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, b.soortBezoek === 'evaluatie' ? '' : (_ACC_SOORT[b.soortBezoek] || b.soortBezoek)].filter(Boolean).join(' · ')) +
       (b.afgerond ? ' <span class="kk-pil">afgerond</span>' : '') +
       (sam ? '<div class="kk-tekst" style="color:rgba(255,255,255,.6);font-size:.78rem;">' + escHtml(sam.slice(0, 120) + (sam.length > 120 ? '…' : '')) + '</div>' : (b.record ? '' : '<div class="kk-tekst stil" style="font-size:.76rem;">geen verslag</div>')) +
       '</div><button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(b.id) + '\')">kaart</button></div>';
@@ -29586,18 +29596,67 @@ function _beheerProjectVan(sleutel) {
   lijst.sort((a, b) => (+(b.begin || 0)) - (+(a.begin || 0)));
   return lijst[0] || null;
 }
-// Evaluatiebezoeken van een kandidaat: de bezoek-tegeltjes en -verslagen
-// waar zijn naam in het bedrijfsveld staat, type evaluatie. Nieuwste eerst.
-function _kandEvaluatieBezoeken(sleutel) {
-  return accBezoekenLijst().filter(b => _itkSleutel(b.bedrijf) === sleutel && b.soortBezoek === 'evaluatie').sort((a, b) => b.datumMs - a.datumMs);
+// ── Evaluatiegesprekken (akkoord 24-09) ─────────────────────────────────────
+// Een evaluatiebezoek draagt de medewerker (eval_medewerker) en het moment
+// (eval_moment); het bedrijfsveld is de opdrachtgever. Oude tegeltjes met de
+// medewerker in het bedrijfsveld worden nog op naam gevonden ("niet gekoppeld").
+// Wie loopt er bij een opdrachtgever: uit de projectenlijst en de Starter-
+// tegeltjes, nieuwste eerst, één regel per naam.
+function _evalLopendeStarters() {
+  const lijst = (typeof getCombinedProjectRanges === 'function' ? getCombinedProjectRanges() : []).filter(r => !r.verwijderdOp && r.naam)
+    .sort((a, b) => (+(b.begin || 0)) - (+(a.begin || 0)));
+  const uit = [], gezien = new Set();
+  lijst.forEach(r => { const k = _itkSleutel(r.naam); if (gezien.has(k)) return; gezien.add(k); uit.push({ naam: String(r.naam).trim(), opdrachtgever: r.opdrachtgever || '', projectnr: r.projectnr || '', begin: r.begin || null, eind: r.eind || null, source: r.source, id: r.id, bm: r.bm || '' }); });
+  return uit;
+}
+function _evalMomentLabel(idx) {
+  if (idx == null || idx === '') return '';
+  const m = getEvalMilestones(new Date(2026, 0, 1)).find(x => +x.idx === +idx);
+  return m ? m.label : 'moment ' + idx;
+}
+// Alle evaluatiegesprekken van een medewerker (sleutel = _itkSleutel(naam)).
+function _evalGesprekken(sleutel) {
+  const uit = [];
+  for (const bm of bmsMetCijfers()) for (const c of pipeLoad(bm.naam)) {
+    if (c.verwijderd_op || c.stage !== 'Bezoeken' || _bezoekSoortNorm(c.bezoek_soort) !== 'evaluatie') continue;
+    const gekoppeld = !!c.eval_medewerker;
+    const past = gekoppeld ? _itkSleutel(c.eval_medewerker) === sleutel : _itkSleutel(c.naam || '') === sleutel;
+    if (!past) continue;
+    const ma = typeof isoWeekStartDate === 'function' ? isoWeekStartDate(+c.jaar, +c.week) : null;
+    uit.push({ kaart: c, bm: bm.naam, gekoppeld, moment: gekoppeld && c.eval_moment != null ? +c.eval_moment : null,
+               datumMs: c.gesprek_op ? Date.parse(c.gesprek_op) : (ma ? ma.getTime() : 0), opdrachtgever: gekoppeld ? (c.naam || '') : '' });
+  }
+  return uit.sort((a, b) => b.datumMs - a.datumMs);
+}
+// "24-09-2026 · Luc met Ronald Wijts" (gepland als de datum nog komt).
+function _evalGesprekTekst(g) {
+  const c = g.kaart, nu = Date.now();
+  const wanneer = g.datumMs ? _crmDatum(g.datumMs) : 'week ' + c.week;
+  const wie = String(g.bm || '').split(' ')[0] + (c.bezoek_contactpersoon ? ' met ' + c.bezoek_contactpersoon : '');
+  return (g.datumMs > nu ? 'gepland ' : 'gesprek ') + wanneer + ' · ' + wie;
+}
+// Vanaf een kaart: het bezoekvenster open met medewerker, opdrachtgever en
+// moment al ingevuld, in de eigen pipeline en de huidige week.
+function pipeEvalPlannen(medewerker, idx) {
+  const bm = _kanbanStandaardBm(null);
+  if (!bm || !canEdit(bm)) { btMeld('Je mag je eigen pipeline niet wijzigen.', 'let'); return; }
+  const w = isoWeek(new Date());
+  crmKaartSluit();
+  pipeOpenModal(bm, 'Bezoeken', w.week, w.year);
+  _pipeSoortKies('evaluatie');
+  const mw = document.getElementById('pipe-modal-eval-mw'); if (mw) mw.value = String(medewerker || '');
+  _pipeEvalMwKies();
+  if (idx != null) _pipeEvalMomentKies(idx);
 }
 function _kandEvaluatieBezoekenHtml(sleutel) {
-  const bez = _kandEvaluatieBezoeken(sleutel);
-  const rijen = bez.map(b => '<div class="kk-rij"><span>' + escHtml(_crmDatum(b.datumMs) || b.datumTekst) + '</span><div>' +
-    escHtml([_accCollegaKort(b) || 'onbekend', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week].join(' · ')) + '</div>' +
-    '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(b.id) + '\')">kaart</button></div>').join('');
-  return '<div class="crm-kop">Evaluatiebezoeken<small class="crm-kop-klein">' + (bez.length ? bez.length + ' in de pipeline' : 'nog geen') + '</small></div>' +
-    (rijen ? '<div class="kk-lijst">' + rijen + '</div>' : '<div class="kk-tekst stil">Nog geen evaluatiebezoek in de pipeline.</div>');
+  // Alleen de gesprekken zónder moment (losse evaluatiegesprekken); de rest
+  // staat bij het moment in de tijdlijn.
+  const bez = _evalGesprekken(sleutel).filter(g => g.moment == null);
+  const rijen = bez.map(g => '<div class="kk-rij"><span>' + escHtml(_crmDatum(g.datumMs) || ('week ' + g.kaart.week)) + '</span><div>' +
+    escHtml(_evalGesprekTekst(g).replace(/^(gesprek|gepland) [^·]+· /, '') + (g.opdrachtgever ? ' · bij ' + g.opdrachtgever : '')) + (g.gekoppeld ? '' : ' <span class="kk-pil">niet gekoppeld</span>') + '</div>' +
+    '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(String(g.kaart.id)) + '\')">kaart</button></div>').join('');
+  return '<div class="crm-kop">Losse evaluatiegesprekken<small class="crm-kop-klein">' + (bez.length ? bez.length + ' zonder moment' : 'geen') + '</small></div>' +
+    (rijen ? '<div class="kk-lijst">' + rijen + '</div>' : '<div class="kk-tekst stil">Elk gesprek hangt aan een evaluatiemoment.</div>');
 }
 function beheerKaartHtml(sleutel) {
   const k = crmKandLijst().find(x => x.sleutel === String(sleutel));
@@ -29646,18 +29705,25 @@ function beheerKaartHtml(sleutel) {
       const checked = projEvalLoad(src, id);
       const ms = getEvalMilestones(new Date(startStr));
       const magAf = typeof isHrmEditor === 'function' && isHrmEditor() && magWijzigen('hrm');
+      const magPlan = magWijzigen('medewerkers');
+      const gesprekken = _evalGesprekken(k.sleutel);   // 24-09: het gesprek hangt aan het moment
       let eerste = true;
       evalHtml = ms.map((m, i) => {
         const idx = m.idx ?? i, af = checked.includes(idx), open = !af && m.date <= nu;
         const dagen = Math.round((m.date - nu) / 86400000);
-        const wanneer = af ? 'afgevinkt' : open ? 'open sinds ' + _crmDatum(+m.date) : _crmDatum(+m.date) + (dagen > 0 ? ' · over ' + dagen + ' dag' + (dagen === 1 ? '' : 'en') : '');
+        const g = gesprekken.find(x => x.moment === idx) || null;
+        const wanneer = (af ? 'afgevinkt' : open ? 'open sinds ' + _crmDatum(+m.date) : _crmDatum(+m.date) + (dagen > 0 ? ' · over ' + dagen + ' dag' + (dagen === 1 ? '' : 'en') : ''))
+          + (g ? ' · ' + _evalGesprekTekst(g) : (!af && dagen <= 45 ? ' · nog niet gepland' : ''));
         const nuKlasse = !af && eerste ? ' nu' : '';
         if (!af && eerste) eerste = false;
-        const knop = !af && nuKlasse && magAf ? '<button class="kk-knop" onclick="beheerEvalAfvinken(\'' + escApos(src) + '\',\'' + escApos(String(id)) + '\',' + idx + ')">afvinken</button>' : '';
-        return '<div class="kk-eval' + (af ? ' af' : '') + '"><span class="d' + (af ? ' af' : nuKlasse) + '">' + (af ? '&#10003;' : (i + 1)) + '</span><div class="t">' + escHtml(m.label) + '<small>' + escHtml(wanneer) + '</small></div>' + knop + '</div>';
+        let knop = '';
+        if (g) knop += '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(String(g.kaart.id)) + '\')">kaart</button>';
+        else if (!af && magPlan) knop += '<button class="kk-knop" onclick="pipeEvalPlannen(\'' + escApos(k.naam) + '\',' + idx + ')">+ plannen</button>';
+        if (!af && nuKlasse && magAf) knop += '<button class="kk-knop" onclick="beheerEvalAfvinken(\'' + escApos(src) + '\',\'' + escApos(String(id)) + '\',' + idx + ')">afvinken</button>';
+        return '<div class="kk-eval' + (af ? ' af' : '') + '"><span class="d' + (af ? ' af' : nuKlasse) + '">' + (af ? '&#10003;' : (i + 1)) + '</span><div class="t">' + escHtml(m.label) + '<small' + (g ? ' class="ev-gesprek"' : '') + '>' + escHtml(wanneer) + '</small></div>' + knop + '</div>';
       }).join('') + '<div class="kk-tekst stil" style="margin-top:8px;">Afvinken werkt zoals onder HRM (met dezelfde bevestiging) en telt daar meteen mee.</div>';
     }
-    rechts = '<div class="crm-kop">Evaluatiemomenten<small class="crm-kop-klein">vanaf de startdatum</small></div>' + evalHtml + _kandEvaluatieBezoekenHtml(k.sleutel);
+    rechts = '<div class="crm-kop">Evaluatiemomenten<small class="crm-kop-klein">bij ' + escHtml(p.opdrachtgever || '') + ' · vanaf de startdatum</small></div>' + evalHtml + _kandEvaluatieBezoekenHtml(k.sleutel);
     if (typeof magProjectenWijzigen === 'function' && magProjectenWijzigen()) knopWijzig = "crmKaartSluit();projVensterOpen('" + escApos(src) + "','" + escApos(String(id)) + "')";
   }
   // Eén knoppenrij voor de drie bladen (18-09, variant B).
@@ -31479,10 +31545,14 @@ function bedrijfBeheerKaartHtml(sleutel) {
     getEvalMilestones(new Date(startStr)).forEach((m, i) => { const idx = m.idx ?? i; evals.push({ p, m, idx, af: checked.includes(idx), open: !checked.includes(idx) && m.date <= nu }); });
   });
   const open = evals.filter(e => e.open).length;
+  // 24-09: gesprekken per starter (op de koppeling), voor de tegel en de momenten.
+  const gesprekkenVan = {}; projecten.forEach(p => { const sl = _itkSleutel(p.naam || ''); if (sl && !gesprekkenVan[sl]) gesprekkenVan[sl] = _evalGesprekken(sl); });
+  const evalGesprekken = accBezoekenLijst().filter(b => _itkSleutel(b.bedrijf) === k.sleutel && b.soortBezoek === 'evaluatie').length;
   const tegels = '<div class="kk-tegels">' +
     '<div class="kk-tegel"><small>Lopend</small><b>' + lopend.length + '</b></div>' +
     '<div class="kk-tegel"><small>Afgerond</small><b>' + afgerond.length + '</b></div>' +
     '<div class="kk-tegel"><small>Evaluaties open</small><b>' + open + '</b></div>' +
+    '<div class="kk-tegel"><small>Evaluatiegesprekken</small><b>' + evalGesprekken + '</b></div>' +
     '<div class="kk-tegel"><small>Bezoeken</small><b>' + (k.bezoeken || 0) + '</b></div></div>';
   const projRij = (p) => {
     const c = projContractLoad(p.source, p.id) || {};
@@ -31499,10 +31569,16 @@ function bedrijfBeheerKaartHtml(sleutel) {
     ? '<div class="kk-proj kop"><span>Kandidaat</span><span>Start</span><span>Eind</span><span>Contract</span><span></span></div>' + projecten.map(projRij).join('')
     : '<div class="kand-leegblok"><b>Nog geen projecten</b>Komt zodra een kandidaat bij ' + escHtml(k.naam) + ' als starter met akkoord in de pipeline staat, of in de projectenlijst.</div>';
   const magAf = typeof isHrmEditor === 'function' && isHrmEditor() && magWijzigen('hrm');
+  const magPlan = magWijzigen('medewerkers');
   const evalHtml = evals.length ? evals.filter(e => !e.af || e.p.eind == null || e.p.eind >= nu).sort((x, y) => (+x.m.date) - (+y.m.date)).slice(0, 12).map(e => {
     const dagen = Math.round((e.m.date - nu) / 86400000);
-    const wanneer = e.af ? 'afgevinkt' : e.open ? 'open sinds ' + _crmDatum(+e.m.date) : _crmDatum(+e.m.date) + (dagen > 0 ? ' · over ' + dagen + ' dag' + (dagen === 1 ? '' : 'en') : '');
-    const knop = e.open && magAf ? '<button class="kk-knop" onclick="beheerEvalAfvinken(\'' + escApos(e.p.source) + '\',\'' + escApos(String(e.p.id)) + '\',' + e.idx + ')">afvinken</button>' : '';
+    const g = (gesprekkenVan[_itkSleutel(e.p.naam || '')] || []).find(x => x.moment === e.idx) || null;
+    const wanneer = (e.af ? 'afgevinkt' : e.open ? 'open sinds ' + _crmDatum(+e.m.date) : _crmDatum(+e.m.date) + (dagen > 0 ? ' · over ' + dagen + ' dag' + (dagen === 1 ? '' : 'en') : ''))
+      + (g ? ' · ' + _evalGesprekTekst(g) : (!e.af && dagen <= 45 ? ' · nog niet gepland' : ''));
+    let knop = '';
+    if (g) knop += '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(String(g.kaart.id)) + '\')">kaart</button>';
+    else if (!e.af && magPlan) knop += '<button class="kk-knop" onclick="pipeEvalPlannen(\'' + escApos(e.p.naam || '') + '\',' + e.idx + ')">+ plannen</button>';
+    if (e.open && magAf) knop += '<button class="kk-knop" onclick="beheerEvalAfvinken(\'' + escApos(e.p.source) + '\',\'' + escApos(String(e.p.id)) + '\',' + e.idx + ')">afvinken</button>';
     return '<div class="kk-eval' + (e.af ? ' af' : '') + '"><span class="d' + (e.af ? ' af' : e.open ? ' nu' : '') + '">' + (e.af ? '&#10003;' : (e.idx + 1)) + '</span><div class="t">' + escHtml((e.p.naam || '') + ' · ' + e.m.label) + '<small>' + escHtml(wanneer) + '</small></div>' + knop + '</div>';
   }).join('') : '<div class="kk-tekst stil">Geen evaluatiemomenten: nog geen starter met startdatum.</div>';
   return _bedrijfKopHtml(k) + '<div class="crm-sub">' + escHtml('Beheerkaart · ' + projecten.length + (projecten.length === 1 ? ' project' : ' projecten') + (lopend.length ? ', ' + lopend.length + ' lopend' : '')) + '</div>' +
@@ -41010,7 +41086,11 @@ function _pipeBezoekTegelHtml(c) {
   const tijd = c.gesprek_op ? '<span class="card-bez-tijd">' + escHtml(_afspraakTijdKort(c.gesprek_op).replace(/ (\d\d:\d\d)$/, ' · $1')) + '</span>'
                             : '<span class="card-bez-tijd leeg">geen datum — week ' + escHtml(c.week) + '</span>';
   const cp = c.bezoek_contactpersoon ? '<div class="card-bez-cp"><b>' + escHtml(c.bezoek_contactpersoon) + '</b>' + (c.bezoek_contactpersoon_functie ? ' · ' + escHtml(c.bezoek_contactpersoon_functie) : '') + '</div>' : '';
-  return '<div class="card-bez">' + pil + tijd + '</div>' + cp;
+  // Evaluatie (24-09): de medewerker en het moment onder de kop; oud tegeltje zonder koppeling krijgt een pil.
+  const ev = _bezoekSoortNorm(soort) !== 'evaluatie' ? ''
+    : c.eval_medewerker ? '<div class="card-bez-mw"><b>' + escHtml(c.eval_medewerker) + '</b>' + (c.eval_moment != null ? ' · ' + escHtml(_evalMomentLabel(c.eval_moment)) : '') + '</div>'
+    : '<span class="card-bez-los">niet gekoppeld</span>';
+  return '<div class="card-bez">' + pil + tijd + ev + '</div>' + cp;
 }
 function renderPipeline(bm) {
   const cards    = pipeLoad(bm.naam);
@@ -41411,6 +41491,83 @@ function _pipeSoortPillen() {
   const sel = document.getElementById('pipe-modal-bezoek-soort');
   const v = sel ? String(sel.value || '') : '';
   document.querySelectorAll('#pipe-modal-bezoek-soort-pillen .pm-pil').forEach(p => p.classList.toggle('aan', p.getAttribute('data-soort') === v));
+  _pipeEvalToggle();
+}
+// ── Evaluatie in het bezoekvenster (akkoord 24-09) ──────────────────────────
+// Bij type Evaluatie vervangt het medewerkerblok het bedrijfsveld: de
+// opdrachtgever komt uit het project en wordt in het (verborgen) naamveld
+// gezet, zodat opslaan, contactpersonen en de klantkaart gewoon op de
+// bedrijfsnaam blijven werken.
+function _pipeEvalToggle() {
+  const blok = document.getElementById('pipe-modal-eval'); if (!blok) return;
+  const stage = _pipeModalCtx && _pipeModalCtx.stage;
+  const sel = document.getElementById('pipe-modal-bezoek-soort');
+  const ev = stage === 'Bezoeken' && sel && String(sel.value || '') === 'evaluatie';
+  blok.style.display = ev ? 'block' : 'none';
+  const secNaam = document.getElementById('pipe-modal-sec-naam'), lbl = document.getElementById('pipe-modal-naam-label');
+  const naamBox = document.querySelector('.kiezer[data-kz="pipe-modal-naam"]');
+  if (secNaam) secNaam.style.display = ev ? 'none' : '';
+  if (lbl) lbl.style.display = ev ? 'none' : '';
+  if (naamBox) naamBox.style.display = ev ? 'none' : '';
+  const titel = document.getElementById('pipe-modal-title');
+  if (titel && stage === 'Bezoeken') titel.textContent = ev ? 'Evaluatie ' + (_pipeModalCtx.cardId ? 'wijzigen' : 'toevoegen') : _pipeTitel('Bezoeken', !!_pipeModalCtx.cardId);
+  if (ev) {
+    KIEZERS['pipe-modal-eval-mw'] = { lijst: () => _evalLopendeStarters().map(x => ({ naam: x.naam, sub: [x.opdrachtgever, x.projectnr ? 'projectnr ' + x.projectnr : '', x.begin ? 'gestart ' + _crmDatum(+x.begin) : ''].filter(Boolean).join(' · ') })),
+      nieuw: 'Andere naam', leeg: 'Geen lopende projecten gevonden', typ: '', kies: '_pipeEvalMwKies()' };
+    _pipeEvalMomentenTeken();
+  }
+}
+function _pipeEvalMwKies() {
+  const mw = String((document.getElementById('pipe-modal-eval-mw') || {}).value || '').trim();
+  const og = document.getElementById('pipe-modal-eval-og'), bron = document.getElementById('pipe-modal-eval-og-bron');
+  const p = mw ? _beheerProjectVan(_itkSleutel(mw)) : null;
+  if (og) og.value = p && p.opdrachtgever ? p.opdrachtgever : (og.value || '');
+  if (bron) bron.textContent = p && p.opdrachtgever ? '· uit het project' + (p.projectnr ? ' ' + p.projectnr : '') : '· geen project gevonden, vul zelf in';
+  const naam = document.getElementById('pipe-modal-naam'); if (naam) naam.value = og ? og.value : '';
+  const momentEl = document.getElementById('pipe-modal-eval-moment'); if (momentEl) momentEl.value = '';
+  _pipeEvalMomentenTeken(true);
+  _pipeCpLijstVul(false);
+}
+function _pipeEvalOgBij() {
+  const og = document.getElementById('pipe-modal-eval-og'), naam = document.getElementById('pipe-modal-naam');
+  if (naam && og) naam.value = og.value;
+  _pipeCpLijstVul(false);
+}
+// De momenten van het project van de medewerker als pillen; voorstel = het
+// eerstvolgende moment dat nog niet is afgevinkt (alleen bij stelVoor).
+function _pipeEvalMomentenTeken(stelVoor) {
+  const box = document.getElementById('pipe-modal-eval-mom'); if (!box) return;
+  const mw = String((document.getElementById('pipe-modal-eval-mw') || {}).value || '').trim();
+  const p = mw ? _beheerProjectVan(_itkSleutel(mw)) : null;
+  const momentEl = document.getElementById('pipe-modal-eval-moment');
+  if (!p || !p.begin) { box.innerHTML = '<span class="pm-hint" style="margin:0;">' + (mw ? 'geen project met startdatum gevonden — het gesprek komt zonder moment' : 'kies eerst de medewerker') + '</span>'; return; }
+  const checked = projEvalLoad(p.source, p.id), nu = new Date(); nu.setHours(0, 0, 0, 0);
+  const ms = getEvalMilestones(new Date(p.begin));
+  let gekozen = momentEl ? String(momentEl.value || '') : '';
+  if (stelVoor) { const eerste = ms.find(m => !checked.includes(m.idx)); gekozen = eerste ? String(eerste.idx) : ''; if (momentEl) momentEl.value = gekozen; }
+  box.innerHTML = ms.map(m => { const af = checked.includes(m.idx), open = !af && m.date <= nu;
+    return '<button type="button" class="pm-pil' + (String(m.idx) === gekozen ? ' aan' : '') + (af ? ' af' : '') + '" data-idx="' + m.idx + '" title="' + escHtml(_crmDatum(+m.date) + (af ? ' · afgevinkt' : open ? ' · open' : '')) + '" onclick="_pipeEvalMomentKies(' + m.idx + ')">' + escHtml(m.label) + ' · ' + escHtml(_crmDatum(+m.date).slice(0, 5)) + '</button>'; }).join('') +
+    '<button type="button" class="pm-pil' + (gekozen === '' ? ' aan' : '') + '" onclick="_pipeEvalMomentKies(null)">geen moment</button>';
+  _pipeEvalRedenVul();
+}
+function _pipeEvalMomentKies(idx) {
+  const momentEl = document.getElementById('pipe-modal-eval-moment'); if (momentEl) momentEl.value = idx == null ? '' : String(idx);
+  document.querySelectorAll('#pipe-modal-eval-mom .pm-pil').forEach(p => p.classList.toggle('aan', (p.getAttribute('data-idx') || '') === (idx == null ? '' : String(idx))));
+  _pipeEvalRedenVul();
+}
+function _pipeEvalRedenVul() {
+  const reden = document.getElementById('pipe-modal-bezoek-reden'); if (!reden) return;
+  const idx = String((document.getElementById('pipe-modal-eval-moment') || {}).value || '');
+  const tekst = idx === '' ? 'Evaluatie' : _evalMomentLabel(+idx) + ' evaluatie';
+  if (!reden.value.trim() || /evaluatie$/i.test(reden.value.trim())) reden.value = tekst;
+}
+// Bestaand tegeltje: de evaluatievelden vullen.
+function _pipeEvalVul(card) {
+  const mw = document.getElementById('pipe-modal-eval-mw'), og = document.getElementById('pipe-modal-eval-og'), momentEl = document.getElementById('pipe-modal-eval-moment');
+  if (mw) mw.value = card && card.eval_medewerker ? card.eval_medewerker : '';
+  if (og) og.value = card ? (card.naam || '') : '';
+  if (momentEl) momentEl.value = card && card.eval_moment != null ? String(card.eval_moment) : '';
+  _pipeEvalToggle();
 }
 function _pipeToggleStageFields(stage) {
   const isIntake   = stage === 'Intake';
@@ -41468,6 +41625,7 @@ function pipeOpenModal(bmNaam, stage, week, jaar) {
   document.getElementById('pipe-modal-gedeeld').value = '1';
   _pipeKanbanVeldenVul(null);
   _pipeToggleStageFields(stage);
+  _pipeEvalVul(null);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Toevoegen';
   document.getElementById('pipe-modal').classList.add('open');
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
@@ -41496,6 +41654,7 @@ function pipeOpenEditModal(bmNaam, cardId) {
   document.getElementById('pipe-modal-gedeeld').value = card.gedeeld ? '0.5' : '1';
   _pipeKanbanVeldenVul(card);
   _pipeToggleStageFields(card.stage);
+  _pipeEvalVul(card);
   document.getElementById('pipe-modal-ok-btn').textContent = 'Opslaan';
   document.getElementById('pipe-modal').classList.add('open');
   setTimeout(() => document.getElementById('pipe-modal-naam').focus(), 50);
@@ -41527,6 +41686,17 @@ async function pipeConfirmAdd() {
 }
 async function _pipeConfirmAddInner() {
   if (!eisWijzig('medewerkers')) return;
+  // Evaluatie (24-09): de opdrachtgever is de naam op het tegeltje; medewerker en moment gaan apart mee.
+  const isEval = _pipeModalCtx.stage === 'Bezoeken' && String((document.getElementById('pipe-modal-bezoek-soort') || {}).value || '') === 'evaluatie';
+  const evalMw = isEval ? String((document.getElementById('pipe-modal-eval-mw') || {}).value || '').trim() : null;
+  const evalMomentRaw = isEval ? String((document.getElementById('pipe-modal-eval-moment') || {}).value || '') : '';
+  const evalMoment = isEval && evalMomentRaw !== '' ? +evalMomentRaw : null;
+  if (isEval) { const og = document.getElementById('pipe-modal-eval-og'); const naamEl = document.getElementById('pipe-modal-naam'); if (og && naamEl) naamEl.value = og.value.trim(); }
+  if (isEval && (!evalMw || !String((document.getElementById('pipe-modal-eval-og') || {}).value || '').trim())) {
+    alert('Verplicht bij Evaluatie: ' + [!evalMw ? 'Medewerker' : '', !String((document.getElementById('pipe-modal-eval-og') || {}).value || '').trim() ? 'Opdrachtgever' : ''].filter(Boolean).join(', '));
+    document.getElementById(!evalMw ? 'pipe-modal-eval-mw' : 'pipe-modal-eval-og').focus();
+    return;
+  }
   const naam = document.getElementById('pipe-modal-naam').value.trim();
   if (!naam) { document.getElementById('pipe-modal-naam').focus(); return; }
   // Aanbiedingen komen alleen uit de RLDV-check (23-09): geen los tegeltje meer.
@@ -41636,6 +41806,7 @@ async function _pipeConfirmAddInner() {
     // Bewerken van een bestaande kandidaat
     const updatePayload = { naam, notitie, updated_by: CURRENT_USER?.id, updated_at: new Date().toISOString() };
     if (isIntake)    { updatePayload.functie = functie; updatePayload.salarisindicatie = si; updatePayload.regio = regio; updatePayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; updatePayload.intake_op = intakeOp; }
+    if (isBezoek)    { updatePayload.eval_medewerker = evalMw; updatePayload.eval_moment = evalMoment; }
     if (isBezoek)    { updatePayload.bezoek_reden = bezoekReden; updatePayload.bezoek_contactpersoon = bezoekContact; updatePayload.bezoek_contactpersoon_functie = bezoekContactFunctie; updatePayload.bezoek_soort = bezoekSoort; updatePayload.gesprek_op = bezoekOp; if (bezoekWeek) { updatePayload.week = bezoekWeek.week; updatePayload.jaar = bezoekWeek.year; } }
     if (isContract)  { updatePayload.opdrachtgever = opdrachtgever; updatePayload.salaris = salaris; updatePayload.gedeeld = gedeeld; }
     if (isStarter)   { updatePayload.opdrachtgever = opdrachtgever; updatePayload.gedeeld = gedeeld; }
@@ -41650,6 +41821,7 @@ async function _pipeConfirmAddInner() {
     if (card) {
       card.naam = naam; card.notitie = notitie;
       if (isIntake)    { card.functie = functie; card.salarisindicatie = si; card.regio = regio; card.reisbereidheid = reisbereidheid ? +reisbereidheid : null; card.intake_op = intakeOp; }
+      if (isBezoek)    { card.eval_medewerker = evalMw; card.eval_moment = evalMoment; }
       if (isBezoek)    { card.bezoek_reden = bezoekReden; card.bezoek_contactpersoon = bezoekContact; card.bezoek_contactpersoon_functie = bezoekContactFunctie; card.bezoek_soort = bezoekSoort; card.gesprek_op = bezoekOp; if (bezoekWeek) { card.week = bezoekWeek.week; card.jaar = bezoekWeek.year; } }
       if (isContract)  { card.opdrachtgever = opdrachtgever; card.salaris = salaris; card.gedeeld = gedeeld; }
       if (isStarter)   { card.opdrachtgever = opdrachtgever; card.gedeeld = gedeeld; }
@@ -41670,6 +41842,7 @@ async function _pipeConfirmAddInner() {
   const insertPayload = { bm_naam: bmNaam, naam, notitie, stage, week: kWeek, jaar: kJaar, updated_by: CURRENT_USER?.id };
   if (isIntake)    { insertPayload.functie = functie; insertPayload.salarisindicatie = si; insertPayload.regio = regio; insertPayload.reisbereidheid = reisbereidheid ? +reisbereidheid : null; insertPayload.intake_op = intakeOp; }
   if (isBezoek)    { insertPayload.bezoek_reden = bezoekReden; insertPayload.bezoek_contactpersoon = bezoekContact; insertPayload.bezoek_contactpersoon_functie = bezoekContactFunctie; insertPayload.bezoek_soort = bezoekSoort; insertPayload.gesprek_op = bezoekOp; }
+  if (isEval)      { insertPayload.eval_medewerker = evalMw; insertPayload.eval_moment = evalMoment; }
   if (isContract)  { insertPayload.opdrachtgever = opdrachtgever; insertPayload.salaris = salaris; insertPayload.gedeeld = gedeeld; }
   if (isStarter)   { insertPayload.opdrachtgever = opdrachtgever; insertPayload.gedeeld = gedeeld; }
   if (isMatch)     { insertPayload.gedeeld = gedeeld; insertPayload.kanban_klant = kbKlant; insertPayload.kanban_functie = kbFunctie; insertPayload.gesprek_op = gesprekOp; insertPayload.gesprek = gesprekNr; insertPayload.functie = kbFunctie; }
@@ -41699,9 +41872,9 @@ async function _pipeConfirmAddInner() {
         : 'Kandidaat toevoegen mislukt: ' + error.message);
       return;
     }
-    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, bezoek_soort: data.bezoek_soort || null, vervolg_van: data.vervolg_van || null, kanban_klant: data.kanban_klant || null, kanban_functie: data.kanban_functie || null, gesprek_op: data.gesprek_op || null };
+    newCard = { id: data.id, naam: data.naam, notitie: data.notitie, datum: data.datum, stage: data.stage, week: data.week, jaar: data.jaar, aanb: data.aanb, functie: data.functie, salarisindicatie: data.salarisindicatie, regio: data.regio, reisbereidheid: data.reisbereidheid, intake_op: data.intake_op, gesprek: data.gesprek, opdrachtgever: data.opdrachtgever, salaris: data.salaris, gedeeld: data.gedeeld, bezoek_reden: data.bezoek_reden, bezoek_contactpersoon: data.bezoek_contactpersoon, bezoek_contactpersoon_functie: data.bezoek_contactpersoon_functie, bezoek_soort: data.bezoek_soort || null, eval_medewerker: data.eval_medewerker || null, eval_moment: data.eval_moment == null ? null : +data.eval_moment, vervolg_van: data.vervolg_van || null, kanban_klant: data.kanban_klant || null, kanban_functie: data.kanban_functie || null, gesprek_op: data.gesprek_op || null };
   } else {
-    newCard = { id: pipeUid(), naam, notitie, datum, stage, week: kWeek, jaar: kJaar, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, bezoek_soort: bezoekSoort || null, vervolg_van: insertPayload.vervolg_van || null, kanban_klant: insertPayload.kanban_klant || null, kanban_functie: insertPayload.kanban_functie || null, gesprek_op: insertPayload.gesprek_op || null, gesprek: insertPayload.gesprek || null };
+    newCard = { id: pipeUid(), naam, notitie, datum, stage, week: kWeek, jaar: kJaar, eval_medewerker: evalMw, eval_moment: evalMoment, functie, salarisindicatie: si, regio, reisbereidheid: reisbereidheid ? +reisbereidheid : null, opdrachtgever, salaris, gedeeld, bezoek_reden: bezoekReden, bezoek_contactpersoon: bezoekContact, bezoek_contactpersoon_functie: bezoekContactFunctie, bezoek_soort: bezoekSoort || null, vervolg_van: insertPayload.vervolg_van || null, kanban_klant: insertPayload.kanban_klant || null, kanban_functie: insertPayload.kanban_functie || null, gesprek_op: insertPayload.gesprek_op || null, gesprek: insertPayload.gesprek || null };
   }
   const cards = pipeLoad(bmNaam);
   cards.push(newCard);
@@ -41865,6 +42038,21 @@ function pipeDelete(bmNaam, cardId) {
         <button type="button" class="pm-pil" data-soort="bedrijfsbezoek" onclick="_pipeSoortKies('bedrijfsbezoek')">Bedrijfsbezoek</button>
         <button type="button" class="pm-pil" data-soort="matchgesprek" onclick="_pipeSoortKies('matchgesprek')">Matchgesprek</button>
         <button type="button" class="pm-pil" data-soort="evaluatie" onclick="_pipeSoortKies('evaluatie')">Evaluatie</button>
+      </div>
+      <!-- Evaluatie (24-09): de medewerker uit de lopende projecten, de opdrachtgever uit het project, het moment uit Evaluatiebeheer. -->
+      <div id="pipe-modal-eval" style="display:none;">
+        <label class="pm-l" for="pipe-modal-eval-mw">Medewerker <span class="pm-req">*</span> <span class="pm-l" style="display:inline;color:#8a92a3;">· uit de lopende projecten</span></label>
+        <div class="kiezer" data-kz="pipe-modal-eval-mw">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" id="pipe-modal-eval-mw" class="kiezer-veld" placeholder="naam van de medewerker" autocomplete="off" oninput="_kiezerTyp(this)" onfocus="_kiezerTyp(this)" onkeydown="return _kiezerToets(event, this)" onblur="_kiezerWeg(this)"/>
+          <button type="button" class="kiezer-wis" title="Leegmaken" tabindex="-1" onmousedown="event.preventDefault()" onclick="_kiezerKies(this.parentNode, '')" hidden>×</button>
+          <div class="kiezer-lijst" hidden></div>
+        </div>
+        <label class="pm-l" for="pipe-modal-eval-og">Opdrachtgever <span class="pm-req">*</span> <span class="pm-l" style="display:inline;color:#8a92a3;" id="pipe-modal-eval-og-bron">· uit het project</span></label>
+        <input type="text" id="pipe-modal-eval-og" placeholder="komt uit het project van de medewerker" autocomplete="off" oninput="_pipeEvalOgBij()"/>
+        <label class="pm-l">Evaluatiemoment <span class="pm-l" style="display:inline;color:#8a92a3;">· uit Evaluatiebeheer, optioneel</span></label>
+        <input type="hidden" id="pipe-modal-eval-moment" value=""/>
+        <div class="pm-pillen" id="pipe-modal-eval-mom"><span class="pm-hint" style="margin:0;">kies eerst de medewerker</span></div>
       </div>
       <!-- Datum en tijd (22-09): bepaalt de week van het tegeltje. -->
       <label class="pm-l" for="pipe-modal-bezoek-op">Datum en tijd <span class="pm-req">*</span></label>
