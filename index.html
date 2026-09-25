@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260925-0837 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260925-1307 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2566,6 +2566,14 @@
   .rldv-check-kolommen { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:14px; align-items:start; }
   @media (max-width:860px) { .rldv-check-kolommen { grid-template-columns:1fr; } }
   .rldv-uitg { border-left:1px solid rgba(255,255,255,.14); padding-left:12px; margin-top:10px; }
+  /* Documenten (25-09, B): CV / CR bovenaan de rechterkolom en in het afvinkvenster */
+  .rldv-docs { border-left:1px solid rgba(255,255,255,.14); padding-left:12px; margin-top:10px; margin-bottom:12px; }
+  .rldv-aanb-regel .rldv-docs { border:0; padding:0; margin:0; display:flex; align-items:center; gap:10px; }
+  .rldv-doc-kop { color:rgba(255,255,255,.5); font-size:.72rem; margin-bottom:6px; } .rldv-aanb-regel .rldv-doc-kop { margin:0; }
+  .rldv-doc-rij { display:flex; gap:6px; flex-wrap:wrap; }
+  .rldv-doc { display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(244,203,60,.6); border-radius:6px; padding:3px 9px; font-size:.72rem; color:#F4CB3C; font-weight:var(--w-nadruk); text-decoration:none; }
+  .rldv-doc:hover { background:rgba(244,203,60,.12); }
+  .rldv-doc.uit { border-color:rgba(255,255,255,.25); color:rgba(255,255,255,.45); font-weight:var(--w-normaal); cursor:pointer; }
   .rldv-uitg-kop { color:rgba(255,255,255,.5); font-size:.72rem; margin-bottom:7px; }
   .rldv-uitg-bron { display:block; color:rgba(255,255,255,.35); font-size:.68rem; margin-top:2px; }
   .rldv-uitg-lijst { max-height:calc(100vh - 330px); overflow:auto; }
@@ -8997,6 +9005,26 @@ async function chVoordragen(chId, sleutel, naam) {
 // plaatsing (0,5) telt pas als de tweede helft er is — één feestje voor de twee.
 let _FEEST_BEKEND = null;   // sleutels van gevierde/bekende starters; null = nog niet gestart
 let _FEEST_TIMER = null;
+let _FEEST_WACHTRIJ = [];   // 25-09: meerdere nieuwe starters bij het inloggen → één tegelijk
+const FEEST_GEVIERD_SLEUTEL = 'bt_feest_gevierd';   // in de browser: welke starters hier al gevierd zijn
+function _feestGevierd() {
+  try { return new Set(JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem(FEEST_GEVIERD_SLEUTEL)) || '[]')); }
+  catch (e) { _meldStil('feest gevierd lezen', e); return new Set(); }
+}
+function _feestGevierdZet(sleutel) {
+  try { const s = _feestGevierd(); s.add(String(sleutel)); if (typeof localStorage !== 'undefined') localStorage.setItem(FEEST_GEVIERD_SLEUTEL, JSON.stringify([...s].slice(-200))); }
+  catch (e) { _meldStil('feest gevierd bewaren', e); }
+}
+// Vers = in de laatste zeven dagen geschreven (updated_at uit de database). Zonder updated_at
+// (lokale of oude kaart) nooit een inhaalfeestje: liever geen feest dan een feest voor iets ouds.
+function _feestVers(g) {
+  const t = Math.max(0, ...g.kaarten.map(k => Date.parse(k.updated_at || '') || 0));
+  return t > 0 && (Date.now() - t) < 7 * 864e5;
+}
+function _feestVolgende() {
+  const v = _FEEST_WACHTRIJ.shift(); if (!v) return;
+  feestToon(_feestTekst(v.kaarten, v.alle), v.kaarten[0].naam, { sleutel: v.sleutel });
+}
 // 1ste, 2de, 3de, 8ste, 10de, 20ste, 21ste, 100ste, 110de — en 22,5e bij een halve.
 function btRangtelwoord(n) {
   if (!Number.isInteger(n)) return String(n).replace('.', ',') + 'e';
@@ -9043,16 +9071,31 @@ function _feestTekst(kaarten, alle) {
 function feestScan() {
   if (!PIPE_CACHE || !Object.keys(PIPE_CACHE).length) return;
   const { groepen, alle } = _feestKaarten();
-  if (_FEEST_BEKEND === null) { _FEEST_BEKEND = new Set(groepen.map(g => g.sleutel)); return; }
+  if (_FEEST_BEKEND === null) {
+    _FEEST_BEKEND = new Set(groepen.map(g => g.sleutel));
+    // 25-09: wat er sinds je vorige bezoek bij kwam (vers én hier nog niet gevierd) alsnog vieren, één tegelijk.
+    const gevierd = _feestGevierd();
+    const inhaal = groepen.filter(g => _feestVers(g) && !gevierd.has(String(g.sleutel)))
+      .sort((a, b) => Math.max(...b.kaarten.map(k => Date.parse(k.updated_at || '') || 0)) - Math.max(...a.kaarten.map(k => Date.parse(k.updated_at || '') || 0)));
+    if (inhaal.length && !document.getElementById('bt-feest')) {
+      _FEEST_WACHTRIJ = inhaal.slice(1).map(g => ({ sleutel: g.sleutel, kaarten: g.kaarten, alle }));
+      feestToon(_feestTekst(inhaal[0].kaarten, alle), inhaal[0].kaarten[0].naam, { sleutel: inhaal[0].sleutel });
+    }
+    return;
+  }
   const nieuw = groepen.filter(g => !_FEEST_BEKEND.has(g.sleutel));
   nieuw.forEach(g => _FEEST_BEKEND.add(g.sleutel));
   // Challenges (22-09): de stand verandert met de pipeline mee — winnaar vastleggen en vieren.
   try { chWinnaarScan(); chFeestScan(); } catch (e) { console.error('Challenge-scan mislukt:', e); }
-  if (!nieuw.length || document.getElementById('bt-feest')) return;
-  feestToon(_feestTekst(nieuw[0].kaarten, alle), nieuw[0].kaarten[0].naam);
+  if (!nieuw.length) return;
+  nieuw.forEach(g => _feestGevierdZet(g.sleutel));   // live gezien = ook bij het volgende inloggen niet nog eens
+  if (document.getElementById('bt-feest')) { nieuw.forEach(g => _FEEST_WACHTRIJ.push({ sleutel: g.sleutel, kaarten: g.kaarten, alle })); return; }
+  _FEEST_WACHTRIJ = nieuw.slice(1).map(g => ({ sleutel: g.sleutel, kaarten: g.kaarten, alle }));
+  feestToon(_feestTekst(nieuw[0].kaarten, alle), nieuw[0].kaarten[0].naam, { sleutel: nieuw[0].sleutel });
 }
 function feestToon(tk, naam, o) {
   o = o || {};
+  if (o.sleutel != null) _feestGevierdZet(o.sleutel);   // 25-09: hier gevierd → niet nog eens bij inloggen
   feestSluit();
   const laag = document.createElement('div'); laag.id = 'bt-feest';
   laag.innerHTML = '<canvas></canvas><div class="kaart" role="dialog" aria-label="' + escHtml(o.lbl || 'Nieuwe starter') + '"><div class="ster">' + (o.icoon || '★') + '</div><div class="lbl">' + escHtml(o.lbl || 'Nieuwe starter') + '</div>' +
@@ -9069,6 +9112,7 @@ function feestToon(tk, naam, o) {
 function feestSluit() {
   clearTimeout(_FEEST_TIMER); _FEEST_TIMER = null;
   const el = document.getElementById('bt-feest'); if (el) el.remove();
+  if (_FEEST_WACHTRIJ.length) setTimeout(_feestVolgende, 600);   // 25-09: de volgende uit de wachtrij
 }
 function _feestConfetti(canvas) {
   if (!canvas) return;
@@ -10837,7 +10881,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260925-0837';
+const APP_VERSIE = '20260925-1307';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26885,6 +26929,7 @@ function _pipeCardFromRow(c) {
     // Kanban (16-09): klant, functie, datum gesprek/voorstel, vorige stap, ster, van het bord.
     kanban_klant: c.kanban_klant || null, kanban_functie: c.kanban_functie || null, gesprek_op: c.gesprek_op || null,
     kanban_vorige: c.kanban_vorige || null, starboy: !!c.starboy, kanban_af: c.kanban_af || null,
+    updated_at: c.updated_at || null,   // 25-09: voor het inhaalfeestje bij inloggen (vers = < 7 dagen)
     intake_op: c.intake_op || null,
     collega_initials: c.collega_initials || null,
     projectnr: c.projectnr || null,
@@ -33336,6 +33381,7 @@ function _rldvAanbiedenHtml() {
       '<div class="rldv-check-regel rldv-aanb-regel">Vink af waar je in <b>week ' + escHtml(A.week) + '</b> hebt aangeboden. Klik op een status om de terugkoppeling van de opdrachtgever te verwerken (afgewezen · teruggetrokken); gesprekken, contract en starter komen uit de Kanban. Er wordt niets opgeslagen tot je op <b>Opvoeren</b> drukt. Wat een collega deze week al aanbood staat op slot; eerdere weken blijven staan en tellen niet mee voor deze week.</div>' +
       '<div class="rldv-check-regel rldv-aanb-regel">Tegeltje komt bij: <select id="rldv-aanb-bm" class="rldv-aanb-bmkeuze" onchange="rldvAanbiedenBm(this.value)">' +
         bmsMetCijfers().map(b => '<option value="' + escHtml(b.naam) + '"' + (b.naam === A.bm ? ' selected' : '') + '>' + escHtml(b.naam) + '</option>').join('') + '</select> · de aanbiedingen tellen in zijn/haar KPI</div>' +
+      '<div class="rldv-check-regel rldv-aanb-regel">' + _rldvDocsHtml(sel) + '</div>' +
     '</div>' +
     '<div class="rldv-check-lijst"><table class="acc-table rldv-tab rldv-aanb-tab">' +
       '<colgroup><col style="width:34px;"><col style="width:20%;"><col style="width:13%;"><col style="width:9%;"><col style="width:9%;"><col style="width:10%;"><col style="width:160px;"><col style="width:15%;"><col style="width:14%;"></colgroup>' +
@@ -33639,6 +33685,19 @@ function rldvUitgangspunten(sel) {
   return { bron: regels.length ? 'analyse' : 'leeg', regels, rec };
 }
 
+// CV en Commercieel CV van de kandidaat (25-09, B): uit het CRM, in een nieuw tabblad.
+function _rldvDocsHtml(sel) {
+  const naam = String((sel && sel.kandidaat_naam) || '').trim();
+  const k = naam && typeof crmKandLijst === 'function' ? crmKandLijst().find(x => String(x.sleutel) === _itkSleutel(naam)) : null;
+  const knop = (url, lbl) => {
+    const l = String(url || '').trim();
+    if (l) { const href = /^https?:\/\//i.test(l) ? l : 'https://' + l; return '<a class="rldv-doc" href="' + escHtml(href) + '" target="_blank" rel="noopener" title="' + escHtml(lbl) + ' openen in een nieuw tabblad">📄 ' + escHtml(lbl) + '</a>'; }
+    return k ? '<span class="rldv-doc uit" onclick="crmKandOpen(\'' + escApos(String(k.sleutel)) + '\')" title="Geen ' + escHtml(lbl) + ' in het CRM — klik om de NAW-kaart te openen">📄 ' + escHtml(lbl) + ' · geen</span>'
+             : '<span class="rldv-doc uit" title="Kandidaat staat niet in CRM · Kandidaten">📄 ' + escHtml(lbl) + '</span>';
+  };
+  return '<div class="rldv-docs"><div class="rldv-doc-kop">Documenten' + (k ? '' : '<span class="rldv-uitg-bron">niet in CRM</span>') + '</div>' +
+    '<div class="rldv-doc-rij">' + knop(k && k.cv_link, 'CV') + knop(k && k.cr_link, 'CR') + '</div></div>';
+}
 function rldvUitgHtml(sel) {
   const u = rldvUitgangspunten(sel);
   const bron = u.bron === 'gedeeld' ? 'uit Afspraken delen'
@@ -33732,7 +33791,7 @@ function rldvCheckHtml() {
       '<div class="rldv-check-lijst"><table class="acc-table rldv-tab">' +
         rldvKopHtml({ merkKop: true, aanbKop: true }) +
         '<tbody>' + inLijst + extra + '</tbody></table></div>' +
-    '</div>' + rldvUitgHtml(sel) + '</div>' +
+    '</div><div class="rldv-rechts">' + _rldvDocsHtml(sel) + rldvUitgHtml(sel) + '</div></div>' +
     (mag ? '<div class="rldv-check-toevoeg">' +
       '<button type="button" class="rldv-toevoegstrook' + (RLDV_CHECK.toevoegen ? ' open' : '') + '" ' +
         'onclick="rldvCheckToevoegen()">' +
