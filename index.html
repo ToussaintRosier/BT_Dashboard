@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260925-1626 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260925-1638 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6791,7 +6791,7 @@ const PAGINA_UITLEG = {
         ]},
     ]},
 
-  medewerker: { titel: 'Pagina van een medewerker', bijgewerkt: '24-09-2026',
+  medewerker: { titel: 'Pagina van een medewerker', bijgewerkt: '25-09-2026',
     intro: 'Alles van één business manager: de pipeline met tegeltjes, de weekcijfers, plan van aanpak, coaching, analyse en de twee ladders.',
     secties: [
       { kop: 'KPI\'s — de pipeline en de weekinvoer',
@@ -6830,11 +6830,12 @@ const PAGINA_UITLEG = {
           'Laad de agenda-export in en start de analyse.',
           'De uitkomst is rol-bewust (KAM versus business manager) en te exporteren of te printen voor het gesprek.',
         ]},
-      { kop: 'Motivatieladder en Werkintensiteit',
-        waarom: 'Cijfers vertellen wat iemand doet, niet wat hem op de been houdt. De twee ladders geven het gesprek dezelfde woorden.',
+      { kop: 'Ladders en handleiding (de vier ronde knoppen)',
+        waarom: 'Cijfers vertellen wat iemand doet, niet wat hem op de been houdt. De ladders geven het gesprek dezelfde woorden, en de handleiding staat op dezelfde plek zodat niemand hoeft te zoeken.',
         stappen: [
-          'De Motivatieladder gaat over wat iemand drijft, de Werkintensiteitsladder over hoeveel er van hem gevraagd wordt.',
-          'Gebruik ze als praatplaat in een een-op-een, niet als beoordeling; ze staan als afbeelding op het scherm.',
+          'Motivatieladder: wat iemand drijft. Werkintensiteitsladder: hoeveel er van hem gevraagd wordt. Escalatieladder: problemen met klanten aanpakken in vijf niveaus, van voorkomen tot ingrijpen.',
+          'Gebruik de ladders als praatplaat in een een-op-een, niet als beoordeling; ze staan als afbeelding op het scherm.',
+          'Het boek-icoon opent de Dashboard Handleiding (PDF) in een nieuw tabblad. Een nieuwe versie = het bestand handleiding.pdf overschrijven in de opslag.',
         ]},
     ]},
 
@@ -7287,7 +7288,15 @@ const LADDERS = {
     bestand: 'werkintensiteit.jpg',
     regel: 'Hoeveel er van iemand gevraagd wordt. Bedoeld als praatplaat in een een-op-een, niet als beoordeling.',
   },
+  // 25-09: de derde plaat — problemen met klanten aanpakken, vijf niveaus.
+  escalatie: {
+    titel: 'Escalatieladder',
+    bestand: 'escalatieladder.webp',
+    regel: 'Problemen met klanten aanpakken: vijf niveaus, van voorkomen tot ingrijpen. De klantverantwoordelijke blijft eigenaar; escaleren is geen doorschuiven.',
+  },
 };
+// De handleiding van het dashboard (25-09): een PDF in dezelfde bucket, opent in een nieuw tabblad.
+const HANDLEIDING = { titel: 'Dashboard Handleiding', bestand: 'handleiding.pdf' };
 
 // De twee knoppen in de balk. Bewust alleen een pictogram: labels maakten de
 // balk breder, en daar was juist bezwaar tegen. De naam staat in de tooltip en
@@ -7300,7 +7309,29 @@ function ladderKnoppenHtml() {
     </button>`;
   return knop('motivatie', '<path d="M4 20h4v-4h4v-4h4V8h4"/>')
        + knop('werk', '<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/>')
+       + knop('escalatie', '<path d="M7 3v18M17 3v18M7 7h10M7 12h10M7 17h10"/>')
+       + `<button class="ladder-knop" onclick="toonHandleiding()" title="${escHtml(HANDLEIDING.titel)}" aria-label="${escHtml(HANDLEIDING.titel)}">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg>
+    </button>`
        + `<span class="ladder-streep"></span>`;
+}
+// De handleiding (25-09): het tabblad gaat meteen open — na een await ziet de
+// browser de klik niet meer als de aanleiding en blokkeert hij het venster.
+// De PDF komt uit de bucket; de tweede keer uit de cache.
+async function toonHandleiding() {
+  const w = window.open('', '_blank');
+  let url = _BESTAND_CACHE['url_' + HANDLEIDING.bestand] || null;
+  if (!url) {
+    url = await haalBestandUrl(HANDLEIDING.bestand);
+    if (url) _BESTAND_CACHE['url_' + HANDLEIDING.bestand] = url;
+  }
+  if (!url) {
+    if (w) w.close();
+    btMeld('De handleiding kon niet worden opgehaald. Staat ' + HANDLEIDING.bestand + ' in de bucket bestanden?', 'geel');
+    return;
+  }
+  if (w) w.location.href = url; else window.open(url, '_blank');
 }
 
 async function toonLadder(sleutel) {
@@ -10984,7 +11015,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260925-1626';
+const APP_VERSIE = '20260925-1638';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
