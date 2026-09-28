@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260928-2011 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260928-2014 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -516,6 +516,7 @@
   .ap-sc .ap-veld { min-height:34px; font-size:.76rem; }
   /* Analyse & voorstellen (28-09): de strook onder een tekstvak; het vak zelf verandert niet. */
   .ap-an-knop { margin-left:auto; }
+  .ap-an-slot { margin-left:auto; display:inline-flex; align-items:center; gap:8px; } .ap-an-slot .ap-an-knop { margin-left:0; opacity:.45; cursor:not-allowed; } .ap-an-slot small { font-size:.7rem; color:rgba(255,255,255,.55); }
   .ap-an-balk { background:var(--l0); border-radius:10px; padding:8px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:.74rem; margin:0 0 10px; }
   .ap-an-balk b { font-weight:var(--w-nadruk); } .ap-an-balk .sub { color:rgba(255,255,255,.5); } .ap-an-balk .bron { font-size:.62rem; border:1px solid rgba(255,255,255,.22); border-radius:5px; padding:1px 6px; color:rgba(255,255,255,.7); }
   .ap-an-balk .kk-knop { margin-left:auto; }
@@ -7066,6 +7067,7 @@ const PAGINA_UITLEG = {
       { kop: 'Accountplan · Analyse & voorstellen',
         waarom: 'Wat er over een klant bekend is, staat verspreid over bezoekverslagen, evaluaties en het gesprekslog. De knop leest dat alles en doet per veld een voorstel — met bron en citaat — zodat je het plan niet uit je hoofd hoeft te schrijven. Het plan verandert nooit uit zichzelf.',
         stappen: [
+          'De knop werkt pas zodra er een bezoekverslag of -record voor dit bedrijf is (evaluaties en gesprekslog tellen niet mee); zonder verslag staat hij grijs met "+ Bezoek vastleggen" ernaast.',
           'Klik op ✦ Analyse & voorstellen. Onder elk tekstvak komt een strook: geel = letterlijk uit een bron, blauw = afgeleid, oranje = twijfel (bronnen spreken elkaar tegen), gestippeld = niets gevonden.',
           'Overnemen vult een leeg vak (bij een gevuld vak: Vervangen, met bevestiging). Toevoegen plakt het voorstel onder de bestaande tekst. Negeren haalt de strook weg.',
           'Scores krijgen nooit een cijfer, alleen een signaal als toelichting. Twijfels en gaten worden vragen voor het volgende bezoek; die maak je met één klik tot actie.',
@@ -11129,7 +11131,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260928-2011';
+const APP_VERSIE = '20260928-2014';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -28053,9 +28055,19 @@ async function loadApAnalyses() {
     _apAnGeladen = true;
   } catch (e) { _meldStil('loadApAnalyses', e); }
 }
+// Slot (28-09): zonder bezoekverslag of -record heeft de analyse niets om uit te putten — dan levert hij
+// alleen lege stroken op en kost hij wel geld. Evaluatiegesprekken (over de medewerker) en gesprekslog-regels
+// tellen niet mee: de afspraak is dat er bij elk gesprek een verslag is.
+function _apAnalyseVerslagen(sleutel) {
+  const sl = _itkSleutel(sleutel || '');
+  return (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && b.record && b.soortBezoek !== 'evaluatie').length;
+}
+// "+ Bezoek vastleggen" bij het slot: de BZK-recorder met dit bedrijf voorgevuld.
+function apNaarBzk(naam) { BEZOEK.soortBezoek = 'bedrijfsbezoek'; BEZOEK.bedrijf = String(naam || ''); BEZOEK.contactpersoon = ''; selectTab('bezoek'); }
 async function apAnalyseStart(planId) {
   if (!eisWijzig('accounts')) return;
   const x = _apKlanten().find(y => y.plan && String(y.plan.id) === String(planId)); if (!x) return;
+  if (!_apAnalyseVerslagen(x.sleutel)) { btMeld('Nog geen bezoekverslag of -record voor ' + x.naam + ' — leg eerst een bezoek vast, dan heeft de analyse iets om uit te putten.', 'let'); return; }
   if (AP_AN_BEZIG) { btMeld('Er loopt al een analyse; even wachten.', 'let'); return; }
   AP_AN_BEZIG = String(planId); _apHerteken();
   try {
@@ -28295,7 +28307,9 @@ function _apPlanHtml(x) {
   const kam = a && typeof accScore === 'function' ? '<span class="ap-pil geel">KAM ' + accScore(a) + '</span>' : '';
   const team = a ? [a.strat_cp, a.op_cp].filter(Boolean).join(' · ') : '';
   const titel = '<div class="ap-titel"><span class="n">' + escHtml(x.naam) + '</span>' + badge + kam + '<span class="sub">' + escHtml([r.fase, team].filter(Boolean).join(' · ')) + '</span>' +
-    (rec && magWijzigen('accounts') ? '<button type="button" class="crm-knop goed ap-an-knop" onclick="apAnalyseStart(\'' + escApos(String(rec.id)) + '\')"' + (AP_AN_BEZIG ? ' disabled' : '') + ' title="Leest bezoeken, evaluaties, gesprekslog, contactpersonen, projecten en scores en doet per veld een voorstel — het plan verandert pas als jij overneemt">✦ Analyse &amp; voorstellen</button>' : '') +
+    (rec && magWijzigen('accounts') ? (_apAnalyseVerslagen(x.sleutel)
+      ? '<button type="button" class="crm-knop goed ap-an-knop" onclick="apAnalyseStart(\'' + escApos(String(rec.id)) + '\')"' + (AP_AN_BEZIG ? ' disabled' : '') + ' title="Leest bezoeken, evaluaties, gesprekslog, contactpersonen, projecten en scores en doet per veld een voorstel — het plan verandert pas als jij overneemt">✦ Analyse &amp; voorstellen</button>'
+      : '<span class="ap-an-slot"><button type="button" class="crm-knop ap-an-knop" disabled title="Nog geen bezoekverslag of -record voor dit bedrijf — zonder verslag heeft de analyse niets om uit te putten (evaluaties en gesprekslog tellen niet mee)">✦ Analyse &amp; voorstellen</button><small>Nog geen bezoekverslag</small><button type="button" class="crm-knop" onclick="apNaarBzk(\'' + escApos(x.naam) + '\')">+ Bezoek vastleggen</button></span>') : '') +
     (k ? '<button type="button" class="crm-knop"' + (rec && magWijzigen('accounts') ? '' : ' style="margin-left:auto;"') + ' onclick="crmBedrijfOpen(\'' + sE + '\')">bedrijfskaart →</button>' : '') + '</div>';
   if (!rec) {
     return titel + _apCrmBlokHtml(k) + '<div class="kand-leegblok"><b>Nog geen accountplan</b>' + (magWijzigen('accounts') ? '<button type="button" class="crm-knop goed" style="margin-top:8px;" onclick="apMaakVoor(\'' + sE + '\')">+ Accountplan maken voor ' + escHtml(x.naam) + '</button>' : 'Alleen wie accountmanagement mag wijzigen kan een plan maken.') + '</div>';
