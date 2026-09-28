@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260928-1305 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260928-1433 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11053,7 +11053,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260928-1305';
+const APP_VERSIE = '20260928-1433';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -26162,6 +26162,13 @@ function _kandGestartTekst(st) {
 // opgeslagen: het zijn feiten die elders al vastliggen. Ze kopiëren zou
 // betekenen dat twee plekken hetzelfde moeten weten en uit elkaar kunnen
 // gaan lopen.
+// CV en Commercieel CV van een kandidaat uit CRM · Kandidaten (cv_link, cr_link), als https-adressen; '' als er geen is.
+function _kandDocLinks(naam) {
+  const sl = _itkSleutel(naam || ''); if (!sl || !Array.isArray(CRM_KANDIDATEN)) return { cv: '', cr: '' };
+  const r = CRM_KANDIDATEN.find(x => String(x.sleutel || _itkSleutel(x.naam)) === sl);
+  const net = (l) => { l = r ? String(l || '').trim() : ''; return l ? (/^https?:\/\//i.test(l) ? l : 'https://' + l) : ''; };
+  return { cv: net(r && r.cv_link), cr: net(r && r.cr_link) };
+}
 function kandAutoFases(c) {
   const auto = new Map();
   // Gestart (17-09): alles is af, wat er verder ook wel of niet gebeurd is.
@@ -26172,6 +26179,9 @@ function kandAutoFases(c) {
   // (aanwijzing 09-09). Staat het nog in de toekomst, dan nog niet.
   if (uren !== null && uren >= 0) auto.set('intake', 'het intakegesprek is geweest');
   if (_kandAfsprakenVerzonden(c && c.naam)) auto.set('delen', 'afspraken verzonden');
+  // CV (28-09): vanzelf groen zodra CV én Commercieel CV allebei aan het CRM-dossier hangen.
+  // Afgeleid, niet opgeslagen: geldt dus meteen voor alle kaartjes, ook oude.
+  if (c) { const d = _kandDocLinks(c.naam); if (d.cv && d.cr) auto.set('cv', 'CV en commercieel CV in het CRM'); }
   // Vervolgafspraak (16-09): groen zodra er een datum staat, ook in de toekomst.
   if (c && c.vervolg_op) auto.set('vervolg', 'vervolgafspraak ' + kandVervolgTekst(c));
 
@@ -26210,6 +26220,7 @@ function _kandFaseBron(sleutel, c) {
   if (!c) return null;
   const bm = c.bmNaam || '';
   if (sleutel === 'vervolg') return { klik: "kandVervolgVenster('" + escApos(bm) + "','" + c.id + "')", doel: 'vervolgafspraak plannen of bekijken' };
+  if (sleutel === 'cv') { const d = _kandDocLinks(c.naam); return d.cv && d.cr ? { klik: "window.open('" + escApos(d.cr) + "','_blank')", doel: 'het commercieel CV openen' } : null; }
   if (sleutel === 'intake' || sleutel === 'delen') {
     const sl = _itkSleutel(c.naam || '');
     const rec = sl ? (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(r => _itkSleutel(r.naam) === sl) : null;
