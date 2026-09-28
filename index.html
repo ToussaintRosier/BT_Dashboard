@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260928-2014 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260928-2034 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1028,6 +1028,20 @@
   .gv-pijl  { width:18px; color:rgba(255,255,255,.45); font-size:.68rem; }
   .gv-klant { width:150px; color:#fff; }
   .gv-cp    { width:150px; color:rgba(255,255,255,.7); }
+  /* Kiezer op het verslag-formulier (28-09): bedrijf uit het CRM, contactpersonen als chips */
+  .gv-kies { position:relative; min-width:0; }
+  .gv-lijst { position:absolute; left:0; right:0; top:calc(100% + 4px); background:#fff; color:#253151; border-radius:8px; box-shadow:0 10px 26px rgba(0,0,0,.35); z-index:20; max-height:300px; overflow:auto; }
+  .gv-lijst .r { display:flex; align-items:center; gap:8px; padding:8px 11px; border-top:1px solid #e5e7eb; font-size:.84rem; cursor:pointer; color:#253151; } .gv-lijst .r:first-child { border-top:0; } .gv-lijst .r:hover, .gv-lijst .r.aan { background:#fef6d9; }
+  .gv-lijst .r b { font-weight:var(--w-nadruk); } .gv-lijst .r mark { background:var(--accent-gold); color:#253151; padding:0 1px; border-radius:2px; } .gv-lijst .r small { margin-left:auto; color:#6b7280; font-size:.72rem; white-space:nowrap; }
+  .gv-lijst .r .pil { font-size:.6rem; border-radius:6px; padding:1px 6px; background:#e8edfa; color:#253151; } .gv-lijst .r.nieuw { color:#6b7280; font-style:italic; }
+  .gv-vast { display:flex; align-items:center; gap:8px; background:#fff; color:#253151; border-radius:7px; padding:7px 10px; font-size:.84rem; border:1px solid rgba(255,255,255,.2); } .gv-vast .pil { font-size:.6rem; border-radius:6px; padding:1px 6px; background:#e8edfa; }
+  .gv-vast .x { margin-left:auto; cursor:pointer; color:#6b7280; background:none; border:0; font-size:1rem; line-height:1; padding:0 2px; font-family:inherit; } .gv-vast .x:hover { color:#e02424; }
+  .gv-hint { font-size:.72rem; color:#ffb37a; margin:-4px 0 8px; }
+  .gv-chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 4px; grid-column:1 / -1; }
+  .gv-chip { display:inline-flex; align-items:center; gap:7px; border:1px solid rgba(255,255,255,.28); border-radius:99px; padding:3px 12px 3px 3px; font-size:.78rem; color:#fff; background:none; cursor:pointer; font-family:inherit; }
+  .gv-chip .av { width:24px; height:24px; border-radius:99px; color:#16142e; display:inline-flex; align-items:center; justify-content:center; font-size:.6rem; font-weight:var(--w-nadruk); } .gv-chip small { color:rgba(255,255,255,.55); }
+  .gv-chip.aan { background:var(--accent-gold); color:#253151; border-color:var(--accent-gold); } .gv-chip.aan small { color:rgba(37,49,81,.7); } .gv-chip.plus { padding-left:12px; color:rgba(255,255,255,.7); }
+  .gv-cp-nieuw { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:10px; } .gv-cp-nieuw small { grid-column:1 / -1; font-size:.72rem; color:rgba(255,255,255,.55); margin-top:-4px; }
   .gv-tekst { color:rgba(255,255,255,.6); max-width:0; overflow:hidden;
               text-overflow:ellipsis; white-space:nowrap; }
   .gv-soort { width:96px; }
@@ -9573,7 +9587,7 @@ function _oneVermBron(x) {
   const g = ONE_GESPREKKEN.find(y => String(y.id) === String(x.gesprek_id));
   const soort = bron ? (bron.soort === 'bedrijf' ? 'scorekaart' : bron.soort) : '';
   const label = uitLog ? (soort === 'kandidaat' ? 'gesprekslog kandidaat' : 'gesprekslog klant') : 'bericht in ' + oneGesprekNaam(g);
-  const knopTekst = soort === 'kandidaat' ? 'open kandidaatkaart' : soort === 'scorekaart' ? 'open klantkaart' : soort === 'bezoek' ? 'open record' : '';
+  const knopTekst = soort === 'kandidaat' ? 'open kandidaatkaart' : soort === 'scorekaart' ? 'open klantkaart' : soort === 'bezoek' ? 'open record' : soort === 'verslag' ? 'open verslag' : '';
   const knop = bron && knopTekst
     ? '<button class="one-verm-knop" type="button" data-soort="' + escHtml(soort) + '" data-id="' + escHtml(bron.id) + '" data-naam="' + escHtml(bron.naam || '') + '" data-bm="' + escHtml(bron.bm || '') + '" onclick="oneKoppelingOpen(this)">' + knopTekst + '</button>'
     : '';
@@ -9894,12 +9908,12 @@ function _oneBerTekstHtml(x) {
   kopp.forEach(({ k, label }) => {
     if (!h.includes(label)) return;
     const soort = k.soort === 'bedrijf' ? 'scorekaart' : (k.soort || 'kandidaat');
-    const kl = soort === 'scorekaart' ? 's' : soort === 'bezoek' ? 'b' : soort === 'collega' ? 'c' : 'k';
+    const kl = soort === 'scorekaart' ? 's' : soort === 'bezoek' || soort === 'verslag' ? 'b' : soort === 'collega' ? 'c' : 'k';
     const ico = soort === 'scorekaart' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>'
-              : soort === 'bezoek'     ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V5l8-2v18M13 9h6v12M8 8h2M8 12h2M8 16h2"/></svg>'
+              : soort === 'bezoek' || soort === 'verslag' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V5l8-2v18M13 9h6v12M8 8h2M8 12h2M8 16h2"/></svg>'
               : soort === 'collega'    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="8" r="4"/><path d="M2 21a8 8 0 0 1 16 0"/><path d="m16 11 2 2 4-4"/></svg>'
               :                          '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
-    const titel = soort === 'scorekaart' ? 'Scorekaart openen' : soort === 'bezoek' ? 'Bezoekrecord openen' : soort === 'collega' ? 'Gesprek met deze collega openen' : 'Kandidaatkaart openen';
+    const titel = soort === 'scorekaart' ? 'Scorekaart openen' : soort === 'bezoek' ? 'Bezoekrecord openen' : soort === 'verslag' ? 'Gespreksverslag openen' : soort === 'collega' ? 'Gesprek met deze collega openen' : 'Kandidaatkaart openen';
     const idx = chips.length;
     chips.push('<button class="one-ber-chip ' + kl + '" type="button" data-soort="' + soort + '" data-id="' + escHtml(k.id) +
       '" data-naam="' + escHtml(k.naam) + '" data-bm="' + escHtml(k.bm || '') + '" onclick="oneKoppelingOpen(this)" title="' + titel + '">' + ico + label + '</button>');
@@ -10061,6 +10075,7 @@ function oneKoppelingOpen(el) {
   const soort = d.soort === 'bedrijf' ? 'scorekaart' : (d.soort || 'kandidaat');
   if (soort === 'scorekaart') { klantKaartOpen(d.id); return; }
   if (soort === 'bezoek') { recordsNaarRecord('bezoek', d.id); return; }
+  if (soort === 'verslag') { gvOpenVerslag(d.id); return; }   // 28-09: handmatig gespreksverslag
   if (soort === 'collega') { crmKaartSluit(); oneNaarCollega(d.id, d.naam); return; }
   const v = kandKaartVind(d.id);
   if (!v) {
@@ -11131,7 +11146,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260928-2014';
+const APP_VERSIE = '20260928-2034';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11552,7 +11567,7 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, _rechtSleutel(sleu
 // zou een melding elke paar seconden opnieuw in beeld springen.
 // Alles wat een gebruiker kan aanklikken en wat daarna iets verandert. Wordt
 // gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
-const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'bzkNaarGespreksverslag', 'kamNieuwVerslag', 'evalVerslagKoppel', 'evalVerslagenKoppelAlle', 'rldvAanbStatusZet',
+const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'kamNieuwVerslag', 'evalVerslagKoppel', 'evalVerslagenKoppelAlle', 'rldvAanbStatusZet',
   'oneBerichtVerstuur', 'oneBerichtVerwijder', 'oneGesprekMaak', 'oneGesprekOpen', 'oneGesprekVerlaten', 'chNieuwOpslaan', 'chAccepteer', 'chSlaOver', 'chStop', 'chVoordragen', 'chVoordrachtWeg', 'oneGesprekHernoemOpslaan',
   'oneDeelnemerToevoegen', 'oneDeelnemerWeghalen',
   'onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'bumOpnameVerwerk', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
@@ -28018,11 +28033,16 @@ function _apAnalysePakket(x) {
   const k = x.k, rec = x.plan || {}, sl = x.sleutel, a = k && k.account, crm = (k && k.crm) || {};
   const iso = (ms) => ms ? new Date(ms).toISOString().slice(0, 10) : '';
   const bronnenlijst = [];
-  const bez = (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && b.record).sort((p, q) => q.datumMs - p.datumMs).slice(0, 12);
-  const verslagen = bez.map(b => { bronnenlijst.push({ soort: 'bezoek', id: String(b.id), datum: iso(b.datumMs), wie: b.collega, titel: 'bezoek ' + _crmDatum(b.datumMs) });
+  const bez = (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && (b.record || b.verslag)).sort((p, q) => q.datumMs - p.datumMs).slice(0, 12);
+  const verslagen = bez.map(b => {
+    if (b.verslag) {   // 28-09: handmatig gespreksverslag als bron
+      const g = b.verslag; bronnenlijst.push({ soort: 'verslag', id: String(g.id), datum: iso(b.datumMs), wie: b.collega, titel: 'verslag ' + _crmDatum(b.datumMs) + ' (handmatig)' });
+      return { id: 'gv:' + g.id, datum: iso(b.datumMs), soort: b.soortBezoek, herkomst: 'handmatig', collega: b.collega, contactpersoon: b.contactpersoon, kandidaat: '', samenvatting: g.samenvatting || '', bedrijfsprofiel: null, wervingsbehoefte: null, afspraken: [g.acties || '', g.vervolg ? 'Vervolgafspraak: ' + g.vervolg : ''].filter(Boolean).join('\n') };
+    }
+    bronnenlijst.push({ soort: 'bezoek', id: String(b.id), datum: iso(b.datumMs), wie: b.collega, titel: 'bezoek ' + _crmDatum(b.datumMs) });
     const r = b.record.result || {};
-    return { id: String(b.id), datum: iso(b.datumMs), soort: b.soortBezoek, collega: b.collega, contactpersoon: b.contactpersoon, kandidaat: b.kandidaat || '', samenvatting: r.samenvatting || '', bedrijfsprofiel: r.bedrijfsprofiel || null, wervingsbehoefte: r.wervingsbehoefte || null, afspraken: r.afspraken || r.vervolgafspraken || '' }; });
-  const transcripten = bez.filter(b => b.record.transcript).slice(0, 2).map(b => ({ id: String(b.id), datum: iso(b.datumMs), tekst: String(b.record.transcript) }));
+    return { id: String(b.id), datum: iso(b.datumMs), soort: b.soortBezoek, herkomst: 'opname', collega: b.collega, contactpersoon: b.contactpersoon, kandidaat: b.kandidaat || '', samenvatting: r.samenvatting || '', bedrijfsprofiel: r.bedrijfsprofiel || null, wervingsbehoefte: r.wervingsbehoefte || null, afspraken: r.afspraken || r.vervolgafspraken || '' }; });
+  const transcripten = bez.filter(b => b.record && b.record.transcript).slice(0, 2).map(b => ({ id: String(b.id), datum: iso(b.datumMs), tekst: String(b.record.transcript) }));
   const evaluaties = (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).filter(r => (r.soortBezoek || '') === 'evaluatie_medewerker' && _itkSleutel(r.contactpersoon || '') === sl).slice(0, 8)
     .map(r => { const d = typeof _recDatumSort === 'function' ? _recDatumSort(r.datum) : 0; bronnenlijst.push({ soort: 'evaluatie', id: String(r.id), datum: iso(d), wie: r.recorder_naam, titel: 'evaluatie ' + (r.bedrijf || '') });
       return { id: String(r.id), datum: iso(d), medewerker: r.bedrijf || '', collega: r.recorder_naam || '', samenvatting: (r.result && r.result.samenvatting) || '' }; });
@@ -28060,7 +28080,7 @@ async function loadApAnalyses() {
 // tellen niet mee: de afspraak is dat er bij elk gesprek een verslag is.
 function _apAnalyseVerslagen(sleutel) {
   const sl = _itkSleutel(sleutel || '');
-  return (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && b.record && b.soortBezoek !== 'evaluatie').length;
+  return (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && (b.record || b.verslag) && b.soortBezoek !== 'evaluatie').length;
 }
 // "+ Bezoek vastleggen" bij het slot: de BZK-recorder met dit bedrijf voorgevuld.
 function apNaarBzk(naam) { BEZOEK.soortBezoek = 'bedrijfsbezoek'; BEZOEK.bedrijf = String(naam || ''); BEZOEK.contactpersoon = ''; selectTab('bezoek'); }
@@ -28103,8 +28123,8 @@ function _apSgBronnenHtml(bronnen) {
   const lijst = (Array.isArray(bronnen) ? bronnen : []).filter(b => b);
   if (!lijst.length) return '';
   const link = (b) => {
-    const lbl = escHtml((b.soort === 'bezoek' ? 'bezoek' : b.soort === 'evaluatie' ? 'evaluatie' : b.soort === 'notitie' ? 'gesprekslog' : b.soort === 'transcript' ? 'transcript' : b.soort) + (b.datum ? ' ' + _crmDatum(Date.parse(b.datum)) : '') + (b.wie ? ' · ' + b.wie : ''));
-    const klik = (b.soort === 'bezoek' || b.soort === 'transcript' || b.soort === 'evaluatie') && b.id ? "recordsNaarRecord('bezoek','" + escApos(String(b.id)) + "')" : '';
+    const lbl = escHtml((b.soort === 'bezoek' ? 'bezoek' : b.soort === 'verslag' ? 'verslag (handmatig)' : b.soort === 'evaluatie' ? 'evaluatie' : b.soort === 'notitie' ? 'gesprekslog' : b.soort === 'transcript' ? 'transcript' : b.soort) + (b.datum ? ' ' + _crmDatum(Date.parse(b.datum)) : '') + (b.wie ? ' · ' + b.wie : ''));
+    const klik = b.soort === 'verslag' && b.id ? "gvOpenVerslag('" + escApos(String(b.id)) + "')" : (b.soort === 'bezoek' || b.soort === 'transcript' || b.soort === 'evaluatie') && b.id ? "recordsNaarRecord('bezoek','" + escApos(String(b.id)) + "')" : '';
     return (klik ? '<a onclick="' + klik + '">' + lbl + '</a>' : '<span>' + lbl + '</span>') + (b.citaat ? ' — <q>"' + escHtml(b.citaat) + '"</q>' : '');
   };
   return '<div class="b">bron: ' + lijst.slice(0, 4).map(link).join(' · ') + '</div>';
@@ -28246,7 +28266,7 @@ function _apAnalyseBalkHtml(planId) {
   if (!an) return '';
   const open = _apVsOpen(planId), tw = open.filter(v => v.zekerheid === 'twijfel').length;
   const acties = (an.acties || []).filter((a, i) => !_apSgStand(planId, 'actie:' + i)).length, vragen = (an.vragen || []).filter((q, i) => !_apSgStand(planId, 'vraag:' + i)).length;
-  const per = {}; (an.bronnen || []).forEach(b => { const k = b.soort === 'bezoek' ? 'bezoekverslagen' : b.soort === 'evaluatie' ? 'evaluaties' : b.soort === 'notitie' ? 'gesprekslog' : b.titel || b.soort; per[k] = (per[k] || 0) + 1; });
+  const per = {}; (an.bronnen || []).forEach(b => { const k = b.soort === 'bezoek' || b.soort === 'verslag' ? 'bezoekverslagen' : b.soort === 'evaluatie' ? 'evaluaties' : b.soort === 'notitie' ? 'gesprekslog' : b.titel || b.soort; per[k] = (per[k] || 0) + 1; });
   const chips = Object.entries(per).map(([k, n]) => '<span class="bron">' + escHtml(/contactpersonen|projecten|aanbiedingen|KAM/.test(k) ? k : n + ' ' + k) + '</span>').join('');
   return '<div class="ap-an-balk"><b>Analyse van ' + escHtml(_crmDatum(Date.parse(an.created_at)) + (an.created_at ? ', ' + new Date(an.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) : '')) + '</b>' +
     '<span class="sub">door ' + escHtml(String(an.door || '').split(' ')[0] || '—') + ' · ' + (an.bronnen || []).length + ' bronnen · ' + open.length + ' voorstellen · ' + tw + ' twijfel' + (tw === 1 ? '' : 's') + ' · ' + acties + ' actie' + (acties === 1 ? '' : 's') + ' · ' + vragen + ' vra' + (vragen === 1 ? 'ag' : 'gen') + '</span>' + chips +
@@ -28505,8 +28525,20 @@ function _accContactVan(a, naam) {
 }
 // Alle bezoeken, nieuwste eerst. Een record en een pipeline-kaartje van
 // hetzelfde bedrijf in dezelfde week zijn één bezoek.
+// Handmatige gespreksverslagen (28-09): alleen die zonder opname-bron — een verslag "uit opname" ís al een record.
+function _gvHandmatig() {
+  return (typeof GESPREKSVERSLAGEN_CACHE !== 'undefined' && Array.isArray(GESPREKSVERSLAGEN_CACHE) ? GESPREKSVERSLAGEN_CACHE : []).filter(g => g && g.bedrijf && g.bron !== 'opname' && !g.bron_verslag_id);
+}
 function accBezoekenLijst() {
   const items = [];
+  // Handmatige verslagen (28-09) eerst: een Bezoeken-kaartje van dezelfde week hangt eraan, zoals aan een record.
+  _gvHandmatig().forEach(g => {
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(String(g.datum || '')) ? new Date(g.datum + 'T12:00:00') : null, ms = d && !isNaN(d) ? d.getTime() : 0;
+    const wk = ms ? isoWeek(new Date(ms)) : { year: 0, week: 0 };
+    items.push({ id: 'gv:' + g.id, record: null, verslag: g, verslagSoort: String(g.soort || 'bedrijfsbezoek'), kaart: null, kaarten: [], bedrijf: g.bedrijf || '', contactpersoon: g.contactpersoon || '', functie: '',
+                 datumMs: ms, week: wk.week, jaar: wk.year, collega: g.auteur || '', collegas: g.auteur ? [g.auteur] : [], soortBezoek: _bezoekSoortNorm(g.soort), datumTekst: g.datum ? _crmDatum(ms) : '',
+                 medewerker: '', medewerkerSleutel: '', evalMoment: null, kandidaat: '', kandidaatSleutel: '' });
+  });
   (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).forEach(r => {
     const ms = _recDatumSort(r.datum);
     const wk = ms ? isoWeek(new Date(ms)) : { year: 0, week: 0 };
@@ -28532,7 +28564,7 @@ function accBezoekenLijst() {
         // Hoofdkaartje: waar de vervolgafspraak/afgerond-stand aan hangt. Een
         // verslag wint; anders het tegeltje dat al een stand heeft.
         const staat = (id) => !!(BEZOEK_VERVOLG[String(id)] && (BEZOEK_VERVOLG[String(id)].vervolg_op || BEZOEK_VERVOLG[String(id)].afgerond_op));
-        if (zelfde.record || (!zelfde.kaart)) { if (!zelfde.kaart) { zelfde.kaart = c; zelfde.kaartBm = bm.naam; } }
+        if (zelfde.record || zelfde.verslag || (!zelfde.kaart)) { if (!zelfde.kaart) { zelfde.kaart = c; zelfde.kaartBm = bm.naam; } }
         else if (staat(c.id) && !staat(zelfde.id)) { zelfde.id = String(c.id); zelfde.kaart = c; zelfde.kaartBm = bm.naam; }
         if (!zelfde.contactpersoon && c.bezoek_contactpersoon) zelfde.contactpersoon = c.bezoek_contactpersoon;
         if (!zelfde.functie && c.bezoek_contactpersoon_functie) zelfde.functie = c.bezoek_contactpersoon_functie;
@@ -28726,7 +28758,7 @@ function bezoekVervolgTekst(v) {
 function _accBronnen(b) {
   const bmE = escApos(b.kaartBm || '');
   return [
-    { sleutel: 'record', titel: 'Record', aan: !!b.record, klik: b.record ? "crmKaartSluit();recordsNaarRecord('bezoek','" + escApos(b.id) + "')" : '', uitleg: b.record ? 'verslag van ' + (b.datumTekst || '') : 'nog geen verslag',
+    { sleutel: 'record', titel: b.verslag ? 'Verslag' : 'Record', aan: !!(b.record || b.verslag), klik: b.verslag ? "crmKaartSluit();gvOpenVerslag('" + escApos(String(b.verslag.id)) + "')" : b.record ? "crmKaartSluit();recordsNaarRecord('bezoek','" + escApos(b.id) + "')" : '', uitleg: b.verslag ? 'handmatig verslag van ' + (b.datumTekst || '') : b.record ? 'verslag van ' + (b.datumTekst || '') : 'nog geen verslag',
       svg: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>' },
     { sleutel: 'score', titel: 'Scorekaart', aan: !!b.account, klik: b.account ? "crmKaartSluit();klantKaartOpen('" + escApos(String(b.account.id)) + "')" : '', uitleg: b.account ? 'score ' + accScore(b.account) : 'niet in KAM',
       svg: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>' },
@@ -28788,7 +28820,7 @@ function _bzDatumKort(ms, metTijd) {
 }
 // 'ok' = verslag aanwezig · 'mis' = geen verslag en de dag is voorbij · 'nvt' = nog te komen (vandaag telt nog).
 function _bzVerslagStand(b) {
-  if (b.record) return 'ok';
+  if (b.record || b.verslag) return 'ok';   // 28-09: een handmatig verslag telt ook
   const vandaag = new Date(); vandaag.setHours(0, 0, 0, 0);
   return !b.datumMs || b.datumMs >= vandaag.getTime() ? 'nvt' : 'mis';
 }
@@ -28873,7 +28905,7 @@ function _bzTegelHtml(b) {
     ? '<a class="bz-lk" href="' + escHtml(l.href) + '" target="_blank" rel="noopener" title="' + escHtml(l.titel || '') + '"><i>' + l.ico + '</i>' + escHtml(l.label) + '</a>'
     : '<button type="button" class="bz-lk' + (l.aan ? '' : ' leeg') + '" title="' + escHtml(l.titel || '') + '"' + (l.klik ? ' onclick="' + l.klik + '"' : ' disabled') + '><i>' + l.ico + '</i>' + escHtml(l.label) + '</button>').join('') + '</div>';
   const af = '<button type="button" class="bz-af ' + (b.afgerond ? 'ja' : 'nee') + '" title="' + (b.afgerond ? 'Afgerond — klik om terug te draaien' : 'Klik als dit bezoek is afgerond') + '" onclick="bezoekAfgerondToggle(\'' + idE + '\')">' + (b.afgerond ? '✓' : '○') + '</button>';
-  const r4 = stand === 'ok' ? '<div class="bz-r4 ok">✓ Verslag <u onclick="recordsNaarRecord(\'bezoek\',\'' + idE + '\')">openen</u>' + af + '</div>'
+  const r4 = stand === 'ok' ? '<div class="bz-r4 ok">✓ Verslag <u onclick="' + ((b.record || b.verslag) && b.verslag ? 'gvOpenVerslag(\'' + escApos(String(b.verslag.id)) + '\')' : 'recordsNaarRecord(\'bezoek\',\'' + idE + '\')') + '">openen</u>' + (b.verslag ? ' <small class="stil">handmatig</small>' : '') + af + '</div>'
            : stand === 'mis' ? '<div class="bz-r4 mis">! Geen verslag <u onclick="bzNaarOpname(\'' + idE + '\')">opnemen / inladen</u>' + af + '</div>'
            : '<div class="bz-r4 nvt">Verslag na het gesprek' + af + '</div>';
   return '<div class="bz-tegel">' + r1 + r2 + r3 + r4 + '</div>';
@@ -28987,7 +29019,7 @@ function bezoekKaartHtml(id) {
     (magWijzigen('accounts') ? '<button class="kk-ik" type="button" title="Naam van de opdrachtgever wijzigen — overal in het dashboard" aria-label="Naam wijzigen" onclick="bedrijfHernoemVenster(\'' + escApos(b.id) + '\')">' +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="m12.5 7.5 4 4"/></svg></button>' : '');
   const res = (b.record && b.record.result && typeof b.record.result === 'object') ? b.record.result : null;
-  const samenvatting = res && res.samenvatting ? String(res.samenvatting) : '';
+  const samenvatting = res && res.samenvatting ? String(res.samenvatting) : b.verslag && b.verslag.samenvatting ? String(b.verslag.samenvatting) : '';   // 28-09: ook uit een handmatig verslag
   // Eerdere bezoeken per week, met wie er ging: "Mike (3×), Yoël" (16-09).
   const perWeek = {};
   accBezoekenLijst().filter(x => x.id !== b.id && _itkSleutel(x.bedrijf) === _itkSleutel(b.bedrijf)).forEach(x => {
@@ -29011,7 +29043,8 @@ function bezoekKaartHtml(id) {
     '<div class="crm-kop">Samenvatting uit het verslag</div>' +
     (samenvatting ? '<div class="kk-tekst">' + escHtml(samenvatting) + '</div>' : '<div class="kk-tekst stil">' + (b.record ? 'het verslag heeft nog geen samenvatting' : 'nog geen verslag van dit bezoek') + '</div>') +
     '<div class="crm-kop">Verbanden</div><div class="kk-lijst">' +
-      rij('Record', b.record ? escHtml(b.record.datum + ' · ' + _accCollegaKort(b)) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '') +
+      (b.verslag ? rij('Verslag', escHtml((b.datumTekst || '') + ' · ' + _accCollegaKort(b)) + ' <span class="kk-pil">handmatig</span>', kn("gvOpenVerslag('" + escApos(String(b.verslag.id)) + "')"))
+                 : rij('Record', b.record ? escHtml(b.record.datum + ' · ' + _accCollegaKort(b)) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '')) +
       rij('Accountplan', b.plan ? 'bijgewerkt ' + escHtml(datumNL(String(b.plan.updated_at || '').slice(0, 10))) : '<span class="stil">nog geen</span>', b.plan ? kn("apNaar('" + escApos(String(b.plan.id)) + "')") : (b.account && magWijzigen('accounts') ? kn("apNieuwVoor('" + escApos(String(b.account.id)) + "')", 'nieuw') : '')) +
       rij('Scorekaart', b.account ? String(accScore(b.account)) : '<span class="stil">niet in KAM</span>', b.account ? kn("klantKaartOpen('" + escApos(String(b.account.id)) + "')") : '') +
       rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("ACCOUNT_SUBTAB='sales';selectTab('accounts')") : '') +
@@ -29375,13 +29408,14 @@ function _accBezoekenBlokHtml(naam) {
   const bezoeken = accBezoekenLijst().filter(b => _itkSleutel(b.bedrijf) === sl);
   const rijen = bezoeken.map(b => {
     const res = b.record && b.record.result && typeof b.record.result === 'object' ? b.record.result : null;
-    const sam = res && res.samenvatting ? String(res.samenvatting) : '';
+    const sam = res && res.samenvatting ? String(res.samenvatting) : b.verslag && b.verslag.samenvatting ? String(b.verslag.samenvatting) : '';   // 28-09: handmatig verslag
     return '<div class="kk-rij"><span>' + escHtml(_accDagKort(b.datumMs) || b.datumTekst) + '</span><div>' +
       (b.soortBezoek === 'evaluatie' ? '<span class="card-bez-pil evaluatie">Evaluatie</span> ' + (b.medewerker ? '<b>' + escHtml(b.medewerker) + '</b>' + (b.evalMoment != null ? ' · ' + escHtml(_evalMomentLabel(b.evalMoment)) : '') + ' · ' : '') : '') +
-      escHtml([_accCollegaKort(b) || 'onbekend', b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, b.soortBezoek === 'evaluatie' ? '' : (_ACC_SOORT[b.soortBezoek] || b.soortBezoek)].filter(Boolean).join(' · ')) +
+      escHtml([_accCollegaKort(b) || 'onbekend', b.contactpersoon ? b.contactpersoon + (b.afdeling ? ' (' + b.afdeling + ')' : '') : '', b.verslag ? 'verslag ' + b.datumTekst : b.record ? 'bezoek ' + b.record.datum : 'kaartje week ' + b.week, b.soortBezoek === 'evaluatie' ? '' : (b.verslag && b.verslagSoort !== 'bedrijfsbezoek' ? b.verslagSoort : (_ACC_SOORT[b.soortBezoek] || b.soortBezoek))].filter(Boolean).join(' · ')) +
+      (b.verslag ? ' <span class="kam-pil" style="background:rgba(133,183,235,.18);color:#85B7EB;">handmatig</span>' : b.record ? ' <span class="kam-pil ja" style="cursor:default;">uit opname</span>' : '') +
       (b.afgerond ? ' <span class="kk-pil">afgerond</span>' : '') +
       (sam ? '<div class="kk-tekst" style="color:rgba(255,255,255,.6);font-size:.78rem;">' + escHtml(sam.slice(0, 120) + (sam.length > 120 ? '…' : '')) + '</div>' : (b.record ? '' : '<div class="kk-tekst stil" style="font-size:.76rem;">geen verslag</div>')) +
-      '</div><button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(b.id) + '\')">kaart</button></div>';
+      '</div>' + (b.verslag ? '<button class="kk-knop" onclick="crmKaartSluit();gvOpenVerslag(\'' + escApos(String(b.verslag.id)) + '\')">verslag</button>' : '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(b.id) + '\')">kaart</button>') + '</div>';
   }).join('');
   const vervolg = bezoeken.map(b => b.vervolg).filter(Boolean).sort((a, b) => Date.parse(b.vervolg_op) - Date.parse(a.vervolg_op))[0] || null;
   return '<div class="crm-kop">Bezoeken</div><div class="kk-lijst">' + (rijen || '<div class="kk-tekst stil">nog geen bezoeken</div>') + '</div>' +
@@ -31591,6 +31625,7 @@ async function crmBedrijfOpslaan() {
     CRM_BEDRIJVEN = lijst.filter(b => !eerder || String(b.id) !== String(eerder.id)).concat([rij]);
   }
   CRM_WIZ = null;
+  if (_CRM_WIZ_NA) { const na = _CRM_WIZ_NA; _CRM_WIZ_NA = null; na(rij); if (currentTab === 'crmbedrijf') renderCrmBedrijven(); return; }   // 28-09: bijv. terug naar het verslag-formulier
   crmBedrijfOpen(velden.sleutel);
   if (currentTab === 'crmbedrijf') renderCrmBedrijven();
 }
@@ -33320,10 +33355,10 @@ function _kamWijzigingenGebundeld(rijen) {
 // ════════════════════════════════════════════════════════════════════════════
 // GESPREKSVERSLAGEN (akkoord 28-08)
 //   Eén vast format voor klantgesprekken, met twee ingangen:
-//   · de knop "→ Verslag" op een BZK-record (kopieert; de opname blijft staan)
-//   · de +knop in het tabblad, voor een gesprek zonder opname
-//   Herkomst blijft zichtbaar via het label "uit opname" of "handmatig", en
-//   een omgezet verslag houdt de koppeling naar zijn opname.
+//   · elk BZK-record staat er vanzelf (28-09: live uit het record, geen kopie meer;
+//     de tot 28-09 omgezette kopieën blijven staan met hun koppeling naar de opname)
+//   · de +knop in het tabblad, voor een gesprek zonder opname (opdrachtgever uit het CRM)
+//   Herkomst blijft zichtbaar via het label "uit opname" of "handmatig".
 // ════════════════════════════════════════════════════════════════════════════
 
 async function loadGespreksverslagen() {
@@ -33352,38 +33387,28 @@ function _gvDatumIso(tekst) {
 }
 
 // ── Omzetten vanuit een BZK-record ──────────────────────────────────────────
-async function bzkNaarGespreksverslag(recId) {
-  if (!eisWijzig('accounts')) return;
-  const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(recId));
-  if (!rec) return;
-  // Al eens omgezet? Dan niet nog een kopie maken maar ernaartoe gaan.
-  const bestaand = GESPREKSVERSLAGEN_CACHE.find(g => String(g.bron_verslag_id) === String(recId));
-  if (bestaand) {
-    ACCOUNT_SUBTAB = 'verslagen'; GV_FORM = null; selectTab('accounts');
-    alert('Dit record is al omgezet — je wordt ernaartoe gebracht.');
-    return;
-  }
+// Een BZK-record als verslagrij (28-09). Tot 28-09 moest je een record met "→ Verslag" omzetten naar een
+// kopie in de tabel gespreksverslagen; wie dat vergat, zag het record niet op het tabblad. Nu staan alle
+// records er automatisch, live uit het record zelf (geen kopie, dus nooit uit de pas).
+function _gvVanRecord(rec) {
   const r = rec.result || {};
   const stukken = [];
   if (r.huidigePersoneelssituatie) stukken.push(strVal(r.huidigePersoneelssituatie));
   if (r.wervingsbehoefte && (r.wervingsbehoefte.functies || r.wervingsbehoefte.profiel))
-    stukken.push('Wervingsbehoefte: ' + [r.wervingsbehoefte.functies, r.wervingsbehoefte.aantallen, r.wervingsbehoefte.profiel]
-      .filter(Boolean).map(strVal).join(' · '));
+    stukken.push('Wervingsbehoefte: ' + [r.wervingsbehoefte.functies, r.wervingsbehoefte.aantallen, r.wervingsbehoefte.profiel].filter(Boolean).map(strVal).join(' · '));
   if (r.commercieelePotentie) stukken.push('Commercieel potentieel: ' + strVal(r.commercieelePotentie));
-  const rij = {
-    bedrijf: rec.bedrijf || '', contactpersoon: rec.contactpersoon || '',
-    datum: _gvDatumIso(rec.datum), soort: rec.soortBezoek || 'bedrijfsbezoek',
-    samenvatting: stukken.join('\n\n') || strVal(r.samenvatting || ''),
-    acties: strVal(r.afspraken || ''), vervolg: '',
-    bron: 'opname', bron_verslag_id: String(recId),
-    auteur: rec.recorder_naam || CURRENT_USER?.naam || '',
-    created_by: CURRENT_USER?.id || null,
-  };
-  const { data, error } = await supa.from('gespreksverslagen').insert(rij).select().single();
-  if (error) { alert('Omzetten mislukt: ' + _gvFout(error)); meldFout('gespreksverslag omzetten: ' + error.message, 'bzkNaarGespreksverslag'); return; }
-  GESPREKSVERSLAGEN_CACHE.unshift(data);
-  ACCOUNT_SUBTAB = 'verslagen'; GV_FORM = null;
-  selectTab('accounts');
+  return { id: 'rec:' + rec.id, virtueel: true, recId: String(rec.id),
+    bedrijf: rec.bedrijf || '', contactpersoon: rec.contactpersoon || '', datum: _gvDatumIso(rec.datum), soort: rec.soortBezoek || 'bedrijfsbezoek',
+    samenvatting: stukken.join('\n\n') || strVal(r.samenvatting || ''), acties: strVal(r.afspraken || ''), vervolg: '',
+    bron: 'opname', bron_verslag_id: String(rec.id), auteur: rec.recorder_naam || '' };
+}
+// Alles op het tabblad: de opgeslagen verslagen (handmatig + eerder omgezette kopieën) plus elk record
+// dat geen kopie heeft. Nieuwste eerst.
+function _gvLijst() {
+  const cache = Array.isArray(GESPREKSVERSLAGEN_CACHE) ? GESPREKSVERSLAGEN_CACHE : [];
+  const kopie = new Set(cache.filter(g => g.bron_verslag_id).map(g => String(g.bron_verslag_id)));
+  const records = (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).filter(r => r && !kopie.has(String(r.id))).map(_gvVanRecord);
+  return cache.concat(records).sort((a, b) => String(b.datum || '').localeCompare(String(a.datum || '')) || String(b.id).localeCompare(String(a.id)));
 }
 
 function _gvFout(e) {
@@ -33397,7 +33422,7 @@ async function gvOpslaan(knop) {
   if (!eisWijzig('accounts')) return;
   const v = (id) => document.getElementById(id)?.value?.trim() || '';
   const bedrijf = v('gv-bedrijf');
-  if (!bedrijf) { alert('Vul in elk geval de opdrachtgever in.'); return; }
+  if (!bedrijf) { btMeld('Kies de opdrachtgever uit het CRM (typ een paar letters en klik op het bedrijf).', 'let'); const z = document.getElementById('gv-bedrijf-zoek'); if (z && z.focus) z.focus(); return; }
   const rij = {
     bedrijf, contactpersoon: v('gv-cp'), datum: v('gv-datum') || toISODate(new Date()),
     soort: v('gv-soort') || 'bedrijfsbezoek',
@@ -33418,7 +33443,7 @@ async function gvOpslaan(knop) {
     rij.created_by = CURRENT_USER?.id || null;
     const { data, error: e2 } = await supa.from('gespreksverslagen').insert(rij).select().single();
     error = e2;
-    if (!error) GESPREKSVERSLAGEN_CACHE.unshift(data);
+    if (!error) { GESPREKSVERSLAGEN_CACHE.unshift(data); _gvLogSchrijf(data); }   // 28-09: regel in het gesprekslog van de klant
   }
   if (error) {
     alert('Opslaan mislukt: ' + _gvFout(error));
@@ -33426,6 +33451,8 @@ async function gvOpslaan(knop) {
     if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
     return;
   }
+  // Nieuwe contactpersoon (28-09): ook in het CRM bij dit bedrijf, met de functie als die is ingevuld.
+  if (rij.contactpersoon && typeof _pipeCpNaarCrm === 'function') { try { await _pipeCpNaarCrm(bedrijf, rij.contactpersoon, v('gv-cp-functie'), null); } catch (e) { _meldStil('contactpersoon naar CRM', e); } }
   GV_FORM = null;
   renderAccounts();
 }
@@ -33440,6 +33467,113 @@ async function gvVerwijder(id) {
 }
 
 function gvNieuw()      { GV_FORM = {}; renderAccounts(); }
+// Een gespreksverslag openen vanaf de bedrijfskaart, de tijdlijn of het gesprekslog (28-09).
+function gvOpenVerslag(id) {
+  if (typeof crmKaartSluit === 'function') crmKaartSluit();
+  ACCOUNT_SUBTAB = 'verslagen'; GV_OPEN.add(String(id));
+  if (currentTab !== 'accounts') selectTab('accounts'); else renderAccounts();
+  setTimeout(() => { const el = document.querySelector('.gv-open'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' }); }, 80);
+}
+// Gesprekslog-regel bij een handmatig verslag (28-09), zoals _bzLogSchrijf bij een record.
+function _gvLogSchrijf(g) {
+  if (!g || !g.id || typeof waLogNoteer !== 'function') return;
+  const bedrijf = String(g.bedrijf || '').trim(), bk = _itkSleutel(bedrijf); if (!bk) return;
+  const soort = { bedrijfsbezoek: 'Bedrijfsbezoek', evaluatie_medewerker: 'Evaluatie', voorbereiding_matchgesprek: 'Match prep', telefonisch: 'Telefonisch', overig: 'Overig' }[g.soort] || 'Gesprek';
+  const label = 'Verslag ' + String(g.datum || '').trim(), cp = String(g.contactpersoon || '').trim();
+  waLogNoteer('acc', bk, bedrijf, 'Gespreksverslag (handmatig) · ' + soort + (cp ? ' met ' + cp : '') + ' — ' + label, [{ soort: 'verslag', id: String(g.id), naam: 'Verslag', label }]);
+}
+// Tabblad (28-09): wat er in de kolom Opdrachtgever staat. Evaluatie uit de recorder heeft de medewerker in het
+// bedrijfsveld en het bedrijf in het contactpersoon-veld → omgedraaid tonen; niet in het CRM → oranje pil + koppelen.
+function _gvTabBedrijf(g) {
+  const eva = g.soort === 'evaluatie_medewerker' && g.bron === 'opname' && g.contactpersoon;
+  const naam = eva ? String(g.contactpersoon) : String(g.bedrijf || '');
+  const los = !eva && g.bron !== 'opname' && !_gvBedrijfVind(naam);
+  const html = escHtml(naam) + (eva ? ' <span class="kam-pil" style="background:rgba(255,255,255,.12);color:#fff;cursor:default;">evaluatie · ' + escHtml(g.bedrijf || '') + '</span>' : '') +
+    (los ? ' <span class="kam-pil" style="background:rgba(255,179,122,.18);color:#ffb37a;cursor:default;">niet in CRM</span>' + (magWijzigen('accounts') ? ' <button type="button" class="kk-knop" onclick="event.stopPropagation();gvBewerk(\'' + escApos(String(g.id)) + '\')">koppelen</button>' : '') : '');
+  return { naam, html, los: !!los, cp: eva ? '—' : (g.contactpersoon || '—') };
+}
+// ── Opdrachtgever en contactpersoon uit het CRM (28-09) ──────────────────────
+// Het verslag hangt aan een CRM-bedrijf: zoekveld op de CRM-lijst, gekozen bedrijf
+// staat vast (× wist), contactpersonen van dat bedrijf als chips. Vrij typen zonder
+// kiezen kan niet meer; wie er niet in staat: "+ toevoegen aan CRM" (bedrijfs-wizard).
+function _gvBedrijfVind(naamOfSleutel) {
+  const sl = _itkSleutel(naamOfSleutel || ''); if (!sl || typeof crmBedrijfLijst !== 'function') return null;
+  return crmBedrijfLijst().find(x => x.sleutel === sl || _itkSleutel(x.naam) === sl) || null;
+}
+function _gvBedrijfLijstHtml(zoek) {
+  const z = _zoekNorm(zoek); if (!z) return '';
+  const alle = crmBedrijfLijst().filter(k => _zoekNorm(k.naam).includes(z))
+    .sort((a, b) => (_zoekNorm(b.naam).startsWith(z) - _zoekNorm(a.naam).startsWith(z)) || a.naam.localeCompare(b.naam, 'nl')).slice(0, 12);
+  const mark = (naam) => { const i = _zoekNorm(naam).indexOf(z); return i < 0 ? escHtml(naam) : escHtml(naam.slice(0, i)) + '<mark>' + escHtml(naam.slice(i, i + z.length)) + '</mark>' + escHtml(naam.slice(i + z.length)); };
+  const rijen = alle.map((k, i) => { const n = _crmBedrijfContacten(k).length, vlag = k.account && k.account.notitie === 'top11' ? 'Top 11' : k.account && k.account.notitie === 'gwnst11' ? 'Gwnst 11' : '';
+    return '<div class="r' + (i === 0 ? ' aan' : '') + '" data-sleutel="' + escHtml(k.sleutel) + '" onmousedown="event.preventDefault()" onclick="gvBedrijfKies(\'' + escApos(k.sleutel) + '\')"><b>' + mark(k.naam) + '</b>' + (vlag ? '<span class="pil">' + vlag + '</span>' : '') +
+      '<small>' + (n ? n + ' contactperso' + (n === 1 ? 'on' : 'nen') : 'nog geen contactpersonen') + (k.laatsteMs > 0 ? ' · laatste bezoek ' + escHtml(_crmDatum(k.laatsteMs)) : '') + '</small></div>'; }).join('');
+  return rijen + (magWijzigen('crm') ? '<div class="r nieuw" onmousedown="event.preventDefault()" onclick="gvBedrijfNieuw()">"' + escHtml(String(zoek).trim()) + '" niet gevonden — + toevoegen aan CRM</div>' : '');
+}
+function _gvKiezerHtml(g) {
+  const inp = 'class="veld-licht" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:.84rem;background:#fff;color:var(--text);font-family:inherit;"';
+  const naam = String(g.bedrijf || '').trim(), k = _gvBedrijfVind(naam), cp = String(g.contactpersoon || '').trim();
+  if (!k) {
+    return '<div class="gv-kies"><input id="gv-bedrijf-zoek" placeholder="Opdrachtgever * — zoek in het CRM" value="' + escHtml(naam) + '" autocomplete="off" oninput="gvBedrijfZoek(this)" onkeydown="gvBedrijfToets(event)" onfocus="gvBedrijfZoek(this)" onblur="setTimeout(() => { const l = document.getElementById(\'gv-bedrijf-lijst\'); if (l) l.innerHTML = \'\'; }, 150)" ' + inp + '>' +
+      '<input id="gv-bedrijf" type="hidden" value=""><div id="gv-bedrijf-lijst" class="gv-lijst" style="display:none"></div>' + (naam ? '<div class="gv-hint">"' + escHtml(naam) + '" staat niet in het CRM — kies een bedrijf uit de lijst</div>' : '') + '</div>' +
+      '<input id="gv-cp" placeholder="Contactpersoon — kies eerst het bedrijf" value="" disabled ' + inp + '>';
+  }
+  const contacten = _crmBedrijfContacten(k).filter(c => c && c.naam), bestaand = contacten.some(c => _itkSleutel(c.naam) === _itkSleutel(cp)), nieuw = !!cp && !bestaand;
+  const vlag = k.account && k.account.notitie === 'top11' ? 'Top 11' : k.account && k.account.notitie === 'gwnst11' ? 'Gwnst 11' : '';
+  return '<div class="gv-vast"><b>' + escHtml(k.naam) + '</b>' + (vlag ? '<span class="pil">' + vlag + '</span>' : '') + '<button type="button" class="x" title="Ander bedrijf kiezen" onclick="gvBedrijfWis()">×</button><input id="gv-bedrijf" type="hidden" value="' + escHtml(k.naam) + '"></div>' +
+    '<input id="gv-cp" placeholder="Contactpersoon" value="' + escHtml(cp) + '" ' + (nieuw ? '' : 'readonly ') + inp + '>' +
+    '<div class="gv-chips">' + contacten.map(c => '<button type="button" class="gv-chip' + (_itkSleutel(c.naam) === _itkSleutel(cp) ? ' aan' : '') + '" data-naam="' + escHtml(c.naam) + '" onclick="gvCpKies(\'' + escApos(c.naam) + '\')"><span class="av" style="background:' + _oneAvatarKleur(c.naam) + '">' + escHtml(_oneInitialen(c.naam)) + '</span>' + escHtml(c.naam) + (c.functie ? '<small>· ' + escHtml(c.functie) + '</small>' : '') + '</button>').join('') +
+    '<button type="button" class="gv-chip plus' + (nieuw ? ' aan' : '') + '" onclick="gvCpNieuw()">+ nieuwe contactpersoon</button>' + (contacten.length ? '' : '<span style="font-size:.72rem;color:rgba(255,255,255,.5);align-self:center">nog niemand in het CRM bij ' + escHtml(k.naam) + '</span>') + '</div>' +
+    '<div class="gv-cp-nieuw" id="gv-cp-nieuw" style="' + (nieuw ? '' : 'display:none') + '"><input id="gv-cp-functie" placeholder="Functie van de nieuwe contactpersoon" value="" ' + inp + '><small>wordt bij Opslaan ook als contactpersoon bij ' + escHtml(k.naam) + ' in het CRM gezet</small></div>';
+}
+// Wat er nu in het formulier staat, zodat een hertekening (bedrijf kiezen/wissen) niets weggooit.
+function _gvLees() {
+  const v = (id) => { const el = document.getElementById(id); return el ? String(el.value || '') : undefined; };
+  const uit = {}; [['samenvatting', 'gv-samenvatting'], ['acties', 'gv-acties'], ['vervolg', 'gv-vervolg'], ['datum', 'gv-datum'], ['soort', 'gv-soort']].forEach(([k, id]) => { const w = v(id); if (w !== undefined) uit[k] = w; });
+  return uit;
+}
+function gvBedrijfZoek(inp) {
+  const l = document.getElementById('gv-bedrijf-lijst'); if (!l) return;
+  l.innerHTML = _gvBedrijfLijstHtml(inp.value); l.style.display = l.innerHTML ? '' : 'none';
+}
+function gvBedrijfToets(e) {
+  const l = document.getElementById('gv-bedrijf-lijst'); if (!l) return;
+  const rijen = Array.from(l.querySelectorAll('.r')); if (!rijen.length) return;
+  let i = rijen.findIndex(r => r.classList.contains('aan'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); i = (i + (e.key === 'ArrowDown' ? 1 : -1) + rijen.length) % rijen.length; rijen.forEach((r, j) => r.classList.toggle('aan', j === i)); rijen[i].scrollIntoView && rijen[i].scrollIntoView({ block: 'nearest' }); }
+  else if (e.key === 'Enter') { e.preventDefault(); (rijen[i] || rijen[0]).click(); }
+  else if (e.key === 'Escape') { l.innerHTML = ''; l.style.display = 'none'; }
+}
+function gvBedrijfKies(sleutel) {
+  const k = _gvBedrijfVind(sleutel); if (!k || !GV_FORM) return;
+  GV_FORM.velden = Object.assign({}, GV_FORM.velden || {}, _gvLees(), { bedrijf: k.naam, contactpersoon: '' });
+  renderAccounts();
+}
+function gvBedrijfWis() {
+  if (!GV_FORM) return;
+  GV_FORM.velden = Object.assign({}, GV_FORM.velden || {}, _gvLees(), { bedrijf: '', contactpersoon: '' });
+  renderAccounts();
+  setTimeout(() => { const el = document.getElementById('gv-bedrijf-zoek'); if (el && el.focus) el.focus(); }, 60);
+}
+function gvBedrijfNieuw() {
+  const naam = String((document.getElementById('gv-bedrijf-zoek') || {}).value || '').trim();
+  if (GV_FORM) GV_FORM.velden = Object.assign({}, GV_FORM.velden || {}, _gvLees());
+  _CRM_WIZ_NA = (rij) => { crmKaartSluit(); if (rij && rij.sleutel) gvBedrijfKies(rij.sleutel); };
+  crmBedrijfWizard();
+  if (CRM_WIZ && CRM_WIZ.w) { CRM_WIZ.w.naam = naam; const el = document.getElementById('crm-w-naam'); if (el) el.value = naam; }
+}
+function gvCpKies(naam) {
+  const inp = document.getElementById('gv-cp'), vorm = document.getElementById('gv-cp-nieuw');
+  if (inp) { inp.value = naam; inp.readOnly = true; }
+  if (vorm) vorm.style.display = 'none';
+  document.querySelectorAll('.gv-chip').forEach(c => c.classList.toggle('aan', c.getAttribute('data-naam') === naam));
+}
+function gvCpNieuw() {
+  const inp = document.getElementById('gv-cp'), vorm = document.getElementById('gv-cp-nieuw');
+  document.querySelectorAll('.gv-chip').forEach(c => c.classList.toggle('aan', c.classList.contains('plus')));
+  if (vorm) vorm.style.display = '';
+  if (inp) { inp.value = ''; inp.readOnly = false; inp.placeholder = 'Naam van de nieuwe contactpersoon'; inp.focus && inp.focus(); }
+}
 
 // Vanuit een bezoek zonder verslag (KAM-tabblad): open het lege blad met de
 // klant, de collega en de datum van die week er alvast in.
@@ -36223,13 +36357,13 @@ function renderGespreksverslagenHtml(subTabBtns) {
   if (GV_FORM) {
     // Bij bewerken uit de lijst; bij nieuw uit GV_FORM zelf, zodat de +knop
     // vanuit het bezoekenoverzicht klant en datum kan meegeven.
-    const g = GV_FORM.id ? (GESPREKSVERSLAGEN_CACHE.find(x => String(x.id) === String(GV_FORM.id)) || {}) : GV_FORM;
+    // GV_FORM.velden (28-09): wat er al getypt was toen het bedrijf gekozen of gewist werd — gaat vóór.
+    const g = Object.assign({}, GV_FORM.id ? (GESPREKSVERSLAGEN_CACHE.find(x => String(x.id) === String(GV_FORM.id)) || {}) : GV_FORM, GV_FORM.velden || {});
     const inp = 'class="veld-licht" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:.84rem;background:#fff;color:var(--text);font-family:inherit;"';
     formHtml = `<div class="bt-venster werk-blad" style="margin-bottom:14px;">
       <div class="pva-blok" style="margin-top:0;">${GV_FORM.id ? 'Verslag bewerken' : 'Nieuw gespreksverslag'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;">
-        <input id="gv-bedrijf" placeholder="Opdrachtgever *" value="${escHtml(g.bedrijf || '')}" ${inp}>
-        <input id="gv-cp" placeholder="Contactpersoon" value="${escHtml(g.contactpersoon || '')}" ${inp}>
+        ${_gvKiezerHtml(g)}
         <input id="gv-datum" type="date" value="${escHtml(g.datum || toISODate(new Date()))}" ${inp}>
         <select id="gv-soort" ${inp}>${Object.entries(SOORTEN).map(([w, t]) =>
           `<option value="${w}" ${g.soort === w ? 'selected' : ''}>${t}</option>`).join('')}</select>
@@ -36253,7 +36387,8 @@ function renderGespreksverslagenHtml(subTabBtns) {
     : '<span class="kam-pil" style="background:rgba(133,183,235,.18);color:#85B7EB;">handmatig</span>';
   // Vaste kolommen, alles links uitgelijnd (aanwijzing 28-08) — dezelfde
   // tabelopzet als de bezoeken en wijzigingen op het KAM-tabblad.
-  const rijen = GESPREKSVERSLAGEN_CACHE.map(g => {
+  const alle = _gvLijst(), uitOpname = alle.filter(g => g.bron === 'opname').length;   // 28-09: alle records + handmatig
+  const rijen = alle.map(g => {
     const open = GV_OPEN.has(String(g.id));
     // Wie het verslag heeft gemaakt. Bij een handmatig verslag is dat degene
     // die het typte; bij een omgezet verslag de collega van de opname. Is het
@@ -36261,8 +36396,8 @@ function renderGespreksverslagenHtml(subTabBtns) {
     const maker = _dagstartVoornaam(g.auteur || '') || '—';
     return `<tr class="gv-rij" onclick="gvToggle('${escApos(String(g.id))}')">
         <td class="gv-pijl"><span style="display:inline-block;transform:rotate(${open ? 90 : 0}deg);transition:transform .15s;">▶</span></td>
-        <td class="gv-klant">${escHtml(g.bedrijf || '')}</td>
-        <td class="gv-cp">${escHtml(g.contactpersoon || '—')}</td>
+        <td class="gv-klant">${_gvTabBedrijf(g).html}</td>
+        <td class="gv-cp">${escHtml(_gvTabBedrijf(g).cp)}</td>
         <td class="gv-tekst">${escHtml((g.samenvatting || '').split('\n')[0] || '—')}</td>
         <td class="gv-soort">${pil(g)}</td>
         <td class="gv-datum">${dagFmt(g.datum)}</td>
@@ -36278,12 +36413,12 @@ function renderGespreksverslagenHtml(subTabBtns) {
         <div class="crm-kop">Vastgelegd door</div>
         <div class="gv-veld">${escHtml(g.auteur || '—')}${
           g.bron === 'handmatig' ? ' <span style="color:rgba(255,255,255,.45);">· handmatig ingevoerd</span>'
-                                 : ' <span style="color:rgba(255,255,255,.45);">· uit een BZK-opname</span>'}${
+                                 : ' <span style="color:rgba(255,255,255,.45);">· uit een BZK-opname' + (g.virtueel ? ' (live uit het record)' : ' (kopie, omgezet)') + '</span>'}${
           g.updated_by && g.updated_by !== g.auteur
             ? `<br><span style="color:rgba(255,255,255,.45);">laatst gewijzigd door ${escHtml(g.updated_by)}</span>` : ''}</div>
         <div class="crm-knoppen">
-          ${g.bron === 'opname' && g.bron_verslag_id ? `<button class="crm-knop" onclick="selectTab('bezoek')">Oorspronkelijke opname ↗</button>` : ''}
-          ${mag ? `<button class="crm-knop" onclick="gvBewerk('${escApos(String(g.id))}')">Wijzigen</button>
+          ${g.virtueel ? `<button class="crm-knop" onclick="recordsNaarRecord('bezoek','${escApos(String(g.recId))}')">Open record ↗</button>` : g.bron === 'opname' && g.bron_verslag_id ? `<button class="crm-knop" onclick="recordsNaarRecord('bezoek','${escApos(String(g.bron_verslag_id))}')">Oorspronkelijke opname ↗</button>` : ''}
+          ${mag && !g.virtueel ? `<button class="crm-knop" onclick="gvBewerk('${escApos(String(g.id))}')">Wijzigen</button>
           <button class="crm-knop" style="color:#ff8080;border-color:rgba(255,128,128,.4);" onclick="gvVerwijder('${escApos(String(g.id))}')">Verwijderen</button>` : ''}
         </div>
       </td></tr>` : ''}`;
@@ -36299,10 +36434,10 @@ function renderGespreksverslagenHtml(subTabBtns) {
     <div class="bt-venster werk-blad">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
         <div class="pva-blok" style="margin:0;">Gespreksverslagen</div>
-        <span style="color:rgba(255,255,255,.4);font-size:.76rem;">${GESPREKSVERSLAGEN_CACHE.length} verslag${GESPREKSVERSLAGEN_CACHE.length === 1 ? '' : 'en'}</span>
+        <span style="color:rgba(255,255,255,.4);font-size:.76rem;">${alle.length} verslag${alle.length === 1 ? '' : 'en'} · ${uitOpname} uit opname · ${alle.length - uitOpname} handmatig</span>
         ${mag && !GV_FORM ? `<button class="crm-knop" style="margin-left:auto;color:#F4CB3C;border-color:rgba(244,203,60,.5);" onclick="gvNieuw()">+ Nieuw verslag</button>` : ''}
       </div>
-      ${GESPREKSVERSLAGEN_CACHE.length
+      ${alle.length
         ? `<table class="kam-tab gv-tab">
              <tr><th class="gv-pijl">&nbsp;</th><th class="gv-klant">Opdrachtgever</th>
                  <th class="gv-cp">Contactpersoon</th><th>Samenvatting</th>
@@ -36310,7 +36445,7 @@ function renderGespreksverslagenHtml(subTabBtns) {
                  <th class="gv-door">Door</th></tr>
              ${rijen}
            </table>`
-        : `<div style="color:rgba(255,255,255,.5);font-size:.84rem;padding:14px 0;">Nog geen gespreksverslagen. Zet een BZK-record om via de knop "→ Verslag" bij de records, of maak er hier een met + Nieuw verslag.</div>`}
+        : `<div style="color:rgba(255,255,255,.5);font-size:.84rem;padding:14px 0;">Nog geen gespreksverslagen. Elke BZK-opname komt hier vanzelf te staan; een gesprek zonder opname maak je met + Nieuw verslag.</div>`}
     </div>
   </div>`;
 }
@@ -39529,7 +39664,7 @@ function _recRegelBezoek(rec, soortPil) {
             ? `<span onclick="event.stopPropagation()" title="Toegewezen aan ${escHtml(rec.recorder_naam)} — klik om te wijzigen" class="rec-collega" onclick="event.stopPropagation();this.style.display='none';this.nextElementSibling.style.display='block';">${escHtml(rec.recorder_naam.split(' ')[0])}</span><select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" style="display:none;font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;max-width:120px;flex-shrink:0;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
             : `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();bezoekRecordToewijzen('${rec.id}',this.value)" class="rec-toewijs" style="font-size:.72rem;border:1px solid var(--border);border-radius:5px;padding:2px 4px;width:100%;cursor:pointer;background:#fff;" title="Toewijzen aan medewerker"><option value="">Toewijzen…</option>${bmsZichtbaar().map(bm=>`<option value="${escHtml(bm.naam)}" ${rec.recorder_naam===bm.naam?'selected':''}>${escHtml(bm.naam)}</option>`).join('')}</select>`
           }
-          <span class="rec-actie"><span onclick="event.stopPropagation();bzkNaarGespreksverslag('${rec.id}')" style="font-size:.7rem;color:var(--primary);cursor:pointer;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:#fff;font-weight:var(--w-nadruk);white-space:nowrap;" title="Omzetten naar een gespreksverslag onder Accountmanagement — de opname zelf blijft staan">→ Verslag</span></span>
+          <span class="rec-actie"></span>   <!-- 28-09: omzetknop weg; lege cel houdt de kolommen gelijk -->
           <span onclick="event.stopPropagation();bezoekRecordVerwijder('${rec.id}')" style="font-size:.8rem;color:#e02424;cursor:pointer;padding:2px 6px;border-radius:4px;" title="Verwijder">${btActie('prullenbak')}</span>
         </div>
         ${open?`<div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--card);">
