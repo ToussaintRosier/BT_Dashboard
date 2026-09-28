@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260928-1511 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260928-1607 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -486,6 +486,11 @@
   .ap-a { display:grid; grid-template-columns:250px minmax(0,1fr); gap:14px; align-items:start; color:#fff; }
   .ap-lijst-kolom { background:var(--l1); border:0.5px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; position:sticky; top:114px; max-height:calc(100vh - 130px); overflow:auto; }
   .ap-zoek { width:100%; box-sizing:border-box; background:var(--l0); border:1px solid rgba(255,255,255,.14); border-radius:99px; padding:6px 12px; font-size:.78rem; color:#fff; font-family:inherit; margin-bottom:8px; }
+  /* 28-09: Alle · Top 11 · Gewenst 11 */
+  .ap-chips { display:flex; gap:4px; margin:-2px 0 10px; }
+  .ap-chip { flex:1; border:1px solid rgba(255,255,255,.28); border-radius:99px; padding:3px 4px; font-size:.66rem; color:#fff; background:transparent; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .ap-chip small { opacity:.65; margin-left:3px; font-size:.62rem; } .ap-chip:hover { border-color:rgba(255,255,255,.5); }
+  .ap-chip.aan { background:var(--accent-gold); color:#253151; border-color:var(--accent-gold); font-weight:var(--w-nadruk); }
   .ap-rij { display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; text-align:left; border:0; background:var(--l2); color:#fff; border-radius:8px; padding:8px 10px; font-family:inherit; font-size:.82rem; margin-bottom:4px; cursor:pointer; }
   .ap-rij small { display:block; font-size:.66rem; opacity:.6; } .ap-rij.aan { background:#F4CB3C; color:#253151; }
   .ap-pct { font-size:.66rem; border-radius:99px; padding:2px 8px; background:rgba(255,255,255,.12); white-space:nowrap; } .ap-pct.groen { background:rgba(37,211,102,.2); color:#25D366; } .ap-pct.oranje { background:rgba(232,116,0,.2); color:#fbbf7a; } .ap-rij.aan .ap-pct { background:rgba(37,49,81,.15); color:#253151; }
@@ -6855,7 +6860,7 @@ const PAGINA_UITLEG = {
           'Met het plusje in een kolom maak je een tegeltje: Intake, Bezoek, Aanbieden, Matchgesprek, Contractvoorstel of Starter.',
           'Een Intake voer je op vanuit CRM · Kandidaten (de kandidaat is verplicht uit het CRM). De intakedatum bepaalt in welke week het tegeltje komt.',
           'Bij een Bezoek kies je het type (bedrijfsbezoek, matchgesprek of evaluatie), het bedrijf uit de RLDV/KAM-lijst, datum en tijd en de contactpersoon. Een evaluatie hangt aan de medewerker én de opdrachtgever; het moment komt uit Evaluatiebeheer.',
-          'Aanbiedingen maak je niet los: die komen uit "Aanbiedingen afvinken" op de kandidaatkaart (RLDV-check). Het tegeltje komt bij wie aanbood.',
+          'Aanbiedingen maak je niet los: die komen uit "Aanbiedingen afvinken" op de kandidaatkaart (RLDV-check). Het tegeltje komt bij wie aanbood. Aanbieden-tegeltjes uit een RLDV-check kun je niet met de hand verwijderen: pas de status in de check aan of verwijder de check.',
           'Het matchgesprek-kaartje toont 1e/2e/3e gesprek als pillen; "geweest · uitkomst?" vraagt om het resultaat.',
           'De weekbalk erboven: opslaan zet de rij op slot, wijzigen opent hem weer. Gedeelde plaatsingen tellen voor de helft.',
         ]},
@@ -11072,7 +11077,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260928-1511';
+const APP_VERSIE = '20260928-1607';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -27452,6 +27457,7 @@ let _apSaveTimers       = {};
 let AP_ACTIEF = null;        // crm-sleutel van het gekozen bedrijf
 let AP_BLAD = 'overzicht';   // overzicht · profiel · onboarding · swot · relatie · doelen
 let AP_ZOEK = '';
+let AP_FILTER = '';   // 28-09: '' (alle) | 'top11' | 'gwnst11' — knopjes onder het zoekveld
 const AP_FASEN = ['Eerste plaatsing', 'Raamovereenkomst', 'Preferred supplier'];
 const AP_BLADEN = [['overzicht', 'Overzicht'], ['profiel', 'Profiel & plan'], ['onboarding', 'Onboarding'], ['swot', 'SWOT'], ['relatie', 'Relatie'], ['doelen', 'Doelen & acties']];
 function _apSleutel(rec) { return rec ? (rec.crm_sleutel || _itkSleutel(rec.opdrachtgever || '')) : ''; }
@@ -27741,15 +27747,21 @@ function _apVeld(id, veld, waarde, ph, o) {
   return '<textarea class="ap-veld" rows="' + rows + '" placeholder="' + escHtml(ph || '') + '" onchange="apFieldChange(\'' + escApos(String(id)) + '\',\'' + veld + '\',this.value)">' + escHtml(v) + '</textarea>';
 }
 function _apL(t) { return '<div class="ap-l">' + escHtml(t) + '</div>'; }
+// De vlag van een klant in de lijst: 'top11' | 'gwnst11' | '' (uit de klantstatus in KAM).
+function _apVlag(x) { const n = x && x.k && x.k.account ? String(x.k.account.notitie || '') : ''; return n === 'top11' || n === 'gwnst11' ? n : ''; }
+function apFilter(f) { AP_FILTER = f === 'top11' || f === 'gwnst11' ? f : ''; const el = document.getElementById('ap-lijst'); if (el) el.innerHTML = _apLijstHtml(); }
 function _apLijstHtml() {
   const z = _zoekNorm(AP_ZOEK);
-  const rijen = _apKlanten().filter(x => !z || _zoekNorm(x.naam).includes(z)).map(x => {
+  const alle = _apKlanten();
+  const chip = (f, tekst) => '<button type="button" class="ap-chip' + (AP_FILTER === f ? ' aan' : '') + '" onclick="apFilter(\'' + f + '\')">' + tekst + '<small>' + alle.filter(x => !f || _apVlag(x) === f).length + '</small></button>';
+  const chips = '<div class="ap-chips">' + chip('', 'Alle') + chip('top11', 'Top 11') + chip('gwnst11', 'Gewenst 11') + '</div>';
+  const rijen = alle.filter(x => !AP_FILTER || _apVlag(x) === AP_FILTER).filter(x => !z || _zoekNorm(x.naam).includes(z)).map(x => {
     const aan = x.sleutel === AP_ACTIEF;
     const sub = x.plan ? ((x.k && x.k.account && x.k.account.notitie === 'top11') ? 'Top 11 · ' : (x.k && x.k.account && x.k.account.notitie === 'gwnst11') ? 'Gwnst 11 · ' : '') + 'bijgewerkt ' + escHtml(_kandDatumKort(String(x.plan.updated_at || '').slice(0, 10))) : 'nog geen plan';
     const rechts = x.plan ? '<span class="ap-pct' + (aan ? '' : x.pct >= 75 ? ' groen' : x.pct < 40 ? ' oranje' : '') + '">' + x.pct + '%</span>' : '<span class="ap-pct">+</span>';
     return '<button type="button" class="ap-rij' + (aan ? ' aan' : '') + '" onclick="apKies(\'' + escApos(x.sleutel) + '\')"><span><b>' + escHtml(x.naam) + '</b><small>' + sub + '</small></span>' + rechts + '</button>';
   }).join('');
-  return rijen || '<div class="kk-tekst stil">Geen klant gevonden.</div>';
+  return chips + (rijen || '<div class="kk-tekst stil">Geen klant gevonden' + (AP_FILTER === 'top11' ? ' in Top 11' : AP_FILTER === 'gwnst11' ? ' in Gewenst 11' : '') + '.</div>');
 }
 // Het blok "Uit het CRM": alleen-lezen, met de knop naar de bedrijfskaart.
 // Contactpersonen in groepen (24-09): wie een DMU-rol heeft eerst, dan per
@@ -42587,7 +42599,7 @@ function renderPipeline(bm) {
           onmouseenter="pipeZweef(event,'${bmE}','${c.id}')" onmouseleave="crmZweefWeg()"
           ondragstart="${weekEditable ? `pipeDragStart(event,'${bmE}','${escApos(stage)}',${wk.week},${wk.year},'${c.id}')` : ''}"
           ondragend="pipeDragEnd(event)">
-          <div class="k2-kop"><div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${kandKaartKnopHtml(bm.naam, c.id)}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">${btActie('potlood')}</button><button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>${_pipeK2Datum(c, wk)}</div>
+          <div class="k2-kop"><div class="card-naam">${escHtml(c.naam)}<span class="card-naam-btns">${kandKaartKnopHtml(bm.naam, c.id)}${weekEditable ? `<button class="card-edit" onclick="event.stopPropagation();pipeOpenEditModal('${bmE}','${c.id}')" title="Wijzigen">${btActie('potlood')}</button>` : ''}${weekEditable && !_pipeUitCheck(c) ? `<button class="card-del" onclick="event.stopPropagation();pipeDelete('${bmE}','${c.id}')" title="Verwijderen">✕</button>` : ''}</span></div>${_pipeK2Datum(c, wk)}</div>
           ${aanbGrootHtml}
           ${c.vervolg_van ? (uitCheck ? '<div class="card-sub card-vervolg">✓ uit RLDV-check</div>' : '<div class="card-sub card-vervolg">↻ vervolgafspraak</div>') : ''}
           ${metaHtml}
@@ -43385,9 +43397,19 @@ function pipeUpdateGesprek(bmNaam, cardId, value) {
 }
 
 // ── Delete card ───────────────────────────────────────────────────────────────
+// Een Aanbieden-tegeltje dat uit een RLDV-check komt (vervolg_van = 'rldv:<id>'): de
+// aanbiedingen staan in de check, het tegeltje is alleen het weekcijfer. Met de hand
+// weghalen zou de twee uit elkaar laten lopen (keuze A, 28-09).
+function _pipeUitCheck(c) { return !!c && c.stage === 'Aanbieden' && /^rldv:/.test(String(c.vervolg_van || '')); }
 function pipeDelete(bmNaam, cardId) {
   if (!eisWijzig('medewerkers')) return;
   if (!canEdit(bmNaam)) return;
+  const kaart = pipeLoad(bmNaam).find(c => String(c.id) === String(cardId));
+  if (_pipeUitCheck(kaart)) {
+    const sel = (RLDV_SELECTIES || []).find(r => 'rldv:' + r.id === kaart.vervolg_van);
+    btMeld('Dit tegeltje komt uit de RLDV-check van ' + (sel ? sel.kandidaat_naam : kaart.naam) + '. Wijzig de aanbiedingen dáár (status afgewezen/teruggetrokken) of verwijder de check; het tegeltje volgt.', 'let');
+    return;
+  }
   pipeSave(bmNaam, pipeLoad(bmNaam).filter(c => c.id !== cardId));
   render();
   if (supa) _pipeSchrijf('kaart verwijderen', supa.from('pipeline_cards').delete().eq('id', cardId), bmNaam);
