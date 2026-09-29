@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260928-2034 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260929-0851 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3949,6 +3949,7 @@
   .bz-filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 14px; font-size:.76rem; color:rgba(255,255,255,.6); }
   .bz-filters .lbl { margin-left:6px; }
   .bz-chip { border:1px solid rgba(255,255,255,.28); border-radius:99px; padding:3px 10px; color:#fff; font-size:.72rem; background:transparent; cursor:pointer; font-family:inherit; }
+  .bz-export { margin-left:auto; border-radius:8px; padding:4px 12px; } .bz-export:hover { border-color:var(--accent-gold); color:var(--accent-gold); }   /* 29-09: exporteren rechts in de filterrij */
   .bz-chip.aan { background:#25D366; color:#0f2a19; border-color:#25D366; font-weight:600; }
   .bz-chip.rood { border-color:rgba(244,203,60,.7); color:var(--accent-gold); }   /* variant D (25-09): geel = ontbreekt */
   .bz-chip.rood.aan { background:var(--accent-gold); color:#253151; border-color:var(--accent-gold); }
@@ -5684,7 +5685,7 @@ let ACC_OVERZICHT_COLLEGA = '';    // C5 (25-09): filter op collega ('' = allen)
 let ACC_OVERZICHT_ALARM = false;   // C5: alleen bedrijven met een ontbrekend verslag
 let ACC_OVERZICHT_KOMEND = false;  // C5: alleen bezoeken in de komende 2 weken
 let ACC_OVERZICHT_DICHT = new Set(); // C5: ingeklapte bedrijven (sleutel)
-let ACC_OVERZICHT_WEEK = '';       // 28-09: '' | 'deze' | 'vorige' — chips Deze week / Vorige week
+let ACC_OVERZICHT_WEEK = '';       // 28-09: '' | 'deze' | 'vorige' — chips Deze week / Vorige week; 29-09: ook 'dezemaand' | 'vorigemaand' (kalendermaand)
 let EV_KOP = { open: null, zoek: '', gekozen: {} };   // koppelvenster v2 (28-09): open rij, zoekterm, keuze per verslag
 let BEZOEK_VERVOLG = {};           // verslag_id → vervolgafspraak bij een bezoek (tabel bezoek_vervolg)
 let ACC_NOTITIES = {};             // account_id → gesprekslog op de klantkaart (tabel account_notities)
@@ -7060,8 +7061,8 @@ const PAGINA_UITLEG = {
         ]},
     ]},
 
-  accounts: { titel: 'Accountmanagement', bijgewerkt: '25-09-2026',
-    intro: 'Sales leads (RLDV), de bestaande klanten (KAM), de accountplannen en het Overzicht bezoeken; de bedrijfsgegevens zelf staan in CRM · Bedrijven.',
+  accounts: { titel: 'Accountmanagement', bijgewerkt: '29-09-2026',
+    intro: 'Sales leads (RLDV), de bestaande klanten (KAM), de accountplannen en het Overzicht bezoeken; de bedrijfsgegevens zelf staan in CRM · Bedrijven. Gespreksverslagen staan als eigen regel in het menu (onder KAM & RLDV): elke BZK-opname plus de handmatige verslagen.',
     secties: [
       { kop: 'Overzicht bezoeken',
         waarom: 'Een bezoek is geen vast traject: het ene is een bedrijfsbezoek, het volgende een evaluatie of een matchgesprek. Wat wél altijd geldt: er hoort een verslag bij. Daarom staat per bedrijf een tijdlijn met alle bezoeken en is het verslag het enige dat oranje kleurt als het ontbreekt.',
@@ -11146,7 +11147,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260928-2034';
+const APP_VERSIE = '20260929-0851';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11550,7 +11551,7 @@ function rechtVoor(gebruiker, sleutel) {
 // magWijzigen('accoverzicht'), kreeg 'geen' en zette de hele pagina op
 // alleen-lezen voor iedereen behalve de beheerder (melding 17-09).
 function _rechtSleutel(sleutel) {
-  return sleutel === 'accoverzicht' ? 'accounts'
+  return sleutel === 'accoverzicht' || sleutel === 'gvpagina' ? 'accounts'
        : sleutel === 'kanban' ? 'kandidaten'
        : sleutel === 'crmkand' || sleutel === 'crmbedrijf' || sleutel === 'crmsearch' ? 'crm' : sleutel;
 }
@@ -11935,7 +11936,7 @@ function toggleAccounts(event) {
 // Sinds 22-09 staat CRM als eerste regel onder het kopje (aanwijzing); het
 // kopje zelf gaat nog steeds naar het Overzicht.
 function _sidebarAccountsHtml() {
-  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'crmbedrijf';
+  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'crmbedrijf' || currentTab === 'gvpagina';
   return miGroep(['accounts', 'crmbedrijf'], `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleAccounts(event)">
       <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="selectTab(${magZien('crmbedrijf') ? "'crmbedrijf'" : "'accoverzicht'"}); event.stopPropagation();">${btIcon('accounts')}Accountmanagement</span>
@@ -11945,6 +11946,7 @@ function _sidebarAccountsHtml() {
       ${mi('crmbedrijf', `<button class="sidebar-item ${currentTab === 'crmbedrijf' ? 'active' : ''}" onclick="selectTab('crmbedrijf')">${btIcon('crm')}CRM</button>`)}
       <button class="sidebar-item ${currentTab === 'accoverzicht' ? 'active' : ''}" onclick="selectTab('accoverzicht')">${btIcon('overzicht')}Overzicht</button>
       ${mi('accounts', `<button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>`)}
+      ${mi('accounts', `<button class="sidebar-item ${currentTab === 'gvpagina' ? 'active' : ''}" onclick="selectTab('gvpagina')">${btIcon('records')}Gespreksverslagen</button>`)}
     </div>
   </div>`);
 }
@@ -13888,7 +13890,7 @@ _versieWaakhond();
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
 const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
-                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf'];
+                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf', 'gvpagina'];   // gvpagina (29-09): Gespreksverslagen als menuregel
 
 function _tabSleutel() {
   const uid = CURRENT_USER && CURRENT_USER.id;
@@ -13971,7 +13973,7 @@ function _kiesStartTab() {
   if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
   else if (['financieel','hrm','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
   else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
-  else if (hersteld === 'accounts' || hersteld === 'accoverzicht') accountsOpen = true;
+  else if (hersteld === 'accounts' || hersteld === 'accoverzicht' || hersteld === 'gvpagina') accountsOpen = true;
   else if (['kandidaten','crmkand','crmsearch','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
   else if (hersteld === 'crmbedrijf') accountsOpen = true;
 }
@@ -13994,7 +13996,7 @@ function selectTab(i) {
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
   if (i === 'records') managementOpen = true;
   if (i === 'kandidaten' || i === 'crmkand' || i === 'crmsearch' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
-  if (i === 'accounts' || i === 'accoverzicht') accountsOpen = true;
+  if (i === 'accounts' || i === 'accoverzicht' || i === 'gvpagina') accountsOpen = true;
   if (i === 'crmbedrijf') accountsOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
@@ -14984,6 +14986,7 @@ function _renderKern() {
   setTimeout(_jaarRandenPlaatsen, 0);
   if (currentTab === 'one') { renderOne(); return; }
   if (currentTab === 'accounts') { renderAccounts(); return; }
+  if (currentTab === 'gvpagina') { ACCOUNT_SUBTAB = 'verslagen'; renderAccounts(); return; }   // 29-09: eigen menuregel
   if (currentTab === 'accoverzicht') { renderAccOverzicht(); return; }
   if (currentTab === 'crmkand') { renderCrmKandidaten(); return; }
   if (currentTab === 'crmsearch') { renderCrmSearch(); return; }
@@ -19272,7 +19275,7 @@ const _RT_SCHERMEN = {
   kpi_weekly:           ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten'],
   pipeline_cards:       ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten', 'kandidaten', 'crmkand', 'kanban', 'plaatsing', 'rldvtool', 'rldvcheck', 'cvgen'],
   projecten:            ['bm', 'team', 'projecten', 'plaatsing', 'hrm', 'financieel'],
-  accounts:             ['accounts', 'accoverzicht', 'crmbedrijf', 'comrap', 'rldvtool', 'rldvcheck', 'bm'],
+  accounts:             ['accounts', 'accoverzicht', 'gvpagina', 'crmbedrijf', 'comrap', 'rldvtool', 'rldvcheck', 'bm'],
   sales_leads:          ['accounts', 'comrap', 'rldvtool', 'rldvcheck', 'kandidaten', 'crmbedrijf'],
   financieel_omzet:     ['financieel', 'team'],
   plan_van_aanpak:      ['bm', 'medewerkers', 'comrap'],
@@ -19284,7 +19287,7 @@ const _RT_SCHERMEN = {
   mt_coaching_notities: ['mtacties', 'bm', 'comrap', 'medewerkers'],
   one_posts: [], one_berichten: [], one_gesprek_leden: [], one_gesprekken: [],
   challenges: [], challenge_deelnemers: [], challenge_voordrachten: [],
-  account_notities: ['crmbedrijf'], bezoek_vervolg: ['accoverzicht', 'crmbedrijf', 'accounts'], kandidaat_notities: ['crmkand'],
+  account_notities: ['crmbedrijf'], bezoek_vervolg: ['accoverzicht', 'gvpagina', 'crmbedrijf', 'accounts'], kandidaat_notities: ['crmkand'],
   crm_kandidaten: ['crmkand'], crm_bedrijven: ['crmbedrijf'],
 };
 function _rtRaaktScherm(tabellen, tab) {
@@ -19831,14 +19834,30 @@ function mailCoachAnalyse(id, type) {
 
 // Status van de gedeelde afspraken bij een ITK-record. Vier standen:
 //   niet verzonden — nog nooit gedeeld, of de deling is ingetrokken
+//   niet meer beschikbaar — idem, maar de kandidaat is niet meer beschikbaar (29-09)
 //   verzonden      — de link staat open, er is nog geen antwoord
 //   akkoord        — de kandidaat heeft bevestigd
 //   niet akkoord   — de kandidaat is het er niet mee eens
 // De laatste twee komen uit akkoord_keuze; bestaat die kolom nog niet, dan
 // betekent een ingevuld akkoord_op simpelweg 'akkoord' (zo werkte het eerst).
+// Niet meer beschikbaar (29-09): staat het icoon "niet meer beschikbaar" aan op het kaartje van de kandidaat en
+// zijn de afspraken nooit gedeeld, dan zegt de status dat — "niet verzonden" suggereert werk dat nog moet.
+// Een oordeel (akkoord / niet akkoord) en een open deling blijven wat ze zijn. Per tik één keer opgezocht.
+let _ONB_SET = null;
+function _kandOnbeschikbaarSet() {
+  if (_ONB_SET) return _ONB_SET;
+  const set = new Set();
+  try { for (const bm of bmsMetCijfers()) for (const c of pipeLoad(bm.naam)) if (c && c.onbeschikbaar_op && !c.verwijderd_op) set.add(_itkSleutel(c.naam || '')); } catch (e) { _meldStil('onbeschikbaar-set', e); }
+  _ONB_SET = set; setTimeout(() => { _ONB_SET = null; }, 0);
+  return set;
+}
 function afsprakenStatus(recId) {
   const r = AFSPRAKEN_GEDEELD[String(recId)];
-  if (!r || !r.gepubliceerd)  return { code:'niet-verzonden', tekst:'niet verzonden', klasse:'badge-grijs' };
+  if (!r || !r.gepubliceerd) {
+    const rec = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(x => String(x.id) === String(recId));
+    if (rec && rec.naam && _kandOnbeschikbaarSet().has(_itkSleutel(rec.naam))) return { code:'onbeschikbaar', tekst:'niet meer beschikbaar', klasse:'badge-grijs' };
+    return { code:'niet-verzonden', tekst:'niet verzonden', klasse:'badge-grijs' };
+  }
   if (!r.akkoord_op)          return { code:'verzonden',      tekst:'verzonden',      klasse:'badge-blue'  };
   if (r.akkoord_keuze === 'niet_akkoord')
                               return { code:'niet-akkoord',   tekst:'niet akkoord',   klasse:'badge-red'   };
@@ -19853,6 +19872,7 @@ function afsprakenStatusPil(recId) {
       (r.akkoord_naam ? ` door ${r.akkoord_naam}` : '') +
       (r.akkoord_toelichting ? ` — ${r.akkoord_toelichting}` : '')
     : (st.code === 'verzonden' ? 'De link is gedeeld; nog geen reactie ontvangen'
+       : st.code === 'onbeschikbaar' ? 'De kandidaat is niet meer beschikbaar; de afspraken zijn nooit gedeeld'
                                : 'De afspraken zijn nog niet met de kandidaat gedeeld');
   return `<span class="badge ${st.klasse}" title="${escHtml(titel)}" style="flex-shrink:0;">${st.tekst}</span>`;
 }
@@ -28033,7 +28053,7 @@ function _apAnalysePakket(x) {
   const k = x.k, rec = x.plan || {}, sl = x.sleutel, a = k && k.account, crm = (k && k.crm) || {};
   const iso = (ms) => ms ? new Date(ms).toISOString().slice(0, 10) : '';
   const bronnenlijst = [];
-  const bez = (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && (b.record || b.verslag)).sort((p, q) => q.datumMs - p.datumMs).slice(0, 12);
+  const bez = (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => _itkSleutel(b.bedrijf) === sl && (b.record || b.verslag) && b.soortBezoek !== 'evaluatie').sort((p, q) => q.datumMs - p.datumMs).slice(0, 12);   // evaluaties: eigen lijst hieronder
   const verslagen = bez.map(b => {
     if (b.verslag) {   // 28-09: handmatig gespreksverslag als bron
       const g = b.verslag; bronnenlijst.push({ soort: 'verslag', id: String(g.id), datum: iso(b.datumMs), wie: b.collega, titel: 'verslag ' + _crmDatum(b.datumMs) + ' (handmatig)' });
@@ -28544,9 +28564,13 @@ function accBezoekenLijst() {
     const wk = ms ? isoWeek(new Date(ms)) : { year: 0, week: 0 };
     // C5 (25-09): oude matchgesprek-verslagen hadden de kandidaat in het contactpersoon-veld.
     const oudMatch = !r.kandidaat && _bezoekSoortNorm(r.soortBezoek) === 'matchgesprek';
-    items.push({ id: String(r.id), record: r, kaart: null, kaarten: [], bedrijf: r.bedrijf || '', contactpersoon: oudMatch ? '' : (r.contactpersoon || ''), functie: '',
+    // Evaluatie (29-09): de recorder zet de medewerker in het bedrijfsveld en de opdrachtgever in het
+    // contactpersoon-veld. Hier omgedraaid, zodat de evaluatie onder het bedrijf hangt (zoals het
+    // evaluatie-kaartje in de pipeline) en de medewerker geen pseudo-bedrijf in het CRM wordt.
+    const eva = _bezoekSoortNorm(r.soortBezoek) === 'evaluatie';
+    items.push({ id: String(r.id), record: r, kaart: null, kaarten: [], bedrijf: eva ? (r.contactpersoon || '') : (r.bedrijf || ''), contactpersoon: eva || oudMatch ? '' : (r.contactpersoon || ''), functie: '',
                  datumMs: ms, week: wk.week, jaar: wk.year, collega: r.recorder_naam || '', collegas: r.recorder_naam ? [r.recorder_naam] : [], soortBezoek: _bezoekSoortNorm(r.soortBezoek), datumTekst: r.datum || '',
-                 medewerker: r.medewerkerSleutel ? (r.bedrijf || '') : '', medewerkerSleutel: r.medewerkerSleutel || '', evalMoment: null,
+                 medewerker: eva ? (r.bedrijf || '') : '', medewerkerSleutel: eva ? (r.medewerkerSleutel || _itkSleutel(r.bedrijf || '')) : '', evalMoment: null,
                  kandidaat: r.kandidaat || (_bezoekSoortNorm(r.soortBezoek) === 'matchgesprek' ? r.contactpersoon || '' : ''), kandidaatSleutel: r.kandidaatSleutel || '' });
   });
   for (const bm of bmsMetCijfers()) {
@@ -28568,6 +28592,7 @@ function accBezoekenLijst() {
         else if (staat(c.id) && !staat(zelfde.id)) { zelfde.id = String(c.id); zelfde.kaart = c; zelfde.kaartBm = bm.naam; }
         if (!zelfde.contactpersoon && c.bezoek_contactpersoon) zelfde.contactpersoon = c.bezoek_contactpersoon;
         if (!zelfde.functie && c.bezoek_contactpersoon_functie) zelfde.functie = c.bezoek_contactpersoon_functie;
+        if (zelfde.evalMoment == null && c.eval_moment != null) zelfde.evalMoment = +c.eval_moment;   // 29-09: evaluatiemoment van het kaartje
         continue;
       }
       const ma = isoWeekStartDate(+c.jaar, +c.week);
@@ -28965,19 +28990,75 @@ function accOverzichtKomend() { ACC_OVERZICHT_KOMEND = !ACC_OVERZICHT_KOMEND; if
 function accOverzichtWeek(w) { ACC_OVERZICHT_WEEK = ACC_OVERZICHT_WEEK === w ? '' : String(w || ''); if (ACC_OVERZICHT_WEEK) ACC_OVERZICHT_KOMEND = false; renderAccOverzicht(); }
 function accOverzichtKlap(sl) { if (ACC_OVERZICHT_DICHT.has(sl)) ACC_OVERZICHT_DICHT.delete(sl); else ACC_OVERZICHT_DICHT.add(sl); renderAccOverzicht(); }
 function accOverzichtSoort(k) { ACC_OVERZICHT_SOORT = String(k || ''); renderAccOverzicht(); }
-function renderAccOverzichtHtml(subTabBtns) {
-  // C5 (25-09): per bedrijf een tijdlijn. Filters: soort (tabs), collega, zonder verslag, komende 2 weken, zoeken.
+// De selectie van het Overzicht (29-09): één plek voor het scherm én de export, zodat "exporteren" precies is wat je ziet.
+function _accOverzichtSelectie() {
   const alles = accBezoekenLijst();
   const z = String(ACC_OVERZICHT_ZOEK || '').trim().toLowerCase();
-  const nu = Date.now(), twee = nu + 14 * 864e5;
+  const nu = Date.now(), twee = nu + 14 * 864e5, nuD = new Date(nu);
   let lijst = alles.filter(b => !ACC_OVERZICHT_SOORT || b.soortBezoek === ACC_OVERZICHT_SOORT);
   if (ACC_OVERZICHT_COLLEGA) lijst = lijst.filter(b => (b.collegas || [b.collega]).some(n => _itkSleutel(n) === _itkSleutel(ACC_OVERZICHT_COLLEGA)));
   if (ACC_OVERZICHT_KOMEND) lijst = lijst.filter(b => b.datumMs >= nu - 864e5 && b.datumMs <= twee);
-  if (ACC_OVERZICHT_WEEK) { const w = isoWeek(new Date(ACC_OVERZICHT_WEEK === 'vorige' ? nu - 7 * 864e5 : nu)); lijst = lijst.filter(b => +b.week === +w.week && +b.jaar === +w.year); }
+  if (ACC_OVERZICHT_WEEK === 'dezemaand' || ACC_OVERZICHT_WEEK === 'vorigemaand') {   // kalendermaand (29-09), ook geplande bezoeken later deze maand
+    const m = new Date(nuD.getFullYear(), nuD.getMonth() - (ACC_OVERZICHT_WEEK === 'vorigemaand' ? 1 : 0), 1);
+    lijst = lijst.filter(b => { if (!b.datumMs) return false; const d = new Date(b.datumMs); return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth(); });
+  } else if (ACC_OVERZICHT_WEEK) { const w = isoWeek(new Date(ACC_OVERZICHT_WEEK === 'vorige' ? nu - 7 * 864e5 : nu)); lijst = lijst.filter(b => +b.week === +w.week && +b.jaar === +w.year); }
   if (z) lijst = lijst.filter(b => [b.bedrijf, b.contactpersoon, b.functie, b.afdeling, b.collega, b.kandidaat, b.medewerker, b.datumTekst].join(' ').toLowerCase().includes(z));
   let groepen = _bzBedrijfGroepen(lijst);
   const alarmBedrijven = _bzBedrijfGroepen(alles.filter(b => !ACC_OVERZICHT_SOORT || b.soortBezoek === ACC_OVERZICHT_SOORT)).filter(g => g.alarm > 0).length;
   if (ACC_OVERZICHT_ALARM) groepen = groepen.filter(g => g.alarm > 0);
+  return { alles, lijst, groepen, alarmBedrijven, z };
+}
+// De periode in woorden, voor de kop en de export: "deze maand (september 2026)".
+function _accOverzichtPeriodeTekst() {
+  const nu = new Date();
+  const maand = (d) => d.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+  if (ACC_OVERZICHT_WEEK === 'dezemaand') return 'deze maand (' + maand(nu) + ')';
+  if (ACC_OVERZICHT_WEEK === 'vorigemaand') return 'vorige maand (' + maand(new Date(nu.getFullYear(), nu.getMonth() - 1, 1)) + ')';
+  if (ACC_OVERZICHT_WEEK === 'deze') return 'deze week';
+  if (ACC_OVERZICHT_WEEK === 'vorige') return 'vorige week';
+  if (ACC_OVERZICHT_KOMEND) return 'komende 2 weken';
+  return '';
+}
+// Exporteren · PDF / print (29-09): de selectie als lijst per bedrijf, wit met zwarte letters, zonder knoppen.
+function accOverzichtPrintHtml() {
+  const sel = _accOverzichtSelectie(), e = escHtml;
+  const soort = ACC_OVERZICHT_SOORT ? String(BEZOEK_SOORTEN[ACC_OVERZICHT_SOORT] || ACC_OVERZICHT_SOORT).toLowerCase() : 'alle bezoeken';
+  const periode = _accOverzichtPeriodeTekst();
+  const titel = 'Overzicht bezoeken — ' + soort + (periode ? ' · ' + periode : '');
+  const sub = [ACC_OVERZICHT_COLLEGA ? String(ACC_OVERZICHT_COLLEGA) : 'alle collega\'s', ACC_OVERZICHT_ALARM ? 'alleen zonder verslag' : '', sel.z ? 'zoekterm "' + ACC_OVERZICHT_ZOEK + '"' : '',
+    sel.groepen.length + ' bedrij' + (sel.groepen.length === 1 ? 'f' : 'ven'), sel.lijst.length + ' bezoek' + (sel.lijst.length === 1 ? '' : 'en'), sel.lijst.filter(b => _bzVerslagStand(b) === 'mis').length + ' zonder verslag',
+    'afgedrukt ' + _crmDatum(Date.now()) + ' door ' + String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '')].filter(Boolean).join(' · ');
+  const stand = (b) => { const st = _bzVerslagStand(b); return st === 'ok' ? '<span class="ok">✓ verslag' + (b.verslag ? ' (handmatig)' : '') + '</span>' : st === 'mis' ? '<span class="mis">! geen verslag</span>' : 'gepland'; };
+  const wie = (b) => { const cp = b.contactpersoon ? b.contactpersoon + (b.functie ? ' · ' + b.functie : '') : '';
+    return b.soortBezoek === 'evaluatie' && b.medewerker ? 'medewerker ' + b.medewerker + (cp ? ' · ' + cp : '') : b.soortBezoek === 'matchgesprek' && b.kandidaat ? 'kandidaat ' + b.kandidaat + (cp ? ' · ' + cp : '') : cp || '—'; };
+  const groepen = sel.groepen.map(g => {
+    const vlag = g.account && g.account.notitie === 'top11' ? 'Top 11' : g.account && g.account.notitie === 'gwnst11' ? 'Gwnst 11' : '';
+    const kop = [g.bezoeken.length + ' bezoek' + (g.bezoeken.length === 1 ? '' : 'en'), g.laatsteMs ? 'laatste ' + _bzDatumKort(g.laatsteMs) : '', vlag, g.plan ? 'accountplan' : ''].filter(Boolean).join(' · ');
+    const rijen = g.bezoeken.map(b => '<tr><td>' + e(_bzDatumKort(b.datumMs, !!(b.kaart && b.kaart.gesprek_op)) || b.datumTekst || '—') + '</td><td><span class="type">' + e(BEZOEK_SOORTEN[b.soortBezoek] || b.soortBezoek) + '</span></td>' +
+      '<td>' + e((b.collegas || [b.collega]).filter(Boolean).map(_oneInitialen).join(' + ') || '—') + '</td><td>' + e(wie(b)) + '</td><td>' + stand(b) + '</td><td>' + e(b.vervolg ? bezoekVervolgTekst(b.vervolg) : '—') + '</td></tr>').join('');
+    return '<div class="bedrijf"><span>' + e(g.naam) + '</span><small>' + e(kop) + '</small></div><table><tr><th class="d">Datum</th><th class="ty">Type</th><th class="c">Collega</th><th>Contactpersoon</th><th class="v">Verslag</th><th class="vv">Vervolg</th></tr>' + rijen + '</table>';
+  }).join('');
+  return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>' + e(titel) + '</title><style>' +
+    'body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color:#1f2937; background:#fff; margin:22px 28px; font-size:11.5px; }' +
+    'h1 { font-size:16px; color:#253151; margin:0; } .sub { color:#6b7280; font-size:10.5px; margin:2px 0 14px; }' +
+    '.bedrijf { margin:14px 0 4px; font-weight:600; color:#253151; border-bottom:2px solid #F4CB3C; padding-bottom:3px; display:flex; justify-content:space-between; page-break-after:avoid; } .bedrijf small { font-weight:400; color:#6b7280; }' +
+    'table { width:100%; border-collapse:collapse; page-break-inside:auto; } tr { page-break-inside:avoid; } th { text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; padding:4px 6px; border-bottom:1px solid #e5e7eb; } td { padding:5px 6px; border-bottom:1px solid #f1f5f9; vertical-align:top; }' +
+    'th.d { width:105px; } th.ty { width:100px; } th.c { width:60px; } th.v { width:125px; } th.vv { width:120px; }' +
+    '.ok { color:#15803d; } .mis { color:#c2410c; font-weight:600; } .type { font-size:9px; border-radius:5px; padding:1px 6px; background:#eef2ff; color:#253151; }' +
+    '.voet { margin-top:16px; color:#9ca3af; font-size:9px; display:flex; justify-content:space-between; } @media print { body { margin:10mm 12mm; } }' +
+    '</style></head><body><h1>' + e(titel) + '</h1><div class="sub">' + e(sub) + '</div>' +
+    (groepen || '<p>Geen bezoeken in deze selectie.</p>') + '<div class="voet"><span>Brightech · dashboard</span><span>' + e(titel) + '</span></div></body></html>';
+}
+function accOverzichtPrint() {
+  const h = accOverzichtPrintHtml(); if (!h) return;
+  const w = window.open('', '_blank'); if (!w) { btMeld('Het printvenster werd geblokkeerd; sta pop-ups toe voor het dashboard.', 'let'); return; }
+  w.document.open(); w.document.write(h); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) { _meldStil('accOverzichtPrint', e); } }, 400);
+}
+function renderAccOverzichtHtml(subTabBtns) {
+  // C5 (25-09): per bedrijf een tijdlijn. Filters: soort (tabs), collega, zonder verslag, komende 2 weken, week/maand, zoeken.
+  const sel = _accOverzichtSelectie();
+  const { alles, lijst, groepen, alarmBedrijven, z } = sel;
   const balk = _zoekBalkHtml({ id: 'acc-overzicht-q', sugg: 'accOverzichtSugg', waarde: ACC_OVERZICHT_ZOEK, actief: ACC_OVERZICHT_SOORT || '', zet: 'accOverzichtSoort',
     tabs: [['', 'Alle', alles.length]].concat(Object.entries(BEZOEK_SOORTEN).map(([k, l]) => [k, l, alles.filter(b => b.soortBezoek === k).length])),
     hint: 'bedrijf, contactpersoon, kandidaat, medewerker, collega', input: 'oninput="accOverzichtZoek(this.value)"' });
@@ -28988,11 +29069,13 @@ function renderAccOverzichtHtml(subTabBtns) {
   const filters = '<div class="bz-filters"><span class="lbl">Collega</span>' + chip('Allen', !ACC_OVERZICHT_COLLEGA, "accOverzichtCollega('')") +
     Array.from(perCollega.entries()).sort((a, b) => a[0].localeCompare(b[0], 'nl')).map(([n, c]) => chip(String(n).split(' ')[0] + ' · ' + c, _itkSleutel(n) === _itkSleutel(ACC_OVERZICHT_COLLEGA), "accOverzichtCollega('" + escApos(n) + "')")).join('') +
     '<span class="lbl"></span>' + chip('Zonder verslag · ' + alarmBedrijven, ACC_OVERZICHT_ALARM, 'accOverzichtAlarm()', 'rood') +
-    chip('Vorige week', ACC_OVERZICHT_WEEK === 'vorige', "accOverzichtWeek('vorige')") + chip('Deze week', ACC_OVERZICHT_WEEK === 'deze', "accOverzichtWeek('deze')") + chip('Komende 2 weken', ACC_OVERZICHT_KOMEND, 'accOverzichtKomend()') + '</div>';
+    chip('Vorige week', ACC_OVERZICHT_WEEK === 'vorige', "accOverzichtWeek('vorige')") + chip('Deze week', ACC_OVERZICHT_WEEK === 'deze', "accOverzichtWeek('deze')") + chip('Komende 2 weken', ACC_OVERZICHT_KOMEND, 'accOverzichtKomend()') +
+    chip('Vorige maand', ACC_OVERZICHT_WEEK === 'vorigemaand', "accOverzichtWeek('vorigemaand')") + chip('Deze maand', ACC_OVERZICHT_WEEK === 'dezemaand', "accOverzichtWeek('dezemaand')") +   // 29-09: kalendermaand
+    '<button type="button" class="bz-chip bz-export" onclick="accOverzichtPrint()" title="De selectie zoals hij nu in beeld staat, als lijst per bedrijf — PDF via \'Opslaan als PDF\' in het printvenster">⎙ Exporteren · PDF / print</button></div>';
   const body = groepen.length ? groepen.map(_bzBedrijfHtml).join('')
-    : '<div class="bz-leeg">Geen bezoeken' + (z ? ' gevonden voor "' + escHtml(ACC_OVERZICHT_ZOEK) + '"' : ACC_OVERZICHT_ALARM ? ' zonder verslag' : ACC_OVERZICHT_KOMEND ? ' in de komende twee weken' : ACC_OVERZICHT_WEEK === 'deze' ? ' deze week' : ACC_OVERZICHT_WEEK === 'vorige' ? ' vorige week' : '') + (ACC_OVERZICHT_COLLEGA ? ' van ' + escHtml(String(ACC_OVERZICHT_COLLEGA).split(' ')[0]) : '') + '.</div>';
+    : '<div class="bz-leeg">Geen bezoeken' + (z ? ' gevonden voor "' + escHtml(ACC_OVERZICHT_ZOEK) + '"' : ACC_OVERZICHT_ALARM ? ' zonder verslag' : ACC_OVERZICHT_KOMEND ? ' in de komende twee weken' : ACC_OVERZICHT_WEEK === 'deze' ? ' deze week' : ACC_OVERZICHT_WEEK === 'vorige' ? ' vorige week' : ACC_OVERZICHT_WEEK === 'dezemaand' ? ' deze maand' : ACC_OVERZICHT_WEEK === 'vorigemaand' ? ' vorige maand' : '') + (ACC_OVERZICHT_COLLEGA ? ' van ' + escHtml(String(ACC_OVERZICHT_COLLEGA).split(' ')[0]) : '') + '.</div>';
   return '<div><div class="person-header"><div class="person-name">Overzicht bezoeken' + btUitlegKnop('accounts') + '</div>' +
-    '<div class="person-meta">' + groepen.length + ' bedrij' + (groepen.length === 1 ? 'f' : 'ven') + ' · ' + lijst.length + ' bezoek' + (lijst.length === 1 ? '' : 'en') + '</div></div>' + (subTabBtns || '') +
+    '<div class="person-meta">' + groepen.length + ' bedrij' + (groepen.length === 1 ? 'f' : 'ven') + ' · ' + lijst.length + ' bezoek' + (lijst.length === 1 ? '' : 'en') + (/maand/.test(ACC_OVERZICHT_WEEK) ? ' · ' + escHtml(_accOverzichtPeriodeTekst().replace(/^.*\(|\)$/g, '')) : '') + '</div></div>' + (subTabBtns || '') +
     balk + filters + body + '</div>';
 }
 function renderAccOverzicht() {
@@ -33470,8 +33553,8 @@ function gvNieuw()      { GV_FORM = {}; renderAccounts(); }
 // Een gespreksverslag openen vanaf de bedrijfskaart, de tijdlijn of het gesprekslog (28-09).
 function gvOpenVerslag(id) {
   if (typeof crmKaartSluit === 'function') crmKaartSluit();
-  ACCOUNT_SUBTAB = 'verslagen'; GV_OPEN.add(String(id));
-  if (currentTab !== 'accounts') selectTab('accounts'); else renderAccounts();
+  GV_OPEN.add(String(id));
+  if (currentTab !== 'gvpagina') selectTab('gvpagina'); else renderAccounts();
   setTimeout(() => { const el = document.querySelector('.gv-open'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' }); }, 80);
 }
 // Gesprekslog-regel bij een handmatig verslag (28-09), zoals _bzLogSchrijf bij een record.
@@ -33581,8 +33664,7 @@ function kamNieuwVerslag(bedrijf, collega, week, jaar) {
   if (!eisWijzig('accounts')) return;
   const maandag = isoWeekStartDate(jaar, week);
   GV_FORM = { bedrijf, auteur: collega, datum: toISODate(maandag), soort: 'bedrijfsbezoek' };
-  ACCOUNT_SUBTAB = 'verslagen';
-  renderAccounts();
+  selectTab('gvpagina');
   setTimeout(() => document.getElementById('gv-cp')?.focus(), 60);
 }
 function gvBewerk(id)   { GV_FORM = { id }; renderAccounts(); }
@@ -33603,12 +33685,14 @@ function renderAccounts() {
       ${subTabBtn('strategisch', 'Key Accountmanagement (KAM)')}
       ${subTabBtn('accountplan', 'Accountplan (KAM)')}
       ${subTabBtn('beweging', 'Bezoeken &amp; wijzigingen')}
-      ${subTabBtn('verslagen', 'Gespreksverslagen')}
     </div>`;
+  // Gespreksverslagen is sinds 29-09 een eigen menuregel (tab 'gvpagina'), zonder knoppenrij; op KAM & RLDV
+  // valt een achtergebleven stand terug op RLDV.
+  if (currentTab === 'accounts' && ACCOUNT_SUBTAB === 'verslagen') ACCOUNT_SUBTAB = 'sales';
   const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'accountplan'  ? renderAccountplannenHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'beweging'     ? renderKamBewegingHtml(subTabBtns)
-             : ACCOUNT_SUBTAB === 'verslagen'    ? renderGespreksverslagenHtml(subTabBtns)
+             : ACCOUNT_SUBTAB === 'verslagen'    ? renderGespreksverslagenHtml('')
              : renderSalesLeadsHtml(subTabBtns);
   document.getElementById('main').innerHTML = body;
   // Een aangevinkte optie tekent het scherm opnieuw mét het menu open; dan
