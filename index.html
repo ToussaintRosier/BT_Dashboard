@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260929-1117 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260929-1533 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11147,7 +11147,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260929-1117';
+const APP_VERSIE = '20260929-1533';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -27551,6 +27551,7 @@ let AP_BLAD = 'overzicht';   // overzicht · profiel · onboarding · swot · re
 let AP_ANALYSES = {};        // 28-09: plan_id → nieuwste analyse (rij uit ap_analyses)
 let CRM_ACTIES_AF = new Set();   // 28-09: bedrijven waar de afgeronde acties op de kaart uitgeklapt staan
 let AP_AN_BEZIG = null;      // plan_id waarvoor de analyse loopt
+let AP_AN_DEEL = '';         // 29-09: '1/2' | '2/2' — welk deel er loopt
 let _apAnGeladen = false;
 let AP_ZOEK = '';
 let AP_WIE_OPEN = null;   // 28-09: '<plan_id>:<idx>' van de actie waarvan de Wie-kiezer openstaat
@@ -28114,11 +28115,13 @@ async function apAnalyseStart(planId) {
   AP_AN_BEZIG = String(planId); _apHerteken();
   try {
     const pakket = _apAnalysePakket(x);
-    const tok = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
-    const res = await fetch(SUPABASE_URL + '/functions/v1/ap-analyse', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { 'Authorization': 'Bearer ' + tok } : {}) },
-      body: JSON.stringify({ bedrijf: x.naam, pakket }) });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+    // Twee delen (29-09): één antwoord voor alle velden duurde te lang (HTTP 504). Deel a = profiel, overzicht, SWOT;
+    // deel b = relatie, scores, doelen, acties en vragen. De functie streamt tekst; hier wordt het JSON gemaakt.
+    AP_AN_DEEL = '1/2'; _apHerteken();
+    const a = await _apAnalyseDeel(x, pakket, 'a');
+    AP_AN_DEEL = '2/2'; _apHerteken();
+    const b = await _apAnalyseDeel(x, pakket, 'b');
+    const data = { voorstellen: a.voorstellen.concat(b.voorstellen), acties: a.acties.concat(b.acties), vragen: a.vragen.concat(b.vragen) };
     const rij = { plan_id: String(planId), bedrijf_sleutel: x.sleutel, door: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || ''), bronnen: pakket.bronnenlijst, voorstellen: data.voorstellen || [], acties: data.acties || [], vragen: data.vragen || [], stand: {}, model: data.model || '', created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
     let opgeslagen = { ...rij, id: 'local-' + Date.now(), created_at: new Date().toISOString() };
     if (supa) {
@@ -28131,7 +28134,31 @@ async function apAnalyseStart(planId) {
   } catch (e) {
     meldFout('ap-analyse: ' + (e && e.message || e), 'apAnalyseStart');
     btMeld('Analyse mislukt: ' + (e && e.message || e), 'rood');
-  } finally { AP_AN_BEZIG = null; _apHerteken(); }
+  } finally { AP_AN_BEZIG = null; AP_AN_DEEL = ''; _apHerteken(); }
+}
+// Eén deel ophalen: de functie streamt de tekst van het model; hier wordt het JSON gemaakt.
+async function _apAnalyseDeel(x, pakket, deel) {
+  const tok = supa ? (await supa.auth.getSession())?.data?.session?.access_token : null;
+  const res = await fetch(SUPABASE_URL + '/functions/v1/ap-analyse', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { 'Authorization': 'Bearer ' + tok } : {}) },
+    body: JSON.stringify({ bedrijf: x.naam, pakket, deel }) });
+  const tekst = await res.text();
+  if (!res.ok) { let m = ''; try { m = JSON.parse(tekst).error || ''; } catch (_) { m = ''; } throw new Error(m || ('HTTP ' + res.status)); }
+  const r = _apAnalyseParse(tekst);
+  return { voorstellen: Array.isArray(r.voorstellen) ? r.voorstellen : [], acties: Array.isArray(r.acties) ? r.acties : [], vragen: Array.isArray(r.vragen) ? r.vragen : [] };
+}
+// Tekst van de functie → object. Markeringen: /*AFGEKAPT*/ (antwoord te lang) en /*FOUT:…*/ (fout tijdens het streamen).
+function _apAnalyseParse(tekst) {
+  const t = String(tekst || '');
+  const fm = /\/\*FOUT:([\s\S]*?)\*\//.exec(t); if (fm) throw new Error(fm[1].trim());
+  if (/\/\*AFGEKAPT\*\//.test(t)) throw new Error('Het antwoord van de analyse werd te lang en is afgekapt. Probeer het opnieuw; blijft dit gebeuren, meld het dan.');
+  let r = null;
+  try { r = JSON.parse(t.trim()); } catch (_) {
+    const m = t.match(/\x7b[\s\S]*\x7d/); const schoon = (m ? m[0] : t).replace(/^\s*\/\/[^\n]*$/gm, '').replace(/,\s*([\x7d\]])/g, '$1');   // \x7b \x7d = { } (de tests tellen accolades)
+    try { r = JSON.parse(schoon); } catch (_2) { r = null; }
+  }
+  if (r && r.error) throw new Error(String(r.error));
+  if (!r || !Array.isArray(r.voorstellen)) throw new Error('Het model gaf geen bruikbare voorstellen terug. Probeer het opnieuw.');
+  return r;
 }
 function _apAnalyse(planId) { return AP_ANALYSES[String(planId)] || null; }
 function _apVsVoor(planId, veld) { const an = _apAnalyse(planId); if (!an) return null; return (an.voorstellen || []).find(v => v && v.veld === veld) || null; }
@@ -28284,7 +28311,7 @@ async function apSgAlleNegeren(planId) {
 // De balk boven de bladen: wanneer, door wie, welke bronnen, hoeveel open.
 function _apAnalyseBalkHtml(planId) {
   const an = _apAnalyse(planId), pE = escApos(String(planId));
-  if (AP_AN_BEZIG === String(planId)) return '<div class="ap-an-balk"><b>Analyse loopt…</b><span class="sub">de bronnen worden gelezen; dit duurt een halve minuut</span></div>';
+  if (AP_AN_BEZIG === String(planId)) return '<div class="ap-an-balk"><b>Analyse loopt… ' + escHtml(AP_AN_DEEL ? 'deel ' + AP_AN_DEEL : '') + '</b><span class="sub">de bronnen worden gelezen; dit duurt een paar minuten</span></div>';
   if (!an) return '';
   const open = _apVsOpen(planId), tw = open.filter(v => v.zekerheid === 'twijfel').length;
   const acties = (an.acties || []).filter((a, i) => !_apSgStand(planId, 'actie:' + i)).length, vragen = (an.vragen || []).filter((q, i) => !_apSgStand(planId, 'vraag:' + i)).length;
