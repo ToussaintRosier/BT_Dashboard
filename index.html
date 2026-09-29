@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260929-1003 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260929-1117 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11147,7 +11147,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260929-1003';
+const APP_VERSIE = '20260929-1117';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19199,6 +19199,8 @@ const _RT_TAKEN = {
   account_notities: async () => { const open = document.getElementById('acc-notitie-invoer'); const id = open ? open.getAttribute('data-account') : null; if (id) { await loadAccNotities(id); _accKaartHerteken(id); } },
   crm_kandidaten:   async () => { await loadCrm(); if (currentTab === 'crmkand') renderCrmKandidaten(); if (currentTab === 'crmsearch') renderCrmSearch(); _crmDossierHerteken(); _rldvDocsHerteken(); },
   crm_bedrijven:    async () => { await loadCrm(); if (currentTab === 'crmbedrijf') renderCrmBedrijven(); _crmDossierHerteken(); },
+  // Analyse & voorstellen van een collega (29-09): meteen zichtbaar, ook overnemen/negeren door een ander.
+  ap_analyses:      async () => { _apAnGeladen = false; await loadApAnalyses(); if (currentTab === 'accounts' && ACCOUNT_SUBTAB === 'accountplan') _apHerteken(); },
   bezoek_vervolg:   async () => { await loadBezoekVervolg(); },
   sales_leads:      async () => { await salesLeadsFetchAll(); _klantKaartHerteken(); },
   financieel_omzet: async () => { await loadFinancieelOmzet(); },
@@ -19288,7 +19290,7 @@ const _RT_SCHERMEN = {
   one_posts: [], one_berichten: [], one_gesprek_leden: [], one_gesprekken: [],
   challenges: [], challenge_deelnemers: [], challenge_voordrachten: [],
   account_notities: ['crmbedrijf'], bezoek_vervolg: ['accoverzicht', 'gvpagina', 'crmbedrijf', 'accounts'], kandidaat_notities: ['crmkand'],
-  crm_kandidaten: ['crmkand'], crm_bedrijven: ['crmbedrijf'],
+  crm_kandidaten: ['crmkand'], crm_bedrijven: ['crmbedrijf'], ap_analyses: ['accounts'],
 };
 function _rtRaaktScherm(tabellen, tab) {
   const scherm = typeof tab === 'number' ? (typeof BMS !== 'undefined' && tab >= BMS.length ? 'team' : 'bm') : String(tab);
@@ -28498,7 +28500,7 @@ async function kamMaakAccountplan(naam) {
   await apMaakVoor(sl);
 }
 
-function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; renderAccounts(); }
+function accSelectSubTab(tab) { ACCOUNT_SUBTAB = tab; if (tab === 'accountplan') _apAnGeladen = false; renderAccounts(); }   // 29-09: analyses vers ophalen bij openen
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ACCOUNTMANAGEMENT · OVERZICHT, BEZOEKKAART EN KLANTKAART (akkoord 16-09)
@@ -28904,7 +28906,7 @@ function _bzLinks(b) {
     const doc = (url, lbl) => { const l = String(url || '').trim(); const href = l ? (/^https?:\/\//i.test(l) ? l : 'https://' + l) : '';
       return href ? { ico: '📄', label: lbl, aan: true, href, titel: lbl + ' openen in een nieuw tabblad' }
                   : { ico: '📄', label: lbl, aan: false, klik: k ? "crmKandOpen('" + escApos(String(k.sleutel)) + "')" : '', titel: 'Geen ' + lbl + ' in het CRM' + (k ? ' — klik om de NAW-kaart te openen' : '') }; };
-    uit.push(doc(k && k.cv_link, 'CV')); uit.push(doc(k && k.cr_link, 'CR'));
+    uit.push(doc((k && k.crm || {}).cv_link, 'CV')); uit.push(doc((k && k.crm || {}).cr_link, 'CR'));   // 29-09: de CRM-rij zit onder k.crm
     uit.push(vervolg);
   } else if (b.soortBezoek === 'evaluatie') {
     const sl = b.medewerkerSleutel || _itkSleutel(b.medewerker || '');
@@ -34883,7 +34885,7 @@ function _rldvDocsHtml(sel) {
              : '<span class="rldv-doc uit" title="Kandidaat staat niet in CRM · Kandidaten">📄 ' + escHtml(lbl) + '</span>';
   };
   return '<div class="rldv-docs" data-sel="' + escHtml(String((sel && sel.id) || '')) + '"><div class="rldv-doc-kop">Documenten' + (k ? '' : '<span class="rldv-uitg-bron">niet in CRM</span>') + '</div>' +
-    '<div class="rldv-doc-rij">' + knop(k && k.cv_link, 'CV') + knop(k && k.cr_link, 'CR') + '</div></div>';
+    '<div class="rldv-doc-rij">' + knop((k && k.crm || {}).cv_link, 'CV') + knop((k && k.crm || {}).cr_link, 'CR') + '</div></div>';   // 29-09: de CRM-rij zit onder k.crm
 }
 // Na een CRM-wijziging (28-09): elk open Documenten-vak (check, afvinkvenster) ter
 // plekke verversen en de kandidaatkaart opnieuw tekenen — zonder het venster te sluiten.
