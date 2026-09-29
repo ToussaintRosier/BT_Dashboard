@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260929-2017 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260929-2028 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11212,7 +11212,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260929-2017';
+const APP_VERSIE = '20260929-2028';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19064,7 +19064,8 @@ let TODO_STATUS = {};        // sleutel → { stand:'gedaan'|'later'|'', tot, ge
 let TODO_GELADEN = false;
 let TODO_TAB = '';           // open tabblad op de kaart: 'kand' | 'klant' | 'mw' | 'gepland'
 let TODO_KLAP = new Set();   // uitgeklapte secties ('kand:open' …)
-let _TODO_CACHE = null;      // per tik: { naam → lijst }
+let _TODO_CACHE = null;      // { naam → lijst }, hoogstens 3 s oud (29-09); realtime en eigen standen maken hem leeg
+let _TODO_CACHE_T = 0;
 
 const TODO_WD = 864e5;
 // Ingangsdatum (afspraak 29-09): alles van vóór maandag 22 september 2026 telt niet mee — anders begint iedereen
@@ -19106,9 +19107,17 @@ function _todoRegels(naam) {
   const mij = String(naam || '').trim();
   const push = (x) => { if (!x || !x.sleutel) return; if (!_todoVoorMij(x.wie, mij)) return; uit.push(x); };
   const nu = Date.now();
-  const crm = (sl) => (typeof CRM_KANDIDATEN !== 'undefined' && Array.isArray(CRM_KANDIDATEN) ? CRM_KANDIDATEN : []).find(r => String(r.sleutel || _itkSleutel(r.naam)) === sl && r.bron !== 'verwijderd') || null;
-  const recVan = (sl) => (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).filter(r => _itkSleutel(r.naam) === sl).sort((a, b) => _recDatumSort(b.datum) - _recDatumSort(a.datum))[0] || null;
-  const selVan = (n) => typeof rldvSelectieVoorNaam === 'function' ? rldvSelectieVoorNaam(n) : null;
+  // Snel (29-09): alle lijsten één keer in een map, niet per tegeltje opnieuw doorzoeken (5.000+ CRM-rijen).
+  const crmMap = new Map(); (typeof CRM_KANDIDATEN !== 'undefined' && Array.isArray(CRM_KANDIDATEN) ? CRM_KANDIDATEN : []).forEach(r => { if (r && r.bron !== 'verwijderd') { const k = String(r.sleutel || _itkSleutel(r.naam)); if (k && !crmMap.has(k)) crmMap.set(k, r); } });
+  const crm = (sl) => crmMap.get(sl) || null;
+  const recMap = new Map(); (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).forEach(r => { const k = _itkSleutel(r.naam || ''); if (!k) return; const b = recMap.get(k); if (!b || _recDatumSort(r.datum) > _recDatumSort(b.datum)) recMap.set(k, r); });
+  const recVan = (sl) => recMap.get(sl) || null;
+  const selMap = new Map(); (typeof RLDV_SELECTIES !== 'undefined' && Array.isArray(RLDV_SELECTIES) ? RLDV_SELECTIES : []).forEach(r => { const k = _itkSleutel(r.kandidaat_naam || ''); if (!k) return; const b = selMap.get(k); if (!b || String(r.aangemaakt_op || '') > String(b.aangemaakt_op || '')) selMap.set(k, r); });
+  const selVan = (n) => selMap.get(_itkSleutel(n || '')) || null;
+  const kbPer = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null;
+  const kbVan = new Map(); if (kbPer) ['g1', 'g2', 'g3'].forEach(f => (kbPer[f] || []).forEach(c => { const k = _itkSleutel(c.naam || ''); if (k) kbVan.set(k, { fase: f, c }); }));
+  const bezoeken = typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : [];
+  const evalPer = new Map(); bezoeken.forEach(b => { if (b.soortBezoek !== 'evaluatie') return; const k = b.medewerkerSleutel || _itkSleutel(b.medewerker || ''); if (!k) return; if (!evalPer.has(k)) evalPer.set(k, []); evalPer.get(k).push(b); });
   const kaartKlik = (bm, id) => "kandKaartOpen('" + escApos(String(bm)) + "','" + escApos(String(id)) + "')";
   const crmKlik = (sl) => "crmKandOpen('" + escApos(String(sl)) + "')";
   const bms = typeof bmsMetCijfers === 'function' ? bmsMetCijfers() : [];
@@ -19120,7 +19129,7 @@ function _todoRegels(naam) {
   // (voor een starter blijven alleen aanmelding en evaluaties over).
   const weg = new Set();
   alleKaarten.forEach(c => { const sl = _itkSleutel(c.naam || ''); if (!sl) return; if (c.onbeschikbaar_op) weg.add(sl); if (c.stage === 'Starter' && c.goedkeuring !== 'niet_akkoord') weg.add(sl); });
-  const gesprekVan = (sl) => { const per = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null; if (!per) return null; let best = null; ['g1', 'g2', 'g3'].forEach(f => (per[f] || []).forEach(c => { if (_itkSleutel(c.naam) === sl) best = { fase: f, c }; })); return best; };
+  const gesprekVan = (sl) => kbVan.get(sl) || null;
 
   // A · Kandidaat — vanuit het Intake-tegeltje van de collega
   alleKaarten.filter(c => c.stage === 'Intake' && !c.kandidaten_uitgesloten && !c.onbeschikbaar_op).forEach(c => {
@@ -19174,7 +19183,7 @@ function _todoRegels(naam) {
   });
   // Gesprekken (Kanban g1–g3, los van het Intake-tegeltje): voorbereiding (ALTIJD, ≥ 2 dagen vóór), bevestigen, terugkoppeling ophalen (24 uur)
   (function () {
-    const per = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null; if (!per) return;
+    const per = kbPer; if (!per) return;
     ['g1', 'g2', 'g3'].forEach(fase => (per[fase] || []).forEach(g => {
       const sl = _itkSleutel(g.naam || ''); if (!sl || weg.has(sl)) return;
       const gMs = _todoMsVan(g.gesprek_op); if (!gMs || gMs < ING) return;
@@ -19207,7 +19216,7 @@ function _todoRegels(naam) {
     const basis = { cat: 'mw', groep: sl, groepSoort: 'mw', groepNaam: c.naam, groepDetail: (klant ? klant + ' · ' : '') + 'start ' + _crmDatum(sMs), wie: [c.bmNaam], klik: kaartKlik(c.bmNaam, c.id) };
     if (sMs > nu - 7 * TODO_WD && !aanmeld.includes(sl)) push({ ...basis, sleutel: 'aanmeld:' + sl, soort: 'aanmelding', tekst: 'Aanmelding compleet naar Office/HRM', detail: 'handboek: minimaal 1 week vóór start', deadlineMs: sMs - 7 * TODO_WD, duur: 45, klik: "selectTab('hrm')" });
     if (typeof getEvalMilestones === 'function' && sMs <= nu + 400 * TODO_WD) {
-      const evals = (typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : []).filter(b => b.soortBezoek === 'evaluatie' && (b.medewerkerSleutel === sl || _itkSleutel(b.medewerker || '') === sl));
+      const evals = evalPer.get(sl) || [];
       let m = null;
       try { m = getEvalMilestones(new Date(sMs)).map(x => ({ ms: +x.date, label: x.label })).filter(x => x.ms >= nu - 7 * TODO_WD).sort((a, b) => a.ms - b.ms)[0] || null; } catch (_) { m = null; }
       if (m && m.ms - nu <= 21 * TODO_WD) {
@@ -19226,7 +19235,6 @@ function _todoRegels(naam) {
     if (afhaken.length) push({ ...kop, sleutel: 'ggaf:' + afhaken.map(r => r.sleutel).sort().join('|').slice(0, 60), soort: 'bel', tekst: 'Afhaken en netwerken · ' + afhaken.length, detail: afhaken.slice(0, 4).map(r => String(r.naam).split(' ').slice(-1)[0]).join(', ') + ' · handboek: na ca. 2 weken, vervolgafspraak noteren', deadlineMs: _todoWerkdagenErbij(nu, 0), duur: 15 });
   }
   // C · Klant: bezoeken (verslag 1 werkdag, vervolgafspraak 1 werkdag), scorekaart, accountplan-acties, evaluatieverslag koppelen
-  const bezoeken = typeof accBezoekenLijst === 'function' ? accBezoekenLijst() : [];
   bezoeken.filter(b => b.datumMs && b.datumMs <= nu && b.datumMs >= ING && b.soortBezoek !== 'evaluatie').forEach(b => {
     const sl = _itkSleutel(b.bedrijf || ''); if (!sl) return;
     const basis = { cat: 'klant', groep: sl, groepSoort: 'bedrijf', groepNaam: b.bedrijf, groepDetail: 'bezoek ' + _crmDatum(b.datumMs) + (b.contactpersoon ? ' · ' + b.contactpersoon : ''), wie: b.collegas || [b.collega], klik: "bezoekKaartOpen('" + escApos(String(b.id)) + "')" };
@@ -19248,6 +19256,7 @@ function _todoRegels(naam) {
 function _todoStatusVan(sleutel) { return TODO_STATUS[String(sleutel)] || null; }
 function todoLijst(naam) {
   const n = String(naam || '');
+  if (_TODO_CACHE && Date.now() - _TODO_CACHE_T > 3000) _TODO_CACHE = null;
   if (_TODO_CACHE && _TODO_CACHE[n]) return _TODO_CACHE[n];
   let items = [];
   try { items = _todoRegels(n); } catch (e) { _meldStil('todo regels', e); items = []; }
@@ -19262,7 +19271,8 @@ function todoLijst(naam) {
   }).filter(Boolean);
   const volg = { laat: 0, vandaag: 1, open: 2, gepland: 3 };
   uit.sort((a, b) => (volg[a.stand] - volg[b.stand]) || (a.deadlineMs - b.deadlineMs) || a.groepNaam.localeCompare(b.groepNaam, 'nl'));
-  const cache = _TODO_CACHE || {}; cache[n] = uit; _TODO_CACHE = cache; setTimeout(() => { _TODO_CACHE = null; }, 0);
+  if (!_TODO_CACHE) _TODO_CACHE_T = Date.now();
+  const cache = _TODO_CACHE || {}; cache[n] = uit; _TODO_CACHE = cache;
   return uit;
 }
 function todoTellers(naam) {
@@ -19836,6 +19846,7 @@ function _rtVerzamel(tabel) {
     _RT_TIMER = null;
     const tabellen = [..._RT_WACHTRIJ];
     _RT_WACHTRIJ.clear();
+    _TODO_CACHE = null;   // 29-09: to-do's opnieuw afleiden na een wijziging van een collega
     for (const t of tabellen) {
       try { await _RT_TAKEN[t](); }
       catch (e) { _meldStil('realtime bijwerken: ' + t, e); }
@@ -29159,7 +29170,15 @@ function _accContactVan(a, naam) {
 function _gvHandmatig() {
   return (typeof GESPREKSVERSLAGEN_CACHE !== 'undefined' && Array.isArray(GESPREKSVERSLAGEN_CACHE) ? GESPREKSVERSLAGEN_CACHE : []).filter(g => g && g.bedrijf && g.bron !== 'opname' && !g.bron_verslag_id);
 }
+// Per tik één keer (29-09): de lijst werd tot tien keer per hertekening opgebouwd (tellers, tabbladen, to-do's).
+let _ACC_BZ_CACHE = null;
 function accBezoekenLijst() {
+  if (_ACC_BZ_CACHE) return _ACC_BZ_CACHE;
+  const uit = _accBezoekenLijstBouw();
+  _ACC_BZ_CACHE = uit; setTimeout(() => { _ACC_BZ_CACHE = null; }, 0);
+  return uit;
+}
+function _accBezoekenLijstBouw() {
   const items = [];
   // Handmatige verslagen (28-09) eerst: een Bezoeken-kaartje van dezelfde week hangt eraan, zoals aan een record.
   _gvHandmatig().forEach(g => {
@@ -32896,7 +32915,15 @@ function _kanbanVind(id) {
 }
 // Alle kaartjes op het bord, per kolom. Een tegeltje waar al een volgende
 // stap op volgt (kanban_vorige wijst ernaar) staat er niet meer op.
+// Per tik één keer (29-09).
+let _KB_CACHE = null;
 function kanbanKaarten() {
+  if (_KB_CACHE) return _KB_CACHE;
+  const uit = _kanbanKaartenBouw();
+  _KB_CACHE = uit; setTimeout(() => { _KB_CACHE = null; }, 0);
+  return uit;
+}
+function _kanbanKaartenBouw() {
   const alle = [];
   bmsMetCijfers().forEach(bm => pipeLoad(bm.naam).forEach(c => alle.push({ ...c, bmNaam: bm.naam })));
   const opgevolgd = new Set(alle.filter(c => c.kanban_vorige && !c.verwijderd_op).map(c => String(c.kanban_vorige)));
