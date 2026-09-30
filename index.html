@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-1039 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260930-1051 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11258,7 +11258,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-1039';
+const APP_VERSIE = '20260930-1051';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -40588,7 +40588,7 @@ function _vsMij() { return String((CURRENT_USER && (CURRENT_USER.naam || CURRENT
 // Wijzigen/verwijderen: de maker en de beheerder (zoals bij een RLDV-check).
 function _vsMag(g) {
   if (!g) return false;
-  if (!magWijzigen(_vsType(g) === 'itk' ? 'kandidaten' : 'accounts')) return false;
+  if (!magWijzigen(_vsType(g) === 'itk' ? 'crm' : 'accounts')) return false;   // 30-09: ITK volgt het CRM-recht (iedereen), niet het kandidatenvinkje
   if (typeof isBeheerder === 'function' && isBeheerder()) return true;
   const mij = _vsMij();
   return !!mij && (g.auteur === mij || (CURRENT_USER && g.created_by && g.created_by === CURRENT_USER.id));
@@ -40678,7 +40678,7 @@ function _vsBlokHtml(items, knop) {
     '<div class="vs-blok">' + (items.length ? items.map(rij).join('') : '<div class="vs-leeg">Nog geen verslag of opname.</div>') + '</div>';
 }
 function _vsBlokKandHtml(k) {
-  const mag = magWijzigen('kandidaten') && !CRM_ONTBREEKT;
+  const mag = magWijzigen('crm') && !CRM_ONTBREEKT;   // 30-09: CRM-recht, zoals de GG-knop
   const knop = mag ? '<button type="button" class="crm-kop-knop goud" onclick="vsNieuwItk(\'' + escApos(k.sleutel) + '\')">+ ITK-verslag maken</button>' : '';
   return _vsBlokHtml(vsItemsVoorKand(k), knop);
 }
@@ -40690,7 +40690,7 @@ function _vsBlokBedrijfHtml(k) {
 
 // ── Pop-up: nieuw of bewerken ───────────────────────────────────────────────
 function vsNieuwItk(kandSleutel) {
-  if (!eisWijzig('kandidaten')) return;
+  if (!eisWijzig('crm')) return;   // 30-09
   VS_FORM = { type: 'itk', kandSleutel: String(kandSleutel), velden: {} };
   _vsPopup();
 }
@@ -40780,7 +40780,7 @@ function vsAnnuleer() { const f = VS_FORM; VS_FORM = null; crmKaartSluit(); _vsT
 async function vsOpslaan(knop) {
   const f = VS_FORM; if (!f) return;
   const itk = f.type === 'itk';
-  if (!eisWijzig(itk ? 'kandidaten' : 'accounts')) return;
+  if (!eisWijzig(itk ? 'crm' : 'accounts')) return;   // 30-09
   const w = _vsLees();
   const fout = (t, id) => { btMeld(t, 'geel'); const el = id && document.getElementById(id); if (el && el.focus) el.focus(); };
   if (!w.datum) return fout('Vul de datum in.', 'vs-datum');
@@ -40835,7 +40835,7 @@ function _vsLogSchrijf(g) {
 }
 async function vsVerwijder(id) {
   const g = _vsVind(id); if (!g) return;
-  if (!eisWijzig(_vsType(g) === 'itk' ? 'kandidaten' : 'accounts')) return;
+  if (!eisWijzig(_vsType(g) === 'itk' ? 'crm' : 'accounts')) return;   // 30-09
   if (!_vsMag(g)) { btMeld('Alleen de maker of een beheerder kan dit verslag verwijderen.', 'geel'); return; }
   if (!(await btBevestig('Dit handmatige verslag verwijderen?'))) return;
   const { error } = await supa.from('gespreksverslagen').delete().eq('id', g.id);
