@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-0942 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260930-1006 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5081,6 +5081,15 @@
   .ds-blauw .ds-voet .stil { color:#4b5a7a; font-size:.76rem; }
   .ds-blauw .ds-groet { font-size:.66rem; color:#4b5a7a; letter-spacing:.06em; display:flex; align-items:center; gap:8px; }
   .ds-blauw .ds-groet .zon { width:22px; height:22px; border-radius:99px; background:#F4CB3C; display:inline-flex; align-items:center; justify-content:center; } .ds-blauw .ds-groet .zon svg { width:13px; height:13px; stroke:#253151; fill:none; stroke-width:2.2; stroke-linecap:round; }
+  /* Dagstart v4 (30-09): drie tegels in de kop, kompas als balk, team-rij, mijlpalen-regel. */
+  .ds-tegels { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0 14px; }
+  .ds-tegel { background:#fff; border-radius:10px; padding:8px 10px; min-width:0; } .ds-tegel b { display:block; font-size:1.15rem; line-height:1.1; color:#253151; } .ds-tegel b i { font-style:normal; font-size:.7rem; color:#6b7a99; } .ds-tegel span { font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; color:#6b7a99; } .ds-tegel small { display:block; font-size:.68rem; color:#6b7a99; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ds-tegel.rood b { color:#b91c1c; } .ds-tegel.oranje b { color:#b45309; } .ds-tegel.groen b { color:#166534; }
+  .ds-blauw .todo-sec .r { margin-left:auto; text-transform:none; letter-spacing:0; font-weight:var(--w-normaal); color:#3d5a8a; cursor:pointer; }
+  .ds-k1 { grid-template-columns:auto !important; } .ds-k2 { grid-template-columns:auto 24px !important; } .todo-r .k .agk.ds-knop { padding:3px 8px; }
+  .ds-kompas-v4 { background:rgba(255,255,255,.55); border-radius:10px; padding:8px 12px; margin-top:12px; } .ds-kompas-v4 .r1 { display:flex; align-items:center; gap:10px; font-size:.8rem; color:#253151; } .ds-kompas-v4 .r1 b { font-size:.9rem; } .ds-kompas-v4 .balk { flex:1; height:8px; background:rgba(37,49,81,.12); border-radius:99px; overflow:hidden; } .ds-kompas-v4 .balk i { display:block; height:100%; background:#253151; border-radius:99px; }
+  .ds-kompas-v4 .r2 { font-size:.72rem; color:#4b5a7a; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; } .ds-kompas-v4 .toggle { margin-left:auto; color:#3d5a8a; cursor:pointer; } .ds-kompas-v4 .details { margin-top:8px; padding-top:6px; border-top:1px solid rgba(37,49,81,.1); }
+  .ds-mijl { font-size:.74rem; color:#4b5a7a; margin:10px 0 4px; } .ds-mijl small { color:#6b7a99; }
   .ds-blauw .kern { font-size:1rem; line-height:1.4; color:#253151; font-weight:var(--w-nadruk); margin-top:10px; } .ds-blauw .sub { color:#4b5a7a; font-size:.78rem; margin-top:3px; }
   .todo-tellers { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; } .todo-tellers .tel { border-radius:99px; padding:2px 10px; font-size:.7rem; font-weight:var(--w-nadruk); }
   .tel.laat { background:#fee2e2; color:#b91c1c; } .tel.vandaag { background:#fef3c7; color:#92400e; } .tel.open { background:#eef2ff; color:#253151; } .tel.gepland { background:#dcfce7; color:#166534; }
@@ -11247,7 +11256,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-0942';
+const APP_VERSIE = '20260930-1006';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -18667,27 +18676,34 @@ function _dagstartKompas() {
   const perWeekNodig = nodig == null ? null : +(nodig / wkOver).toFixed(1);
   const tempo = _prognoseTempo(week, jaar);
 
-  // De pijplijn: open contractvoorstellen (gedeeld telt 0,5), oude zonder vervolgstap,
-  // open matchgesprekken per collega, en welke klanten al een vervolg hebben.
-  const grens = _weekVerschoven(jaar, week, -2);
+  // De pijplijn (30-09): het Kanban-bord als bron. Het bord filtert opgevolgde (kanban_vorige),
+  // afgeronde (kanban_af), uitgesloten en onbeschikbare tegeltjes eruit; de pipeline-tegeltjes niet —
+  // daardoor telde het kompas 46 contractvoorstellen waar het bord er 12 liet zien.
+  // Eén bordkaartje = 1 (twee collega's op één gesprek: 0,5 per collega).
+  const kb = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null;
+  const kbGesprek = kb ? ['g1', 'g2', 'g3'].reduce((acc, f) => acc.concat(kb[f] || []), []) : [];
+  const kbContract = kb ? (kb.contract || []) : [], kbStarter = kb ? (kb.starter || []) : [];
   const open = [], oud = [], klantenMetVervolg = new Set();
-  const isOud = c => c.jaar && c.week && (c.jaar < grens.year || (c.jaar === grens.year && c.week <= grens.week));
+  const msVan = (c) => { const d = typeof _kanbanDatumVan === 'function' ? _kanbanDatumVan(c) : c.gesprek_op; const t = d ? Date.parse(d) : NaN; if (!isNaN(t)) return t; const st = (+c.jaar && +c.week) ? isoWeekStartDate(+c.jaar, +c.week) : null; return st && !isNaN(st) ? st.getTime() : 0; };
+  const grensMs = nu.getTime() - 14 * 864e5;
+  const isOud = c => { const m = msVan(c); return !!m && m <= grensMs; };
   let matchOudste = null;
-  for (const bm of bms) for (const c of pipeLoad(bm.naam)) {
-    if (c.verwijderd_op) continue;
-    const p = perBm.find(x => x.naam === bm.naam);
-    if (c.stage === 'Matchgesprekken') {
-      if (p) p.matchOpen++;
-      if (!matchOudste || (c.jaar || 0) * 100 + (c.week || 0) < (matchOudste.jaar || 0) * 100 + (matchOudste.week || 0)) matchOudste = { naam: c.naam, klant: _kanbanKlantVan(c), collega: bm.naam, week: c.week, jaar: c.jaar };
-    }
-    if (c.stage === 'Contractvoorstel' || (c.stage === 'Starter' && c.goedkeuring !== 'niet_akkoord')) klantenMetVervolg.add(_kompasNorm(_kanbanKlantVan(c)));
-    if (c.stage !== 'Contractvoorstel') continue;
-    const telt = telKaarten([c], 'Contractvoorstel');   // gedeeld telt 0,5 — één telregel (test_pipeline_telling)
-    if (p) p.contrOpen += telt;
-    const rij = { naam: c.naam, klant: _kanbanKlantVan(c), collega: bm.naam, telt, week: c.week, jaar: c.jaar };
+  kbGesprek.forEach(c => {
+    const bms2 = c.bms && c.bms.length ? c.bms : [c.bmNaam];
+    bms2.forEach(bn => { const p = perBm.find(x => x.naam === bn); if (p) p.matchOpen += 1 / bms2.length; });
+    const m = msVan(c);
+    if (!matchOudste || (m && m < matchOudste.ms)) matchOudste = { naam: c.naam, klant: _kanbanKlantVan(c), collega: bms2[0], week: c.week, jaar: c.jaar, ms: m, id: c.id, bm: bms2[0] };
+  });
+  kbContract.concat(kbStarter.filter(c => c.goedkeuring !== 'niet_akkoord')).forEach(c => klantenMetVervolg.add(_kompasNorm(_kanbanKlantVan(c))));
+  kbContract.forEach(c => {
+    const bms = c.bms && c.bms.length ? c.bms : [c.bmNaam];
+    bms.forEach(bn => { const p = perBm.find(x => x.naam === bn); if (p) p.contrOpen += 1 / bms.length; });
+    const rij = { naam: c.naam, klant: _kanbanKlantVan(c), collega: bms[0], telt: 1, week: c.week, jaar: c.jaar, ms: msVan(c), id: c.id, bm: bms[0] };
     open.push(rij);
     if (isOud(c)) oud.push(rij);
-  }
+  });
+  oud.sort((x, y) => (x.ms || 0) - (y.ms || 0));
+  perBm.forEach(p => { p.matchOpen = +p.matchOpen.toFixed(1); p.contrOpen = +p.contrOpen.toFixed(1); });
   const contrOpen = +open.reduce((t, r) => t + r.telt, 0).toFixed(1);
   // Doorstroom contractvoorstel → starter over de laatste twaalf weken (output
   // van een week tegen de input van de week ervoor); zonder meting 0,8.
@@ -19673,9 +19689,9 @@ function _todoBlokInhoud(naam, eigen) {
 function _todoHerteken() {
   _TODO_CACHE = null;
   const laag = document.getElementById('dagstart-laag');
-  if (laag) { const naam = laag.getAttribute('data-naam') || ''; const kop = laag.querySelector('.todo-kopvul'); const body = laag.querySelector('.ds-body'); const kern = _todoKern(naam);
-    if (kop) kop.innerHTML = '<div class="kern">' + escHtml(kern.kern) + '</div><div class="sub">' + escHtml(kern.sub) + '</div>' + _todoTellersHtml(naam) + _todoTabsHtml(naam);
-    if (body) body.innerHTML = _todoGisterenHtml(naam) + (laag.getAttribute('data-kompas') || '') + _todoInhoudHtml(naam, true); }
+  if (laag) { const naam = laag.getAttribute('data-naam') || ''; const kop = laag.querySelector('.todo-kopvul'); const body = laag.querySelector('.ds-body');
+    if (kop) kop.innerHTML = _dsKopvulHtml(naam);   // v4 (30-09)
+    if (body) body.innerHTML = _dsBodyHtml(naam); }
   const blok = document.getElementById('todo-blok');
   if (blok) { const naam = blok.getAttribute('data-naam') || ''; blok.outerHTML = _todoPaginaHtml(naam); }
   if (typeof currentTab !== 'undefined' && currentTab === 'medewerkers' && MEDEW_SUBTAB === 'todo') render();
@@ -19751,6 +19767,124 @@ function _todoZonKnopHtml() {
   let n = 0; try { n = mij ? todoTellers(mij).laat : 0; } catch (_) { n = 0; }
   return '<button class="ladder-knop todo-zon" onclick="dagstartOpen()" title="Dagstart · mijn to-do\'s" aria-label="Dagstart">' + _todoSvg('zon') + (n ? '<i class="b">' + n + '</i>' : '') + '</button>';
 }
+// ═══ Dagstart v4 (30-09, ontwerp_dagstart_v4.html) ═══════════════════════════
+//   Eén vraag bovenaan: wat doe ik vandaag? Kern + drie tegels in de kop; in de body max vijf acties,
+//   voor managers de kompas-acties (oudste contractvoorstellen van het bord) en "Team vandaag";
+//   het kompas als balk met details op afroep; mijlpalen als één regel. De volledige lijst staat op
+//   de subpagina To Do's (☀ en "alle to-do's →").
+let _DS_K = null;            // kompas-cijfers van de open kaart
+let _DS_BOODSCHAP = null;    // de (AI-)tekst als er niets dringends is
+let DS_KOMPAS_OPEN = false;
+function _dsKompasK() { try { return typeof _dagstartKompas === 'function' ? _dagstartKompas() : null; } catch (e) { _meldStil('dagstart kompas', e); return null; } }
+function _dsMij() { return String((CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''); }
+function _dsIsBm(naam) { return !!(BMS || []).find(b => b.naam === naam && !b.special); }
+// Acties van vandaag: te laat (oudste eerst, max 3) → ingepland vandaag → vandaag; samen max 5.
+function _dsActies(naam) {
+  const alle = todoLijst(naam).filter(x => !x.later && x.stand !== 'straks');
+  const laat = alle.filter(x => x.stand === 'laat').sort((a, b) => (b.dagenLaat || 0) - (a.dagenLaat || 0));
+  const ing = alle.filter(x => x.stand === 'vandaag' && x.geplandVandaag).sort((a, b) => (a.geplandMs || 0) - (b.geplandMs || 0));
+  const vand = alle.filter(x => x.stand === 'vandaag' && !x.geplandVandaag);
+  return { laat, ing, vand, top: laat.slice(0, 3).concat(ing, vand).slice(0, 5), totaal: alle.length };
+}
+// Kompas-acties (manager zonder eigen to-do's): oudste contractvoorstellen van het bord, stoppers zonder opvolger.
+function _dsKompasActies(k) {
+  if (!k) return [];
+  const af = _dsAfSet(), uit = [];
+  (k.oud || []).forEach(r => uit.push({ sleutel: 'ds:contract:' + (r.id || r.naam), soort: 'bel', tekst: r.naam, detail: (r.klant ? r.klant + ' · ' : '') + 'contractvoorstel sinds wk ' + (r.week || '?') + (r.collega ? ' · ' + _dagstartVoornaam(r.collega) : ''),
+    klik: r.bm && r.id ? "kandKaartOpen('" + escApos(String(r.bm)) + "','" + escApos(String(r.id)) + "')" : '' }));
+  (k.stoppersZonder || []).slice(0, 3).forEach(x => uit.push({ sleutel: 'ds:stopper:' + x.naam, soort: 'klant', tekst: x.naam, detail: (x.klant ? x.klant + ' · ' : '') + 'stopt ' + (x.eind ? _crmDatum(x.eind.getTime ? x.eind.getTime() : x.eind) : '') + ' zonder opvolger', klik: '' }));
+  return uit.filter(x => !af.has(x.sleutel)).slice(0, 5);
+}
+function _dsAfSet() { try { return new Set(JSON.parse(localStorage.getItem('bt_ds_af_' + _dagstartVandaag()) || '[]')); } catch (e) { _meldStil('dagstart af lezen', e); return new Set(); } }
+function dsAf(sleutel) { const st = _dsAfSet(); st.add(String(sleutel)); _veiligLokaalOpslaan('bt_ds_af_' + _dagstartVandaag(), Array.from(st), 'dagstart af'); _todoHerteken(); }
+function _dsTijd(ms) { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+// De kernzin, in deze volgorde: te laat → ingepland/vandaag → contractvoorstellen te lang stil → stoppers → collega met het grootste gat → de (AI-)boodschap.
+function _dsKern(naam, k, boodschap) {
+  const a = _dsActies(naam);
+  const wie = (x) => x.tekst + (x.groepNaam ? ' van ' + x.groepNaam : '');
+  const rest = () => { const d = []; if (a.vand.length) d.push(a.vand.length + ' voor vandaag'); if (a.ing.length) d.push(a.ing.length + ' ingepland' + (a.ing[0] && a.ing[0].geplandMs ? ' (' + _dsTijd(a.ing[0].geplandMs) + ')' : '')); const st = todoLijst(naam).find(x => x.stand === 'straks'); if (st && st.groepDetail) d.push('straks: ' + st.groepDetail); return d.length ? 'Verder ' + d.join(', ') + '.' : ''; };
+  if (a.laat.length) return { kern: (a.laat.length === 1 ? 'Eén taak loopt achter' : a.laat.length + ' taken lopen achter') + '; begin met ' + wie(a.laat[0]) + '.', sub: rest() };
+  if (a.ing.length || a.vand.length) { const n = a.ing.length + a.vand.length; return { kern: (n === 1 ? 'Eén ding voor vandaag' : n + ' dingen voor vandaag') + (a.ing.length && a.ing[0].geplandMs ? '; om ' + _dsTijd(a.ing[0].geplandMs) + ' ' + wie(a.ing[0]) : (a.vand[0] ? '; begin met ' + wie(a.vand[0]) : '')) + '.', sub: '' }; }
+  if (k && k.oud && k.oud.length) { const wies = Array.from(new Set(k.oud.map(r => _dagstartVoornaam(r.collega)).filter(Boolean))); return { kern: (k.oud.length === 1 ? 'Eén contractvoorstel staat te lang stil.' : k.oud.length + ' contractvoorstellen staan te lang stil.'), sub: 'Bel vandaag kandidaat en klant na' + (wies.length ? ' — ' + (wies.length === 1 ? 'alle' + (k.oud.length === 1 ? '' : '') + ' via ' + wies[0] : 'via ' + wies.join(', ')) : '') + '.' }; }
+  if (k && k.stoppersZonder && k.stoppersZonder.length) return { kern: (k.stoppersZonder.length === 1 ? 'Eén project stopt' : k.stoppersZonder.length + ' projecten stoppen') + ' binnen vier weken zonder opvolger.', sub: k.stoppersZonder.slice(0, 3).map(x => x.klant || x.naam).join(' · ') + ' — bel de klant vandaag.' };
+  if (k && k.achterste && k.achterste.gat < 0 && k.achterste.matchOpen >= 3) return { kern: _dagstartVoornaam(k.achterste.naam) + ' staat ' + fmtNl(Math.abs(k.achterste.gat), 1) + ' onder zijn lijn met ' + fmtNl(k.achterste.matchOpen, 0) + ' open gesprekken.', sub: 'Loop die vandaag samen door.' };
+  return { kern: (boodschap && boodschap.kern) || 'Niets loopt achter. Mooi.', sub: (boodschap && boodschap.focus) || '' };
+}
+// Drie tegels: BM = te laat · vandaag · op je lijn; manager = gat · nodig per week · contractvoorstellen op het bord.
+function _dsTegelsHtml(naam, k) {
+  const tg = (kl, groot, label, klein) => '<div class="ds-tegel' + (kl ? ' ' + kl : '') + '"><b>' + groot + '</b><span>' + escHtml(label) + '</span>' + (klein ? '<small>' + escHtml(klein) + '</small>' : '') + '</div>';
+  if (_dsIsBm(naam)) {
+    const t = todoTellers(naam), a = _dsActies(naam), p = k && k.perBm ? k.perBm.find(x => x.naam === naam) : null;
+    return '<div class="ds-tegels">' +
+      tg(t.laat ? 'rood' : '', t.laat, 'te laat', a.laat[0] ? 'oudste ' + a.laat[0].dagenLaat + (a.laat[0].dagenLaat === 1 ? ' dag' : ' dagen') : 'niets — mooi') +
+      tg(t.vandaag ? 'oranje' : '', t.vandaag, 'vandaag', a.ing[0] && a.ing[0].geplandMs ? a.ing.length + ' ingepland · ' + _dsTijd(a.ing[0].geplandMs) : t.open + ' deze week') +
+      (p ? tg(p.gat < 0 ? 'oranje' : 'groen', (p.gat >= 0 ? '+' : '−') + fmtNl(Math.abs(p.gat), 1), 'op je lijn', fmtNl(p.matchOpen, 0) + ' open gesprekken · ' + fmtNl(p.contrOpen, 0) + ' contract') : tg('', t.open, 'open', 'deze week en later')) + '</div>';
+  }
+  if (!k || k.gat == null) return '';
+  return '<div class="ds-tegels">' +
+    tg(k.gat < 0 ? 'oranje' : 'groen', fmtNl(Math.abs(k.gat), 1), k.gat < 0 ? 'gat' : 'boven de lijn', fmtNl(k.lopendNu, 0) + ' lopend · ' + fmtNl(k.begrootNu, 1) + ' begroot' + (k.gat4 != null ? ' · was ' + fmtNl(Math.abs(k.gat4), 0) : '')) +
+    (k.perWeekNodig != null ? tg('', fmtNl(k.perWeekNodig, 1) + '<i>/wk</i>', 'nodig', 'tempo laatste 12 wk: ' + fmtNl(k.tempo, 1)) : tg('', '—', 'nodig', 'geen begrote lijn')) +
+    tg('groen', fmtNl(k.contrOpen, 0), 'contractvoorstellen', 'op het bord · ≈ ' + fmtNl(k.verwachtUitContr, 1) + ' starters') + '</div>';
+}
+// Een to-do-regel met de naam erbij (op de kaart staan geen groepskoppen).
+function _dsRegelHtml(x, naam) { return _todoRegelHtml({ ...x, tekst: x.tekst + (x.groepNaam ? ' · ' + x.groepNaam : '') }, naam, true); }
+function _dsActiesHtml(naam, k) {
+  const a = _dsActies(naam);
+  let rijen = '', n = 0;
+  const blok = (kl, lijst) => { if (!lijst.length) return; rijen += '<div class="todo-blok ' + kl + '">' + lijst.map(x => _dsRegelHtml(x, naam)).join('') + '</div>'; n += lijst.length; };
+  blok('laat', a.laat.slice(0, 3)); blok('gepland', a.ing.slice(0, Math.max(0, 5 - n))); blok('vandaag', a.vand.slice(0, Math.max(0, 5 - n)));
+  let rechts = a.totaal ? '<span class="r" onclick="event.stopPropagation();todoNaarPagina(\'' + escApos(naam) + '\')">alle to-do\'s (' + a.totaal + ') →</span>' : '';
+  if (!n) {
+    const ka = _dsKompasActies(k);
+    if (ka.length) { rijen = '<div class="todo-blok laat">' + ka.map(x => '<div class="todo-r" onclick="' + escHtml(x.klik) + '"><span class="ico laat">' + _todoSvg(x.soort) + '</span><span class="t"><b>' + escHtml(x.tekst) + '</b> <small>· ' + escHtml(x.detail) + '</small></span><span class="k ds-k2">' + (x.klik ? '<button type="button" class="agk" onclick="event.stopPropagation();' + escHtml(x.klik) + '">Kaart</button>' : '<span class="leeg"></span>') + '<button type="button" class="vk" title="Vandaag gedaan — van de kaart" onclick="event.stopPropagation();dsAf(\'' + escApos(x.sleutel) + '\')">' + _todoSvg('vink') + '</button></span></div>').join('') + '</div>'; n = ka.length; rechts = '<span class="r">' + n + ' uit het kompas</span>'; }
+  }
+  if (!rijen) return '';
+  return '<div class="todo-sec vandaag">' + _todoSvg('zon') + 'VANDAAG DOEN' + rechts + '</div>' + rijen;
+}
+// Team vandaag (manager): de drie collega's met de meeste te-late taken.
+function _dsTeamHtml(naam) {
+  const rijen = bmsMetResultaat().map(bm => {
+    const oud = TODO_STATUS; TODO_STATUS = _todoStatusVoor(bm.naam); _TODO_CACHE = null;
+    let alle = []; try { alle = todoLijst(bm.naam); } finally { TODO_STATUS = oud; _TODO_CACHE = null; }
+    const l = alle.filter(x => !x.later && x.stand !== 'straks'), laat = l.filter(x => x.stand === 'laat').sort((a, b) => (b.dagenLaat || 0) - (a.dagenLaat || 0));
+    return { naam: bm.naam, laat: laat.length, vandaag: l.filter(x => x.stand === 'vandaag').length, oudste: laat[0] || null };
+  }).filter(r => r.laat || r.vandaag).sort((a, b) => b.laat - a.laat || b.vandaag - a.vandaag).slice(0, 3);
+  if (!rijen.length) return '';
+  return '<div class="todo-sec open">' + _todoSvg('mw') + 'TEAM VANDAAG<span class="r" onclick="event.stopPropagation();MEDEW_SUBTAB=\'todo\';selectTab(\'medewerkers\')">To Do\'s Team →</span></div><div class="todo-blok">' +
+    rijen.map(r => '<div class="todo-r" onclick="todoNaarPagina(\'' + escApos(r.naam) + '\')"><span class="ico open">' + _todoSvg('mw') + '</span><span class="t"><b>' + escHtml(_dagstartVoornaam(r.naam)) + '</b> <small>· ' + (r.laat ? r.laat + ' te laat' : r.vandaag + ' vandaag') + (r.oudste ? ' · oudste: ' + escHtml(r.oudste.tekst + (r.oudste.groepNaam ? ' ' + r.oudste.groepNaam : '')) + ' ' + r.oudste.dagenLaat + ' d' : '') + '</small></span><span class="k ds-k1"><button type="button" class="agk" onclick="event.stopPropagation();todoNaarPagina(\'' + escApos(r.naam) + '\')">To Do\'s →</button></span></div>').join('') + '</div>';
+}
+// Straks (BM): per groep één regel — wat er na de intake/het bezoek van vandaag komt.
+function _dsStraksHtml(naam) {
+  const g = todoGroepen(naam, 'kand').straks.concat(todoGroepen(naam, 'klant').straks);
+  if (!g.length) return '';
+  return '<div class="todo-sec straks">' + _todoSvg('plan') + 'STRAKS</div><div class="todo-blok straks">' + g.slice(0, 3).map(x => '<div class="todo-r straks" onclick="' + (x.klik ? escHtml(x.klik) : '') + '"><span class="ico straks">' + _todoSvg(x.items[0].soort) + '</span><span class="t">' + escHtml(x.items.map(i => i.tekst.replace(/ \(.*\)$/, '')).join(' · ')) + ' <small>· ' + escHtml(x.naam) + (x.detail ? ' · ' + x.detail : '') + '</small></span>' + _todoWanneerHtml(x.items[0]) + '</div>').join('') + '</div>';
+}
+// Kompas: balk + één regel; "details ▾" klapt de blokken van v3 uit.
+function _dsKompasHtml(k) {
+  if (!k || k.begrootNu == null) return '';
+  const n0 = x => fmtNl(x, 0), n1 = x => fmtNl(x, 1);
+  const breedte = Math.max(4, Math.min(100, Math.round(k.lopendNu / Math.max(k.begrootNu, k.lopendNu) * 100)));
+  const sGat = +((k.starters || 0) - (k.schema || 0)).toFixed(1);
+  const regel = [(sGat >= 0 ? '+' : '−') + n1(Math.abs(sGat)) + ' starters op schema', k.stoppers + ' stoppers' + (k.stoppersKomend ? ', ' + k.stoppersKomend + ' volgen' : ''), (k.stoppersZonder || []).length + ' stoppen zonder opvolger'];
+  return '<div class="ds-kompas-v4' + (DS_KOMPAS_OPEN ? ' open' : '') + '"><div class="r1"><b>' + n0(k.lopendNu) + '</b><div class="balk"><i style="width:' + breedte + '%"></i></div><b>' + n1(k.begrootNu) + '</b></div>' +
+    '<div class="r2">' + regel.map(x => '<span>' + escHtml(x) + '</span>').join('') + '<span class="toggle" onclick="event.stopPropagation();dsKompasToggle()">' + (DS_KOMPAS_OPEN ? 'details ▴' : 'details ▾') + '</span></div>' +
+    (DS_KOMPAS_OPEN ? '<div class="details">' + _dagstartKompasHtml(k, _dagstartKompasTekst(k)) + '</div>' : '') + '</div>';
+}
+function dsKompasToggle() { DS_KOMPAS_OPEN = !DS_KOMPAS_OPEN; _todoHerteken(); }
+function _dsMijlpalenHtml() {
+  let lijst = []; try { lijst = mijlpalenKomend(14); } catch (e) { _meldStil('mijlpalen', e); }
+  if (!lijst.length) return '';
+  const wanneer = (o) => o === 0 ? 'vandaag' : o === 1 ? 'morgen' : 'over ' + o + ' dgn';
+  return '<div class="ds-mijl">' + lijst.slice(0, 4).map(m => '<span>' + escHtml(m.label) + ' <small>' + wanneer(m.over) + '</small></span>').join(' · ') + '</div>';
+}
+function _dsKopvulHtml(naam) {
+  const kern = _dsKern(naam, _DS_K, _DS_BOODSCHAP);
+  return '<div class="kern">' + escHtml(kern.kern) + '</div>' + (kern.sub ? '<div class="sub">' + escHtml(kern.sub) + '</div>' : '') + _dsTegelsHtml(naam, _DS_K);
+}
+function _dsBodyHtml(naam) {
+  return _todoGisterenHtml(naam) + _dsActiesHtml(naam, _DS_K) + (isManagerLevel() ? _dsTeamHtml(naam) : '') + _dsStraksHtml(naam) + _dsKompasHtml(_DS_K) + _dsMijlpalenHtml();
+}
+
 async function toonDagstart(forceer) {
   if (!CURRENT_USER) return;
   const sleutel = 'bt_dagstart_' + (CURRENT_USER.bm_naam || CURRENT_USER.naam || 'onbekend');
@@ -19814,24 +19948,24 @@ async function toonDagstart(forceer) {
   laag.id = 'dagstart-laag';
   laag.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(37,49,81,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px;';
   laag.setAttribute('data-naam', tdNaam);
-  const kompas = boodschap.html ? '<div class="ds-kompas">' + boodschap.html + '</div>' : '';
-  laag.setAttribute('data-kompas', kompas);
+  // v4 (30-09): kompas-cijfers voor iedereen (tegels, "op je lijn"), de boodschap als vangnet voor de kern.
+  _DS_K = _dsKompasK(); _DS_BOODSCHAP = boodschap; DS_KOMPAS_OPEN = false;
+  laag.setAttribute('data-kompas', '');
   const vandaagTekst = new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
   laag.innerHTML = `
     <div role="dialog" aria-modal="true" class="ds-kaart ds-blauw">
       <div class="ds-kop">
       <div class="ds-groet"><span class="zon">${_todoSvg('zon')}</span>${_dagstartGroet().toUpperCase()}, ${escHtml(naam.toUpperCase())} · ${escHtml(vandaagTekst.toUpperCase())}</div>
-      <div class="todo-kopvul"><div class="kern">${escHtml(boodschap.kern)}</div><div class="sub">${escHtml(boodschap.focus || '')}</div>${_todoTellersHtml(tdNaam)}${_todoTabsHtml(tdNaam)}</div>
+      <div class="todo-kopvul">${_dsKopvulHtml(tdNaam)}</div>
       </div>
       <div class="ds-body">
-      ${_todoGisterenHtml(tdNaam)}
-      ${kompas}
-      ${_todoInhoudHtml(tdNaam, true)}
-      ${(() => { try { return mijlpalenHtml(); } catch (_) { return ''; } })()}
+      ${_dsBodyHtml(tdNaam)}
       </div>
       <div class="ds-voet">
       <button id="dagstart-knop" disabled style="flex:1;padding:11px;border:0;border-radius:9px;background:#e6e8ee;color:var(--muted);font-size:var(--t-md);font-weight:var(--w-nadruk);cursor:default;transition:background .25s,color .25s;">Nog even lezen…</button>
-      <button type="button" class="ds-naar" onclick="(function(){ const l = document.getElementById('dagstart-laag'); const n = l ? l.getAttribute('data-naam') : ''; todoNaarPagina(n); })()">→ naar mijn To Do's</button>
+      ${_dsIsBm(tdNaam) || !isManagerLevel()
+        ? `<button type="button" class="ds-naar" onclick="(function(){ const l = document.getElementById('dagstart-laag'); const n = l ? l.getAttribute('data-naam') : ''; todoNaarPagina(n); })()">→ naar mijn To Do's</button>`
+        : `<button type="button" class="ds-naar" onclick="(function(){ const l = document.getElementById('dagstart-laag'); if (l) l.remove(); MEDEW_SUBTAB = 'todo'; selectTab('medewerkers'); })()">→ To Do's Team</button>`}
       </div>
     </div>`;
   document.body.appendChild(laag);
