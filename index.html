@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-1238 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260930-1921 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5785,7 +5785,7 @@ let ACC_OVERZICHT_ALARM = false;   // C5: alleen bedrijven met een ontbrekend ve
 let ACC_OVERZICHT_KOMEND = false;  // C5: alleen bezoeken in de komende 2 weken
 let ACC_OVERZICHT_DICHT = new Set(); // C5: ingeklapte bedrijven (sleutel)
 let ACC_OVERZICHT_WEEK = '';       // 28-09: '' | 'deze' | 'vorige' — chips Deze week / Vorige week; 29-09: ook 'dezemaand' | 'vorigemaand' (kalendermaand)
-let EV_KOP = { open: null, zoek: '', gekozen: {} };   // koppelvenster v2 (28-09): open rij, zoekterm, keuze per verslag
+let EV_KOP = { open: null, zoek: '', gekozen: {}, bedrijf: {} };   // bedrijf (30-09): gekozen CRM-bedrijf per verslag   // koppelvenster v2 (28-09): open rij, zoekterm, keuze per verslag
 let BEZOEK_VERVOLG = {};           // verslag_id → vervolgafspraak bij een bezoek (tabel bezoek_vervolg)
 let ACC_NOTITIES = {};             // account_id → gesprekslog op de klantkaart (tabel account_notities)
 let GESPREKSVERSLAGEN_CACHE = [];   // gespreksverslagen (verzoek 28-08)
@@ -11258,7 +11258,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-1238';
+const APP_VERSIE = '20260930-1921';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -29489,7 +29489,7 @@ function _accBezoekenLijstBouw() {
     // contactpersoon-veld. Hier omgedraaid, zodat de evaluatie onder het bedrijf hangt (zoals het
     // evaluatie-kaartje in de pipeline) en de medewerker geen pseudo-bedrijf in het CRM wordt.
     const eva = _bezoekSoortNorm(r.soortBezoek) === 'evaluatie';
-    items.push({ id: String(r.id), record: r, kaart: null, kaarten: [], bedrijf: eva ? (r.contactpersoon || '') : (r.bedrijf || ''), contactpersoon: eva || oudMatch ? '' : (r.contactpersoon || ''), functie: '',
+    items.push({ id: String(r.id), record: r, kaart: null, kaarten: [], bedrijf: eva ? _evalBedrijfNaam(r) : (r.bedrijf || ''), contactpersoon: eva || oudMatch ? '' : (r.contactpersoon || ''), functie: '',   // 30-09: evaluatie via de koppeling
                  datumMs: ms, week: wk.week, jaar: wk.year, collega: r.recorder_naam || '', collegas: r.recorder_naam ? [r.recorder_naam] : [], soortBezoek: _bezoekSoortNorm(r.soortBezoek), datumTekst: r.datum || '',
                  medewerker: eva ? (r.bedrijf || '') : '', medewerkerSleutel: eva ? (r.medewerkerSleutel || _itkSleutel(r.bedrijf || '')) : '', evalMoment: null,
                  kandidaat: r.kandidaat || (_bezoekSoortNorm(r.soortBezoek) === 'matchgesprek' ? r.contactpersoon || '' : ''), kandidaatSleutel: r.kandidaatSleutel || '' });
@@ -29862,7 +29862,7 @@ function bzNaarOpname(id) {
   if (BEZOEK.recording || BEZOEK.analyzing) { btMeld('Er loopt nog een opname of analyse in de BZK-recorder; rond die eerst af.', 'let'); return; }
   const soort = b.soortBezoek === 'evaluatie' ? 'evaluatie_medewerker' : b.soortBezoek === 'matchgesprek' ? 'voorbereiding_matchgesprek' : 'bedrijfsbezoek';
   BEZOEK.soortBezoek = soort;
-  if (soort === 'evaluatie_medewerker') { BEZOEK.bedrijf = b.medewerker || ''; BEZOEK.medewerkerSleutel = b.medewerkerSleutel || ''; BEZOEK.contactpersoon = b.bedrijf || ''; }
+  if (soort === 'evaluatie_medewerker') { BEZOEK.bedrijf = b.medewerker || ''; BEZOEK.medewerkerSleutel = b.medewerkerSleutel || ''; BEZOEK.contactpersoon = b.bedrijf || ''; BEZOEK.bedrijfSleutel = b.bedrijf && _bedrijfBekend(_itkSleutel(b.bedrijf)) ? _itkSleutel(b.bedrijf) : ''; }
   else { BEZOEK.bedrijf = b.bedrijf || ''; BEZOEK.contactpersoon = b.contactpersoon || ''; }
   if (soort === 'voorbereiding_matchgesprek') { BEZOEK.kandidaat = b.kandidaat || ''; BEZOEK.kandidaatSleutel = b.kandidaatSleutel || ''; }
   selectTab('bezoek');
@@ -31896,8 +31896,43 @@ function _kandEvalVerslagenHtml(sleutel, startStr) {
   return '<div class="crm-kop">Evaluatieverslagen<small class="crm-kop-klein">' + (lijst.length ? lijst.length + ' opname' + (lijst.length === 1 ? '' : 's') + ' uit de BZK-recorder' : 'geen opnames') + '</small></div>' +
     (rijen ? '<div class="kk-lijst">' + rijen + '</div>' : '<div class="kk-tekst stil">Nog geen evaluatieverslag uit de BZK-recorder.</div>');
 }
+// Bedrijf van een evaluatie (30-09): de harde koppeling (meta.bedrijf_sleutel); anders alleen een naam
+// die precies een CRM-bedrijf, KAM-klant of RLDV-lead is. Vrije tekst (Dali, "Neways (Echt)") levert niets
+// op — zo ontstaan er geen pseudo-bedrijven meer in CRM · Bedrijven.
+function _bedrijfBekend(sl) {
+  if (!sl) return false;
+  if ((typeof CRM_BEDRIJVEN !== 'undefined' && Array.isArray(CRM_BEDRIJVEN) ? CRM_BEDRIJVEN : []).some(b => b && b.bron !== 'verwijderd' && (b.sleutel || _itkSleutel(b.naam)) === sl)) return true;
+  if ((typeof ACCOUNTS_CACHE !== 'undefined' && Array.isArray(ACCOUNTS_CACHE) ? ACCOUNTS_CACHE : []).some(a => a && _itkSleutel(a.naam) === sl)) return true;
+  return (typeof SALES_LEADS_CACHE !== 'undefined' && Array.isArray(SALES_LEADS_CACHE) ? SALES_LEADS_CACHE : []).some(x => x && _itkSleutel(x.naam) === sl);
+}
+function _evalBedrijfSleutel(r) {
+  if (!r) return '';
+  if (r.bedrijfSleutel) return String(r.bedrijfSleutel);
+  const sl = _itkSleutel(r.contactpersoon || '');
+  return sl && _bedrijfBekend(sl) ? sl : '';
+}
+function _evalBedrijfNaam(r) {
+  const sl = _evalBedrijfSleutel(r); if (!sl) return '';
+  const b = (typeof CRM_BEDRIJVEN !== 'undefined' && Array.isArray(CRM_BEDRIJVEN) ? CRM_BEDRIJVEN : []).find(x => x && x.bron !== 'verwijderd' && (x.sleutel || _itkSleutel(x.naam)) === sl); if (b) return b.naam;
+  const a = (typeof ACCOUNTS_CACHE !== 'undefined' && Array.isArray(ACCOUNTS_CACHE) ? ACCOUNTS_CACHE : []).find(x => x && _itkSleutel(x.naam) === sl); if (a) return a.naam;
+  const l = (typeof SALES_LEADS_CACHE !== 'undefined' && Array.isArray(SALES_LEADS_CACHE) ? SALES_LEADS_CACHE : []).find(x => x && _itkSleutel(x.naam) === sl);
+  return l ? l.naam : (r.bedrijfNaam || r.contactpersoon || '');
+}
+// Voorstel voor het bedrijf: de opdrachtgever van het project van de (gekozen of voorgestelde) medewerker; anders de getypte naam als die bekend is.
+function _evalKopBedrijfVoorstel(r, medewSleutel) {
+  const sl = medewSleutel || r.medewerkerSleutel || ((_evalKopVoorstel(r) || {}).sleutel || '');
+  const m = sl ? _evalKopMedewerkers().find(x => x.sleutel === sl) : null;
+  const kans = [m && m.opdrachtgever, r.contactpersoon, r.bedrijf].map(x => _itkSleutel(x || '')).filter(Boolean);
+  for (const k of kans) if (_bedrijfBekend(k)) return { sleutel: k, naam: _evalBedrijfNaam({ bedrijfSleutel: k }) };
+  return null;
+}
+function evalKopBedrijfKies(id, naam) {
+  const sl = _itkSleutel(naam || '');
+  if (sl && _bedrijfBekend(sl)) EV_KOP.bedrijf[String(id)] = sl; else delete EV_KOP.bedrijf[String(id)];
+  evalVerslagenKoppelOpen();
+}
 function _evalVerslagenOngekoppeld() {
-  return (BEZOEK_RECORDS || []).filter(r => (r.soortBezoek || 'bedrijfsbezoek') === 'evaluatie_medewerker' && !r.medewerkerSleutel && !isInactieveCollega(r.recorder_naam))
+  return (BEZOEK_RECORDS || []).filter(r => (r.soortBezoek || 'bedrijfsbezoek') === 'evaluatie_medewerker' && (!r.medewerkerSleutel || !_evalBedrijfSleutel(r)) && !isInactieveCollega(r.recorder_naam))
     .slice().sort((a, b) => _recDatumSort(b.datum) - _recDatumSort(a.datum));
 }
 // Voorstel: de CRM-kandidaat met precies dezelfde (genormaliseerde) naam, anders null.
@@ -31910,10 +31945,14 @@ async function evalVerslagKoppel(id, sleutel, stil) {
   const r = (BEZOEK_RECORDS || []).find(x => String(x.id) === String(id)); if (!r) return false;
   const k = crmKandLijst().find(x => String(x.sleutel) === String(sleutel));
   if (!k) { btMeld('Kies eerst een medewerker uit het CRM.', 'let'); return false; }
-  const fout = await _verslagMetaNaarServer(id, { medewerker_sleutel: k.sleutel, medewerker: k.naam });
+  // 30-09: ook het bedrijf — gekozen, anders de bestaande koppeling, anders het voorstel (project van de medewerker).
+  const bs = EV_KOP.bedrijf[String(id)] || _evalBedrijfSleutel(r) || ((_evalKopBedrijfVoorstel(r, k.sleutel) || {}).sleutel || '');
+  const bn = bs ? _evalBedrijfNaam({ bedrijfSleutel: bs }) : '';
+  const fout = await _verslagMetaNaarServer(id, { medewerker_sleutel: k.sleutel, medewerker: k.naam, bedrijf_sleutel: bs, bedrijf_naam: bn });
   if (fout) { btMeld('Koppelen mislukt: ' + fout, 'let'); return false; }
-  r.medewerkerSleutel = k.sleutel; _saveBezoekRec();
-  if (!stil) { btMeld('Verslag gekoppeld aan ' + k.naam + '.'); _evalKoppelHerteken(k.sleutel); }
+  r.medewerkerSleutel = k.sleutel; r.bedrijfSleutel = bs; r.bedrijfNaam = bn; delete EV_KOP.bedrijf[String(id)]; _saveBezoekRec();
+  if (typeof _ACC_BZ_CACHE !== 'undefined') _ACC_BZ_CACHE = null;
+  if (!stil) { btMeld('Verslag gekoppeld aan ' + k.naam + (bn ? ' · ' + bn : '') + '.'); _evalKoppelHerteken(k.sleutel); }
   return true;
 }
 function _evalKoppelHerteken(sleutel) {
@@ -31924,7 +31963,7 @@ function _evalKoppelHerteken(sleutel) {
 async function evalVerslagenKoppelAlle() {
   if (!magWijzigen('bezoek')) { btMeld('Je kunt hier alleen kijken.', 'let'); return; }
   let n = 0;
-  for (const r of _evalVerslagenOngekoppeld()) { const v = _evalKopVoorstel(r); if (v && await evalVerslagKoppel(r.id, v.sleutel, true)) n++; }   // 28-09: voorstel op beide velden
+  for (const r of _evalVerslagenOngekoppeld()) { const v = r.medewerkerSleutel ? { sleutel: r.medewerkerSleutel } : _evalKopVoorstel(r); if (v && (r.medewerkerSleutel ? _evalKopBedrijfVoorstel(r, v.sleutel) : true) && await evalVerslagKoppel(r.id, v.sleutel, true)) n++; }   // 30-09: medewerker én bedrijf
   btMeld(n + ' verslag' + (n === 1 ? '' : 'en') + ' gekoppeld.');
   _evalKoppelHerteken('');
 }
@@ -31968,7 +32007,7 @@ function _evalKopPaneelHtml(r) {
     '<span class="r"></span><span class="n">' + _evalKopMark(m.naam, tr.zoek) + '</span><span class="s">' + escHtml(m.sub) + '</span><span class="tag">' + (m.voorstel ? 'voorstel' : m.inCrm ? '' : 'niet in CRM') + '</span></button>';
   const groep = (kop, lijst) => lijst.length ? '<div class="ev-kop-groep">' + kop + ' · ' + lijst.length + '</div>' + lijst.map(rij).join('') : '';
   const leeg = !tr.lopend.length && !tr.oud.length ? '<div class="ev-kop-leeg">Niemand gevonden' + (tr.zoek ? ' voor "' + escHtml(EV_KOP.zoek) + '"' : '') + '.</div>' : '';
-  return '<tr class="ev-kop-open"><td colspan="6"><div class="ev-kop-paneel">' +
+  return '<tr class="ev-kop-open"><td colspan="7"><div class="ev-kop-paneel">' +
     '<div class="ev-kop-zoek"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
     '<input id="ev-kop-zoek" type="text" value="' + escHtml(EV_KOP.zoek) + '" placeholder="zoek op naam of opdrachtgever…" autocomplete="off" oninput="evalKopZoek(this.value)"></div>' +
     '<div class="ev-kop-lijstvak">' + groep('Lopende starters en projecten', tr.lopend) + groep('Oud-medewerkers', tr.oud) + leeg + '</div>' +
@@ -31981,23 +32020,29 @@ function evalVerslagenKoppelOpen() {
   const mag = magWijzigen('bezoek');
   let nVoorstel = 0;
   const rijen = lijst.map(r => {
-    const idS = String(r.id), idE = escApos(idS), v = _evalKopVoorstel(r); if (v) nVoorstel++;
+    const idS = String(r.id), idE = escApos(idS), v = r.medewerkerSleutel ? _evalKopMedewerkers().find(m => m.sleutel === r.medewerkerSleutel) || { sleutel: r.medewerkerSleutel, naam: r.bedrijf || r.medewerkerSleutel, sub: 'gekoppeld' } : _evalKopVoorstel(r); if (v) nVoorstel++;
     const gekozenSl = EV_KOP.gekozen[idS] || '', gekozen = gekozenSl ? _evalKopMedewerkers().find(m => m.sleutel === gekozenSl) : null;
+    // Bedrijf (30-09): gekoppeld → vinkje; anders voorstel + kiezer uit CRM · Bedrijven.
+    const bsVast = _evalBedrijfSleutel(r), bsKeuze = EV_KOP.bedrijf[idS] || '', bv = bsVast ? null : _evalKopBedrijfVoorstel(r, gekozenSl || (v ? v.sleutel : ''));
+    const bedrijfCel = bsVast ? '<span class="ev-kop-gekozen">✓ ' + escHtml(_evalBedrijfNaam(r)) + '</span>'
+      : _kiezerHtml({ id: 'ev-bedr-' + idS.replace(/[^a-z0-9]/gi, ''), lijst: () => crmBedrijfLijst().map(x => ({ naam: x.naam, sub: x.plaats || '' })), waarde: bsKeuze ? _evalBedrijfNaam({ bedrijfSleutel: bsKeuze }) : (bv ? bv.naam : ''),
+                      placeholder: 'bedrijf uit CRM…', leeg: 'Geen bedrijven in het CRM', nieuw: false, uit: !mag, kies: 'evalKopBedrijfKies(\'' + idE + '\', this.value)', typ: '' }) +
+        (bv && !bsKeuze ? '<small class="stil">voorstel uit het project</small>' : '');
     const ms = _recDatumSort(r.datum);
     const keuze = gekozen
       ? '<span class="ev-kop-gekozen">✓ ' + escHtml(gekozen.naam) + '<small>· ' + escHtml(gekozen.sub) + '</small>' + (mag ? '<button type="button" title="Keuze wissen" onclick="evalKopWis(\'' + idE + '\')">✕</button>' : '') + '</span>'
       : v ? '<button type="button" class="ev-kop-kies voorstel" onclick="evalKopToggle(\'' + idE + '\')"' + (mag ? '' : ' disabled') + '><b>Voorstel</b> ' + escHtml(v.naam) + '<small>· ' + escHtml(v.sub) + '</small> ' + (EV_KOP.open === idS ? '▴' : '▾') + '</button>'
       : '<button type="button" class="ev-kop-kies" onclick="evalKopToggle(\'' + idE + '\')"' + (mag ? '' : ' disabled') + '>Kies medewerker ' + (EV_KOP.open === idS ? '▴' : '▾') + '</button>';
-    const kan = !!(gekozen || v);
+    const kan = !!(gekozen || v) && !!(bsVast || bsKeuze || bv);   // 30-09: medewerker én bedrijf
     return '<tr id="ev-kop-' + idS.replace(/[^a-z0-9]/gi, '') + '"><td style="white-space:nowrap">' + escHtml(ms ? _crmDatum(ms) : String(r.datum || '')) + '</td><td>' + escHtml(r.bedrijf || '—') + '</td><td>' + escHtml(r.contactpersoon || '') + '</td><td>' + escHtml(String(r.recorder_naam || '').split(' ')[0]) + '</td>' +
-      '<td>' + keuze + '</td>' +
+      '<td>' + keuze + '</td><td>' + bedrijfCel + '</td>' +
       '<td>' + (mag ? '<button class="kk-knop' + (kan ? '' : ' uit') + '"' + (kan ? ' onclick="evalVerslagKoppelKeuze(\'' + idE + '\')"' : ' disabled title="Kies eerst een medewerker"') + '>koppelen</button>' : '') + '</td></tr>' +
       (EV_KOP.open === idS && mag ? _evalKopPaneelHtml(r) : '');
   }).join('');
   crmKaartToon('<h4 class="wit">Evaluatieverslagen koppelen</h4>' +
     '<div class="crm-sub">' + (lijst.length ? lijst.length + ' open · ' + nVoorstel + ' met voorstel. Een voorstel wordt pas geschreven na jouw klik; gekoppelde verslagen komen op de Beheerkaart van de medewerker.' : 'Alle evaluatieverslagen zijn aan een medewerker gekoppeld.') + '</div>' +
     (lijst.length ? '<div class="crm-knoppen" style="justify-content:flex-start;margin:8px 0 4px;">' + (mag && nVoorstel ? '<button class="crm-knop goed crm-knop-vast" onclick="evalVerslagenKoppelAlle()">' + nVoorstel + ' voorstel' + (nVoorstel === 1 ? '' : 'len') + ' koppelen</button>' : '') + '</div>' +
-      '<div style="overflow:auto;max-height:60vh"><table class="ev-kop-tabel" id="ev-kop-lijst"><thead><tr><th>Datum</th><th>Getypte naam</th><th>Opdrachtgever</th><th>Collega</th><th>Medewerker in CRM</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table></div>' : '<div id="ev-kop-lijst" hidden></div>'),
+      '<div style="overflow:auto;max-height:60vh"><table class="ev-kop-tabel" id="ev-kop-lijst"><thead><tr><th>Datum</th><th>Getypte naam</th><th>Opdrachtgever</th><th>Collega</th><th>Medewerker in CRM</th><th>Bedrijf in CRM</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table></div>' : '<div id="ev-kop-lijst" hidden></div>'),
     'crm-kaart-breed');
   if (EV_KOP.open) { const inp = document.getElementById('ev-kop-zoek'); if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) { _meldStil('ev-kop cursor', e); } } }
 }
@@ -32007,7 +32052,7 @@ function evalKopKies(id, sleutel) { EV_KOP.gekozen[String(id)] = String(sleutel)
 function evalKopWis(id) { delete EV_KOP.gekozen[String(id)]; evalVerslagenKoppelOpen(); }
 function evalVerslagKoppelKeuze(id) {
   const r = (BEZOEK_RECORDS || []).find(x => String(x.id) === String(id)); if (!r) return;
-  const sl = EV_KOP.gekozen[String(id)] || ((_evalKopVoorstel(r) || {}).sleutel || '');
+  const sl = EV_KOP.gekozen[String(id)] || r.medewerkerSleutel || ((_evalKopVoorstel(r) || {}).sleutel || '');   // 30-09: al gekoppelde medewerker telt
   if (!sl) { btMeld('Kies eerst een medewerker.', 'let'); return; }
   delete EV_KOP.gekozen[String(id)];
   evalVerslagKoppel(id, sl);
@@ -32497,7 +32542,7 @@ function _crmMedewerkerRegels() {
     const project = !omschrijving && !!_beheerProjectVan(k.sleutel);
     const bekend = !omschrijving && kand.has(k.sleutel);
     const reden = omschrijving ? 'lijkt een omschrijving, geen naam' : project ? 'in de projectenlijst' : bekend ? 'bekend als kandidaat' : evaluatie ? 'alleen evaluatiebezoeken' : persoon ? 'lijkt een persoonsnaam' : 'lijkt een bedrijf';
-    const aan = !omschrijving && (project || bekend || evaluatie || persoon);
+    const aan = !omschrijving && (project || bekend || persoon);   // 30-09: 'alleen evaluatiebezoeken' is geen reden meer (een evaluatie maakt geen bedrijf meer aan)
     return { sleutel: k.sleutel, naam, bezoeken: bez, laatste: bez[0] || null, aan, reden };
   }).sort((a, b) => (b.aan - a.aan) || a.naam.localeCompare(b.naam, 'nl'));
 }
@@ -38534,6 +38579,7 @@ function bezoekHerstelVerwerk() {
     if (h.meta.soortBezoek) BEZOEK.soortBezoek = h.meta.soortBezoek;
     if (!BEZOEK.recorderNaam) BEZOEK.recorderNaam = h.meta.recorderNaam || '';
     if (!BEZOEK.medewerkerSleutel) BEZOEK.medewerkerSleutel = h.meta.medewerkerSleutel || '';
+    if (!BEZOEK.bedrijfSleutel) BEZOEK.bedrijfSleutel = h.meta.bedrijfSleutel || '';
     if (!BEZOEK.kandidaat) { BEZOEK.kandidaat = h.meta.kandidaat || ''; BEZOEK.kandidaatSleutel = h.meta.kandidaatSleutel || ''; }
   }
   BEZOEK._herstel = null;
@@ -39544,6 +39590,7 @@ async function loadBezoekRecordsFromDb() {
       bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
       soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
       medewerkerSleutel: r.meta?.medewerker_sleutel || '',
+      bedrijfSleutel: r.meta?.bedrijf_sleutel || '', bedrijfNaam: r.meta?.bedrijf_naam || '',   // 30-09: CRM-bedrijf bij een evaluatie
       kandidaat: r.meta?.kandidaat || '', kandidaatSleutel: r.meta?.kandidaat_sleutel || '',
       recorder_naam: r.meta?.recorder_naam || _recorderAssignments[_recAssignKey(r.meta?.bedrijf||'', r.meta?.contactpersoon||'', r.meta?.datum||'')] || lok?.recorder_naam || '',
       recorder_naam_server: r.meta?.recorder_naam || '',
@@ -39743,7 +39790,7 @@ async function addBezoekRecord() {
       'Verslag van vandaag voor "' + (b.bedrijf || 'dit bezoek') + '" vervangen?\n\n' +
       'Er staat al een verslag van vandaag. Vervangen = het oude verslag is weg. Annuleren = allebei bewaren.', { knop: 'Vervangen', soort: 'weg' })))
     ? -1 : dupIdxRuw;
-  const record = { datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam, medewerkerSleutel: b.medewerkerSleutel || '',
+  const record = { datum, bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, result:b.result, transcript:b.transcript, recorder_naam:recNaam, medewerkerSleutel: b.medewerkerSleutel || '', bedrijfSleutel: b.bedrijfSleutel || '',
                    kandidaat: b.kandidaat || '', kandidaatSleutel: b.kandidaatSleutel || '' };
   if (dupIdx >= 0) {
     const existingId = BEZOEK_RECORDS[dupIdx].id;
@@ -39759,6 +39806,7 @@ async function addBezoekRecord() {
     BEZOEK_RECORDS.unshift(nieuw);
     _saveVerslagToSupa('bezoek', { bedrijf:b.bedrijf, contactpersoon:b.contactpersoon, soortBezoek:soort, datum, recorder_naam:recNaam,
                                    medewerker_sleutel: b.medewerkerSleutel || '', medewerker: b.medewerkerSleutel ? (b.bedrijf || '') : '',
+                                   bedrijf_sleutel: b.bedrijfSleutel || '', bedrijf_naam: b.bedrijfSleutel ? (b.contactpersoon || '') : '',   // 30-09
                                    kandidaat: b.kandidaat || '', kandidaat_sleutel: b.kandidaatSleutel || '',
                                    bron: b._ingeladen ? 'ingeladen' : 'opname' }, b.result, b.transcript, false, nieuw.id)
       .then(serverId => {
@@ -40542,7 +40590,7 @@ function _recAlleRegels() {
     const omgedraaid = aard === 'Evaluatie';
     uit.push({ rec, soort:'BZK', aard,
                collega: rec.recorder_naam || '',
-               klant:      omgedraaid ? (rec.contactpersoon || '') : (rec.bedrijf || ''),
+               klant:      omgedraaid ? _evalBedrijfNaam(rec) : (rec.bedrijf || ''),   // 30-09
                medewerker: omgedraaid ? (rec.bedrijf || '')        : (rec.contactpersoon || ''),
                status: '',
                sort: _recDatumSort(rec.datum) });
@@ -40697,7 +40745,7 @@ function vsItemsVoorBedrijf(k) {
   const sl = k.sleutel, uit = [];
   (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).forEach(r => {
     const soort = _bezoekSoortNorm(r.soortBezoek);
-    const bedrijf = soort === 'evaluatie' ? (r.contactpersoon || '') : (r.bedrijf || '');
+    const bedrijf = soort === 'evaluatie' ? _evalBedrijfNaam(r) : (r.bedrijf || '');   // 30-09: evaluatie via de koppeling
     if (_itkSleutel(bedrijf) !== sl) return;
     const wie = soort === 'evaluatie' ? (r.bedrijf || '') : soort === 'matchgesprek' ? (r.kandidaat || r.contactpersoon || '') : (r.contactpersoon || '');
     uit.push({ id: String(r.id), soort: VS_SOORT_KORT[soort === 'evaluatie' ? 'evaluatie_medewerker' : soort] || 'BZK', bron: 'opn', ms: _recDatumSort(r.datum), datum: _crmDatum(_recDatumSort(r.datum)), door: r.recorder_naam || '',
@@ -41150,6 +41198,7 @@ function renderBezoekRecords() {
 let BEZOEK = {
   bedrijf: '', contactpersoon: '', soortBezoek: 'bedrijfsbezoek', recorderNaam: '', transcript: '',
   medewerkerSleutel: '',   // 24-09: CRM-dossier van de medewerker bij een evaluatie
+  bedrijfSleutel: '',      // 30-09: CRM-bedrijf bij een evaluatie (de opdrachtgever)
   kandidaat: '', kandidaatSleutel: '',   // C5 (25-09): de kandidaat bij een matchgesprek (uit het CRM)
   recording: false, analyzing: false,
   statusMsg: '', result: null,
@@ -41164,7 +41213,7 @@ let BEZOEK = {
 function _bzkKlaar(b) {
   b = b || BEZOEK;
   if (!String(b.recorderNaam || '').trim()) return false;
-  if ((b.soortBezoek || 'bedrijfsbezoek') === 'evaluatie_medewerker' && !b.medewerkerSleutel) return false;
+  if ((b.soortBezoek || 'bedrijfsbezoek') === 'evaluatie_medewerker' && (!b.medewerkerSleutel || !b.bedrijfSleutel)) return false;   // 30-09: ook het bedrijf
   if ((b.soortBezoek || 'bedrijfsbezoek') === 'voorbereiding_matchgesprek' && !b.kandidaatSleutel) return false;
   return true;
 }
@@ -41172,6 +41221,7 @@ function _bzkKlaarMelding(b) {
   b = b || BEZOEK;
   if (!String(b.recorderNaam || '').trim()) return 'Vul eerst jouw naam in bij Opgenomen door.';
   if ((b.soortBezoek || 'bedrijfsbezoek') === 'voorbereiding_matchgesprek') return 'Kies eerst de kandidaat uit het CRM (CRM · Kandidaten).';
+  if ((b.soortBezoek || 'bedrijfsbezoek') === 'evaluatie_medewerker' && b.medewerkerSleutel && !b.bedrijfSleutel) return 'Kies eerst het bedrijf uit CRM · Bedrijven (de opdrachtgever van de evaluatie).';
   return 'Kies eerst de medewerker uit de lijst (lopende starters en projecten; oud-medewerkers staan onderaan).';
 }
 // De naam in de kiezer: staat hij in de lopende starters/projecten, dan hangt
@@ -41182,7 +41232,14 @@ function _bzkEvalMwKies(naam) {
   const st = s ? (_evalKiezerMedewerkers().find(x => _itkSleutel(x.naam) === s) || null) : null;   // 24-09: ook oud-medewerkers
   BEZOEK.bedrijf = naam;
   BEZOEK.medewerkerSleutel = st ? s : '';
-  if (st && !String(BEZOEK.contactpersoon || '').trim()) BEZOEK.contactpersoon = st.opdrachtgever || '';
+  if (st && !String(BEZOEK.contactpersoon || '').trim()) _bzkEvalBedrijfKies(st.opdrachtgever || '');   // 30-09: bedrijf uit het project, gekoppeld
+}
+// Het bedrijf in de kiezer (30-09): alleen een CRM-bedrijf/KAM-klant/RLDV-lead hangt het verslag aan het bedrijf.
+function _bzkEvalBedrijfKies(naam) {
+  naam = String(naam || '').trim();
+  const sl = naam ? _itkSleutel(naam) : '';
+  BEZOEK.contactpersoon = naam;
+  BEZOEK.bedrijfSleutel = sl && _bedrijfBekend(sl) ? sl : '';
 }
 // De kandidaat in de kiezer: staat hij in CRM · Kandidaten, dan hangt het verslag aan zijn dossier.
 function _bzkMatchKandKies(naam) {
@@ -41271,7 +41328,7 @@ async function bezoekUpload(blob, mimeType) {
   await recBewaar('bezoek', { blob, mimeType: BEZOEK._laatsteMime, tijd: Date.now(),
     duur: BEZOEK.recordingTime || 0,
     meta: { bedrijf: BEZOEK.bedrijf || '', contactpersoon: BEZOEK.contactpersoon || '',
-            soortBezoek: BEZOEK.soortBezoek || '', recorderNaam: BEZOEK.recorderNaam || '', medewerkerSleutel: BEZOEK.medewerkerSleutel || '',
+            soortBezoek: BEZOEK.soortBezoek || '', recorderNaam: BEZOEK.recorderNaam || '', medewerkerSleutel: BEZOEK.medewerkerSleutel || '', bedrijfSleutel: BEZOEK.bedrijfSleutel || '',
             kandidaat: BEZOEK.kandidaat || '', kandidaatSleutel: BEZOEK.kandidaatSleutel || '' } });
 
   try {
@@ -41794,7 +41851,12 @@ function renderBezoekRecorder() {
                             waarde: b.kandidaat || '', placeholder: 'typ de naam van de kandidaat…', leeg: 'Geen kandidaten in het CRM', nieuw: false,
                             uit: b.recording || b.analyzing, typ: '_bzkMatchKandKies(this.value)', kies: '_bzkMatchKandKies(this.value)', herteken: 'renderBezoekRecorder()' }) +
               (b.kandidaat && !b.kandidaatSleutel ? `<div class="rec-hint let">Kies een naam uit het CRM — een vrije naam kan niet.</div>` : b.kandidaatSleutel ? `<div class="rec-hint ok">✓ gekoppeld aan het CRM-dossier</div>` : '')
-            : `<input type="text" class="acc-text-input" style="width:100%;" placeholder="${b.soortBezoek==='evaluatie_medewerker'?'bijv. Acme BV – productieomgeving':'bijv. Piet Janssen – HR-manager'}"
+            : b.soortBezoek==='evaluatie_medewerker'
+            ? _kiezerHtml({ id: 'bzk-eval-bedrijf', lijst: () => crmBedrijfLijst().map(x => ({ naam: x.naam, sub: x.plaats || '' })),
+                            waarde: b.contactpersoon || '', placeholder: 'typ de naam van het bedrijf (uit CRM · Bedrijven)…', leeg: 'Geen bedrijven in het CRM', nieuw: false,
+                            uit: b.recording || b.analyzing, typ: '_bzkEvalBedrijfKies(this.value)', kies: '_bzkEvalBedrijfKies(this.value)', herteken: 'renderBezoekRecorder()' }) +
+              (b.contactpersoon && !b.bedrijfSleutel ? `<div class="rec-hint let">Kies een bedrijf uit het CRM — een vrije naam kan niet (30-09).</div>` : b.bedrijfSleutel ? `<div class="rec-hint ok">✓ gekoppeld aan het CRM-bedrijf</div>` : '')
+            : `<input type="text" class="acc-text-input" style="width:100%;" placeholder="bijv. Piet Janssen – HR-manager"
             value="${escHtml(b.contactpersoon)}" oninput="BEZOEK.contactpersoon=this.value" ${b.recording||b.analyzing?'disabled':''}>`}
         </div>
       </div>
