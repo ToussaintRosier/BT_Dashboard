@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-1055 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260930-1238 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11258,7 +11258,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-1055';
+const APP_VERSIE = '20260930-1238';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13141,6 +13141,7 @@ const VERWACHT_SCHEMA = [
   { bestand: 'ap_analyses.sql',              soort: 'tabel',   naam: 'ap_analyses' },
   { bestand: 'todo_status.sql',              soort: 'tabel',   naam: 'todo_status' },
   { bestand: 'gespreksverslagen_v2.sql',     soort: 'kolom',   naam: 'gespreksverslagen.type' },
+  { bestand: 'crm_salarisindicatie.sql',     soort: 'kolom',   naam: 'crm_kandidaten.salarisindicatie' },
   { bestand: 'crm.sql',                      soort: 'tabel',   naam: 'crm_kandidaten' },
   { bestand: 'crm.sql',                      soort: 'tabel',   naam: 'crm_bedrijven' },
   { bestand: 'crm_woonregio_vakgebied.sql',  soort: 'kolom',   naam: 'crm_kandidaten.vakgebied' },
@@ -30605,6 +30606,7 @@ function crmKandBewerkStop() {
   const B = CRM_BEWERK; CRM_BEWERK = null;
   if (B && B.soort === 'kand') crmKandOpen(B.sleutel, true);
   else if (B && B.soort === 'bedrijf') crmBedrijfOpen(B.sleutel, true);
+  else if (B && B.soort === 'kandleeg') crmKaartToon(kandKaartLeegHtml(B.sleutel), 'kand-kaart');   // 30-09
 }
 function crmBedrijfBewerkStop() { crmKandBewerkStop(); }
 async function crmKandBewerkOpslaan() {
@@ -31495,8 +31497,15 @@ function kandKaartOpenSleutel(sleutel) {
 function kandKaartLeegHtml(sleutel) {
   const k = crmKandLijst().find(x => x.sleutel === String(sleutel));
   if (!k) return '<h4 class="wit">Kandidaat</h4><div class="crm-sub">Deze kandidaat staat niet (meer) in het CRM.</div>';
-  const r = k.crm || {}, f = _crmKandIntake(k);
+  const r = k.crm || {}, f = _crmKandIntake(k), sE = escApos(k.sleutel);
   const rijA = (label) => '<div class="kk-rij"><span>' + escHtml(label) + '</span><span class="stil">—</span></div>';
+  // Bewerken (30-09): functie, regio en salarisindicatie staan op de CRM-regel zolang er geen intake is.
+  const bewerk = !!(CRM_BEWERK && CRM_BEWERK.soort === 'kandleeg' && CRM_BEWERK.sleutel === k.sleutel);
+  const rijW = (label, waarde) => '<div class="kk-rij"><span>' + escHtml(label) + '</span>' + (waarde ? escHtml(waarde) : '<span class="stil">—</span>') + '</div>';
+  const rijB = (label, velden) => '<div class="kk-rij bewerk"><span>' + escHtml(label) + '</span>' + velden + '</div>';
+  const zoektocht = bewerk
+    ? rijB('Functie', _crmBewerkVeld('functie', { ph: 'functie' })) + rijB('Regio', _crmBewerkVeld('regio', { ph: 'regio' })) + rijB('Salarisindicatie', _crmBewerkVeld('salarisindicatie', { kort: true, ph: '€' }))
+    : rijW('Functie', r.functie) + rijW('Regio', r.regio) + rijW('Salarisindicatie', r.salarisindicatie);
   const acties = _crmKandActiesHtml(k).replace(/<span class="crm-actie uit"[^>]*>★[^<]*<\/span>/, '');
   const kop = '<span class="crm-dossier-sleutel" data-sleutel="' + escHtml(k.sleutel) + '" hidden></span>' +
     '<h4 class="wit">' + escHtml(k.naam) + '<span class="crm-pil' + (f.klasse ? ' ' + f.klasse : '') + '">' + escHtml(f.tekst) + '</span>' +
@@ -31506,10 +31515,43 @@ function kandKaartLeegHtml(sleutel) {
     '<div class="crm-body"><div class="kk-2k"><div>' +
       '<div class="crm-kop">Verloop</div>' +
       '<div class="kand-leegblok"><b>Nog geen intake</b>Het verloop, de Kanban-stap, functie en zoektocht komen hier zodra er een Intake-tegeltje is.' + (acties.indexOf('crm-actie') >= 0 ? acties : '') + '</div>' +
-      '<div class="crm-kop">Functie en zoektocht</div><div class="kk-lijst">' + rijA('Functie') + rijA('Regio') + rijA('Salarisindicatie') + '</div>' +
+      '<div class="crm-kop">Functie en zoektocht</div><div class="kk-lijst">' + zoektocht + '</div>' +
       '<div class="crm-kop">Intake en afspraken</div><div class="kk-lijst">' + rijA('Intake') + rijA('ITK-verslag') + rijA('RLDV-selectie') + rijA('Vervolgafspraak') + '</div>' +
     '</div><div>' + _kandLogHtml(k.sleutel, k.naam) + '</div></div></div>' +
-    _kandBladenRij(k, 'kand', { wijzig: null });
+    _kandBladenRij(k, 'kand', bewerk
+      ? { bewerk: true, opslaan: 'kandLeegBewerkOpslaan()', annuleren: 'crmKandBewerkStop()' }
+      : { wijzig: magWijzigen('crm') && !CRM_ONTBREEKT ? "kandLeegBewerk('" + sE + "')" : null, wijzigTitel: 'Wijzigen (functie, regio, salarisindicatie)' });
+}
+// Lege Kandidaatkaart bewerken (30-09): dezelfde knoppenrij als de NAW-kaart; de velden gaan naar crm_kandidaten.
+function kandLeegBewerk(sleutel) {
+  if (!magWijzigen('crm')) { alert('Je hebt geen recht om kandidaten te wijzigen.'); return; }
+  const k = crmKandLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
+  const r = k.crm || {}, g = (v) => v == null ? '' : String(v);
+  CRM_BEWERK = { soort: 'kandleeg', sleutel: k.sleutel, w: { functie: g(r.functie), regio: g(r.regio), salarisindicatie: g(r.salarisindicatie) } };
+  crmKaartToon(kandKaartLeegHtml(k.sleutel), 'kand-kaart', () => { CRM_BEWERK = null; });
+  const el = document.getElementById('crm-b-functie'); if (el && el.focus) el.focus();
+}
+async function kandLeegBewerkOpslaan() {
+  if (!eisWijzig('crm')) return;
+  const B = CRM_BEWERK; if (!B || B.soort !== 'kandleeg') return;
+  _crmBewerkLees();
+  const k = crmKandLijst().find(x => x.sleutel === B.sleutel); if (!k) return;
+  const val = (x) => { const v = String(B.w[x] == null ? '' : B.w[x]).trim(); return v || null; };
+  const velden = { functie: val('functie'), regio: val('regio'), salarisindicatie: val('salarisindicatie') };
+  if (k.crm && supa && !String(k.crm.id).startsWith('local-')) {
+    _echoVanZelf('crm_kandidaten');
+    const { data, error } = await supa.from('crm_kandidaten').update(velden).eq('id', k.crm.id).select().single();
+    if (error) {
+      const t = /salarisindicatie/i.test(String(error.message || '')) ? 'draai supabase/crm_salarisindicatie.sql — de kolom salarisindicatie ontbreekt nog' : _crmSqlFout(error);
+      meldFout('kandidaatkaart opslaan mislukt: ' + error.message, 'kandLeegBewerkOpslaan'); alert('Niet opgeslagen: ' + t); return;
+    }
+    CRM_KANDIDATEN = (CRM_KANDIDATEN || []).map(x => String(x.id) === String(k.crm.id) ? data : x);
+  } else if (k.crm) {
+    Object.assign(k.crm, velden);
+  } else { alert('Deze kandidaat staat nog niet in het CRM — sla eerst de NAW-kaart op.'); return; }
+  CRM_BEWERK = null;
+  crmKaartToon(kandKaartLeegHtml(k.sleutel), 'kand-kaart');
+  if (currentTab === 'crmkand') renderCrmKandidaten();
 }
 function crmKandDossierHtml(sleutel) {
   const k = crmKandLijst().find(x => x.sleutel === String(sleutel));
