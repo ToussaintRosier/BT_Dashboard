@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-1006 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260930-1039 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6636,6 +6636,8 @@ function cumDoel(bm, passed, totalPeriods) {
 }
 
 function normPerPeriod(doel_jaar, ratios, period, override, doelStartFraction) {
+  ratios = ratios || (typeof TEAM_RATIOS !== 'undefined' && TEAM_RATIOS) || {};   // 30-09: nooit vastlopen op ontbrekende ratio's
+  ratios = { intakes: +ratios.intakes || 0, bezoeken: +ratios.bezoeken || 0, aanbiedingen: +ratios.aanbiedingen || 0, matchgesprekken: +ratios.matchgesprekken || 0, contractvoorstellen: +ratios.contractvoorstellen || 0, ...(ratios.totals ? { totals: ratios.totals, weeksUsed: ratios.weeksUsed } : {}) };   // ontbrekend = 0, geen NaN
   const f = period==='week' ? 1/52 : 1/12;
   // Als BM ná 1 jan is gestart: doel moet in minder weken gehaald worden →
   // weeknorm evenredig omhoog. doelStartFraction = deel van het jaar vóór start.
@@ -11256,7 +11258,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-1006';
+const APP_VERSIE = '20260930-1039';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14127,7 +14129,7 @@ function renderBM(bm) {
   // en pas nadat het scherm er staat.
   setTimeout(() => { try { vastloperCheck(bm.naam); } catch (e) { _meldStil('renderBM', e); } }, 400);
   const year   = getYear();
-  const ratios = INDIVIDUAL_RATIOS[bm.naam];
+  const ratios = INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS || {};   // 30-09: collega zonder eigen ratio's (Jannik) → team, geen TypeError
   const norm   = normPerPeriod(bm.doel, ratios, view, activeNormFix(bm), bm.doelStartFraction);
   const rows   = filterData(bm.naam, year);
   const agg    = aggregateByPeriod(rows, view);
@@ -20198,65 +20200,48 @@ function _rtRaaktScherm(tabellen, tab) {
   });
 }
 
+// Realtime (30-09): één kanaal per tabel. Tot 30-09 zat alles op één kanaal, en dan
+// laat één tabel die niet in de publicatie staat (of waar de lezer geen recht op
+// heeft) het hele kanaal mislukken: 128 keer "blijft wegvallen", bij iedereen, elke
+// dag — zonder dat de melding zei wélke tabel. Nu valt alleen die ene tabel weg, de
+// melding noemt hem, en na zes pogingen houdt het op voor deze sessie (het stille
+// verversen elke 10 minuten vangt het op).
+let _RT_KANALEN = {};   // tabel → { kanaal, pogingen, timer, gemeld }
 function subscribeRealtime() {
   if (!supa) return;
-  const kanaal = supa.channel('kpi-dashboard-live');
-  for (const tabel of Object.keys(_RT_TAKEN)) {
-    kanaal.on('postgres_changes', { event: '*', schema: 'public', table: tabel },
-              () => _rtVerzamel(tabel));
-  }
+  for (const tabel of Object.keys(_RT_TAKEN)) _rtAansluiten(tabel);
+}
+function _rtAansluiten(tabel) {
+  const st = _RT_KANALEN[tabel] || (_RT_KANALEN[tabel] = { kanaal: null, pogingen: 0, timer: null, gemeld: false });
+  if (st.kanaal) { try { supa.removeChannel && supa.removeChannel(st.kanaal); } catch (e) { _meldStil('realtime kanaal weghalen', e); } st.kanaal = null; }
+  const kanaal = supa.channel('kpi-live-' + tabel);
+  st.kanaal = kanaal;
   kanaal
+    .on('postgres_changes', { event: '*', schema: 'public', table: tabel }, () => _rtVerzamel(tabel))
     .subscribe((status, err) => {
-      // De bewaking. Een weggevallen kanaal is onzichtbaar: alles lijkt te
-      // werken, er komt alleen niets meer binnen. Daarom na een halve minuut
-      // opnieuw aansluiten; in de tussentijd vangt het stille verversen (elke
-      // 10 minuten) het gat op.
-      //
-      // Wat NIET meer gemeld wordt (19-08): elk van deze standen op zichzelf.
-      // Het logboek liep vol — 111 van de meldingen gingen hierover, waarvan
-      // 53 keer CLOSED. En CLOSED is geen storing: dat is wat er gebeurt als
-      // je een tabblad sluit of wegnavigeert. Zo belandde een échte fout op
-      // plek vier onder honderd regels ruis. Een logboek dat alles meldt,
-      // meldt niets.
-      //
-      // Wat WEL gemeld wordt: als het opnieuw aansluiten óók niet lukt. Dan is
-      // er werkelijk iets aan de hand, en dat is precies wat deze bewaking
-      // moest opvangen.
-      if (status === 'SUBSCRIBED') { _REALTIME_POGINGEN = 0; return; }
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        if (_REALTIME_HERSTART) return;
-        // Staat het tabblad op de achtergrond, dan heeft opnieuw proberen geen
-        // zin (20-08). De verbinding houdt zichzelf in leven met een hartslag
-        // op een klokje, en browsers knijpen zulke klokjes in een achtergrond-
-        // tabblad af tot ongeveer één tik per minuut. De server hoort dan niets
-        // meer en verbreekt — en onze poging om opnieuw aan te sluiten wordt
-        // net zo hard afgeknepen. Zo bleef het dashboard in een vergeten
-        // tabblad uren proberen en liep het logboek vol met tientallen regels
-        // die niemand ooit gemerkt heeft. Nu wachten we tot het tabblad terug
-        // in beeld is; het stille verversen haalt dan alsnog alles op.
-        if (document.hidden) { _REALTIME_WACHT_OP_TERUG = true; return; }
-        _REALTIME_POGINGEN++;
-        // Eén melding per sessie, zonder pogingnummer in de tekst: met het
-        // nummer erin was elke poging een nieuwe regel in het logboek, en dan
-        // krijg je 22 meldingen over één storing.
-        // Mét de reden van de server (10-09): die noemt de tabel die niet in
-        // de publicatie staat — precies wat 111 logboekregels niet zeiden.
-        if (_REALTIME_POGINGEN === 3) {
-          meldFout('realtime-kanaal blijft wegvallen', 'subscribeRealtime',
-                   'laatste status: ' + status + (err && err.message ? ' · ' + err.message : ''));
-        }
-        // Oplopend wachten: 5, 10, 20, 40 seconden, daarna elke minuut.
-        const wacht = Math.min(60000, 5000 * Math.pow(2, _REALTIME_POGINGEN - 1));
-        _REALTIME_HERSTART = setTimeout(_realtimeOpnieuw, wacht);
+      if (st.kanaal !== kanaal) return;   // een oud kanaal (na opnieuw aansluiten) zegt niets meer
+      if (status === 'SUBSCRIBED') { st.pogingen = 0; return; }
+      if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT' && status !== 'CLOSED') return;
+      if (st.timer) return;
+      // Achtergrondtabblad (20-08): opnieuw proberen wordt afgeknepen; wachten tot het tabblad terug is.
+      if (document.hidden) { _REALTIME_WACHT_OP_TERUG = true; return; }
+      st.pogingen++;
+      if (st.pogingen === 3 && !st.gemeld) {
+        st.gemeld = true;
+        meldFout('realtime: tabel ' + tabel + ' blijft wegvallen', 'subscribeRealtime',
+                 'laatste status: ' + status + (err && err.message ? ' · ' + err.message : '') + ' · staat de tabel in de publicatie? draai supabase/realtime_volledig.sql');
       }
+      if (st.pogingen >= 6) return;   // opgeven voor deze sessie; de andere tabellen lopen gewoon door
+      const wacht = Math.min(60000, 5000 * Math.pow(2, st.pogingen - 1));   // 5, 10, 20, 40, 60 s
+      st.timer = setTimeout(() => { st.timer = null; _rtAansluiten(tabel); }, wacht);
     });
 }
 
-// Opnieuw aansluiten. Het oude kanaal moet eerst weg: anders houdt de vorige
-// verbinding dezelfde naam bezet en sluit de nieuwe meteen weer.
+// Opnieuw aansluiten (alles): tellers op nul, oude kanalen weg, elke tabel opnieuw.
 function _realtimeOpnieuw() {
   if (_REALTIME_HERSTART) { clearTimeout(_REALTIME_HERSTART); _REALTIME_HERSTART = null; }
   _REALTIME_WACHT_OP_TERUG = false;
+  Object.keys(_RT_KANALEN).forEach(tb => { const st = _RT_KANALEN[tb]; if (st.timer) { clearTimeout(st.timer); st.timer = null; } st.pogingen = 0; st.kanaal = null; });
   try { supa.removeChannel && supa.removeAllChannels && supa.removeAllChannels(); } catch (e) { _meldStil('_realtimeOpnieuw', e); }
   subscribeRealtime();
 }
@@ -33655,7 +33640,21 @@ async function _kanbanUpdateGroep(id, payload) {
   const groep = _kanbanGroepVan(id);
   const ids = groep && groep.groep ? groep.groep : [id];
   let ok = true;
-  for (const x of ids) { const v = _kanbanVind(x); if (!v) continue; if (!(await _kanbanUpdate(v.bmNaam, x, payload))) ok = false; }
+  for (const x of ids) {
+    const v = _kanbanVind(x); if (!v) continue;
+    if (canEdit(v.bmNaam) || !supa) { if (!(await _kanbanUpdate(v.bmNaam, x, payload))) ok = false; continue; }
+    // Het tegeltje van de collega op een duo (30-09): de databaseregel weigert dat (nul rijen). De functie
+    // bt_kanban_duo_update mag het wél, mits ik zelf op hetzelfde gedeelde gesprek sta (supabase/kanban_duo.sql).
+    _echoVanZelf('pipeline_cards');
+    let fout = '';
+    try {
+      const { data, error } = await supa.rpc('bt_kanban_duo_update', { p_id: x, p_payload: payload });
+      if (error) fout = /does not exist|PGRST202|42883/i.test(String(error.message || error.code || '')) ? 'draai supabase/kanban_duo.sql — de functie voor het duo-tegeltje ontbreekt nog' : String(error.message || error);
+      else if (!data) fout = 'het tegeltje van ' + v.bmNaam + ' is niet bijgewerkt (geen gedeeld gesprek met jou)';
+    } catch (e) { fout = String((e && e.message) || e); }
+    if (fout) { meldFout('kanban duo bijwerken mislukt: ' + fout, 'pipeline', 'tegeltje van ' + v.bmNaam + ' · door ' + ((CURRENT_USER && CURRENT_USER.naam) || '?')); btMeld('Tegeltje van ' + v.bmNaam + ' niet bijgewerkt: ' + fout, 'rood'); ok = false; continue; }
+    const cards = pipeLoad(v.bmNaam); const i = cards.findIndex(c => String(c.id) === String(x)); if (i >= 0) { Object.assign(cards[i], payload); pipeSave(v.bmNaam, cards); }
+  }
   return ok;
 }
 // ── Van het bord ────────────────────────────────────────────────────────────
