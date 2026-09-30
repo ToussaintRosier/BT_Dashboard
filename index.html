@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-0934 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20260930-0942 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5089,6 +5089,14 @@
   .todo-tab svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .todo-tab i { font-style:normal; border-radius:99px; padding:0 6px; font-size:.62rem; font-weight:var(--w-nadruk); } .todo-tab i.laat { background:#fee2e2; color:#b91c1c; } .todo-tab i.n { background:#e7eef9; color:#253151; }
   .todo-sec { font-size:.64rem; text-transform:uppercase; letter-spacing:.08em; color:#6b7a99; margin:12px 0 6px; display:flex; align-items:center; gap:6px; } .todo-sec.laat { color:#b91c1c; } .todo-sec.vandaag { color:#b45309; } .todo-sec svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; } .todo-sec .klap { margin-left:auto; text-transform:none; letter-spacing:0; color:#6b7a99; }
+  /* To Do's v4 (30-09): straks lichter en zonder knoppen; ⟳ voor controleerbaar; uitgelichte taak via ?todo=; gisteren-blok op de dagstart. */
+  .todo-blok.straks { border-left-color:#8fb0dc; background:rgba(255,255,255,.55); } .todo-r.straks { opacity:.72; } .todo-r .ico.straks { background:rgba(37,49,81,.08); } .todo-sec.straks { color:#3d5a8a; } .todo-r .w.straks { color:#3d5a8a; }
+  .todo-r .k .auto { display:inline-flex; align-items:center; justify-content:center; border:1px solid transparent; border-radius:7px; color:#6b7a99; font-size:.9rem; cursor:help; }
+  .todo-r.licht { box-shadow:0 0 0 2px #F4CB3C; border-radius:8px; }
+  .todo-blok.gepland { border-left-color:#25D366; } .todo-blok .av.gepland { background:#25D366; color:#fff; } .todo-blok .av.gepland svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; }
+  .ds-gisteren .ds-alles { margin-left:auto; background:#F4CB3C; color:#253151; border:0; border-radius:7px; padding:4px 10px; font-size:.72rem; font-weight:var(--w-nadruk); cursor:pointer; font-family:inherit; }
+  .todo-tellers .tel.straks { color:#3d5a8a; } .todo-tellers .tel.auto { color:#166534; }
+  .todo-blokwrap .todo-blok.straks { background:rgba(255,255,255,.06); } .todo-blokwrap .todo-sec.straks, .todo-blokwrap .todo-r .w.straks, .todo-blokwrap .todo-tellers .tel.straks { color:#9ec8f4; } .todo-blokwrap .todo-r .k .auto { color:rgba(255,255,255,.6); } .todo-blokwrap .todo-tellers .tel.auto { color:#25D366; }
   .todo-blok { background:#fff; border-radius:12px; padding:6px 12px 4px; margin-bottom:8px; border-left:4px solid #94a3b8; } .todo-blok.laat { border-left-color:#dc2626; } .todo-blok.vandaag { border-left-color:#f59e0b; } .todo-blok.gepland { border-left-color:#16a34a; }
   .todo-p { display:grid; grid-template-columns:28px minmax(0,1fr) 60px; align-items:center; gap:8px; padding:4px 0 2px; font-size:.84rem; cursor:pointer; } .todo-p b { color:#253151; } .todo-p small { color:#6b7a99; font-size:.72rem; margin-left:6px; } .todo-p .open { text-align:right; font-size:.7rem; color:#253151; text-decoration:underline; }
   .todo-p .av { width:26px; height:26px; border-radius:99px; background:#253151; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:.6rem; font-weight:700; } .todo-p .av.bedrijf { background:#1f6f8b; border-radius:7px; } .todo-p .av.gg { background:#7c3aed; }
@@ -11239,7 +11247,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-0934';
+const APP_VERSIE = '20260930-0942';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -18236,6 +18244,7 @@ async function loadAllData() {
     stap('Brightech ONE', () => loadOne().then(_oneTagCheck)),
     stap('mijlpalen', loadMijlpalen),
     stap('gespreksverslagen', loadGespreksverslagen),
+    stap('gesprekslog kandidaten', loadKandNotities),   // 30-09: de to-do-motor leest er de terugkoppelingen uit
     stap('to-do standen', loadTodoStatus),
     stap('RLDV-selecties', loadRldvSelecties),
     stap('CRM', loadCrm),
@@ -18438,6 +18447,7 @@ async function loadProfileAndStart() {
     try { _crmMeldingenCheck(); } catch (e) { _meldStil('loadProfileAndStart', e); }
     try { rldvMeldingenCheck({ bijInloggen: true }); } catch (e) { _meldStil('loadProfileAndStart', e); }
   }, 1500);
+  _todoIngangCheck();   // 30-09: ?todo=<sleutel> uit het Outlook-item
   _dagstartWaakhond();
   subscribeRealtime();
   _publiceerAchtergrond();
@@ -19123,6 +19133,35 @@ function _todoDagenLaat(deadlineMs) { return Math.max(0, -_todoWerkdagenTussen(D
 function _todoDagenTot(deadlineMs) { return Math.max(0, _todoWerkdagenTussen(Date.now(), deadlineMs)); }
 function _todoIso(ms) { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function _todoMsVan(x) { if (!x) return 0; if (typeof x === 'number') return x; const t = Date.parse(x); return isNaN(t) ? 0 : t; }
+// Terugkoppeling (30-09): een gesprekslog-notitie van de kandidaat met "terugkoppeling" erin, ná het moment.
+function _todoTerugkNotitie(sl, sindsMs) {
+  const per = typeof KAND_NOTITIES !== 'undefined' && KAND_NOTITIES ? KAND_NOTITIES[sl] : null;
+  if (!per || !per.length) return false;
+  return per.some(n => /terugkoppeling/i.test(String(n.tekst || '')) && _todoMsVan(n.created_at) >= (sindsMs || 0));
+}
+// Controleerbare taken (30-09): waar het dashboard zelf aan ziet dat het gedaan is — tooltip bij ⟳.
+const TODO_AUTO_TEKST = {
+  cv: 'het CV op de kaart staat', cvkaart: 'het CV op de kaart staat', itk: 'er een ITK-verslag is (opname of handmatig)', cr: 'de CR-link op de kaart staat',
+  delen: 'de afspraken verzonden zijn', reactie: 'de kandidaat akkoord of niet akkoord heeft gegeven', rldv: 'er een RLDV-lijst is', check: 'de check akkoord is',
+  aanbieden: 'er een aanbieding geregistreerd is', reden: 'de reden is ingevuld', terugk: 'er een gesprekslog-notitie "terugkoppeling" staat', ophalen: 'er een gesprekslog-notitie "terugkoppeling" staat',
+  aanmeld: 'de aanmelding compleet is', eval: 'de evaluatie gepland staat', bzverslag: 'het bezoekverslag er is (opname of handmatig)', vervolg: 'de vervolgafspraak in de pipeline staat',
+  score: 'de scorekaart bijgewerkt is', apactie: 'de actie in het accountplan is afgevinkt', evkop: 'het verslag gekoppeld is', contract: 'het tegeltje naar Starter gaat', afronden: 'de kandidaat is afgerond',
+};
+function _todoAutoTekst(x) { const k = String(x && x.sleutel || '').split(':')[0]; return TODO_AUTO_TEKST[k] || 'het resultaat in het dashboard staat'; }
+// Automatisch afgerond (30-09): een controleerbare taak die verdwijnt zonder eigen stand, geteld per dag.
+let _TODO_VORIG = {};
+function _todoAutoAfBijwerken(naam, lijst) {
+  const nuSet = new Set(lijst.filter(x => !x.vinkbaar && !x.straks).map(x => x.sleutel));
+  const vorig = _TODO_VORIG[naam]; _TODO_VORIG[naam] = nuSet;
+  if (!vorig) return;
+  const weg = Array.from(vorig).filter(sl => !nuSet.has(sl)).filter(sl => { const st = _todoStatusVan(sl) || {}; return st.stand !== 'gedaan' && !(st.stand === 'later' && st.tot); });
+  if (!weg.length) return;
+  const k = 'bt_todo_auto_' + naam + '_' + _todoIso(Date.now());
+  let af = []; try { af = JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { _meldStil('to-do auto-afgerond lezen', e); af = []; }
+  weg.forEach(sl => { if (af.indexOf(sl) < 0) af.push(sl); });
+  _veiligLokaalOpslaan(k, af, 'to-do automatisch afgerond');
+}
+function _todoAutoAfVandaag(naam) { try { return JSON.parse(localStorage.getItem('bt_todo_auto_' + naam + '_' + _todoIso(Date.now())) || '[]'); } catch (e) { _meldStil('to-do auto-afgerond lezen', e); return []; } }
 function _todoNaamEq(a, b) { return _itkSleutel(a || '') === _itkSleutel(b || '') && !!_itkSleutel(a || ''); }
 function _todoVoorMij(namen, mij) { const m = _itkSleutel(mij || ''); return !m || (namen || []).some(n => _itkSleutel(n) === m); }
 
@@ -19169,7 +19208,17 @@ function _todoRegels(naam) {
     const basis = { cat: 'kand', groep: sl, groepSoort: 'kand', groepNaam: c.naam, groepDetail: (gevoerd ? 'intake ' : 'intake gepland ') + _crmDatum(iMs) + ' · ' + String(c.bmNaam).split(' ')[0], wie: [c.bmNaam], klik: kaartKlik(c.bmNaam, c.id) };
     // CV opvragen: intake gepland, geen cv_link
     if (!gevoerd && !(r && r.cv_link)) push({ ...basis, sleutel: 'cv:' + sl, soort: 'cv', tekst: 'CV opvragen bij de kandidaat', detail: 'vóór de intake', deadlineMs: iMs - TODO_WD, duur: 5, klik: r ? crmKlik(sl) : basis.klik });
-    if (!gevoerd) return;
+    if (!gevoerd) {
+      // Straks (30-09): intake vandaag of binnen een week → de vervolgtaken alvast in beeld, zonder knoppen.
+      if (iMs - nu <= 7 * TODO_WD) {
+        const sk = { ...basis, straks: true, straksMs: iMs };
+        push({ ...sk, sleutel: 'itk:' + sl, soort: 'verslag', tekst: 'ITK-verslag maken', detail: 'zelfde dag', deadlineMs: _todoWerkdagenErbij(iMs, 0), duur: 30 });
+        if (!(r && r.cr_link)) push({ ...sk, sleutel: 'cr:' + sl, soort: 'cr', tekst: 'CV commercieel uitwerken (CR)', detail: 'handboek: dezelfde dag', deadlineMs: _todoWerkdagenErbij(iMs, 1), duur: 30 });
+        push({ ...sk, sleutel: 'delen:' + sl, soort: 'delen', tekst: 'Afspraken delen (uitgangspunten + opties)', detail: 'handboek: max 1 dag na intake', deadlineMs: _todoWerkdagenErbij(iMs, 1), duur: 15 });
+        push({ ...sk, sleutel: 'bel2:' + sl, soort: 'bel', tekst: 'Belmoment: eerste mogelijkheden bespreken', detail: 'handboek: 2 dagen na intake', deadlineMs: _todoWerkdagenErbij(iMs, 2), duur: 10, vinkbaar: true });
+      }
+      return;
+    }
     // ITK-verslag: intake gevoerd, geen record — zelfde dag
     if (!rec) push({ ...basis, sleutel: 'itk:' + sl, soort: 'verslag', tekst: 'ITK-verslag maken', detail: 'zelfde dag', deadlineMs: _todoWerkdagenErbij(iMs, 0), duur: 30, klik: "selectTab('gesprek')" });
     // CR uitwerken: zelfde dag (afwezig: dag erop) → 1 werkdag
@@ -19204,7 +19253,7 @@ function _todoRegels(naam) {
           if (st.stap === 'aang' && st.bron === 'zelf') wacht.push({ naam: bn, ms: st.datumMs || selMs });
           if (st.stap === 'afg' && st.bron === 'zelf' && !st.reden) push({ ...basis, sleutel: 'reden:' + sl + ':' + id, soort: 'terugkoppeling', tekst: 'Reden afwijzing noteren · ' + bn, detail: 'handboek: ontleden waarom', deadlineMs: _todoWerkdagenErbij(st.datumMs || nu, 0), duur: 5, klik: "rldvCheckOpen('" + escApos(String(sel.id)) + "')" });
         });
-        if (wacht.length) { wacht.sort((a, b) => a.ms - b.ms); const oud = wacht[0].ms;
+        if (wacht.length && !_todoTerugkNotitie(sl, Math.min.apply(null, wacht.map(w => w.ms)))) { wacht.sort((a, b) => a.ms - b.ms); const oud = wacht[0].ms;   // 30-09: notitie "terugkoppeling" sluit hem
           push({ ...basis, sleutel: 'terugk:' + sl, soort: 'terugkoppeling', tekst: 'Terugkoppeling vragen · ' + wacht.length + (wacht.length === 1 ? ' bedrijf' : ' bedrijven'), detail: wacht.map(w => w.naam + ' ' + _todoWerkdagenTussen(w.ms, nu) + 'd').join(' · '), deadlineMs: _todoWerkdagenErbij(oud, 2), duur: Math.min(60, 10 * wacht.length), klik: "rldvCheckOpen('" + escApos(String(sel.id)) + "')" }); }
       }
     }
@@ -19219,9 +19268,11 @@ function _todoRegels(naam) {
       const klant = typeof _kanbanKlantVan === 'function' ? _kanbanKlantVan(g) : (g.kanban_klant || '');
       const voorb = (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).some(r => r.soortBezoek === 'voorbereiding_matchgesprek' && (_itkSleutel(r.kandidaat || '') === sl || _itkSleutel(r.contactpersoon || '') === sl) && _recDatumSort(r.datum) >= gMs - 21 * TODO_WD);
       const gk = { cat: 'kand', groep: sl, groepSoort: 'kand', groepNaam: g.naam, groepDetail: (klant ? klant + ' · ' : '') + 'gesprek ' + _crmDatum(gMs), wie: g.bms && g.bms.length ? g.bms : [bm], klik: kaartKlik(bm, g.id) };
-      if (gMs > nu && !voorb) push({ ...gk, sleutel: 'voorb:' + sl + ':' + fase, soort: 'gesprek', tekst: 'Voorbereiding matchgesprek plannen (1 uur, op kantoor)', detail: 'handboek: altijd, ≥ 2 dagen vóór het gesprek', deadlineMs: gMs - 2 * TODO_WD, duur: 60 });
+      if (gMs > nu && !voorb) push({ ...gk, sleutel: 'voorb:' + sl + ':' + fase, soort: 'gesprek', tekst: 'Voorbereiding matchgesprek plannen (1 uur, op kantoor)', detail: 'handboek: altijd, ≥ 2 dagen vóór het gesprek', deadlineMs: gMs - 2 * TODO_WD, duur: 60, vinkbaar: true });   // 30-09: op vertrouwen
       if (gMs > nu) push({ ...gk, sleutel: 'bevestig:' + sl + ':' + fase, soort: 'gesprek', tekst: 'Matchgesprek schriftelijk bevestigen', detail: 'handboek: per e-mail', deadlineMs: _todoWerkdagenErbij(Math.min(nu, gMs - TODO_WD), 0), duur: 10, vinkbaar: true });
-      if (gMs <= nu) push({ ...gk, sleutel: 'ophalen:' + sl + ':' + fase, soort: 'terugkoppeling', tekst: 'Terugkoppeling klant ophalen', detail: 'handboek: max 24 uur na het gesprek', deadlineMs: _todoWerkdagenErbij(gMs, 1), duur: 10 });
+      // Terugkoppeling (30-09): controleerbaar via een gesprekslog-notitie "terugkoppeling" ná het gesprek; gepland → straks.
+      if (gMs <= nu) { if (!_todoTerugkNotitie(sl, gMs)) push({ ...gk, sleutel: 'ophalen:' + sl + ':' + fase, soort: 'terugkoppeling', tekst: 'Terugkoppeling klant ophalen', detail: 'handboek: max 24 uur na het gesprek', deadlineMs: _todoWerkdagenErbij(gMs, 1), duur: 10 }); }
+      else if (gMs - nu <= 7 * TODO_WD) push({ ...gk, straks: true, straksMs: gMs, sleutel: 'ophalen:' + sl + ':' + fase, soort: 'terugkoppeling', tekst: 'Terugkoppeling klant ophalen', detail: 'handboek: max 24 uur na het gesprek', deadlineMs: _todoWerkdagenErbij(gMs, 1), duur: 10 });
     }));
   })();
   // Contractvoorstel: gegevens opvragen (vinkje), voorbereiden met MO, contract compleet — kaartjes in die fase
@@ -19233,7 +19284,7 @@ function _todoRegels(naam) {
     const basis = { cat: 'kand', groep: sl, groepSoort: 'kand', groepNaam: c.naam, groepDetail: 'contractvoorstel' + (gMs ? ' ' + _crmDatum(gMs) : '') + (klant ? ' · ' + klant : ''), wie: [c.bmNaam], klik: kaartKlik(c.bmNaam, c.id) };
     push({ ...basis, sleutel: 'idbank:' + sl, soort: 'contract', tekst: 'ID, bankgegevens en diploma\'s opvragen', detail: 'handboek: bij uitnodiging', deadlineMs: _todoWerkdagenErbij(nu, 0), duur: 5, vinkbaar: true });
     if (gMs) push({ ...basis, sleutel: 'mo:' + sl, soort: 'contract', tekst: 'Voorbereiden met MO: contract, salaris, voorwaarden', detail: 'gesprek ' + _crmDatum(gMs), deadlineMs: gMs - TODO_WD, duur: 30, vinkbaar: true });
-    push({ ...basis, sleutel: 'contract:' + sl, soort: 'contract', tekst: 'Contract en startersbrief compleet', detail: 'handboek: compleet bij tekenen', deadlineMs: gMs ? gMs - TODO_WD : _todoWerkdagenErbij(nu, 2), duur: 60, vinkbaar: true });
+    push({ ...basis, sleutel: 'contract:' + sl, soort: 'contract', tekst: 'Contract en startersbrief compleet', detail: 'handboek: compleet bij tekenen', deadlineMs: gMs ? gMs - TODO_WD : _todoWerkdagenErbij(nu, 2), duur: 60 });   // 30-09: controleerbaar — verdwijnt zodra het tegeltje naar Starter gaat
   });
   // Starter: aanmelding compleet ≥ 1 week vóór start; evaluaties plannen ≥ 2 weken vóór de mijlpaal
   const aanmeld = (typeof AANMELD_SAVED !== 'undefined' && Array.isArray(AANMELD_SAVED) ? AANMELD_SAVED : []).map(e => _itkSleutel((e.data && e.data.naam_achternaam) || e.label || ''));
@@ -19260,9 +19311,16 @@ function _todoRegels(naam) {
     const kop = { cat: 'kand', groep: 'gg', groepSoort: 'gg', groepNaam: 'GG-lijst', groepDetail: gg.length + ' kandida' + (gg.length === 1 ? 'at' : 'ten'), wie: [mij], klik: "selectTab('crmkand');crmKandFilter('gg')" };
     if (opnieuw.length) { const oud = Math.min(...opnieuw.map(r => _todoMsVan(r.gg_lijst_op))); const n = Math.floor(_todoWerkdagenTussen(oud, nu) / 2);
       push({ ...kop, sleutel: 'gg:' + _todoIso(nu).slice(0, 7) + ':' + n, soort: 'bel', tekst: 'Opnieuw proberen · ' + opnieuw.length + (opnieuw.length === 1 ? ' kandidaat' : ' kandidaten'), detail: opnieuw.slice(0, 4).map(r => String(r.naam).split(' ').slice(-1)[0]).join(', ') + (opnieuw.length > 4 ? ' …' : '') + ' · handboek: meerdere keren, ~2 weken', deadlineMs: _todoWerkdagenErbij(oud, 2 * (n + 1)), duur: 30, vinkbaar: true }); }
-    if (afhaken.length) push({ ...kop, sleutel: 'ggaf:' + afhaken.map(r => r.sleutel).sort().join('|').slice(0, 60), soort: 'bel', tekst: 'Afhaken en netwerken · ' + afhaken.length, detail: afhaken.slice(0, 4).map(r => String(r.naam).split(' ').slice(-1)[0]).join(', ') + ' · handboek: na ca. 2 weken, vervolgafspraak noteren', deadlineMs: _todoWerkdagenErbij(nu, 0), duur: 15 });
+    if (afhaken.length) push({ ...kop, sleutel: 'ggaf:' + afhaken.map(r => r.sleutel).sort().join('|').slice(0, 60), soort: 'bel', tekst: 'Afhaken en netwerken · ' + afhaken.length, detail: afhaken.slice(0, 4).map(r => String(r.naam).split(' ').slice(-1)[0]).join(', ') + ' · handboek: na ca. 2 weken, vervolgafspraak noteren', deadlineMs: _todoWerkdagenErbij(nu, 0), duur: 15, vinkbaar: true });   // 30-09: op vertrouwen
   }
   // C · Klant: bezoeken (verslag 1 werkdag, vervolgafspraak 1 werkdag), scorekaart, accountplan-acties, evaluatieverslag koppelen
+  // Straks (30-09): bezoek binnen een week → verslag en vervolgafspraak alvast in beeld.
+  bezoeken.filter(b => b.datumMs && b.datumMs > nu && b.datumMs - nu <= 7 * TODO_WD && b.soortBezoek !== 'evaluatie').forEach(b => {
+    const sl = _itkSleutel(b.bedrijf || ''); if (!sl) return;
+    const sk = { cat: 'klant', groep: sl, groepSoort: 'bedrijf', groepNaam: b.bedrijf, groepDetail: 'bezoek gepland ' + _crmDatum(b.datumMs) + (b.contactpersoon ? ' · ' + b.contactpersoon : ''), wie: b.collegas || [b.collega], klik: "bezoekKaartOpen('" + escApos(String(b.id)) + "')", straks: true, straksMs: b.datumMs };
+    push({ ...sk, sleutel: 'bzverslag:' + b.id, soort: 'bezoek', tekst: 'Bezoekverslag maken', detail: 'voorstel: 1 werkdag', deadlineMs: _todoWerkdagenErbij(b.datumMs, 1), duur: 30 });
+    if (b.soortBezoek === 'bedrijfsbezoek') push({ ...sk, sleutel: 'vervolg:' + b.id, soort: 'bezoek', tekst: 'Vervolgafspraak plannen', detail: 'handboek: elk gesprek een concrete vervolgafspraak', deadlineMs: _todoWerkdagenErbij(b.datumMs, 1), duur: 10 });
+  });
   bezoeken.filter(b => b.datumMs && b.datumMs <= nu && b.datumMs >= ING && b.soortBezoek !== 'evaluatie').forEach(b => {
     const sl = _itkSleutel(b.bedrijf || ''); if (!sl) return;
     const basis = { cat: 'klant', groep: sl, groepSoort: 'bedrijf', groepNaam: b.bedrijf, groepDetail: 'bezoek ' + _crmDatum(b.datumMs) + (b.contactpersoon ? ' · ' + b.contactpersoon : ''), wie: b.collegas || [b.collega], klik: "bezoekKaartOpen('" + escApos(String(b.id)) + "')" };
@@ -19293,27 +19351,34 @@ function todoLijst(naam) {
     const st = _todoStatusVan(x.sleutel) || {};
     if (st.stand === 'gedaan') return null;
     if (x.vanaf && x.vanaf > nu) return null;   // nog niet aan de orde (belmoment dag 2 pas vanaf dag 1)
+    if (x.straks) return { ...x, stand: 'straks', later: false, laterTot: 0, geplandMs: 0, ingepland: false, uitgesteld: 0, dagenLaat: 0, dagenTot: _todoDagenTot(x.deadlineMs) };   // 30-09
     const later = st.stand === 'later' && st.tot && _todoMsVan(st.tot) > nu;
-    const stand = st.gepland_op ? 'gepland' : _todoStand(x.deadlineMs);
-    return { ...x, stand, later, laterTot: later ? _todoMsVan(st.tot) : 0, geplandMs: st.gepland_op ? _todoMsVan(st.gepland_op) : 0, uitgesteld: st.uitgesteld || 0, dagenLaat: _todoDagenLaat(x.deadlineMs), dagenTot: _todoDagenTot(x.deadlineMs) };
+    // Ingepland (30-09): later dan vandaag → tab Gepland; vandaag → bovenaan Vandaag; gisteren en niet gedaan → gewone stand, met vlag.
+    const gMs = st.gepland_op ? _todoMsVan(st.gepland_op) : 0, vandaag0 = _todoDagBegin(nu), gDag = gMs ? _todoDagBegin(gMs) : 0;
+    const stand = gMs && gDag > vandaag0 ? 'gepland' : gMs && gDag === vandaag0 ? 'vandaag' : _todoStand(x.deadlineMs);
+    return { ...x, stand, later, laterTot: later ? _todoMsVan(st.tot) : 0, geplandMs: gMs, ingepland: !!gMs, geplandVandaag: !!gMs && gDag === vandaag0, geplandGisteren: !!gMs && gDag < vandaag0, uitgesteld: st.uitgesteld || 0, dagenLaat: _todoDagenLaat(x.deadlineMs), dagenTot: _todoDagenTot(x.deadlineMs) };
   }).filter(Boolean);
-  const volg = { laat: 0, vandaag: 1, open: 2, gepland: 3 };
-  uit.sort((a, b) => (volg[a.stand] - volg[b.stand]) || (a.deadlineMs - b.deadlineMs) || a.groepNaam.localeCompare(b.groepNaam, 'nl'));
+  const volg = { laat: 0, vandaag: 1, open: 2, gepland: 3, straks: 4 };
+  uit.sort((a, b) => (volg[a.stand] - volg[b.stand]) || ((b.ingepland ? 1 : 0) - (a.ingepland ? 1 : 0)) || (a.geplandMs - b.geplandMs) || (a.deadlineMs - b.deadlineMs) || (a.straksMs || 0) - (b.straksMs || 0) || a.groepNaam.localeCompare(b.groepNaam, 'nl'));
+  try { const mijN = String((CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''); if (mijN && _todoNaamEq(n, mijN)) _todoAutoAfBijwerken(n, uit); } catch (e) { _meldStil('to-do auto-afgerond', e); }
   if (!_TODO_CACHE) _TODO_CACHE_T = Date.now();
   const cache = _TODO_CACHE || {}; cache[n] = uit; _TODO_CACHE = cache;
   return uit;
 }
 function todoTellers(naam) {
-  const l = todoLijst(naam).filter(x => !x.later);
-  return { laat: l.filter(x => x.stand === 'laat').length, vandaag: l.filter(x => x.stand === 'vandaag').length, open: l.filter(x => x.stand === 'open').length, gepland: l.filter(x => x.stand === 'gepland').length, totaal: l.length };
+  const alle = todoLijst(naam).filter(x => !x.later), l = alle.filter(x => x.stand !== 'straks');   // 30-09: straks telt niet mee
+  return { laat: l.filter(x => x.stand === 'laat').length, vandaag: l.filter(x => x.stand === 'vandaag').length, open: l.filter(x => x.stand === 'open').length, gepland: l.filter(x => x.stand === 'gepland').length, straks: alle.length - l.length, totaal: l.length };
 }
 // Per categorie → secties (laat/vandaag/week) → groepen (kandidaat/klant) → regels.
 function todoGroepen(naam, cat) {
   const l = todoLijst(naam).filter(x => !x.later && (cat === 'gepland' ? x.stand === 'gepland' : x.cat === cat && x.stand !== 'gepland'));
-  const secties = { laat: [], vandaag: [], week: [], gepland: [] };
+  const secties = { laat: [], vandaag: [], week: [], gepland: [], straks: [] };
   l.forEach(x => { const s = x.stand === 'gepland' ? 'gepland' : x.stand === 'open' ? 'week' : x.stand; secties[s].push(x); });
   const groepeer = (lijst) => { const per = new Map(); lijst.forEach(x => { if (!per.has(x.groep)) per.set(x.groep, { groep: x.groep, soort: x.groepSoort, naam: x.groepNaam, detail: x.groepDetail, klik: x.klik, items: [] }); per.get(x.groep).items.push(x); }); return Array.from(per.values()); };
-  return { laat: groepeer(secties.laat), vandaag: groepeer(secties.vandaag), week: groepeer(secties.week), gepland: groepeer(secties.gepland) };
+  // Ingepland vandaag (30-09): één groep bovenaan Vandaag, uit je agenda.
+  const gepl = secties.vandaag.filter(x => x.geplandVandaag), rest = secties.vandaag.filter(x => !x.geplandVandaag);
+  const vandaag = (gepl.length ? [{ groep: '_gepland', soort: 'gepland', naam: 'Ingepland vandaag', detail: 'uit je agenda', klik: '', items: gepl }] : []).concat(groepeer(rest));
+  return { laat: groepeer(secties.laat), vandaag, week: groepeer(secties.week), gepland: groepeer(secties.gepland), straks: groepeer(secties.straks) };
 }
 function tedoenHtml() {
   let lijst;
@@ -19421,13 +19486,14 @@ function _todoOutlookUrl(x, start) {
   const eind = new Date(start.getTime() + (x.duur || 30) * 60000);
   const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
   const naam = x.groepNaam ? ' · ' + x.groepNaam : '';
-  const body = (x.detail ? x.detail + '\n' : '') + (x.groepDetail ? x.groepDetail + '\n' : '') + '\nBrightech dashboard → ' + location.origin + location.pathname;
+  const terug = x.vinkbaar || /^(terugk|ophalen):/.test(String(x.sleutel)) ? '\n✓ Afronden in het dashboard: ' + location.origin + location.pathname + '?todo=' + encodeURIComponent(String(x.sleutel)) : '\nDeze taak verdwijnt vanzelf zodra ' + _todoAutoTekst(x) + '.';   // 30-09
+  const body = (x.detail ? x.detail + '\n' : '') + (x.groepDetail ? x.groepDetail + '\n' : '') + terug + '\nBrightech dashboard → ' + location.origin + location.pathname;
   return 'https://outlook.office.com/calendar/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=' + encodeURIComponent(x.tekst + naam) + '&startdt=' + encodeURIComponent(iso(start)) + '&enddt=' + encodeURIComponent(iso(eind)) + '&body=' + encodeURIComponent(body);
 }
 function _todoIcsBlob(x, start) {
   const eind = new Date(start.getTime() + (x.duur || 30) * 60000);
   const st = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  const tekst = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Brightech//dashboard//NL', 'BEGIN:VEVENT', 'UID:' + Date.now() + '@brightech', 'DTSTAMP:' + st(new Date()), 'DTSTART:' + st(start), 'DTEND:' + st(eind), 'SUMMARY:' + (x.tekst + (x.groepNaam ? ' · ' + x.groepNaam : '')).replace(/[\n,;]/g, ' '), 'DESCRIPTION:' + String(x.detail || '').replace(/[\n,;]/g, ' '), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const tekst = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Brightech//dashboard//NL', 'BEGIN:VEVENT', 'UID:' + Date.now() + '@brightech', 'DTSTAMP:' + st(new Date()), 'DTSTART:' + st(start), 'DTEND:' + st(eind), 'SUMMARY:' + (x.tekst + (x.groepNaam ? ' · ' + x.groepNaam : '')).replace(/[\n,;]/g, ' '), 'DESCRIPTION:' + String(x.detail || '').replace(/[\n,;]/g, ' ') + ' — afronden: ' + location.origin + location.pathname + '?todo=' + encodeURIComponent(String(x.sleutel)), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
   return new Blob([tekst], { type: 'text/calendar' });
 }
 async function todoInplannen(sleutel, naam) {
@@ -19472,7 +19538,10 @@ const TODO_ICONEN = {
 function _todoSvg(soort) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (TODO_ICONEN[soort] || TODO_ICONEN.plan) + '</svg>'; }
 const TODO_CATS = [['kand', 'Kandidaten', 'kand'], ['klant', 'Klanten', 'klant'], ['mw', 'Medewerkers', 'mw']];
 function _todoWanneerHtml(x) {
+  if (x.stand === 'straks') return '<span class="w straks">' + escHtml(x.straksMs ? 'na ' + _todoWanneerKort(x.straksMs, true) : 'straks') + '</span>';   // 30-09
   if (x.stand === 'gepland') return '<span class="w gepland">' + escHtml(_todoWanneerKort(x.geplandMs, true)) + '</span>';
+  if (x.geplandVandaag) return '<span class="w vandaag">' + escHtml(_todoWanneerKort(x.geplandMs, true).replace(/^\S+ \d+ \S+ /, '')) + ' · ingepland</span>';
+  if (x.geplandGisteren) return '<span class="w ' + x.stand + '">ingepland ' + escHtml(_todoWanneerKort(x.geplandMs, true)) + (x.stand === 'laat' ? ' · ' + x.dagenLaat + ' d te laat' : '') + '</span>';
   if (x.stand === 'laat') return '<span class="w laat">' + (x.dagenLaat === 1 ? '1 dag te laat' : x.dagenLaat + ' dagen te laat') + '</span>';
   if (x.stand === 'vandaag') return '<span class="w vandaag">vandaag' + (x.duur ? ' · ' + x.duur + ' min' : '') + '</span>';
   return '<span class="w open">' + (x.dagenTot === 0 ? 'vandaag' : x.dagenTot === 1 ? 'morgen' : 'over ' + x.dagenTot + ' dagen') + (x.duur ? ' · ' + x.duur + ' min' : '') + '</span>';
@@ -19481,10 +19550,17 @@ function _todoRegelHtml(x, naam, eigen) {
   const sE = escApos(String(x.sleutel)), nE = escApos(String(naam || ''));
   const knop = (kl, inhoud, klik, titel) => '<button type="button" class="' + kl + '"' + (klik && eigen ? ' onclick="event.stopPropagation();' + klik + '"' : ' disabled') + (titel ? ' title="' + escHtml(titel) + '"' : '') + '>' + inhoud + '</button>';
   const leeg = '<span class="leeg"></span>';
-  const knoppen = x.stand === 'gepland'
-    ? knop('gp', _todoSvg('agenda') + 'ingepland', 'todoOntplannen(\'' + sE + '\')', 'Uit de planning halen (de afspraak in Outlook blijft staan)') + (x.vinkbaar ? knop('vk', _todoSvg('vink'), 'todoGedaan(\'' + sE + '\')', 'Gedaan') : leeg) + leeg
-    : knop('agk', _todoSvg('agenda') + 'Inplannen', 'todoInplannen(\'' + sE + '\',\'' + nE + '\')', 'In je agenda zetten (Outlook)') + (x.vinkbaar ? knop('vk', _todoSvg('vink'), 'todoGedaan(\'' + sE + '\')', 'Gedaan') : leeg) + knop('st', _todoSvg('klok'), 'todoLaterMenu(\'' + sE + '\', this)', 'Later');
-  return '<div class="todo-r" onclick="' + (x.klik ? escHtml(x.klik) : '') + '"><span class="ico ' + x.stand + '">' + _todoSvg(x.soort) + '</span>' +
+  // 30-09: op vertrouwen → ✓ Gedaan; terugkoppeling → Noteren (gesprekslog); controleerbaar → ⟳ met tooltip.
+  const terugk = /^(terugk|ophalen):/.test(String(x.sleutel));
+  const vink = terugk ? knop('vk', _todoSvg('vink'), 'todoTerugkNoteer(\'' + sE + '\',\'' + nE + '\')', 'Terugkoppeling in het gesprekslog noteren — daarmee is de taak klaar')
+             : x.vinkbaar ? knop('vk', _todoSvg('vink'), 'todoGedaan(\'' + sE + '\')', 'Gedaan')
+             : '<span class="auto" title="' + escHtml('verdwijnt vanzelf zodra ' + _todoAutoTekst(x)) + '">⟳</span>';
+  if (x.straks) return '<div class="todo-r straks" onclick="' + (x.klik ? escHtml(x.klik) : '') + '"><span class="ico straks">' + _todoSvg(x.soort) + '</span>' +
+    '<span class="t">' + escHtml(x.tekst) + (x.detail ? ' <small>· ' + escHtml(x.detail) + '</small>' : '') + ' <small class="uit">— nog niet aan de beurt</small></span>' + _todoWanneerHtml(x) + '<span class="k"><span class="leeg"></span><span class="leeg"></span><span class="leeg"></span></span></div>';
+  const knoppen = x.ingepland
+    ? knop('gp', _todoSvg('agenda') + 'ingepland', 'todoOntplannen(\'' + sE + '\')', 'Uit de planning halen (de afspraak in Outlook blijft staan)') + vink + knop('st', _todoSvg('klok'), 'todoLaterMenu(\'' + sE + '\', this)', 'Verzetten')
+    : knop('agk', _todoSvg('agenda') + 'Inplannen', 'todoInplannen(\'' + sE + '\',\'' + nE + '\')', 'In je agenda zetten (Outlook)') + vink + knop('st', _todoSvg('klok'), 'todoLaterMenu(\'' + sE + '\', this)', 'Later');
+  return '<div class="todo-r' + (typeof TODO_LICHT !== 'undefined' && TODO_LICHT && TODO_LICHT === String(x.sleutel) ? ' licht' : '') + '" onclick="' + (x.klik ? escHtml(x.klik) : '') + '"><span class="ico ' + x.stand + '">' + _todoSvg(x.soort) + '</span>' +
     '<span class="t">' + escHtml(x.tekst) + (x.detail ? ' <small>· ' + escHtml(x.detail) + '</small>' : '') + (x.uitgesteld >= 3 ? ' <small class="uit">· ' + x.uitgesteld + '× uitgesteld</small>' : '') + '</span>' +
     _todoWanneerHtml(x) + '<span class="k">' + knoppen + '</span></div>';
 }
@@ -19498,7 +19574,7 @@ function _todoSectieHtml(kop, groepen, stand, naam, eigen, klapSleutel) {
   if (!groepen.length) return '';
   const n = groepen.reduce((s, g) => s + g.items.length, 0);
   const dicht = klapSleutel && !TODO_KLAP.has(klapSleutel);
-  const ico = stand === 'laat' ? 'klok' : stand === 'vandaag' ? 'zon' : 'agenda';
+  const ico = stand === 'laat' ? 'klok' : stand === 'vandaag' ? 'zon' : stand === 'straks' ? 'plan' : 'agenda';
   return '<div class="todo-sec ' + stand + '"' + (klapSleutel ? ' onclick="todoKlap(\'' + escApos(klapSleutel) + '\')" style="cursor:pointer"' : '') + '>' + _todoSvg(ico) + escHtml(kop) + ' · ' + n + (klapSleutel ? ' <span class="klap">' + (dicht ? '▸ uitklappen' : '▾ inklappen') + '</span>' : '') + '</div>' +
     (dicht ? '' : groepen.map(g => _todoGroepHtml(g, naam, eigen, stand)).join(''));
 }
@@ -19520,8 +19596,9 @@ function _todoInhoudHtml(naam, eigen) {
   const g = todoGroepen(naam, tab);
   if (tab === 'gepland') return g.gepland.length ? g.gepland.map(x => _todoGroepHtml(x, naam, eigen, 'gepland')).join('') : '<div class="todo-leeg">Nog niets ingepland. Klik bij een to-do op Inplannen.</div>';
   const leeg = !g.laat.length && !g.vandaag.length && !g.week.length;
-  return leeg ? '<div class="todo-leeg">Niets open in deze categorie. Mooi.</div>'
-    : _todoSectieHtml('TE LAAT', g.laat, 'laat', naam, eigen) + _todoSectieHtml('VANDAAG', g.vandaag, 'vandaag', naam, eigen) + _todoSectieHtml('DEZE WEEK EN LATER', g.week, 'open', naam, eigen, tab + ':week');
+  const straks = _todoSectieHtml('STRAKS · NA WAT VANDAAG EN DEZE WEEK GEPLAND STAAT', g.straks, 'straks', naam, eigen);   // 30-09
+  return leeg ? (straks || '<div class="todo-leeg">Niets open in deze categorie. Mooi.</div>')
+    : _todoSectieHtml('TE LAAT', g.laat, 'laat', naam, eigen) + _todoSectieHtml('VANDAAG', g.vandaag, 'vandaag', naam, eigen) + _todoSectieHtml('DEZE WEEK EN LATER', g.week, 'open', naam, eigen, tab + ':week') + straks;
 }
 // De kernregel: geschreven uit de to-do's (wat te lang wacht, met de procedureregel).
 function _todoKern(naam) {
@@ -19537,7 +19614,49 @@ function _todoKern(naam) {
 }
 function _todoTellersHtml(naam) {
   const t = todoTellers(naam);
-  return '<div class="todo-tellers">' + (t.laat ? '<span class="tel laat">' + t.laat + ' te laat</span>' : '') + (t.vandaag ? '<span class="tel vandaag">' + t.vandaag + ' vandaag</span>' : '') + '<span class="tel open">' + t.open + ' open</span>' + (t.gepland ? '<span class="tel gepland">' + t.gepland + ' ingepland</span>' : '') + '</div>';
+  return '<div class="todo-tellers">' + (t.laat ? '<span class="tel laat">' + t.laat + ' te laat</span>' : '') + (t.vandaag ? '<span class="tel vandaag">' + t.vandaag + ' vandaag</span>' : '') + '<span class="tel open">' + t.open + ' open</span>' + (t.gepland ? '<span class="tel gepland">' + t.gepland + ' ingepland</span>' : '') + (t.straks ? '<span class="tel straks">' + t.straks + ' straks</span>' : '') + _todoAutoAfHtml(naam) + '</div>';
+}
+// Regel "n vandaag automatisch afgerond" (30-09): zodat je ziet dat controleerbare taken geteld zijn.
+function _todoAutoAfHtml(naam) {
+  const af = _todoAutoAfVandaag(naam); if (!af.length) return '';
+  return '<span class="tel auto" title="' + escHtml(af.join(', ')) + '">✓ ' + af.length + ' vandaag automatisch afgerond</span>';
+}
+// Terugkoppeling noteren (30-09): een regel in het gesprekslog van de kandidaat; de motor ziet hem en de taak verdwijnt.
+function todoTerugkNoteer(sleutel, naam) {
+  const x = todoLijst(naam || String((CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || '')).find(y => y.sleutel === sleutel); if (!x) return;
+  const sl = String(x.groep || ''), kn = String(x.groepNaam || '');
+  crmKaartToon('<h4 class="wit">Terugkoppeling · ' + escHtml(kn) + '</h4><div class="crm-sub">Wat heb je de kandidaat teruggekoppeld? Dit komt als regel in zijn gesprekslog; daarmee is de to-do klaar.</div>' +
+    '<div class="crm-body"><div class="vs-veld"><label>Terugkoppeling <em>*</em></label><textarea id="todo-terugk-tekst" rows="4" class="vs-in" placeholder="Bijv. Demcon wil een tweede gesprek; Prodrive heeft afgezegd — kandidaat weet het"></textarea></div></div>' +
+    '<div class="crm-knoppen vs-voet"><span class="vs-noot">' + escHtml(x.tekst) + '</span><span><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button> <button type="button" class="crm-knop goed" onclick="todoTerugkNoteren(\'' + escApos(sl) + '\',\'' + escApos(kn) + '\')">Noteren ✓</button></span></div>', 'crm-dossier vs-popup');
+  setTimeout(() => { const el = document.getElementById('todo-terugk-tekst'); if (el && el.focus) el.focus(); }, 60);
+}
+async function todoTerugkNoteren(sl, naam) {
+  if (!eisWijzig('medewerkers')) return;
+  const el = document.getElementById('todo-terugk-tekst'), tekst = el ? String(el.value || '').trim() : '';
+  if (!tekst) { btMeld('Schrijf kort wat je hebt teruggekoppeld.', 'geel'); return; }
+  await waLogNoteer('kand', sl, naam, 'Terugkoppeling · ' + tekst);
+  crmKaartSluit(); _TODO_CACHE = null; _todoHerteken();
+}
+// Gisteren ingepland (30-09): de dagstart vraagt de vertrouwenstaken van gisteren na.
+function _todoGisterenHtml(naam) {
+  const l = todoLijst(naam).filter(x => x.geplandGisteren && x.vinkbaar && !x.later);
+  if (!l.length) return '';
+  const sleutels = l.map(x => String(x.sleutel));
+  return '<div class="todo-blok gepland ds-gisteren"><div class="todo-p"><span class="av gepland">' + _todoSvg('agenda') + '</span><span><b>Gisteren ingepland · ' + l.length + ' (op vertrouwen) — gedaan?</b><small>niet beantwoord = blijft gewoon open</small></span>' +
+    '<button type="button" class="ds-alles" onclick="event.stopPropagation();todoGedaanAlle(' + escHtml(JSON.stringify(sleutels)) + ')">Alles gedaan ✓</button></div>' +
+    l.map(x => _todoRegelHtml(x, naam, true)).join('') + '</div>';
+}
+async function todoGedaanAlle(sleutels) { for (const sl of (sleutels || [])) { await _todoStatusSchrijf(sl, { stand: 'gedaan', tot: null }); } _todoHerteken(); }
+// ?todo=<sleutel> (30-09): de link in het Outlook-item opent mijn To Do's met die taak uitgelicht.
+let TODO_LICHT = '';
+function _todoIngangCheck() {
+  let sl = ''; try { sl = new URLSearchParams(location.search).get('todo') || ''; } catch (e) { _meldStil('to-do ingang', e); }
+  if (!sl || !CURRENT_USER) return;
+  TODO_LICHT = String(sl);
+  const mij = String(CURRENT_USER.bm_naam || CURRENT_USER.naam || '');
+  todoNaarPagina(mij);
+  setTimeout(() => { const el = document.querySelector('.todo-r.licht'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 250);
+  try { history.replaceState(null, '', location.pathname); } catch (e) { _meldStil('to-do ingang url', e); }
 }
 // Blok "Mijn to-do" op de medewerkerpagina (eigen pagina: knoppen; collega's pagina: alleen-lezen).
 function _todoBlokHtml(naam) {
@@ -19556,7 +19675,7 @@ function _todoHerteken() {
   const laag = document.getElementById('dagstart-laag');
   if (laag) { const naam = laag.getAttribute('data-naam') || ''; const kop = laag.querySelector('.todo-kopvul'); const body = laag.querySelector('.ds-body'); const kern = _todoKern(naam);
     if (kop) kop.innerHTML = '<div class="kern">' + escHtml(kern.kern) + '</div><div class="sub">' + escHtml(kern.sub) + '</div>' + _todoTellersHtml(naam) + _todoTabsHtml(naam);
-    if (body) body.innerHTML = (laag.getAttribute('data-kompas') || '') + _todoInhoudHtml(naam, true); }
+    if (body) body.innerHTML = _todoGisterenHtml(naam) + (laag.getAttribute('data-kompas') || '') + _todoInhoudHtml(naam, true); }
   const blok = document.getElementById('todo-blok');
   if (blok) { const naam = blok.getAttribute('data-naam') || ''; blok.outerHTML = _todoPaginaHtml(naam); }
   if (typeof currentTab !== 'undefined' && currentTab === 'medewerkers' && MEDEW_SUBTAB === 'todo') render();
@@ -19644,6 +19763,7 @@ async function toonDagstart(forceer) {
   let laatste = null;
   try { laatste = localStorage.getItem(sleutel); } catch (_) {}
   if (!forceer && laatste === _dagstartVandaag()) return;
+  if (!forceer && typeof TODO_LICHT !== 'undefined' && TODO_LICHT) return;   // 30-09: via ?todo= binnengekomen — eerst de taak
 
   const bm = BMS.find(b => b.naam === CURRENT_USER.bm_naam && !b.special);
   let boodschap = null;
@@ -19704,6 +19824,7 @@ async function toonDagstart(forceer) {
       <div class="todo-kopvul"><div class="kern">${escHtml(boodschap.kern)}</div><div class="sub">${escHtml(boodschap.focus || '')}</div>${_todoTellersHtml(tdNaam)}${_todoTabsHtml(tdNaam)}</div>
       </div>
       <div class="ds-body">
+      ${_todoGisterenHtml(tdNaam)}
       ${kompas}
       ${_todoInhoudHtml(tdNaam, true)}
       ${(() => { try { return mijlpalenHtml(); } catch (_) { return ''; } })()}
