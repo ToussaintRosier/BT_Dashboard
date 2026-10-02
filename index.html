@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261002-0907 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261002-1142 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2308,6 +2308,24 @@
      onderaan vastgepind — zo staan Wijzigen/Opslaan en de tegenhanger altijd op
      dezelfde plek. Sluiten/Annuleren zijn weg: het ✕ (en Esc) volstaat. */
   .crm-kaart.crm-wizard, .crm-kaart.kand-kaart, .crm-kaart.crm-dossier, .crm-kaart.klant-kaart, .crm-kaart.beheer-kaart { width:1040px; max-width:calc(100vw - 28px); height:720px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-sizing:border-box; position:relative; }
+  /* Bedrijfsdossier v2 (02-10): groter, vier bladen, vakken en tabellen. */
+  .crm-kaart.crm-dossier-bedrijf, .crm-kaart.klant-kaart, .crm-kaart.beheer-kaart, .crm-kaart.crm-wizard.bd-wizard { width:1320px; max-width:calc(100vw - 28px); height:92vh; max-height:92vh; }
+  .bd-body .bd-vak, .bd-wizard .bd-vak { background:var(--l1); border-radius:10px; padding:10px 14px 12px; margin-bottom:12px; }
+  .bd-vak > .crm-kop:first-child { margin-top:0; }
+  .bd-g2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:stretch; }
+  .bd-g2 > .bd-vak { margin-bottom:12px; }
+  .bd-tabel { width:100%; border-collapse:collapse; font-size:.8rem; }
+  .bd-tabel th { text-align:left; font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.5); padding:4px 6px; border-bottom:1px solid rgba(255,255,255,.12); font-weight:var(--w-nadruk); }
+  .bd-tabel td { padding:6px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:middle; }
+  .bd-tabel tr.bd-af { opacity:.55; } .bd-tabel td.bd-akt { text-align:right; white-space:nowrap; } .bd-tabel tr.crm-lijstrij { cursor:pointer; } .bd-tabel tr.crm-lijstrij:hover td { background:rgba(255,255,255,.04); }
+  .bd-tabel input { width:100%; box-sizing:border-box; padding:5px 7px; border:1px solid rgba(255,255,255,.14); border-radius:6px; background:var(--l2); color:#fff; font-family:inherit; font-size:.8rem; }
+  .bd-tegels { display:grid; gap:8px; margin:0 0 12px; } .bd-tegel { background:var(--l1); border-radius:10px; padding:10px 12px; }
+  .bd-tegel b { display:block; font-size:1.25rem; line-height:1.1; } .bd-tegel span { font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.5); }
+  .bd-tegel small { display:block; font-size:.7rem; color:rgba(255,255,255,.55); margin-top:2px; } .bd-tegel.groen b { color:#25D366; } .bd-tegel.oranje b { color:#fbbf7a; }
+  .bd-samen { font-size:.8rem; line-height:1.45; margin-bottom:6px; } .bd-samen b { color:#F4CB3C; }
+  .bd-wizard .crm-form { max-width:none; } .bd-wizard .bd-g2 .crm-form-veld { grid-column:auto; }
+  .bd-wizard .bd-vak .crm-form { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; } .bd-wizard .bd-vak .crm-form-veld.breed { grid-column:1 / -1; }
+  @media (max-width:900px) { .bd-g2 { grid-template-columns:1fr; } }
   /* Het ✕ rechtsboven (17-09): float doet niets in een flex-kolom, dus absoluut. */
   .crm-kaart.crm-wizard > .crm-x, .crm-kaart.kand-kaart > .crm-x, .crm-kaart.crm-dossier > .crm-x, .crm-kaart.klant-kaart > .crm-x, .crm-kaart.beheer-kaart > .crm-x { position:absolute; top:14px; right:16px; float:none; padding:0; z-index:1; }
   /* Pillen in de kop even hoog in alle vensters (17-09). */
@@ -11294,7 +11312,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261002-0907';
+const APP_VERSIE = '20261002-1142';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20080,6 +20098,7 @@ async function stilVerversen() {
   if (_VERVERS_BEZIG || !_magNuVerversen()) return;
   _VERVERS_BEZIG = true;
   try {
+    await _sessieVers();   // 02-10: eerst een verse token (na slaapstand is de oude vaak verlopen)
     // De onderdelen die niet door realtime gedekt worden. Weekcijfers en
     // pipeline zitten wél in realtime, maar gaan hier bewust mee: als de
     // realtime-verbinding onderweg is weggevallen, is dit de enige weg terug.
@@ -20255,13 +20274,20 @@ function _rtRaaktScherm(tabellen, tab) {
 // dag — zonder dat de melding zei wélke tabel. Nu valt alleen die ene tabel weg, de
 // melding noemt hem, en na zes pogingen houdt het op voor deze sessie (het stille
 // verversen elke 10 minuten vangt het op).
-let _RT_KANALEN = {};   // tabel → { kanaal, pogingen, timer, gemeld }
+let _RT_KANALEN = {};   // tabel → { kanaal, pogingen, timer, gemeld, weg }
+// De verbinding als geheel (02-10): vallen (bijna) alle tabellen tegelijk weg, dan is dat één gebeurtenis —
+// laptop dicht, netwerk weg, token verlopen — en geen 30 tabelfouten.
+let _RT_VERBINDING = { rondes: 0, gemeld: false, bezig: null, sinds: 0, hartslag: Date.now(), timer: null, laatste: '' };
+const _RT_VERBINDING_DREMPEL = 5;   // zoveel tabellen tegelijk weg = de verbinding, niet de tabel
+function _rtAantalWeg() { return Object.values(_RT_KANALEN).filter(st => st.weg).length; }
+
 function subscribeRealtime() {
   if (!supa) return;
+  if (!_RT_VERBINDING.sinds) _RT_VERBINDING.sinds = Date.now();
   for (const tabel of Object.keys(_RT_TAKEN)) _rtAansluiten(tabel);
 }
 function _rtAansluiten(tabel) {
-  const st = _RT_KANALEN[tabel] || (_RT_KANALEN[tabel] = { kanaal: null, pogingen: 0, timer: null, gemeld: false });
+  const st = _RT_KANALEN[tabel] || (_RT_KANALEN[tabel] = { kanaal: null, pogingen: 0, timer: null, gemeld: false, weg: false });
   if (st.kanaal) { try { supa.removeChannel && supa.removeChannel(st.kanaal); } catch (e) { _meldStil('realtime kanaal weghalen', e); } st.kanaal = null; }
   const kanaal = supa.channel('kpi-live-' + tabel);
   st.kanaal = kanaal;
@@ -20269,24 +20295,91 @@ function _rtAansluiten(tabel) {
     .on('postgres_changes', { event: '*', schema: 'public', table: tabel }, () => _rtVerzamel(tabel))
     .subscribe((status, err) => {
       if (st.kanaal !== kanaal) return;   // een oud kanaal (na opnieuw aansluiten) zegt niets meer
-      if (status === 'SUBSCRIBED') { st.pogingen = 0; return; }
-      if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT' && status !== 'CLOSED') return;
-      if (st.timer) return;
-      // Achtergrondtabblad (20-08): opnieuw proberen wordt afgeknepen; wachten tot het tabblad terug is.
-      if (document.hidden) { _REALTIME_WACHT_OP_TERUG = true; return; }
-      st.pogingen++;
-      if (st.pogingen === 3 && !st.gemeld) {
-        st.gemeld = true;
-        meldFout('realtime: tabel ' + tabel + ' blijft wegvallen', 'subscribeRealtime',
-                 'laatste status: ' + status + (err && err.message ? ' · ' + err.message : '') + ' · staat de tabel in de publicatie? draai supabase/realtime_volledig.sql');
+      if (status === 'SUBSCRIBED') {
+        st.pogingen = 0; st.weg = false;
+        if (!_rtAantalWeg()) { _RT_VERBINDING.rondes = 0; }   // alles terug: de verbinding staat
+        return;
       }
-      if (st.pogingen >= 6) return;   // opgeven voor deze sessie; de andere tabellen lopen gewoon door
-      const wacht = Math.min(60000, 5000 * Math.pow(2, st.pogingen - 1));   // 5, 10, 20, 40, 60 s
-      st.timer = setTimeout(() => { st.timer = null; _rtAansluiten(tabel); }, wacht);
+      if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT' && status !== 'CLOSED') return;
+      st.weg = true; st.laatste = { status, fout: err && err.message ? String(err.message) : '' };
+      _rtBeslisPlan();   // de fouten komen één voor één binnen: één seconde verzamelen, dan beslissen
     });
 }
+// Eén seconde na de eerste fout: is het de verbinding (bijna alles weg) of één losse tabel?
+let _RT_BESLIS = null;
+function _rtBeslisPlan() { if (!_RT_BESLIS) _RT_BESLIS = setTimeout(() => { _RT_BESLIS = null; _rtBeslis(); }, 1000); }
+function _rtBeslis() {
+  const weg = Object.keys(_RT_KANALEN).filter(tb => _RT_KANALEN[tb].weg);
+  if (!weg.length) return;
+  // Niemand kijkt of er is geen netwerk: niets proberen, wachten op de terugkeer (visibilitychange / online).
+  if (document.hidden || (typeof navigator !== 'undefined' && navigator.onLine === false)) { _REALTIME_WACHT_OP_TERUG = true; return; }
+  // (Bijna) alles tegelijk weg → de verbinding; één wakker-ronde voor alle tabellen, geen tabelfouten.
+  if (weg.length >= Math.min(_RT_VERBINDING_DREMPEL, Object.keys(_RT_TAKEN).length)) {
+    weg.forEach(tb => { const st = _RT_KANALEN[tb]; if (st.timer) { clearTimeout(st.timer); st.timer = null; } st.pogingen = 0; });
+    const l = _RT_KANALEN[weg[0]].laatste || {};
+    _rtVerbindingWeg(l.status || 'CHANNEL_ERROR', l.fout ? { message: l.fout } : null);
+    return;
+  }
+  // Eén (of een paar) losse tabel(len): per tabel opnieuw, met oplopende wachttijd; na 3 keer melden, na 6 opgeven.
+  weg.forEach(tabel => {
+    const st = _RT_KANALEN[tabel];
+    if (st.timer) return;
+    st.pogingen++;
+    const l = st.laatste || {};
+    if (st.pogingen === 3 && !st.gemeld) {
+      st.gemeld = true;
+      meldFout('realtime: tabel ' + tabel + ' blijft wegvallen', 'subscribeRealtime',
+               'laatste status: ' + (l.status || '?') + (l.fout ? ' · ' + l.fout : '') + ' · alleen deze tabel; staat hij in de publicatie? draai supabase/realtime_volledig.sql');
+    }
+    if (st.pogingen >= 6) return;   // opgeven voor deze sessie; de andere tabellen lopen gewoon door
+    const wacht = Math.min(60000, 5000 * Math.pow(2, st.pogingen - 1));   // 5, 10, 20, 40, 60 s
+    st.timer = setTimeout(() => { st.timer = null; _rtAansluiten(tabel); }, wacht);
+  });
+}
 
-// Opnieuw aansluiten (alles): tellers op nul, oude kanalen weg, elke tabel opnieuw.
+// De verbinding is weg: één ronde voor alles, met oplopende wachttijd (5, 20, 60, 60 … s).
+// Melden pas als drie rondes mislukten én we al minstens twee minuten online zijn — anders is het
+// gewoon het netwerk dat nog terugkomt na het openklappen.
+function _rtVerbindingWeg(status, err) {
+  const v = _RT_VERBINDING;
+  if (v.timer || v.bezig) return;
+  v.rondes++;
+  v.laatste = 'status ' + status + (err && err.message ? ' · ' + err.message : '');
+  if (v.rondes >= 3 && !v.gemeld && Date.now() - v.sinds >= 120000) {
+    v.gemeld = true;
+    meldFout('realtime-verbinding blijft wegvallen (' + _rtAantalWeg() + ' tabellen)', 'subscribeRealtime', v.laatste + ' · na ' + v.rondes + ' rondes; het stille verversen elke 10 minuten vangt het op');
+  }
+  if (v.rondes >= 10) return;   // opgeven voor deze sessie
+  const wacht = v.rondes === 1 ? 5000 : v.rondes === 2 ? 20000 : 60000;
+  v.timer = setTimeout(() => { v.timer = null; _rtWakker('verbinding'); }, wacht);
+}
+
+// Verse sessie: een verlopen token wordt door getSession() zelf ververst (de interne klok mist dat na
+// slaapstand). Geeft de token terug, of null.
+async function _sessieVers() {
+  if (!supa || !supa.auth) return null;
+  try { const { data } = await supa.auth.getSession(); return data && data.session ? data.session.access_token : null; }
+  catch (e) { _meldStil('sessie verversen', e); return null; }
+}
+// Wakker worden (02-10): tabblad terug, netwerk terug, computer uit slaap, of de verbinding weg.
+// Eerst de sessie verversen en de token aan de realtime-socket geven, dán alle kanalen in één keer.
+function _rtWakker(reden) {
+  if (!supa) return;
+  if (_RT_VERBINDING.bezig) return _RT_VERBINDING.bezig;
+  _RT_VERBINDING.bezig = (async () => {
+    try {
+      if (document.hidden || (typeof navigator !== 'undefined' && navigator.onLine === false)) { _REALTIME_WACHT_OP_TERUG = true; return; }
+      const token = await _sessieVers();
+      if (token && supa.realtime && typeof supa.realtime.setAuth === 'function') { try { supa.realtime.setAuth(token); } catch (e) { _meldStil('realtime setAuth', e); } }
+      _RT_VERBINDING.sinds = _RT_VERBINDING.sinds || Date.now();
+      _realtimeOpnieuw();
+    } catch (e) { _meldStil('realtime wakker (' + reden + ')', e); }
+    finally { setTimeout(() => { _RT_VERBINDING.bezig = null; }, 3000); }
+  })();
+  return _RT_VERBINDING.bezig;
+}
+
+// Opnieuw aansluiten (alles): tellers per tabel op nul, oude kanalen weg, elke tabel opnieuw.
 function _realtimeOpnieuw() {
   if (_REALTIME_HERSTART) { clearTimeout(_REALTIME_HERSTART); _REALTIME_HERSTART = null; }
   _REALTIME_WACHT_OP_TERUG = false;
@@ -20295,11 +20388,18 @@ function _realtimeOpnieuw() {
   subscribeRealtime();
 }
 
-// Terug in beeld: meteen opnieuw aansluiten in plaats van wachten op de
-// volgende poging.
+// Terug in beeld: wakker worden als er iets weg was.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && _REALTIME_WACHT_OP_TERUG) _realtimeOpnieuw();
+  if (!document.hidden && (_REALTIME_WACHT_OP_TERUG || _rtAantalWeg())) _rtWakker('tabblad terug');
 });
+// Netwerk terug (02-10).
+window.addEventListener('online', () => { _RT_VERBINDING.sinds = Date.now(); _rtWakker('netwerk terug'); });
+// Computer uit slaap (02-10): de hartslag tikt elke 30 s; meer dan 90 s gemist = geslapen → wakker worden.
+setInterval(() => {
+  const nu = Date.now();
+  if (nu - _RT_VERBINDING.hartslag > 90000) { _RT_VERBINDING.sinds = nu; _RT_VERBINDING.rondes = 0; _rtWakker('uit slaap'); }
+  _RT_VERBINDING.hartslag = nu;
+}, 30000);
 
 // ── Opstarten ───────────────────────────────────────────────────────────────────
 async function initApp() {
@@ -21088,7 +21188,7 @@ function crmKaartToon(html, klasse, bijSluiten) {
 // Log), zodat je niet hoeft te zoeken. Op een breed scherm gebeurt er niets.
 function _crmKaartMobielTabs(laag) {
   if (!(typeof window !== 'undefined' && window.innerWidth <= 640)) return;
-  const kaart = laag.querySelector('.crm-kaart'); if (!kaart || !kaart.querySelector('.kk-2k')) return;
+  const kaart = laag.querySelector('.crm-kaart'); if (!kaart || !kaart.querySelector('.kk-2k, .bd-body')) return;
   const wil = [['Bedrijfsgegevens', 'Gegevens'], ['Gegevens', 'Gegevens'], ['Acties', 'Acties'], ['Contactpersonen', 'Contacten'], ['Afspraak', 'Afspraak'], ['Proces', 'Proces'], ['Gesprekslog', 'Log']];
   const koppen = Array.from(kaart.querySelectorAll('.crm-kop'));
   const tabs = [];
@@ -28198,9 +28298,14 @@ function _pipeCardFromRow(c) {
 // opnieuw sturen); hier komt alleen range() achter.
 // ═══════════════════════════════════════════════════════════════════════════
 async function _alleRijen(maakVraag) {
-  let alles = [], van = 0;
+  let alles = [], van = 0, hersteld = false;
   for (;;) {
-    const { data, error } = await maakVraag().range(van, van + 999);
+    let { data, error } = await maakVraag().range(van, van + 999);
+    // Verlopen token (02-10): sessie verversen en deze portie één keer opnieuw — geen fout loggen.
+    if (error && !hersteld && /JWT expired|PGRST301|JWSError/i.test(String(error.message || error.code || ''))) {
+      hersteld = true; await _sessieVers();
+      ({ data, error } = await maakVraag().range(van, van + 999));
+    }
     if (error) return { data: alles, error };
     alles = alles.concat(data || []);
     if (!data || data.length < 1000) return { data: alles, error: null };
@@ -30561,15 +30666,20 @@ const CRM_KAND_VELDEN = [
     { k: 'regio', l: 'Regio (reisbereid)' }, { k: 'woonregio', l: 'Woonregio', req: true, select: CRM_WOONREGIOS, voorstel: ['woonplaats', 'crmWoonregioVan'] },
     { k: 'opmerking', l: 'Opmerking', type: 'textarea', breed: true } ] },
 ];
+// Wizard (02-10): dezelfde indeling als de Bedrijfskaart — stap 1 twee vakken naast elkaar,
+// stap 2 contactpersonen als tabel, stap 3 documenten en opmerking.
+const _BEDR_GEGEVENS = [
+  { k: 'naam', l: 'Bedrijfsnaam', req: true, breed: true }, { k: 'adres', l: 'Straat en huisnummer', breed: true },
+  { k: 'postcode', l: 'Postcode' }, { k: 'plaats', l: 'Plaats' },
+  { k: 'website', l: 'Website', type: 'url' }, { k: 'telefoon', l: 'Telefoon', type: 'tel' }, { k: 'email', l: 'E-mail', type: 'email' }, { k: 'kvk', l: 'KvK-nummer' },
+];
+const _BEDR_VOORW = [
+  { k: 'branche', l: 'Branche' }, { k: 'fte', l: 'FTE (±)' }, { k: 'factor', l: 'Factor' }, { k: 'inleentermijn', l: 'Inleentermijn' }, { k: 'cao', l: 'CAO' }, { k: 'fase', l: 'Fase samenwerking' },
+];
 const CRM_BEDR_VELDEN = [
-  { titel: 'Bedrijf', velden: [
-    { k: 'naam', l: 'Bedrijfsnaam', req: true, breed: true }, { k: 'adres', l: 'Straat en huisnummer', breed: true },
-    { k: 'postcode', l: 'Postcode' }, { k: 'plaats', l: 'Plaats' } ] },
-  { titel: 'Contact', velden: [
-    { k: 'website', l: 'Website', type: 'url', breed: true }, { k: 'telefoon', l: 'Telefoon', type: 'tel' }, { k: 'kvk', l: 'KvK-nummer' } ] },
-  { titel: 'Voorwaarden & profiel', velden: [
-    { k: 'branche', l: 'Branche' }, { k: 'fte', l: 'FTE (±)' }, { k: 'factor', l: 'Factor' }, { k: 'inleentermijn', l: 'Inleentermijn' }, { k: 'cao', l: 'CAO' }, { k: 'fase', l: 'Fase samenwerking' } ] },
-  { titel: 'Documenten', velden: [
+  { titel: 'Bedrijfskaart', groepen: [{ titel: 'Bedrijfsgegevens', velden: _BEDR_GEGEVENS }, { titel: 'Voorwaarden & profiel', velden: _BEDR_VOORW }], velden: _BEDR_GEGEVENS.concat(_BEDR_VOORW) },
+  { titel: 'Contactpersonen', soort: 'contacten', velden: [] },
+  { titel: 'Documenten & opmerking', velden: [
     { k: 'swo_link', l: 'Samenwerkingsovereenkomst (OneDrive-link)', type: 'url', breed: true }, { k: 'offerte_link', l: 'Offerte (OneDrive-link)', type: 'url', breed: true },
     { k: 'opmerking', l: 'Opmerking', type: 'textarea', breed: true } ] },
 ];
@@ -31328,7 +31438,7 @@ function crmKandZoek(v) {
 }
 
 // ── De wizard (kandidaat én bedrijf): drie stappen in één donker venster ───
-function _crmWizToon() { crmKaartToon(_crmWizHtml(), 'crm-wizard', () => { CRM_WIZ = null; _CRM_WIZ_NA = null; }); }
+function _crmWizToon() { crmKaartToon(_crmWizHtml(), 'crm-wizard' + (CRM_WIZ && CRM_WIZ.soort === 'bedrijf' ? ' bd-wizard' : ''), () => { CRM_WIZ = null; _CRM_WIZ_NA = null; }); }   // 02-10: bedrijf breed
 function _crmWizHtml() {
   const W = CRM_WIZ, sec = W.velden[W.stap], laatste = W.stap === W.velden.length - 1;
   const balk = '<div class="crm-wiz-balk">' + W.velden.map((s, i) =>
@@ -31339,7 +31449,7 @@ function _crmWizHtml() {
   W.auto = W.auto || {};
   const alle = W.velden.flatMap(x => x.velden);
   sec.velden.forEach(f => { if (f.voorstel && !String(W.w[f.k] || '').trim() && String(W.w[f.voorstel[0]] || '').trim()) { W.w[f.k] = _crmWizVoorstelFn(f.voorstel[1])(W.w[f.voorstel[0]]); W.auto[f.k] = true; } });
-  const velden = sec.velden.map(f => {
+  const veldHtml = (f) => {
     const id = 'crm-w-' + f.k, v = String(W.w[f.k] == null ? '' : W.w[f.k]);
     const lab = '<label for="' + id + '">' + escHtml(f.l) + (f.req ? ' <span class="crm-req">*</span>' : '') + '</label>';
     const doel = alle.find(g => g.voorstel && g.voorstel[0] === f.k);
@@ -31351,7 +31461,12 @@ function _crmWizHtml() {
       ? '<textarea id="' + id + '" rows="3" maxlength="2000">' + escHtml(v) + '</textarea>'
       : '<input id="' + id + '" type="' + (f.type || 'text') + '" value="' + escHtml(v) + '" maxlength="300"' + (f.type === 'url' ? ' placeholder="https://…"' : '') + bronAttr + '>';
     return '<div class="crm-form-veld' + (f.breed ? ' breed' : '') + '">' + lab + inp + '</div>';
-  }).join('');
+  };
+  // 02-10: een stap met groepen = twee vakken naast elkaar; de contactpersonen-stap = tabel.
+  const velden = sec.groepen
+    ? '<div class="bd-g2">' + sec.groepen.map(g => '<div class="bd-vak"><div class="crm-kop">' + escHtml(g.titel) + '</div><div class="crm-form">' + g.velden.map(veldHtml).join('') + '</div></div>').join('') + '</div>'
+    : sec.soort === 'contacten' ? _crmWizContactenHtml(W)
+    : sec.velden.map(veldHtml).join('');
   // Vaste maat op elke stap (akkoord 17-09): de foutregel staat er altijd
   // (onzichtbaar als er niets is) en Terug ook (onzichtbaar op stap 1), zodat
   // velden en knoppen op elke stap op precies dezelfde plek staan.
@@ -31359,13 +31474,35 @@ function _crmWizHtml() {
   const opslaan = W.soort === 'kand' ? 'crmKandOpslaan()' : 'crmBedrijfOpslaan()';
   return '<h4 class="wit" title="' + escHtml(W.titel) + '">' + escHtml(W.titel) + '</h4>' +
     '<div class="crm-sub">Stap ' + (W.stap + 1) + ' van ' + W.velden.length + ' · ' + escHtml(sec.titel) + (W.stap === 0 ? ' · alleen * is verplicht' : '') + '</div>' +
-    balk + '<div class="crm-form">' + velden + '</div>' + fout +
+    balk + (sec.groepen || sec.soort === 'contacten' ? '<div class="crm-form bd-los">' + velden + '</div>' : '<div class="crm-form">' + velden + '</div>') + fout +
     '<div class="crm-knoppen">' +
       (laatste ? '<button class="crm-knop goed crm-knop-vast crm-wiz-door" onclick="' + opslaan + '">Opslaan</button>' : '<button class="crm-knop goed crm-knop-vast crm-wiz-door" onclick="crmWizStap(1)">Volgende →</button>') +
       '<button class="crm-knop crm-knop-vast crm-wiz-terug' + (W.stap > 0 ? '' : ' onzichtbaar') + '" onclick="crmWizStap(-1)"' + (W.stap > 0 ? '' : ' tabindex="-1" aria-hidden="true"') + '>← Terug</button>' +
     '</div>';
 }
 function _crmWizVoorstelFn(naam) { return naam === 'crmWoonregioVan' ? crmWoonregioVan : crmVakgebiedVan; }
+// Contactpersonen in de wizard (02-10): tabel + invoerregel; opslaan zet ze bij het bedrijf.
+function _crmWizContactenHtml(W) {
+  const lijst = W.contacten || [];
+  const rijen = lijst.map((c, i) => '<tr><td><b>' + escHtml(c.naam) + '</b></td><td>' + escHtml(c.functie || '—') + '</td><td>' + escHtml(c.afdeling || '—') + '</td><td>' + escHtml(c.rol || '—') + '</td><td>' + escHtml(c.telefoon || '—') + '</td><td>' + escHtml(c.email || '—') + '</td>' +
+    '<td class="bd-akt"><button type="button" class="one-dn-knop weg" title="Weghalen" onclick="crmWizCpWeg(' + i + ')">×</button></td></tr>').join('');
+  const inp = (id, ph, type) => '<input id="' + id + '" type="' + (type || 'text') + '" placeholder="' + escHtml(ph) + '" maxlength="120" onkeydown="if(event.key===\'Enter\'){event.preventDefault();crmWizCpToevoegen();}">';
+  return '<div class="bd-vak"><div class="crm-kop">Contactpersonen<small class="crm-kop-klein">' + (lijst.length ? lijst.length + ' · ' : '') + 'naam is genoeg, de rest mag later</small></div>' +
+    '<table class="bd-tabel"><thead><tr><th>Naam</th><th>Functie</th><th>Afdeling</th><th>Rol</th><th>Telefoon</th><th>E-mail</th><th></th></tr></thead><tbody>' + rijen +
+    '<tr class="bd-nieuw"><td>' + inp('crm-wcp-naam', 'Naam') + '</td><td>' + inp('crm-wcp-functie', 'Functie') + '</td><td>' + inp('crm-wcp-afdeling', 'Afdeling') + '</td>' +
+    '<td><select id="crm-wcp-rol"><option value="">rol…</option><option>strategisch</option><option>operationeel</option><option>tarief</option><option>HR</option></select></td>' +
+    '<td>' + inp('crm-wcp-telefoon', '06-…', 'tel') + '</td><td>' + inp('crm-wcp-email', 'naam@…', 'email') + '</td>' +
+    '<td class="bd-akt"><button type="button" class="crm-knop goed" onclick="crmWizCpToevoegen()">+ toevoegen</button></td></tr></tbody></table></div>';
+}
+function crmWizCpToevoegen() {
+  const W = CRM_WIZ; if (!W) return;
+  const v = (id) => String((document.getElementById(id) || {}).value || '').trim();
+  const naam = v('crm-wcp-naam'); if (!naam) { W.fout = 'Vul de naam van de contactpersoon in.'; _crmWizToon(); return; }
+  W.contacten = (W.contacten || []).concat([{ naam, functie: v('crm-wcp-functie'), afdeling: v('crm-wcp-afdeling'), rol: v('crm-wcp-rol'), telefoon: v('crm-wcp-telefoon'), email: v('crm-wcp-email') }]);
+  W.contactenGewijzigd = true; W.fout = '';
+  _crmWizToon(); const el = document.getElementById('crm-wcp-naam'); if (el && el.focus) el.focus();
+}
+function crmWizCpWeg(i) { const W = CRM_WIZ; if (!W) return; W.contacten = (W.contacten || []).filter((_, j) => j !== i); W.contactenGewijzigd = true; _crmWizToon(); }
 // Typen in functie of woonplaats zet de keuzelijst (vakgebied, woonregio) op het voorstel (22-09).
 function crmWizVoorstel(bron, doel, fn) {
   const W = CRM_WIZ; if (!W) return;
@@ -31505,6 +31642,7 @@ const _KAND_IK = {
   naw:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M6 16c0-1.7 1.3-3 3-3s3 1.3 3 3M14 9h4M14 13h4"/></svg>',
   kand:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>',
   beheer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg>',
+  vacatures: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12h18"/></svg>',
   pen:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
   ok:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
   x:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
@@ -32725,6 +32863,9 @@ function crmBedrijfWizard(sleutel) {
   const w = _crmWizVelden(CRM_BEDR_VELDEN, rij);
   if (!rij && sleutel) { const k = crmBedrijfLijst().find(x => x.sleutel === sleutel); if (k) w.naam = k.naam; }
   CRM_WIZ = { soort: 'bedrijf', stap: 0, id: rij ? rij.id : null, w, velden: CRM_BEDR_VELDEN, titel: rij ? 'Gegevens wijzigen · ' + rij.naam : 'Nieuw bedrijf', fout: '' };
+  // 02-10: contactpersonen mee in de wizard (bestaand bedrijf: wat er al staat, ook uit de KAM-tabel).
+  const kb = sleutel ? crmBedrijfLijst().find(x => x.sleutel === sleutel) : null;
+  CRM_WIZ.contacten = kb ? _crmBedrijfContacten(kb).filter(c => c && c.naam).map(c => ({ ...c })) : [];
   _crmWizToon();
   const el = document.getElementById('crm-w-naam'); if (el && el.focus) el.focus();
 }
@@ -32752,7 +32893,7 @@ async function crmBedrijfOpslaan() {
   } else {
     // Eerder verwijderd (18-09): die rij hergebruiken — de sleutel is uniek.
     const eerder = lijst.find(b => b.sleutel === velden.sleutel && b.bron === 'verwijderd');
-    const nieuw = { ...velden, contacten: [], bron: 'handmatig', created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
+    const nieuw = { ...velden, contacten: (W.contacten || []).filter(c => c && c.naam), bron: 'handmatig', created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };   // 02-10: contactpersonen uit de wizard
     if (supa) {
       _echoVanZelf('crm_bedrijven');
       const { data, error } = eerder && !String(eerder.id).startsWith('local-')
@@ -32763,6 +32904,8 @@ async function crmBedrijfOpslaan() {
     } else rij = { id: eerder ? eerder.id : 'local-' + Date.now(), ...nieuw };
     CRM_BEDRIJVEN = lijst.filter(b => !eerder || String(b.id) !== String(eerder.id)).concat([rij]);
   }
+  // 02-10: gewijzigde contactpersonen van een bestaand bedrijf via de gewone weg (CRM-rij of KAM-tabel).
+  if (W.id && W.contactenGewijzigd) { const kb = crmBedrijfLijst().find(x => x.sleutel === velden.sleutel); if (kb) await _crmBedrijfContactenOpslaan(kb, (W.contacten || []).filter(c => c && c.naam)); }
   CRM_WIZ = null;
   if (_CRM_WIZ_NA) { const na = _CRM_WIZ_NA; _CRM_WIZ_NA = null; na(rij); if (currentTab === 'crmbedrijf') renderCrmBedrijven(); return; }   // 28-09: bijv. terug naar het verslag-formulier
   crmBedrijfOpen(velden.sleutel);
@@ -32786,15 +32929,16 @@ function _bedrijfBladenRij(k, actief, o) {
   const sE = escApos(k.sleutel);
   const magCrm = magWijzigen('crm') && !CRM_ONTBREEKT;
   const projecten = _bedrijfProjecten(k.sleutel).length;
+  const vacs = typeof vacaturesVoorKlant === 'function' ? vacaturesVoorKlant(k.sleutel).filter(v => v.status !== 'gesloten').length : 0;
   const blad = (id, tekst, onclick, leeg, n) =>
     '<button type="button" class="kand-blad' + (actief === id ? ' aan' : '') + (leeg && actief !== id ? ' leeg' : '') + '"' +
     (actief === id ? ' aria-current="page"' : ' onclick="' + onclick + '"') + ' title="' + escHtml(tekst) + (leeg ? ' — nog leeg' : '') + '">' +
     _KAND_IK[id] + escHtml(tekst) + (n ? '<span class="n">' + n + '</span>' : '') + '</button>';
   const bladen = '<span class="kand-bladen' + (o.bewerk ? ' uit' : '') + '">' +
     blad('bedrijf', 'Bedrijfskaart', "crmBedrijfOpen('" + sE + "')", !k.crm) +
-    blad('account', 'Accountkaart', "accountKaartOpen('" + sE + "')", !k.account && !k.lead) +
-    blad('beheer', 'Beheerkaart', "bedrijfBeheerKaartOpen('" + sE + "')", !projecten, projecten) +
-    blad('plan', 'Accountplan', "apOpenVoor('" + sE + "')", !_apPlanVoor(k.sleutel)) + '</span>';
+    blad('account', 'Accountmanagement', "accountKaartOpen('" + sE + "')", !k.account && !k.lead) +
+    blad('beheer', 'Projecten', "bedrijfBeheerKaartOpen('" + sE + "')", !projecten, projecten) +
+    blad('vacatures', 'Vacatures', "bedrijfVacaturesKaartOpen('" + sE + "')", !vacs, vacs) + '</span>';   // 02-10: vier bladen; Accountplan zit in Accountmanagement
   const ik = (icoon, klasse, titel, onclick) => '<button type="button" class="crm-knop kand-ik' + (klasse ? ' ' + klasse : '') + '"' + (onclick ? ' onclick="' + onclick + '"' : '') + ' title="' + escHtml(titel) + '" aria-label="' + escHtml(titel) + '">' + _KAND_IK[icoon] + '</button>';
   const rechts = o.bewerk
     ? ik('ok', 'geel', 'Opslaan', o.opslaan) + ik('x', '', 'Annuleren (Esc)', o.annuleren) + '<span class="kand-sep"></span>' + ik('trash', 'weg gedempt', 'Verwijderen…')
@@ -32871,12 +33015,7 @@ function crmBedrijfDossierHtml(sleutel) {
   const contacten = k.contacten;
   // Compact (22-09): regels met iconen; de toevoeg-vorm staat dicht achter "+ contactpersoon".
   const magCp = magAcc && (a || k.crm);
-  const contactHtml = blok('Contactpersonen bij ' + escHtml(k.naam), (contacten.length ? contacten.map((c, i) =>
-    _cpRijHtml(c, magAcc ? "crmBedrijfContactWeghalen('" + sE + "'," + i + ')' : '', magCp ? "crmBedrijfContactWijzig('" + sE + "'," + i + ')' : '', { soort: 'bedr', id: k.sleutel, naam: k.naam })).join('')
-    : '<div class="kk-tekst stil">nog geen contactpersonen — voeg het aanspreekpunt bij het bedrijf toe</div>') +
-    (magCp ? '<div id="crm-cp-vorm" hidden>' + _cpFormHtml('crm-cp', 'crmBedrijfContactToevoegen(\'' + sE + '\')') + '</div>'
-      : (magAcc ? '<div class="kk-tekst stil">Sla het bedrijf eerst op in het CRM (Wijzigen) om contactpersonen te bewaren.</div>' : '')),
-    null, magCp ? '<button type="button" id="crm-cp-knop" class="crm-kop-knop" onclick="crmBedrijfContactVorm()">+ contactpersoon</button>' : '');
+  const contactHtml = _bdContactenHtml(k, magAcc, magCp, sE);   // 02-10: tabel met alle gegevens
   const opm = blok('Opmerking', bewerk ? '<div class="kk-rij bewerk">' + _crmBewerkVeld('opmerking', { type: 'textarea' }) + '</div>'
     : (r.opmerking ? '<div class="kk-tekst">' + escHtml(r.opmerking) + '</div>' : '<div class="kk-tekst stil">—</div>'));
   const nid = _crmBedrijfNotitieId(k);
@@ -32885,12 +33024,14 @@ function crmBedrijfDossierHtml(sleutel) {
   const knoppen = _bedrijfBladenRij(k, 'bedrijf', bewerk
     ? { bewerk: true, opslaan: 'crmBedrijfBewerkOpslaan()', annuleren: 'crmBedrijfBewerkStop()' }
     : { wijzig: magAcc && !CRM_ONTBREEKT ? "crmBedrijfBewerk('" + sE + "')" : null, wijzigTitel: 'Wijzigen (bedrijfsgegevens, team, opmerking)' });
-  return kop + '<div class="crm-sub">' + escHtml(sub) + '</div>' +
-    '<div class="crm-body"><div class="kk-2k"><div>' +
-      (bewerk ? '' : _vsBlokBedrijfHtml(k) + _vacBlokBedrijfHtml(k)) + gegevens + voorw + team + contactHtml + opm +   // 01-10: blok Vacatures   // 30-09: Verslagen & records, met + Gespreksverslag maken
-    '</div><div>' +
-      _crmActiesBlokHtml(k) + _crmAfspraakBlokHtml(k) + '<div class="crm-kop">Gesprekslog</div>' + log +
-    '</div></div></div>' + knoppen;
+  // Bedrijfsdossier v2 (02-10): twee even grote vakken, contactpersonen als tabel, gesprekslog onderaan.
+  // Verslagen, bezoeken, acties en de afspraak staan op Accountmanagement; vacatures op het blad Vacatures.
+  return kop + '<div class="crm-sub">' + escHtml(bewerk ? sub : (_bdKopSub(k) || sub)) + '</div>' +
+    '<div class="crm-body bd-body">' +
+      '<div class="bd-g2"><div class="bd-vak">' + gegevens + opm + '</div><div class="bd-vak">' + voorw + team + '</div></div>' +
+      contactHtml +
+      '<div class="bd-vak"><div class="crm-kop">Gesprekslog</div>' + log + '</div>' +
+    '</div>' + knoppen;
 }
 // ── Afspraak plannen vanaf de bedrijfskaart (22-09) ─────────────────────────
 // Een bezoek dat je met een klant afspreekt, is een Bezoeken-tegeltje in de
@@ -33035,7 +33176,7 @@ function crmBedrijfOpen(sleutel, stil) {
   const concept = oud ? String(oud.value || '') : '';
   if (CRM_BEWERK && CRM_BEWERK.sleutel !== String(sleutel)) CRM_BEWERK = null;
   _crmBewerkLees();
-  crmKaartToon(crmBedrijfDossierHtml(sleutel), 'crm-dossier crm-dossier-bedrijf', () => { CRM_BEWERK = null; CRM_AFSPRAAK = null; });
+  crmKaartToon(crmBedrijfDossierHtml(sleutel), 'crm-dossier crm-dossier-bedrijf bd-dossier', () => { CRM_BEWERK = null; CRM_AFSPRAAK = null; });
   if (concept) { const t = document.getElementById('acc-notitie-invoer'); if (t) { t.value = concept; _oneBerGroei(t); } }
   const k = !stil ? crmBedrijfLijst().find(x => x.sleutel === String(sleutel)) : null;
   const nid = k ? _crmBedrijfNotitieId(k) : null;
@@ -33190,6 +33331,8 @@ function _crmDossierHerteken() {
   if (bd) { crmBedrijfOpen(bd.getAttribute('data-sleutel'), true); return; }
   const bb = document.querySelector('.bedrijf-beheer .crm-dossier-sleutel');
   if (bb) { bedrijfBeheerKaartOpen(bb.getAttribute('data-sleutel')); return; }
+  const bv = document.querySelector('.bedrijf-vacatures .crm-dossier-sleutel');   // 02-10: blad Vacatures
+  if (bv) { bedrijfVacaturesKaartOpen(bv.getAttribute('data-sleutel')); return; }
   const ak = document.querySelector('.klant-kaart-id[data-sleutel]');   // 28-09: de Accountkaart (acties)
   if (ak && ak.getAttribute('data-sleutel')) accountKaartOpen(ak.getAttribute('data-sleutel'), true);
 }
@@ -33867,7 +34010,7 @@ function accountKaartHtml(sleutel) {
   const blok = (kop, inhoud, klein) => '<div class="crm-kop">' + kop + (klein ? '<small class="crm-kop-klein">' + klein + '</small>' : '') + '</div>' + inhoud;
   const score = a ? accScore(a) : null;
   const sub = bewerk ? 'bewerken — Esc of ✕ sluit zonder op te slaan'
-    : ['Accountkaart', a && a.strat_cp ? 'strategisch ' + a.strat_cp : '', a && a.op_cp ? 'operationeel ' + a.op_cp : '', plan ? 'accountplan ' + datumNL(String(plan.updated_at || '').slice(0, 10)) : 'geen accountplan'].filter(Boolean).join(' · ');
+    : ['Accountmanagement', a && a.strat_cp ? 'strategisch ' + a.strat_cp : '', a && a.op_cp ? 'operationeel ' + a.op_cp : '', plan ? 'accountplan ' + datumNL(String(plan.updated_at || '').slice(0, 10)) : 'geen accountplan'].filter(Boolean).join(' · ');
   // Commerciële afspraken: eigen velden op de CRM-rij; zolang die leeg zijn
   // en er een accountplan is, staat de waarde uit het plan als voorzet.
   const planHint = [];
@@ -33907,12 +34050,19 @@ function accountKaartHtml(sleutel) {
     : { wijzig: magCrm ? "accountKaartBewerk('" + sE + "')" : null, wijzigTitel: 'Wijzigen (afspraken, RLDV, scores, documenten)' });
   return _bedrijfKopHtml(k) + '<span class="klant-kaart-id" data-account="' + escHtml(a ? String(a.id) : '') + '" data-sleutel="' + escHtml(k.sleutel) + '" hidden></span>' +
     '<div class="crm-sub">' + escHtml(sub) + '</div>' +
-    '<div class="crm-body"><div class="kk-2k"><div>' + afspraken + rldv + '</div><div>' + _crmActiesBlokHtml(k) + scoreBlok + planBlok + docs + '</div></div></div>' + knoppen;
+    '<div class="crm-body bd-body">' +
+      (bewerk ? '' : '<div class="bd-vak">' + _accBezoekenBlokHtml(k.naam) + _vsBlokBedrijfHtml(k) + _crmAfspraakBlokHtml(k) + '</div>') +   // 02-10: bezoeken & verslagen bovenaan, afspraak plannen erbij
+      '<div class="bd-g2"><div>' +
+        '<div class="bd-vak">' + scoreBlok + '</div><div class="bd-vak">' + rldv + '</div><div class="bd-vak">' + afspraken + docs + '</div>' +
+      '</div><div>' +
+        (bewerk ? '<div class="bd-vak">' + planBlok + '</div>' : _bdPlanPreviewHtml(k, plan, a, magAcc) + '<div class="bd-vak">' + _crmActiesBlokHtml(k) + '</div>') +
+      '</div></div>' +
+    '</div>' + knoppen;
 }
 function accountKaartOpen(sleutel, stil) {
   if (CRM_BEWERK && (CRM_BEWERK.soort !== 'account' || CRM_BEWERK.sleutel !== String(sleutel))) CRM_BEWERK = null;
   _crmBewerkLees();
-  crmKaartToon(accountKaartHtml(sleutel), 'klant-kaart', () => { CRM_BEWERK = null; });
+  crmKaartToon(accountKaartHtml(sleutel), 'klant-kaart bd-dossier', () => { CRM_BEWERK = null; });
 }
 // De oude ingang vanuit de KAM-lijst en de bezoekkaart: op KAM-id.
 function klantKaartOpen(accId, stil) {
@@ -34036,12 +34186,18 @@ function bedrijfBeheerKaartHtml(sleutel) {
   // 24-09: gesprekken per starter (op de koppeling), voor de tegel en de momenten.
   const gesprekkenVan = {}; projecten.forEach(p => { const sl = _itkSleutel(p.naam || ''); if (sl && !gesprekkenVan[sl]) gesprekkenVan[sl] = _evalGesprekken(sl); });
   const evalGesprekken = accBezoekenLijst().filter(b => _itkSleutel(b.bedrijf) === k.sleutel && b.soortBezoek === 'evaluatie').length;
-  const tegels = '<div class="kk-tegels">' +
-    '<div class="kk-tegel"><small>Lopend</small><b>' + lopend.length + '</b></div>' +
-    '<div class="kk-tegel"><small>Afgerond</small><b>' + afgerond.length + '</b></div>' +
-    '<div class="kk-tegel"><small>Evaluaties open</small><b>' + open + '</b></div>' +
-    '<div class="kk-tegel"><small>Evaluatiegesprekken</small><b>' + evalGesprekken + '</b></div>' +
-    '<div class="kk-tegel"><small>Bezoeken</small><b>' + (k.bezoeken || 0) + '</b></div></div>';
+  // Tegels (02-10): lopend, gestart dit jaar, beëindigd dit jaar, omzet dit jaar (Moneybird), evaluaties open.
+  const jaar = nu.getFullYear();
+  const gestart = projecten.filter(p => p.begin && p.begin.getFullYear() === jaar).length;
+  const beeindigd = afgerond.filter(p => p.eind && p.eind.getFullYear() === jaar).length;
+  const omzet = _bdOmzetVan(k);
+  const tegels = _bdTegels([
+    { waarde: lopend.length, label: 'lopend', sub: lopend.slice(0, 3).map(p => (p.naam || '').split(' ').slice(-1)[0]).join(' · '), klasse: lopend.length ? 'groen' : '' },
+    { waarde: gestart, label: 'gestart ' + jaar },
+    { waarde: beeindigd, label: 'beëindigd ' + jaar },
+    { waarde: omzet ? _bdEuro(omzet.ytd) : '—', label: 'omzet ' + jaar, sub: omzet ? 'Moneybird · totaal ' + _bdEuro(omzet.totaal) : 'niet in Moneybird op deze naam' },
+    { waarde: open, label: 'evaluaties open', sub: evalGesprekken + ' evaluatiegesprek' + (evalGesprekken === 1 ? '' : 'ken'), klasse: open ? 'oranje' : '' },
+  ]);
   const projRij = (p) => {
     const c = projContractLoad(p.source, p.id) || {};
     const sl = _itkSleutel(p.naam || '');
@@ -34053,9 +34209,7 @@ function bedrijfBeheerKaartHtml(sleutel) {
       '<span>' + (contract ? escHtml(contract) : '<span class="stil">—</span>') + (geld ? '<small>' + escHtml(geld) + '</small>' : '') + '</span>' +
       '<button class="kk-knop" onclick="beheerKaartOpen(\'' + escApos(sl) + '\')">Beheerkaart</button></div>';
   };
-  const projHtml = projecten.length
-    ? '<div class="kk-proj kop"><span>Kandidaat</span><span>Start</span><span>Eind</span><span>Contract</span><span></span></div>' + projecten.map(projRij).join('')
-    : '<div class="kand-leegblok"><b>Nog geen projecten</b>Komt zodra een kandidaat bij ' + escHtml(k.naam) + ' als starter met akkoord in de pipeline staat, of in de projectenlijst.</div>';
+  const projHtml = _bdProjectenTabelHtml(k, projecten, nu);   // 02-10: nette tabel (projRij blijft voor de oude weergave)
   const magAf = typeof isHrmEditor === 'function' && isHrmEditor() && magWijzigen('hrm');
   const magPlan = magWijzigen('medewerkers');
   const evalHtml = evals.length ? evals.filter(e => !e.af || e.p.eind == null || e.p.eind >= nu).sort((x, y) => (+x.m.date) - (+y.m.date)).slice(0, 12).map(e => {
@@ -34069,13 +34223,15 @@ function bedrijfBeheerKaartHtml(sleutel) {
     if (e.open && magAf) knop += '<button class="kk-knop" onclick="beheerEvalAfvinken(\'' + escApos(e.p.source) + '\',\'' + escApos(String(e.p.id)) + '\',' + e.idx + ')">afvinken</button>';
     return '<div class="kk-eval' + (e.af ? ' af' : '') + '"><span class="d' + (e.af ? ' af' : e.open ? ' nu' : '') + '">' + (e.af ? '&#10003;' : (e.idx + 1)) + '</span><div class="t">' + escHtml((e.p.naam || '') + ' · ' + e.m.label) + '<small>' + escHtml(wanneer) + '</small></div>' + knop + '</div>';
   }).join('') : '<div class="kk-tekst stil">Geen evaluatiemomenten: nog geen starter met startdatum.</div>';
-  return _bedrijfKopHtml(k) + '<div class="crm-sub">' + escHtml('Beheerkaart · ' + projecten.length + (projecten.length === 1 ? ' project' : ' projecten') + (lopend.length ? ', ' + lopend.length + ' lopend' : '')) + '</div>' +
-    '<div class="crm-body"><div class="kk-2k"><div>' + tegels + '<div class="crm-kop">Projecten bij ' + escHtml(k.naam) + '</div>' + projHtml + _kanbanKlantBlokHtml(k.naam) +
-    '</div><div><div class="crm-kop">Evaluatiemomenten<small class="crm-kop-klein">per starter, uit Evaluatiebeheer</small></div>' + evalHtml + _accBezoekenBlokHtml(k.naam) + '</div></div></div>' +
-    _bedrijfBladenRij(k, 'beheer', { wijzig: null });
+  return _bedrijfKopHtml(k) + '<div class="crm-sub">' + escHtml('Projecten · ' + projecten.length + (projecten.length === 1 ? ' project' : ' projecten') + (lopend.length ? ', ' + lopend.length + ' lopend' : '')) + '</div>' +
+    '<div class="crm-body bd-body">' + tegels +
+      _bdVak('Projecten bij ' + escHtml(k.naam), projHtml, projecten.length ? projecten.length + ' · lopend eerst' : '') +
+      '<div class="bd-g2"><div class="bd-vak">' + _kanbanKlantBlokHtml(k.naam) + '</div>' +
+      '<div class="bd-vak"><div class="crm-kop">Evaluatiemomenten<small class="crm-kop-klein">per starter, uit Evaluatiebeheer</small></div>' + evalHtml + '</div></div>' +
+    '</div>' + _bedrijfBladenRij(k, 'beheer', { wijzig: null });
 }
 function bedrijfBeheerKaartOpen(sleutel) {
-  crmKaartToon(bedrijfBeheerKaartHtml(sleutel), 'beheer-kaart bedrijf-beheer');
+  crmKaartToon(bedrijfBeheerKaartHtml(sleutel), 'beheer-kaart bedrijf-beheer bd-dossier');
 }
 // ── Bedrijven samenvoegen (akkoord 18-09) ───────────────────────────────────
 // Zoals bij kandidaten: kies welk bedrijf in dit dossier opgaat; de database-
@@ -41125,6 +41281,12 @@ function _vacStatusPil(v) {
   if (st === 'gesloten') return '<span class="crm-pil dicht">gesloten' + (v.gesloten_reden ? ' · ' + escHtml(v.gesloten_reden) : '') + '</span>';
   return '<span class="crm-pil leeg">concept</span>';
 }
+// Eigenaar in de lijst: initialen, of "toewijzen" voor een geïmporteerde vacature zonder BM (02-10).
+function _vacBmHtml(v) {
+  const n = String(v.bm_naam || '').trim();
+  if (!n || /^nog toewijzen$/i.test(n)) return '<span class="crm-pil wacht" title="Nog geen eigenaar: open de vacature en kies de BM">toewijzen</span>';
+  return '<span class="rec-ini" title="' + escHtml(n) + '">' + escHtml(_recInitials(n)) + '</span>';
+}
 function _vacDatum(d) { return d ? _crmDatum(Date.parse(String(d).slice(0, 10) + 'T12:00:00')) : ''; }
 // Vacatures van één klant (bedrijfskaart) — open eerst, dan gesloten.
 function vacaturesVoorKlant(sleutel) {
@@ -41177,7 +41339,7 @@ function renderVacaturesHtml() {
       '<td class="naam">' + _oneMarkeer(v.titel || '—', z) + '</td>' +
       '<td class="d">' + (k ? '<span class="crm-klik" onclick="event.stopPropagation();crmBedrijfOpen(\'' + escApos(k.sleutel) + '\')">' + _oneMarkeer(k.naam, z) + '</span>' : '<span class="crm-pil wacht" title="Kies de klant op de vacaturekaart">klant nog kiezen</span>') + '</td>' +
       '<td class="d">' + escHtml(v.vakgebied || '—') + '</td><td class="d">' + escHtml(v.regio || '—') + '</td><td class="d">' + escHtml(v.opleidingsniveau || '—') + '</td>' +
-      '<td><span class="rec-ini" title="' + escHtml(v.bm_naam || '') + '">' + escHtml(_recInitials(v.bm_naam || '?')) + '</span></td>' +
+      '<td>' + _vacBmHtml(v) + '</td>' +
       '<td>' + _vacStatusPil(v) + '</td>' +
       '<td class="d">' + (v.status === 'gesloten' ? escHtml(_vacDatum(v.online_vanaf) + (v.gesloten_op ? ' – ' + _vacDatum(v.gesloten_op) : '')) : (v.online_vanaf ? escHtml(_vacDatum(v.online_vanaf)) : '<span class="stil">—</span>')) + '</td>' +
       '<td class="d">' + (v.gesync_op ? '<span title="Door de plugin verwerkt ' + escHtml(_vacDatum(v.gesync_op)) + '">✓</span>' : (v.status === 'online' ? '<span class="stil">vannacht</span>' : '<span class="stil">—</span>')) + '</td></tr>';
@@ -41376,7 +41538,7 @@ function _vacBlokBedrijfHtml(k) {
   const mag = magWijzigen('crm');
   const knop = mag ? '<button type="button" class="crm-kop-knop goud" onclick="vacNieuw(\'' + escApos(k.sleutel) + '\')">+ Vacature</button>' : '';
   const regels = lijst.slice(0, 8).map(v => '<div class="kk-rij vac-rij' + (v.status === 'gesloten' ? ' stil' : '') + '" onclick="vacOpen(\'' + escApos(String(v.id)) + '\')" title="Vacature openen"><span>' + _vacStatusPil(v) + '</span><div><b>' + escHtml(v.titel || '') + '</b> · ' + escHtml([v.vakgebied, v.opleidingsniveau, v.regio].filter(Boolean).join(' · ')) +
-    '<span class="vac-rij-r"><span class="rec-ini" title="' + escHtml(v.bm_naam || '') + '">' + escHtml(_recInitials(v.bm_naam || '?')) + '</span>' + (v.online_vanaf ? ' sinds ' + escHtml(_vacDatum(v.online_vanaf)) : '') + '</span></div></div>').join('');
+    '<span class="vac-rij-r">' + _vacBmHtml(v) + (v.online_vanaf ? ' sinds ' + escHtml(_vacDatum(v.online_vanaf)) : '') + '</span></div></div>').join('');
   return '<div class="crm-kop met-knop">Vacatures<small class="crm-kop-klein">' + (lijst.length ? open + ' open · ' + dicht + ' gesloten' : 'nog geen') + '</small>' + knop + '</div>' +
     '<div class="kk-lijst">' + (regels || '<div class="kk-rij"><span class="stil">Nog geen vacatures bij deze klant.</span></div>') + (lijst.length > 8 ? '<div class="kk-rij"><span class="stil">+ ' + (lijst.length - 8) + ' meer op de pagina Vacatures</span></div>' : '') + '</div>';
 }
@@ -41405,6 +41567,131 @@ async function vacTekstenOpslaan(knop) {
   if (error) { btMeld('Opslaan mislukt: ' + (error.message || error), 'rood'); meldFout('vacatureteksten opslaan: ' + (error.message || error), 'vacTekstenOpslaan'); return; }
   (data || []).forEach(r => { VAC_TEKSTEN[r.sleutel] = r; });
   btMeld('Standaardteksten opgeslagen.', 'groen');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BEDRIJFSDOSSIER v2 (02-10, ontwerp_bedrijfsdossier.html)
+//   Grotere pop-up, vaste kop met KAM-score, vier bladen:
+//   Bedrijfskaart · Accountmanagement · Projecten · Vacatures.
+//   Dit zijn de bouwstenen die de bestaande bladfuncties gebruiken; de bladen
+//   zelf (crmBedrijfDossierHtml, accountKaartHtml, bedrijfBeheerKaartHtml)
+//   zijn in index.html omgebouwd naar deze indeling.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Een vak op het dossier: gele kop, inhoud, optioneel een knop rechts in de kop.
+function _bdVak(kop, inhoud, klein, knop, klasse) {
+  return '<div class="bd-vak' + (klasse ? ' ' + klasse : '') + '">' +
+    (kop ? '<div class="crm-kop' + (knop ? ' met-knop' : '') + '">' + kop + (klein ? '<small class="crm-kop-klein">' + klein + '</small>' : '') + (knop || '') + '</div>' : '') + inhoud + '</div>';
+}
+// Tegels bovenaan een blad.
+function _bdTegels(lijst) {
+  return '<div class="bd-tegels" style="grid-template-columns:repeat(' + lijst.length + ',minmax(0,1fr))">' + lijst.map(t =>
+    '<div class="bd-tegel' + (t.klasse ? ' ' + t.klasse : '') + '"><b>' + t.waarde + '</b><span>' + escHtml(t.label) + '</span>' + (t.sub ? '<small>' + escHtml(t.sub) + '</small>' : '') + '</div>').join('') + '</div>';
+}
+// Het korte tekstje onder de naam in de kop: plaats · laatste bezoek · projecten · vacatures.
+function _bdKopSub(k) {
+  const r = k.crm || {};
+  const proj = typeof _bedrijfProjecten === 'function' ? _bedrijfProjecten(k.sleutel) : [];
+  const nu = new Date(); nu.setHours(0, 0, 0, 0);
+  const lopend = proj.filter(p => !p.eind || p.eind >= nu).length;
+  const vac = typeof vacaturesVoorKlant === 'function' ? vacaturesVoorKlant(k.sleutel).filter(v => v.status === 'online').length : 0;
+  return [r.plaats || '', k.laatste ? 'laatste bezoek ' + _crmDatum(k.laatste.datumMs) : '', lopend ? lopend + ' project' + (lopend === 1 ? '' : 'en') + ' lopend' : '', vac ? vac + ' vacature' + (vac === 1 ? '' : 's') + ' online' : ''].filter(Boolean).join(' · ');
+}
+
+// ── Contactpersonen als tabel (Bedrijfskaart) ───────────────────────────────
+function _bdContactenHtml(k, magAcc, magCp, sE) {
+  const contacten = _crmBedrijfContacten(k).filter(c => c && c.naam);
+  const doel = { soort: 'bedr', id: k.sleutel, naam: k.naam };
+  const tel = (c) => c.telefoon
+    ? (btMobielNummer(c.telefoon) ? btTelHtml(c.telefoon, { naam: c.naam, menu: doel }) : '<a href="tel:' + escHtml(String(c.telefoon).replace(/\s/g, '')) + '">' + escHtml(c.telefoon) + '</a>')
+    : '<span class="stil">—</span>';
+  const rijen = contacten.map((c, i) =>
+    '<tr><td><span class="one-ber-av klein" style="background:#9ec8f4;">' + escHtml(_oneInitialen(c.naam)) + '</span> <b>' + escHtml(c.naam) + '</b></td>' +
+    '<td>' + (c.functie ? escHtml(c.functie) : '<span class="stil">—</span>') + '</td><td>' + (c.afdeling ? escHtml(c.afdeling) : '<span class="stil">—</span>') + '</td>' +
+    '<td>' + (c.rol ? '<span class="crm-pil">' + escHtml(c.rol) + '</span>' : '<span class="stil">—</span>') + '</td>' +
+    '<td>' + tel(c) + '</td><td>' + (c.email ? '<a class="crm-link" href="mailto:' + escHtml(c.email) + '">' + escHtml(c.email) + '</a>' : '<span class="stil">—</span>') + '</td>' +
+    '<td class="bd-akt">' + (magCp ? '<button class="one-dn-knop wijzig" title="Wijzigen" onclick="crmBedrijfContactWijzig(\'' + sE + '\',' + i + ')">✎</button>' : '') +
+      (magAcc ? '<button class="one-dn-knop weg" title="Weghalen" onclick="crmBedrijfContactWeghalen(\'' + sE + '\',' + i + ')">×</button>' : '') + '</td></tr>').join('');
+  const tabel = contacten.length
+    ? '<table class="bd-tabel"><thead><tr><th>Naam</th><th>Functie</th><th>Afdeling</th><th>Rol</th><th>Telefoon</th><th>E-mail</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table>'
+    : '<div class="kk-tekst stil">nog geen contactpersonen — voeg het aanspreekpunt bij het bedrijf toe</div>';
+  const vorm = magCp ? '<div id="crm-cp-vorm" hidden>' + _cpFormHtml('crm-cp', 'crmBedrijfContactToevoegen(\'' + sE + '\')') + '</div>'
+    : (magAcc ? '<div class="kk-tekst stil">Sla het bedrijf eerst op in het CRM (Wijzigen) om contactpersonen te bewaren.</div>' : '');
+  return _bdVak('Contactpersonen', tabel + vorm, contacten.length ? String(contacten.length) : '',
+    magCp ? '<button type="button" id="crm-cp-knop" class="crm-kop-knop goud" onclick="crmBedrijfContactVorm()">+ contactpersoon</button>' : '');
+}
+
+// ── Accountplan-preview (Accountmanagement) ─────────────────────────────────
+function _bdPlanPreviewHtml(k, plan, a, magAcc) {
+  const kort = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  if (!plan) {
+    return _bdVak('Accountplan', '<div class="kk-tekst stil">Nog geen accountplan' + (a && magAcc ? '.' : ' — alleen voor KAM-klanten.') + '</div>', '',
+      a && magAcc ? '<button type="button" class="crm-kop-knop goud" onclick="crmKaartSluit();apNieuwVoor(\'' + escApos(String(a.id)) + '\')">Accountplan maken</button>' : '');
+  }
+  const delen = [['Plan ' + new Date().getFullYear(), plan.plan_jaar], ['Doelen / strategie', plan.doelen_strategie], ['Verwachte vacatures', plan.verwachte_vacatures], ['Concurrenten', plan.concurrenten], ['Vervolgstap', plan.vervolgstap]]
+    .filter(([, w]) => String(w || '').trim());
+  const tekst = delen.length ? '<div class="bd-samen">' + delen.map(([l, w]) => '<b>' + escHtml(l) + ':</b> ' + escHtml(kort(w, 220))).join(' ') + '</div>' : '<div class="kk-tekst stil">Het plan is nog leeg.</div>';
+  return _bdVak('Accountplan', tekst + '<div class="kk-lijst"><div class="kk-rij"><span>Fase</span>' + (plan.fase ? '<span class="crm-pil ok">' + escHtml(plan.fase) + '</span>' : '<span class="stil">—</span>') + '</div></div>',
+    'bijgewerkt ' + escHtml(datumNL(String(plan.updated_at || '').slice(0, 10))),
+    '<button type="button" class="crm-kop-knop goud" onclick="crmKaartSluit();apNaar(\'' + escApos(String(plan.id)) + '\')">Accountplan openen</button>');
+}
+
+// ── Projecten als tabel (blad Projecten) ────────────────────────────────────
+function _bdProjectenTabelHtml(k, projecten, nu) {
+  if (!projecten.length) return '<div class="kand-leegblok"><b>Nog geen projecten</b>Komt zodra een kandidaat bij ' + escHtml(k.naam) + ' als starter met akkoord in de pipeline staat, of in de projectenlijst.</div>';
+  const dat = (d) => d ? _crmDatum(+d) : '';
+  const rijen = projecten.slice().sort((a, b) => ((a.eind && a.eind < nu) - (b.eind && b.eind < nu)) || ((+b.begin || 0) - (+a.begin || 0))).map(p => {
+    const c = projContractLoad(p.source, p.id) || {};
+    const af = p.eind && p.eind < nu, sl = _itkSleutel(p.naam || '');
+    return '<tr class="' + (af ? 'bd-af' : '') + '"><td><b>' + escHtml(p.naam || '') + '</b></td><td>' + escHtml(p.projectnr || c.projectnr || '—') + '</td>' +
+      '<td>' + (p.bm ? '<span class="rec-ini" title="' + escHtml(p.bm) + '">' + escHtml(_oneInitialen(p.bm)) + '</span>' : '—') + '</td>' +
+      '<td>' + escHtml(dat(p.begin)) + '</td><td>' + (p.eind ? escHtml(dat(p.eind)) : '<span class="stil">—</span>') + '</td>' +
+      '<td>' + (af ? '<span class="crm-pil">beëindigd</span>' : '<span class="crm-pil ok">lopend</span>') + '</td>' +
+      '<td>' + escHtml([c.contract, c.uren ? c.uren + ' u' : ''].filter(Boolean).join(' · ') || '—') + '</td>' +
+      '<td>' + escHtml([c.salaris_bpm ? '€ ' + c.salaris_bpm : '', c.tarief ? '€ ' + c.tarief : ''].filter(Boolean).join(' · ') || '—') + '</td>' +
+      '<td class="bd-akt"><button class="kk-knop" onclick="beheerKaartOpen(\'' + escApos(sl) + '\')">kaart</button></td></tr>';
+  }).join('');
+  return '<table class="bd-tabel"><thead><tr><th>Medewerker</th><th>Projectnr</th><th>BM</th><th>Start</th><th>Einde</th><th>Status</th><th>Contract</th><th>Salaris · tarief</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table>';
+}
+// Omzet dit jaar uit de Moneybird-koppeling (financieel_omzet.opdrachtgever = naam in KAM).
+function _bdOmzetVan(k) {
+  const lijst = typeof FINANCIEEL_CACHE !== 'undefined' && Array.isArray(FINANCIEEL_CACHE) ? FINANCIEEL_CACHE : [];
+  const r = lijst.find(x => x && _itkSleutel(x.opdrachtgever || '') === k.sleutel);
+  return r ? { ytd: Number(r.omzet_ytd) || 0, totaal: Number(r.omzet_totaal) || 0 } : null;
+}
+function _bdEuro(n) { return '€ ' + Math.round(n).toLocaleString('nl-NL'); }
+
+// ── Blad Vacatures ──────────────────────────────────────────────────────────
+function bedrijfVacaturesKaartHtml(sleutel) {
+  const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel));
+  if (!k) return '<h4 class="wit">Bedrijf</h4><div class="crm-sub">Dit bedrijf staat niet (meer) in het CRM.</div>';
+  const lijst = typeof vacaturesVoorKlant === 'function' ? vacaturesVoorKlant(k.sleutel) : [];
+  const online = lijst.filter(v => v.status === 'online'), concept = lijst.filter(v => v.status === 'concept'), dicht = lijst.filter(v => v.status === 'gesloten');
+  const door = dicht.filter(v => v.gesloten_reden === 'ingevuld' && v.online_vanaf && v.gesloten_op).map(v => (Date.parse(v.gesloten_op) - Date.parse(v.online_vanaf)) / 86400000).filter(d => d >= 0);
+  const gem = door.length ? Math.round(door.reduce((a, b) => a + b, 0) / door.length) : null;
+  const mag = magWijzigen('crm') && !(typeof VAC_ONTBREEKT !== 'undefined' && VAC_ONTBREEKT);
+  const tegels = _bdTegels([
+    { waarde: online.length, label: 'online', sub: 'op brightech.nl', klasse: online.length ? 'groen' : '' },
+    { waarde: concept.length, label: 'concept' },
+    { waarde: dicht.length, label: 'gesloten', sub: dicht.length ? dicht.filter(v => v.gesloten_reden === 'ingevuld').length + ' ingevuld · ' + dicht.filter(v => v.gesloten_reden === 'vervallen').length + ' vervallen' : '' },
+    { waarde: gem == null ? '—' : gem + ' dagen', label: 'gem. doorlooptijd', sub: 'online → ingevuld' },
+  ]);
+  const rijen = lijst.map(v => '<tr class="crm-lijstrij' + (v.status === 'gesloten' ? ' bd-af' : '') + '" onclick="vacOpen(\'' + escApos(String(v.id)) + '\')" title="Vacature openen">' +
+    '<td><b>' + escHtml(v.titel || '') + '</b></td><td>' + escHtml(v.vakgebied || '—') + '</td><td>' + escHtml(v.opleidingsniveau || '—') + '</td><td>' + escHtml(v.regio || '—') + '</td>' +
+    '<td>' + _vacBmHtml(v) + '</td><td>' + _vacStatusPil(v) + '</td>' +
+    '<td>' + (v.status === 'gesloten' ? escHtml(_vacDatum(v.online_vanaf) + (v.gesloten_op ? ' – ' + _vacDatum(v.gesloten_op) : '')) : (v.online_vanaf ? escHtml(_vacDatum(v.online_vanaf)) : '<span class="stil">—</span>')) + '</td>' +
+    '<td>' + (v.gesync_op ? '✓' : (v.status === 'online' ? '<span class="stil">vannacht</span>' : '<span class="stil">—</span>')) + '</td></tr>').join('');
+  const tabel = lijst.length
+    ? '<table class="bd-tabel"><thead><tr><th>Titel</th><th>Vakgebied</th><th>Niveau</th><th>Regio</th><th>BM</th><th>Status</th><th>Online sinds</th><th>Site</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+    : '<div class="kk-tekst stil">Nog geen vacatures bij ' + escHtml(k.naam) + '.</div>';
+  const knop = mag ? '<button type="button" class="crm-kop-knop goud" onclick="vacNieuw(\'' + escApos(k.sleutel) + '\')">+ Vacature</button>' : '';
+  return _bedrijfKopHtml(k) + '<span class="crm-dossier-sleutel" data-sleutel="' + escHtml(k.sleutel) + '" data-soort="vacatures" hidden></span>' +
+    '<div class="crm-sub">' + escHtml(_bdKopSub(k) || 'Vacatures') + '</div>' +
+    '<div class="crm-body bd-body">' + tegels + _bdVak('Vacatures', tabel, lijst.length ? lijst.length + ' · open eerst' : '', knop) + '</div>' +
+    _bedrijfBladenRij(k, 'vacatures', { wijzig: null });
+}
+function bedrijfVacaturesKaartOpen(sleutel) {
+  crmKaartToon(bedrijfVacaturesKaartHtml(sleutel), 'beheer-kaart bedrijf-vacatures bd-dossier');
 }
 
 let _REC_KAND_SET = null, _REC_BEDR_SET = null;   // 30-09: per hertekening één keer, voor de klikbare namen
