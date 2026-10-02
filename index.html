@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20260930-1941 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261001-1313 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1631,6 +1631,7 @@
   .vs-chip { width:34px; height:30px; border-radius:99px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#fff; font-size:.68rem; font-weight:var(--w-nadruk); cursor:pointer; font-family:inherit; } .vs-chip.aan { background:#F4CB3C; color:#253151; border-color:#F4CB3C; }
   .vs-pil { border:1px solid rgba(255,255,255,.25); border-radius:99px; padding:5px 12px; background:transparent; color:#fff; font-size:.76rem; cursor:pointer; font-family:inherit; } .vs-pil.aan { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); }
   .vs-vast { background:var(--l2); border-radius:7px; padding:8px 10px; font-size:.84rem; }
+  .vs-cp-nieuw { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; } .vs-cp-nieuw small { grid-column:1 / -1; color:rgba(255,255,255,.5); font-size:.72rem; }
   .vs-koppel small { display:block; color:rgba(255,255,255,.5); font-size:.72rem; margin-top:4px; }
   .vs-voet { justify-content:space-between; align-items:center; } .vs-noot { color:rgba(255,255,255,.5); font-size:.74rem; }
   .vs-lees { display:grid; grid-template-columns:150px 1fr; gap:6px 12px; font-size:.84rem; padding:4px 0; } .vs-lees-rij { display:contents; } .vs-lees-rij > span { color:rgba(255,255,255,.5); } .vs-lees-rij > div { line-height:1.45; }
@@ -2108,6 +2109,15 @@
   .crm-pil.ok { background:rgba(14,159,110,.25); color:#8be0c0; }
   .crm-pil.leeg { background:transparent; border:1px dashed rgba(255,255,255,.3); color:rgba(255,255,255,.6); }
   .crm-pil.dubbel { background:rgba(232,116,0,.25); color:#ffc08a; margin-left:6px; cursor:help; }
+  /* Vacatures (01-10) */
+  .crm-pil.wacht { background:rgba(232,116,0,.22); color:#ffc08a; } .crm-pil.dicht { background:rgba(229,72,77,.2); color:#ffb3b3; }
+  .vs-3k { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; } @media (max-width:640px) { .vs-3k { grid-template-columns:1fr; } }
+  .vac-sync { display:flex; align-items:center; gap:10px; font-size:.78rem; color:rgba(255,255,255,.75); background:var(--l1); border-radius:8px; padding:9px 12px; margin-top:12px; }
+  .vac-sync .bol { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.3); flex-shrink:0; } .vac-sync .bol.ok { background:#25D366; } .vac-sync .bol.fout { background:#e5484d; } .vac-sync .bol.wacht { background:#E87400; }
+  .vac-tabel td.naam { font-weight:var(--w-nadruk); }
+  .vs-pil.dicht.aan { background:rgba(229,72,77,.3); color:#fff; }
+  .vac-rij { cursor:pointer; } .vac-rij.stil { opacity:.6; } .vac-rij .vac-rij-r { float:right; color:rgba(255,255,255,.55); font-size:.74rem; display:inline-flex; align-items:center; gap:6px; }
+  .vac-kaart .vs-veld label small { font-weight:400; text-transform:none; letter-spacing:0; color:rgba(255,255,255,.5); } .vac-kaart .vs-veld label small a { color:#9ec8f4; }
   /* Woonregio en vakgebied (22-09): pillen met eigen kleur per waarde. */
   .crm-pil.rv { font-weight:var(--w-nadruk); }
   .crm-pil.rv.r-zuid { background:rgba(244,203,60,.18); color:#F4CB3C; }
@@ -6944,6 +6954,24 @@ function btZetStatus(el, bericht) {
 // achter de titel in de person-header. Staat er geen sleutel, dan verschijnt er
 // ook geen knopje — dus je kunt dit rustig per pagina uitbreiden.
 const PAGINA_UITLEG = {
+  vacatures: { titel: 'Vacatures', bijgewerkt: '01-10-2026',
+    intro: 'De Cockpit is de bron voor de vacatures op brightech.nl. Wat hier op online staat, zet de website-plugin elke nacht om 03:00 op de site; concepten en gesloten vacatures niet.',
+    secties: [
+      { kop: 'Een vacature maken',
+        waarom: 'De tekst op de site komt rechtstreeks hiervandaan; wat je hier invult is wat de kandidaat leest.',
+        stappen: [
+          '+ Nieuwe vacature (of + Vacature op de bedrijfskaart): titel, vakgebied, branche, niveau, plaats, intro en "Wat wordt er van jou gevraagd?" (één regel per punt).',
+          'De klant is verplicht en komt uit CRM · Bedrijven; hij staat nooit op de site, net als de salarisindicatie. Staat het bedrijf er niet in, voeg het dan eerst toe.',
+          'De drie vaste blokken (aanbod, wie zijn wij, stappen) zijn standaardtekst uit Beheer → Vacatureteksten; wijzig je ze op de kaart, dan geldt dat alleen voor die vacature.',
+        ]},
+      { kop: 'Online, gesloten, adres',
+        waarom: 'De site volgt de status; het adres (slug) staat vast zodra de vacature online is geweest, zodat links en Google niets kwijtraken.',
+        stappen: [
+          'Zet de status op online als de tekst klaar is; "wacht op sync" betekent dat de nachtelijke run hem nog moet ophalen. Manager/backoffice kunnen met Nu synchroniseren de plugin direct laten lopen.',
+          'Sluiten vraagt een reden (ingevuld of vervallen); de vacature gaat dan van de site. Alleen een concept kun je verwijderen.',
+          'Je wijzigt je eigen vacatures; manager en backoffice alle. Met Dupliceren maak je snel een variant.',
+        ]},
+    ]},
   one: { titel: 'Brightech ONE', bijgewerkt: '24-09-2026',
     intro: 'De interne tijdlijn plus de berichten: wat er speelt, wie er iets mee moet, en de één-op-één- en groepsgesprekken.',
     secties: [
@@ -11266,7 +11294,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20260930-1941';
+const APP_VERSIE = '20261001-1313';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11672,7 +11700,7 @@ function rechtVoor(gebruiker, sleutel) {
 function _rechtSleutel(sleutel) {
   return sleutel === 'accoverzicht' || sleutel === 'gvpagina' ? 'accounts'
        : sleutel === 'kanban' ? 'kandidaten'
-       : sleutel === 'crmkand' || sleutel === 'crmbedrijf' || sleutel === 'crmsearch' ? 'crm' : sleutel;
+       : sleutel === 'crmkand' || sleutel === 'crmbedrijf' || sleutel === 'crmsearch' || sleutel === 'vacatures' ? 'crm' : sleutel;   // vacatures (01-10) volgt ook 'crm'
 }
 function magZien(sleutel)    { return rechtVoor(CURRENT_USER, _rechtSleutel(sleutel)) !== 'geen'; }
 
@@ -12055,14 +12083,15 @@ function toggleAccounts(event) {
 // Sinds 22-09 staat CRM als eerste regel onder het kopje (aanwijzing); het
 // kopje zelf gaat nog steeds naar het Overzicht.
 function _sidebarAccountsHtml() {
-  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'crmbedrijf' || currentTab === 'gvpagina';
-  return miGroep(['accounts', 'crmbedrijf'], `<div class="sidebar-cat">
+  const erin = currentTab === 'accounts' || currentTab === 'accoverzicht' || currentTab === 'crmbedrijf' || currentTab === 'gvpagina' || currentTab === 'vacatures';
+  return miGroep(['accounts', 'crmbedrijf', 'vacatures'], `<div class="sidebar-cat">
     <div class="sidebar-cat-btn ${erin ? 'active-cat' : ''}" style="cursor:pointer;" onclick="toggleAccounts(event)">
       <span style="flex:1;display:flex;align-items:center;gap:8px;" onclick="selectTab(${magZien('crmbedrijf') ? "'crmbedrijf'" : "'accoverzicht'"}); event.stopPropagation();">${btIcon('accounts')}Accountmanagement</span>
       <span class="sidebar-caret ${accountsOpen ? 'open' : ''}" style="padding:2px 4px;">▶</span>
     </div>
     <div class="sidebar-sub" style="display:${accountsOpen ? 'flex' : 'none'};">
       ${mi('crmbedrijf', `<button class="sidebar-item ${currentTab === 'crmbedrijf' ? 'active' : ''}" onclick="selectTab('crmbedrijf')">${btIcon('crm')}CRM</button>`)}
+      ${mi('vacatures', `<button class="sidebar-item ${currentTab === 'vacatures' ? 'active' : ''}" onclick="selectTab('vacatures')">${btIcon('overzicht')}Vacatures</button>`)}
       <button class="sidebar-item ${currentTab === 'accoverzicht' ? 'active' : ''}" onclick="selectTab('accoverzicht')">${btIcon('overzicht')}Overzicht</button>
       ${mi('accounts', `<button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>`)}
     </div>
@@ -12641,7 +12670,7 @@ function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
   return `<div class="bm-subtabs" style="display:flex;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('fouten', 'Fouten')}${k('database', 'Database')}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -13152,6 +13181,9 @@ const VERWACHT_SCHEMA = [
   { bestand: 'crm_salarisindicatie.sql',     soort: 'kolom',   naam: 'crm_kandidaten.salarisindicatie' },
   { bestand: 'crm.sql',                      soort: 'tabel',   naam: 'crm_kandidaten' },
   { bestand: 'crm.sql',                      soort: 'tabel',   naam: 'crm_bedrijven' },
+  { bestand: 'vacatures.sql',                soort: 'tabel',   naam: 'vacatures' },
+  { bestand: 'vacatures.sql',                soort: 'tabel',   naam: 'vacature_teksten' },
+  { bestand: 'vacatures.sql',                soort: 'tabel',   naam: 'vacature_sync' },
   { bestand: 'crm_woonregio_vakgebied.sql',  soort: 'kolom',   naam: 'crm_kandidaten.vakgebied' },
   { bestand: 'gg_lijst.sql',                 soort: 'kolom',   naam: 'crm_kandidaten.gg_lijst_op' },
   { bestand: 'gg_lijst.sql',                 soort: 'kolom',   naam: 'crm_kandidaten.gg_lijst_door' },
@@ -13255,6 +13287,7 @@ function renderBeheer() {
   if (BEHEER_SUBVIEW === 'onderdelen') { renderBeheerOnderdelen(); return; }
   if (BEHEER_SUBVIEW === 'fouten')     { renderBeheerFouten(); return; }
   if (BEHEER_SUBVIEW === 'database')   { renderBeheerDatabase(); return; }
+  if (BEHEER_SUBVIEW === 'vacteksten') { renderBeheerVacTeksten(); return; }   // 01-10
   const huidigJaar = new Date().getFullYear();
 
   // Bouw doelen-map: naam → jaardoel voor huidig jaar
@@ -14011,7 +14044,7 @@ _versieWaakhond();
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
 const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
-                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf'];   // gvpagina (Gespreksverslagen) is sinds 30-09 weg: verslagen maak je op de CRM-kaart, je leest ze in Records
+                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf', 'vacatures'];   // gvpagina (Gespreksverslagen) is sinds 30-09 weg: verslagen maak je op de CRM-kaart, je leest ze in Records
 
 function _tabSleutel() {
   const uid = CURRENT_USER && CURRENT_USER.id;
@@ -14096,7 +14129,7 @@ function _kiesStartTab() {
   else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
   else if (hersteld === 'accounts' || hersteld === 'accoverzicht' || hersteld === 'gvpagina') accountsOpen = true;
   else if (['kandidaten','crmkand','crmsearch','rldvtool','rldvcheck'].includes(hersteld)) kandidatenOpen = true;
-  else if (hersteld === 'crmbedrijf') accountsOpen = true;
+  else if (hersteld === 'crmbedrijf' || hersteld === 'vacatures') accountsOpen = true;
 }
 
 function selectTab(i) {
@@ -14118,7 +14151,7 @@ function selectTab(i) {
   if (i === 'records') managementOpen = true;
   if (i === 'kandidaten' || i === 'crmkand' || i === 'crmsearch' || i === 'rldvtool' || i === 'rldvcheck') kandidatenOpen = true;
   if (i === 'accounts' || i === 'accoverzicht' || i === 'gvpagina') accountsOpen = true;
-  if (i === 'crmbedrijf') accountsOpen = true;
+  if (i === 'crmbedrijf' || i === 'vacatures') accountsOpen = true;
   if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
@@ -15119,6 +15152,7 @@ function _renderKern() {
   if (currentTab === 'crmkand') { renderCrmKandidaten(); return; }
   if (currentTab === 'crmsearch') { renderCrmSearch(); return; }
   if (currentTab === 'crmbedrijf') { renderCrmBedrijven(); return; }
+  if (currentTab === 'vacatures') { renderVacatures(); return; }   // 01-10
   if (currentTab === 'kanban') { renderKanban(); return; }
   if (currentTab === 'financieel') {
     // Financieel is alleen voor de manager-rol; iedere andere rol valt terug op Accountmanagement.
@@ -18268,6 +18302,7 @@ async function loadAllData() {
     stap('to-do standen', loadTodoStatus),
     stap('RLDV-selecties', loadRldvSelecties),
     stap('CRM', loadCrm),
+    stap('vacatures', loadVacatures),   // 01-10
     stap('aanmeldformulier', loadAanmeldSaved),
   ]);
   // Eenmalig: wat er nog op dit apparaat staat (vastgezet/bonus uit de tijd
@@ -20137,6 +20172,10 @@ const _RT_TAKEN = {
   mt_acties:            async () => { await laadMtActies(); },
   mt_notulen:           async () => { await laadMtActies(); },
   mt_coaching_notities: async () => { await laadMtActies(); },
+  // Vacatures (01-10): een collega die een vacature opslaat, de plugin die gesync_op zet, een nieuwe standaardtekst.
+  vacatures:        async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); _crmDossierHerteken(); },
+  vacature_teksten: async () => { await loadVacatures(); if (currentTab === 'beheer' && BEHEER_SUBVIEW === 'vacteksten') renderBeheer(); },
+  vacature_sync:    async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); },
 };
 
 // Eén wijziging levert vaak meerdere berichten op — een opgeslagen week raakt
@@ -20199,6 +20238,7 @@ const _RT_SCHERMEN = {
   challenges: [], challenge_deelnemers: [], challenge_voordrachten: [],
   account_notities: ['crmbedrijf'], bezoek_vervolg: ['accoverzicht', 'gvpagina', 'crmbedrijf', 'accounts'], kandidaat_notities: ['crmkand'],
   crm_kandidaten: ['crmkand'], crm_bedrijven: ['crmbedrijf'], ap_analyses: ['accounts'], todo_status: ['bm'],
+  vacatures: ['vacatures', 'crmbedrijf'], vacature_teksten: ['vacatures', 'beheer'], vacature_sync: ['vacatures'],
 };
 function _rtRaaktScherm(tabellen, tab) {
   const scherm = typeof tab === 'number' ? (typeof BMS !== 'undefined' && tab >= BMS.length ? 'team' : 'bm') : String(tab);
@@ -32847,7 +32887,7 @@ function crmBedrijfDossierHtml(sleutel) {
     : { wijzig: magAcc && !CRM_ONTBREEKT ? "crmBedrijfBewerk('" + sE + "')" : null, wijzigTitel: 'Wijzigen (bedrijfsgegevens, team, opmerking)' });
   return kop + '<div class="crm-sub">' + escHtml(sub) + '</div>' +
     '<div class="crm-body"><div class="kk-2k"><div>' +
-      (bewerk ? '' : _vsBlokBedrijfHtml(k)) + gegevens + voorw + team + contactHtml + opm +   // 30-09: Verslagen & records, met + Gespreksverslag maken
+      (bewerk ? '' : _vsBlokBedrijfHtml(k) + _vacBlokBedrijfHtml(k)) + gegevens + voorw + team + contactHtml + opm +   // 01-10: blok Vacatures   // 30-09: Verslagen & records, met + Gespreksverslag maken
     '</div><div>' +
       _crmActiesBlokHtml(k) + _crmAfspraakBlokHtml(k) + '<div class="crm-kop">Gesprekslog</div>' + log +
     '</div></div></div>' + knoppen;
@@ -40852,10 +40892,15 @@ function _vsPopupHtml(f) {
     const kb = _gvBedrijfVind(f.bedrijfSleutel || f.bedrijf || g.bedrijf);
     const cp = String(g.contactpersoon || '');
     const contacten = kb ? _crmBedrijfContacten(kb).filter(c => c && c.naam) : [];
-    const cpHtml = contacten.length
-      ? '<select id="vs-cp" ' + inp + '><option value="">— geen —</option>' + contacten.map(c => '<option value="' + escHtml(c.naam) + '"' + (_itkSleutel(c.naam) === _itkSleutel(cp) ? ' selected' : '') + '>' + escHtml(c.naam + (c.functie ? ' · ' + c.functie : '')) + '</option>').join('') +
-        (cp && !contacten.some(c => _itkSleutel(c.naam) === _itkSleutel(cp)) ? '<option value="' + escHtml(cp) + '" selected>' + escHtml(cp) + '</option>' : '') + '</select>'
-      : '<input id="vs-cp" value="' + escHtml(cp) + '" placeholder="Naam contactpersoon" ' + inp + '>';
+    // 01-10: altijd een keuze uit de contactpersonen van het bedrijf — ook als er nog geen zijn. Een naam
+    // die er niet tussen staat gaat via "+ nieuwe contactpersoon…" en komt bij Opslaan ook op de bedrijfskaart.
+    const cpBekend = contacten.some(c => _itkSleutel(c.naam) === _itkSleutel(cp));
+    const cpNieuw = !!cp && !cpBekend;
+    const cpHtml = '<select id="vs-cp" ' + inp + ' onchange="vsCpKeuze(this)"><option value="">— kies —</option>' +
+        contacten.map(c => '<option value="' + escHtml(c.naam) + '"' + (_itkSleutel(c.naam) === _itkSleutel(cp) ? ' selected' : '') + '>' + escHtml(c.naam + (c.functie ? ' · ' + c.functie : '')) + '</option>').join('') +
+        '<option value="__nieuw"' + (cpNieuw ? ' selected' : '') + '>+ nieuwe contactpersoon…</option></select>' +
+        '<div id="vs-cp-nieuw" class="vs-cp-nieuw" style="' + (cpNieuw ? '' : 'display:none') + '"><input id="vs-cp-naam" value="' + escHtml(cpNieuw ? cp : '') + '" placeholder="Naam" ' + inp + '><input id="vs-cp-functie" value="" placeholder="Functie" ' + inp + '><small>komt bij Opslaan ook als contactpersoon op de bedrijfskaart</small></div>' +
+        (contacten.length ? '' : '<small class="vs-noot">Nog geen contactpersonen bij dit bedrijf.</small>');
     // Bedrijf: vast als het uit het CRM komt; anders (oud verslag zonder match) de CRM-kiezer om te koppelen.
     const bedrijfHtml = kb ? '<div class="vs-vast"><b>' + escHtml(kb.naam) + '</b></div>' : '<div class="vs-koppel">' + _gvKiezerHtml({ bedrijf: f.bedrijf || g.bedrijf || '', contactpersoon: cp }) + '<small>Dit verslag is nog niet aan een CRM-bedrijf gekoppeld — kies het bedrijf.</small></div>';
     const soort = String(g.soort || 'bedrijfsbezoek');
@@ -40873,6 +40918,7 @@ function _vsPopupHtml(f) {
     '<div class="crm-knoppen vs-voet"><span class="vs-noot">' + (itk ? 'Wordt een record ✎ · zichtbaar in Records en op deze kaart' : 'Wordt een record ✎ · komt in het gesprekslog van het bedrijf') + '</span>' +
     '<span><button type="button" class="crm-knop" onclick="vsAnnuleer()">Annuleren</button> <button type="button" class="crm-knop goed" onclick="vsOpslaan(this)">' + (f.id ? 'Opslaan' : 'Verslag opslaan') + '</button></span></div>';
 }
+function vsCpKeuze(sel) { const n = document.getElementById('vs-cp-nieuw'); if (!n) return; const aan = sel.value === '__nieuw'; n.style.display = aan ? '' : 'none'; if (aan) { const i = document.getElementById('vs-cp-naam'); if (i && i.focus) i.focus(); } }   // 01-10
 function vsSoortKies(el) { const p = el.parentElement; if (!p) return; p.querySelectorAll('.vs-pil').forEach(b => b.classList.toggle('aan', b === el)); const k = document.getElementById('vs-kand'); if (k) k.placeholder = el.getAttribute('data-soort') === 'matchgesprek' ? 'Naam van de kandidaat' : '— alleen bij matchgesprek —'; }
 function _vsTerug(f) {
   if (!f) return;
@@ -40903,7 +40949,13 @@ async function vsOpslaan(knop) {
     const bedrijf = kb ? kb.naam : String(f.bedrijf || naamLos || '').trim();
     if (!bedrijf) return fout('Kies het bedrijf uit het CRM.', 'gv-bedrijf-zoek');
     const cpEl = document.getElementById('vs-cp') || document.getElementById('gv-cp');
-    Object.assign(rij, { type: 'bzk', bedrijf, bedrijf_id: kb && kb.crm && kb.crm.id ? kb.crm.id : null, contactpersoon: cpEl ? String(cpEl.value || '').trim() || null : null,
+    let cpNaam = cpEl ? String(cpEl.value || '').trim() : '';
+    if (cpNaam === '__nieuw') {   // 01-10: nieuwe contactpersoon uit het invulveld; gaat na opslaan ook naar het CRM
+      cpNaam = String((document.getElementById('vs-cp-naam') || {}).value || '').trim();
+      if (!cpNaam) return fout('Vul de naam van de nieuwe contactpersoon in.', 'vs-cp-naam');
+      f.cpNieuw = { naam: cpNaam, functie: String((document.getElementById('vs-cp-functie') || {}).value || '').trim() };
+    }
+    Object.assign(rij, { type: 'bzk', bedrijf, bedrijf_id: kb && kb.crm && kb.crm.id ? kb.crm.id : null, contactpersoon: cpNaam || null,
                          soort: w.soort || 'bedrijfsbezoek', kandidaat: (w.soort === 'matchgesprek' ? String(w.kandidaat || '').trim() : '') || null, acties: w.acties || null });
   }
   if (knop) { knop.disabled = true; knop.textContent = 'Bezig…'; }
@@ -40925,6 +40977,7 @@ async function vsOpslaan(knop) {
     return;
   }
   if (typeof _TODO_CACHE !== 'undefined') _TODO_CACHE = null;   // ITK-verslag/bezoekverslag: de to-do verdwijnt
+  if (f.cpNieuw && typeof _pipeCpNaarCrm === 'function') { try { await _pipeCpNaarCrm(rij.bedrijf, f.cpNieuw.naam, f.cpNieuw.functie, null); } catch (e) { _meldStil('contactpersoon uit verslag naar CRM', e); } }   // 01-10
   btMeld(f.id ? 'Verslag bijgewerkt.' : 'Verslag opgeslagen — staat in Records en op de kaart.', 'groen');
   VS_FORM = null; crmKaartSluit();
   _vsTerug(f);
@@ -40991,6 +41044,366 @@ function _vsLeesHtml(g) {
     '<div class="crm-knoppen vs-voet"><span class="vs-noot">Gemaakt ' + escHtml(g.created_at ? datumNL(String(g.created_at).slice(0, 10)) : '') + (g.auteur ? ' · ' + escHtml(g.auteur) : '') + (g.updated_by && g.updated_by !== g.auteur ? ' · gewijzigd door ' + escHtml(g.updated_by) : '') + '</span>' +
     '<span>' + (itk ? (g.deel_uuid ? '<button type="button" class="crm-knop deel" onclick="afsprakenDelen(\'' + escApos(String(g.deel_uuid)) + '\')" title="Uitgangspunten delen met de kandidaat, zoals bij een opname">✉ Afspraken delen</button> ' : '<span class="vs-noot">delen kan na gespreksverslagen_v2.sql</span> ') : '') +
     (_vsMag(g) ? '<button type="button" class="crm-knop" onclick="vsBewerk(\'' + escApos(String(g.id)) + '\')">Wijzigen</button> <button type="button" class="crm-knop" style="color:#ff8080;border-color:rgba(255,128,128,.4);" onclick="vsVerwijder(\'' + escApos(String(g.id)) + '\')">Verwijderen</button>' : '') + '</span></div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VACATURES (01-10) — deel A van de websitekoppeling
+//
+// De Cockpit is de bron voor vacatures (was MySolution/Salesforce). Eén tabel
+// `vacatures`, drie standaardteksten in `vacature_teksten`, en `vacature_sync`
+// voor wat de WordPress-plugin (deel B) terugmeldt. De klant is een harde
+// koppeling naar CRM · Bedrijven (klant_sleutel) en gaat nooit naar de site;
+// salaris ook niet. Alleen status 'online' gaat straks de deur uit.
+//
+// Rechten: de pagina volgt 'crm' (iedereen zien en wijzigen); de eigen vacature
+// mag de BM zelf bewerken, manager/backoffice en de volledig bevoegden alles.
+// ═══════════════════════════════════════════════════════════════════════════
+let VACATURES = [];
+let VAC_TEKSTEN = {};        // sleutel → { titel, tekst }
+let VAC_SYNC = null;         // laatste rij uit vacature_sync
+let VAC_ONTBREEKT = false;   // supabase/vacatures.sql nog niet gedraaid
+let VAC_TAB = { filter: 'mijn', zoek: '' };
+let VAC_FORM = null;         // { id | null, klantSleutel, velden }
+
+const VAC_VAKGEBIEDEN = ['Engineering', 'Logistiek', 'Montage', 'Onderhoud', 'Projectmanagement', 'Sales', 'Service en Onderhoud', 'Supply Chain', 'Verspaning (CAD/CAM)', 'Werkvoorbereiding'];
+const VAC_BRANCHES = ['Industrie', 'Energietechniek', 'Machinebouw/Apparatenbouw', 'Hightech', 'Logistiek', 'Bouw & Installatie', 'Food', 'Chemie', 'Automotive'];
+const VAC_NIVEAUS = ['MBO', 'HBO', 'WO'];
+const VAC_DIENSTVERBANDEN = ['Fulltime', 'Parttime'];
+const VAC_REGIOS = ['Echt', 'Eijsden', 'Eindhoven', 'Elsloo', 'Geleen', 'Heerlen', 'Hoensbroek', 'Ittervoort', 'Kerkrade', 'Kessel', 'Landgraaf', 'Maasbracht', 'Maastricht', 'Maastricht-Airport', 'Meerssen', 'Nederweert', 'Nuth', 'Roermond', 'Schimmert', 'Sittard', 'Son', 'Susteren', 'Swalmen', 'Thorn', 'Urmond', 'Venlo', 'Weert'];
+const VAC_STATUS = { concept: 'concept', online: 'online', gesloten: 'gesloten' };
+const VAC_TEKST_VAST = { aanbod: 'Wat krijg je er voor terug?', wie_zijn_wij: 'Wie zijn wij?', stappen: 'En? Ben je enthousiast?' };
+
+// ── Laden ───────────────────────────────────────────────────────────────────
+async function loadVacatures() {
+  if (!supa) return;
+  const v = await supa.from('vacatures').select('*').order('updated_at', { ascending: false }).limit(1000);
+  if (v.error) {
+    if (/relation .* does not exist|schema cache/i.test(v.error.message || '')) { VAC_ONTBREEKT = true; return; }
+    meldFout('vacatures laden: ' + v.error.message, 'loadVacatures'); return;
+  }
+  VAC_ONTBREEKT = false;
+  VACATURES = v.data || [];
+  const t = await supa.from('vacature_teksten').select('*');
+  if (t.error) _meldStil('vacature_teksten laden', t.error); else { VAC_TEKSTEN = {}; (t.data || []).forEach(r => { VAC_TEKSTEN[r.sleutel] = r; }); }
+  const s = await supa.from('vacature_sync').select('*').order('gevraagd_op', { ascending: false }).limit(1);
+  if (s.error) _meldStil('vacature_sync laden', s.error); else VAC_SYNC = (s.data || [])[0] || null;
+}
+
+// ── Hulpjes ─────────────────────────────────────────────────────────────────
+function _vacMij() { return (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''; }
+// Wie mag deze vacature bewerken: de eigenaar, manager/backoffice, de volledig bevoegden, de beheerder.
+function _vacMag(v) {
+  if (!CURRENT_USER || !magWijzigen('crm') || VAC_ONTBREEKT) return false;
+  if (isManagerLevel() || CURRENT_USER.rol === 'backoffice' || isBeheerder()) return true;
+  if ((typeof VOLLEDIG_BEVOEGD !== 'undefined' ? VOLLEDIG_BEVOEGD : []).includes(CURRENT_USER.naam)) return true;
+  return !v || !v.bm_naam || _itkSleutel(v.bm_naam) === _itkSleutel(_vacMij()) || _itkSleutel(v.bm_naam) === _itkSleutel(CURRENT_USER.naam || '');
+}
+function _vacMagSync() { return !!CURRENT_USER && (isManagerLevel() || CURRENT_USER.rol === 'backoffice' || isBeheerder()); }
+function _vacVind(id) { return VACATURES.find(v => String(v.id) === String(id)) || null; }
+// brightech.nl/vacature/<slug>: kleine letters, letters/cijfers, streepjes; accenten eraf.
+function _vacSlug(titel) {
+  return String(titel || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/&/g, ' en ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
+function _vacUniekeSlug(basis, id) {
+  const bezet = new Set(VACATURES.filter(v => String(v.id) !== String(id || '')).map(v => v.slug));
+  if (!bezet.has(basis)) return basis;
+  for (let n = 2; n < 1000; n++) { const s = basis + '-' + n; if (!bezet.has(s)) return s; }
+  return basis + '-' + Date.now();
+}
+// De tekst van een vast blok: eigen tekst van de vacature, anders de standaardtekst.
+function _vacTekst(v, sleutel) {
+  const eigen = v && v[sleutel]; if (eigen && String(eigen).trim()) return String(eigen);
+  return VAC_TEKSTEN[sleutel] ? String(VAC_TEKSTEN[sleutel].tekst || '') : '';
+}
+function _vacStandaard(sleutel) { return VAC_TEKSTEN[sleutel] ? String(VAC_TEKSTEN[sleutel].tekst || '') : ''; }
+function _vacKlant(v) { return v && v.klant_sleutel ? (crmBedrijfLijst().find(k => k.sleutel === v.klant_sleutel) || null) : null; }
+function _vacKlantNaam(v) { const k = _vacKlant(v); return k ? k.naam : (v && v.klant_naam) || ''; }
+function _vacStatusPil(v) {
+  const st = v.status || 'concept';
+  if (st === 'online' && !v.gesync_op) return '<span class="crm-pil wacht" title="Op online gezet, nog niet door de nachtelijke sync opgepakt">wacht op sync</span>';
+  if (st === 'online') return '<span class="crm-pil ok">online</span>';
+  if (st === 'gesloten') return '<span class="crm-pil dicht">gesloten' + (v.gesloten_reden ? ' · ' + escHtml(v.gesloten_reden) : '') + '</span>';
+  return '<span class="crm-pil leeg">concept</span>';
+}
+function _vacDatum(d) { return d ? _crmDatum(Date.parse(String(d).slice(0, 10) + 'T12:00:00')) : ''; }
+// Vacatures van één klant (bedrijfskaart) — open eerst, dan gesloten.
+function vacaturesVoorKlant(sleutel) {
+  const sl = String(sleutel || ''); if (!sl) return [];
+  return VACATURES.filter(v => v.klant_sleutel === sl).slice().sort((a, b) => (a.status === 'gesloten') - (b.status === 'gesloten') || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+}
+function _vacPast(v, st) {
+  const f = st.filter || '';
+  if (f === 'mijn' && _itkSleutel(v.bm_naam || '') !== _itkSleutel(_vacMij())) return false;
+  if ((f === 'online' || f === 'concept' || f === 'gesloten') && (v.status || 'concept') !== f) return false;
+  if (f === 'klantleeg' && v.klant_sleutel) return false;
+  const z = String(st.zoek || '').trim().toLowerCase();
+  if (z) { const tekst = [v.titel, _vacKlantNaam(v), v.vakgebied, v.branche, v.regio, v.opleidingsniveau, v.bm_naam, v.recruiter].join(' ').toLowerCase(); if (tekst.indexOf(z) < 0) return false; }
+  return true;
+}
+function vacFilter(f) { VAC_TAB.filter = f; renderVacatures(); }
+function vacZoek(q) { VAC_TAB.zoek = q; renderVacatures(); }
+
+// ── De pagina ───────────────────────────────────────────────────────────────
+function renderVacatures() {
+  if (currentTab !== 'vacatures') return;
+  document.getElementById('main').innerHTML = renderVacaturesHtml();
+}
+function _vacSqlHint() {
+  return VAC_ONTBREEKT ? '<div class="acc-arch-nieuw"><span><strong>De vacaturetabellen bestaan nog niet.</strong> Vraag de beheerder om <code>supabase/vacatures.sql</code> te draaien.</span></div>' : '';
+}
+function _vacSyncHtml() {
+  const s = VAC_SYNC;
+  const knop = _vacMagSync() && !VAC_ONTBREEKT ? '<button type="button" class="crm-knop" style="margin-left:auto" onclick="vacSyncVraag(this)">Nu synchroniseren</button>' : '';
+  if (!s) return '<div class="vac-sync"><span class="bol leeg"></span>Website: nog geen koppeling — de WordPress-plugin (deel B) meldt hier zijn runs.' + knop + '</div>';
+  const wanneer = s.klaar_op || s.gestart_op || s.gevraagd_op;
+  const tekst = s.status === 'klaar'
+    ? 'laatste sync ' + _crmDatum(Date.parse(wanneer)) + ' ' + new Date(wanneer).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' · ' + (s.online || 0) + ' online, ' + (s.toegevoegd || 0) + ' toegevoegd, ' + (s.bijgewerkt || 0) + ' bijgewerkt, ' + (s.verwijderd || 0) + ' verwijderd · volgende om 03:00'
+    : s.status === 'fout' ? 'laatste sync mislukt: ' + escHtml(s.fout || 'onbekende fout')
+    : s.status === 'bezig' ? 'sync bezig…' : 'sync gevraagd door ' + escHtml(s.gevraagd_door || '?') + ' — wacht op de plugin';
+  return '<div class="vac-sync"><span class="bol ' + (s.status === 'klaar' ? 'ok' : s.status === 'fout' ? 'fout' : 'wacht') + '"></span>Website: ' + tekst + knop + '</div>';
+}
+function renderVacaturesHtml() {
+  const st = VAC_TAB, z = String(st.zoek || '').trim().toLowerCase();
+  const alle = VACATURES;
+  const n = (f) => alle.filter(v => _vacPast(v, { filter: f })).length;
+  const gevonden = alle.filter(v => _vacPast(v, st)).slice().sort((a, b) => {
+    const r = { online: 0, concept: 1, gesloten: 2 };
+    return (r[a.status] ?? 1) - (r[b.status] ?? 1) || String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+  });
+  const rijen = gevonden.map(v => {
+    const k = _vacKlant(v);
+    return '<tr class="crm-lijstrij" onclick="vacOpen(\'' + escApos(String(v.id)) + '\')" title="Vacature openen">' +
+      '<td class="naam">' + _oneMarkeer(v.titel || '—', z) + '</td>' +
+      '<td class="d">' + (k ? '<span class="crm-klik" onclick="event.stopPropagation();crmBedrijfOpen(\'' + escApos(k.sleutel) + '\')">' + _oneMarkeer(k.naam, z) + '</span>' : '<span class="crm-pil wacht" title="Kies de klant op de vacaturekaart">klant nog kiezen</span>') + '</td>' +
+      '<td class="d">' + escHtml(v.vakgebied || '—') + '</td><td class="d">' + escHtml(v.regio || '—') + '</td><td class="d">' + escHtml(v.opleidingsniveau || '—') + '</td>' +
+      '<td><span class="rec-ini" title="' + escHtml(v.bm_naam || '') + '">' + escHtml(_recInitials(v.bm_naam || '?')) + '</span></td>' +
+      '<td>' + _vacStatusPil(v) + '</td>' +
+      '<td class="d">' + (v.status === 'gesloten' ? escHtml(_vacDatum(v.online_vanaf) + (v.gesloten_op ? ' – ' + _vacDatum(v.gesloten_op) : '')) : (v.online_vanaf ? escHtml(_vacDatum(v.online_vanaf)) : '<span class="stil">—</span>')) + '</td>' +
+      '<td class="d">' + (v.gesync_op ? '<span title="Door de plugin verwerkt ' + escHtml(_vacDatum(v.gesync_op)) + '">✓</span>' : (v.status === 'online' ? '<span class="stil">vannacht</span>' : '<span class="stil">—</span>')) + '</td></tr>';
+  }).join('');
+  const balk = _crmZoekBalkHtml(st, [['mijn', 'Mijn', n('mijn')], ['', 'Alles', alle.length], ['online', 'Online', n('online')], ['concept', 'Concept', n('concept')], ['gesloten', 'Gesloten', n('gesloten')], ['klantleeg', 'Klant nog kiezen', n('klantleeg')]],
+    { id: 'vac-q', zet: 'vacFilter', zoek: 'vacZoek', hint: 'titel, klant, vakgebied, regio, niveau, BM' });
+  const mag = magWijzigen('crm') && !VAC_ONTBREEKT;
+  return '<div><div class="person-header"><div class="person-name">Vacatures' + btUitlegKnop('vacatures') + '</div>' +
+    '<div class="person-meta"><span class="meta-pill">' + alle.length + ' totaal · ' + n('online') + ' online · ' + n('concept') + ' concept · ' + n('gesloten') + ' gesloten</span>' +
+    (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="vacNieuw()">+ Nieuwe vacature</button>' : '') + '</div></div>' +
+    _vacSqlHint() + balk +
+    '<div class="kand-archief open" style="margin-top:0;">' +
+      (rijen ? '<table class="kand-archief-tabel kand-arch-tabel crm-tabel vac-tabel"><thead><tr><th>Titel</th><th>Klant</th><th>Vakgebied</th><th>Regio</th><th>Niveau</th><th>BM</th><th>Status</th><th>Online sinds</th><th>Site</th></tr></thead><tbody>' + rijen + '</tbody></table>'
+             : '<div class="kand-archief-leeg">' + (alle.length ? 'Niets gevonden.' : 'Nog geen vacatures. Maak de eerste met + Nieuwe vacature, of importeer de website (supabase/vacatures_import.sql).') + '</div>') +
+    '</div>' + _vacSyncHtml() + '</div>';
+}
+
+// ── De kaart (maken / wijzigen) ─────────────────────────────────────────────
+function vacNieuw(klantSleutel) {
+  if (!eisWijzig('crm')) return;
+  if (VAC_ONTBREEKT) { btMeld('De vacaturetabellen bestaan nog niet (supabase/vacatures.sql).', 'geel'); return; }
+  VAC_FORM = { id: null, velden: { klant_sleutel: klantSleutel ? String(klantSleutel) : '', bm_naam: _vacMij(), recruiter: _vacMij(), status: 'concept' } };
+  _vacPopup();
+}
+function vacOpen(id) {
+  const v = _vacVind(id); if (!v) { btMeld('Deze vacature bestaat niet (meer).', 'geel'); return; }
+  VAC_FORM = { id: String(v.id), velden: {} };
+  _vacPopup();
+}
+function vacDupliceer(id) {
+  const v = _vacVind(id); if (!v || !eisWijzig('crm')) return;
+  const kopie = Object.assign({}, v);
+  ['id', 'slug', 'status', 'online_vanaf', 'sluit_op', 'gesloten_op', 'gesloten_reden', 'wp_id', 'gesync_op', 'created_at', 'updated_at', 'created_by', 'updated_by'].forEach(k => delete kopie[k]);
+  kopie.titel = (v.titel || '') + ' (kopie)'; kopie.status = 'concept'; kopie.bm_naam = _vacMij(); kopie.recruiter = _vacMij();
+  VAC_FORM = { id: null, velden: kopie };
+  _vacPopup();
+}
+function _vacPopup() {
+  if (!VAC_FORM) return;
+  crmKaartToon(_vacKaartHtml(VAC_FORM), 'crm-dossier vac-kaart', () => { VAC_FORM = null; });
+  setTimeout(() => { const el = document.getElementById('vac-titel'); if (el && el.focus && !el.value) el.focus(); }, 60);
+}
+// Wat er nu in de velden staat (hertekenen zonder te verliezen).
+function _vacLees() {
+  const v = (id) => { const el = document.getElementById(id); return el ? String(el.value || '') : undefined; };
+  const uit = {};
+  [['titel', 'vac-titel'], ['vakgebied', 'vac-vakgebied'], ['branche', 'vac-branche'], ['opleidingsniveau', 'vac-niveau'], ['regio', 'vac-regio'], ['dienstverband', 'vac-dienstverband'], ['uren', 'vac-uren'],
+   ['salaris', 'vac-salaris'], ['intro', 'vac-intro'], ['eisen', 'vac-eisen'], ['aanbod', 'vac-aanbod'], ['wie_zijn_wij', 'vac-wie'], ['stappen', 'vac-stappen'], ['online_vanaf', 'vac-online-vanaf'], ['sluit_op', 'vac-sluit-op'], ['recruiter', 'vac-recruiter'], ['bm_naam', 'vac-bm']]
+    .forEach(([k, id]) => { const w = v(id); if (w !== undefined) uit[k] = w; });
+  const st = document.querySelector('.vac-status .vs-pil.aan'); if (st) uit.status = st.getAttribute('data-status');
+  const kl = document.getElementById('vac-klant'); if (kl) { const k = crmBedrijfLijst().find(x => _itkSleutel(x.naam) === _itkSleutel(kl.value || '')); uit.klant_sleutel = k ? k.sleutel : ''; uit.klant_naam = k ? k.naam : ''; }
+  return uit;
+}
+function _vacKaartHtml(f) {
+  const bron = f.id ? (_vacVind(f.id) || {}) : {};
+  const g = Object.assign({}, bron, f.velden || {});
+  const mag = _vacMag(f.id ? bron : null);
+  const inp = 'class="vs-in"' + (mag ? '' : ' disabled');
+  const veld = (label, html, ster, klein) => '<div class="vs-veld"><label>' + escHtml(label) + (ster ? ' <em>*</em>' : '') + (klein ? ' <small>' + klein + '</small>' : '') + '</label>' + html + '</div>';
+  const tekst = (id, w, ph) => '<input id="' + id + '" value="' + escHtml(w || '') + '" placeholder="' + escHtml(ph || '') + '" ' + inp + '>';
+  const ta = (id, w, ph, rows) => '<textarea id="' + id + '" rows="' + (rows || 3) + '" placeholder="' + escHtml(ph || '') + '" ' + inp + '>' + escHtml(w || '') + '</textarea>';
+  const keuze = (id, w, lijst, ph, nieuw) => _kiezerHtml({ id, klasse: 'donker', lijst: () => Array.from(new Set(lijst.concat(VACATURES.map(x => x[id.replace('vac-', '').replace('niveau', 'opleidingsniveau')]).filter(Boolean)))).map(n => ({ naam: n })), waarde: w, placeholder: ph, nieuw: nieuw === false ? false : 'Nieuwe waarde', uit: !mag });
+  const klantNaam = g.klant_sleutel ? _vacKlantNaam({ klant_sleutel: g.klant_sleutel, klant_naam: g.klant_naam }) : (g.klant_naam || '');
+  const klant = _kiezerHtml({ id: 'vac-klant', klasse: 'donker', lijst: () => crmBedrijfLijst().map(k => ({ naam: k.naam, sub: k.plaats || '' })), waarde: klantNaam, placeholder: 'kies de klant uit CRM · Bedrijven', nieuw: false, leeg: 'Niet in het CRM — voeg het bedrijf eerst toe bij CRM · Bedrijven', uit: !mag });
+  const collegas = bmsMetCijfers().map(b => b.naam); if (g.bm_naam && collegas.indexOf(g.bm_naam) < 0) collegas.unshift(g.bm_naam);
+  const sel = (id, w, lijst, uit) => '<select id="' + id + '" ' + inp + (uit ? ' disabled' : '') + '>' + lijst.map(n => '<option value="' + escHtml(n) + '"' + (n === w ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>';
+  const status = String(g.status || 'concept');
+  const pillen = '<div class="vs-soort vac-status">' + Object.keys(VAC_STATUS).map(w => '<button type="button" class="vs-pil' + (status === w ? ' aan' : '') + (w === 'gesloten' ? ' dicht' : '') + '" data-status="' + w + '"' + (mag && w !== 'gesloten' ? ' onclick="vacStatusKies(this)"' : ' disabled') + '>' + VAC_STATUS[w] + '</button>').join('') + '</div>';
+  const vastBlok = (sleutel, id) => {
+    const eigen = g[sleutel] && String(g[sleutel]).trim();
+    return veld(VAC_TEKST_VAST[sleutel], ta(id, eigen ? g[sleutel] : _vacStandaard(sleutel), 'standaardtekst', 4), false,
+      eigen ? 'eigen tekst voor deze vacature · <a href="#" onclick="vacStandaardTerug(\'' + id + '\',\'' + sleutel + '\');return false;">standaard terugzetten</a>' : 'standaardtekst (Beheer → Vacatureteksten) — wijzig je hem hier, dan geldt dat alleen voor deze vacature');
+  };
+  const slug = g.slug ? 'brightech.nl/vacature/<b>' + escHtml(g.slug) + '</b>' : 'brightech.nl/vacature/<b>' + escHtml(_vacSlug(g.titel || '…')) + '</b>';
+  const site = g.gesync_op ? '✓ op de site, verwerkt ' + _vacDatum(g.gesync_op) : (status === 'online' ? 'wacht op de nachtelijke sync' : 'niet op de site');
+  const kop = '<h4 class="wit">' + (f.id ? escHtml(g.titel || 'Vacature') : 'Nieuwe vacature') + '</h4>' +
+    '<div class="crm-sub">' + (f.id ? _vacStatusPil(g) + ' · ' + site + (g.updated_by ? ' · gewijzigd ' + escHtml(_vacDatum(g.updated_at)) + ' door ' + escHtml(g.updated_by) : '') : 'Vul de velden in zoals ze op de vacaturepagina komen. Klant en salaris blijven in de Cockpit.') + '</div>';
+  const links =
+    '<div class="crm-kop">Vacature</div>' +
+    veld('Functietitel', tekst('vac-titel', g.titel, 'bijv. Project Engineer'), true) +
+    '<div class="vs-3k">' + veld('Vakgebied', keuze('vac-vakgebied', g.vakgebied, VAC_VAKGEBIEDEN, 'kies…'), true) + veld('Branche', keuze('vac-branche', g.branche, VAC_BRANCHES, 'kies…'), true) + veld('Opleidingsniveau', keuze('vac-niveau', g.opleidingsniveau, VAC_NIVEAUS, 'MBO · HBO · WO', false), true) + '</div>' +
+    '<div class="vs-3k">' + veld('Regio / plaats', keuze('vac-regio', g.regio, VAC_REGIOS, 'plaats'), true) + veld('Dienstverband', keuze('vac-dienstverband', g.dienstverband, VAC_DIENSTVERBANDEN, 'Fulltime', false)) + veld('Uren per week', tekst('vac-uren', g.uren, '38–40')) + '</div>' +
+    '<div class="vs-2k">' + veld('Klant — CRM · Bedrijven, nooit op de site', klant, true) + veld('Salarisindicatie — niet op de site', tekst('vac-salaris', g.salaris, '€ 3.800 – 4.600')) + '</div>' +
+    '<div class="crm-kop">Tekst <small class="crm-kop-klein">zo staat hij op de site</small></div>' +
+    veld('Intro', ta('vac-intro', g.intro, 'De openingstekst: wat is het, voor wie, waarom leuk', 5), true) +
+    veld('Wat wordt er van jou gevraagd?', ta('vac-eisen', g.eisen, 'Eén regel per punt', 5), true, 'één regel per punt') +
+    vastBlok('aanbod', 'vac-aanbod') + vastBlok('wie_zijn_wij', 'vac-wie') + vastBlok('stappen', 'vac-stappen');
+  const rechts =
+    '<div class="crm-kop">Publiceren</div>' +
+    veld('Status', pillen + (status === 'gesloten' && g.gesloten_op ? '<small class="vs-noot">gesloten ' + escHtml(_vacDatum(g.gesloten_op)) + (g.gesloten_reden ? ' · ' + escHtml(g.gesloten_reden) : '') + '</small>' : '')) +
+    '<div class="vs-2k">' + veld('Online vanaf', '<input id="vac-online-vanaf" type="date" value="' + escHtml(String(g.online_vanaf || '').slice(0, 10)) + '" ' + inp + '>') + veld('Automatisch sluiten op', '<input id="vac-sluit-op" type="date" value="' + escHtml(String(g.sluit_op || '').slice(0, 10)) + '" ' + inp + '>') + '</div>' +
+    veld('Recruiter op de site ("Kan ik helpen?")', sel('vac-recruiter', g.recruiter || _vacMij(), collegas)) +
+    veld('Eigenaar in de Cockpit (BM)', sel('vac-bm', g.bm_naam || _vacMij(), collegas, !(isManagerLevel() || isBeheerder() || (CURRENT_USER && CURRENT_USER.rol === 'backoffice')))) +
+    veld('Adres op de site', '<div class="vs-vast">' + slug + '</div>', false, g.online_vanaf ? 'vast — wijzigt niet mee met de titel' : 'wordt vastgezet zodra de vacature online gaat') +
+    '<div class="crm-kop">Koppelingen in de Cockpit</div>' +
+    '<div class="kk-lijst"><div class="kk-rij"><span>Klant</span><div>' + (g.klant_sleutel ? '<span class="crm-klik" onclick="crmKaartSluit();crmBedrijfOpen(\'' + escApos(g.klant_sleutel) + '\')">' + escHtml(klantNaam) + ' → bedrijfskaart</span>' : '<span class="stil">nog niet gekozen</span>') + '</div></div>' +
+    '<div class="kk-rij"><span>Sollicitaties</span><div><span class="stil">komt in deel C (website → Cockpit)</span></div></div></div>';
+  const knoppen = '<div class="crm-knoppen vs-voet"><span class="vs-noot">' + (mag ? (f.id ? 'Wijzigingen gaan bij de volgende sync naar de site.' : 'Nieuwe vacatures beginnen als concept; zet op online als de tekst klaar is.') : 'Alleen de eigenaar (' + escHtml(g.bm_naam || '?') + '), manager of backoffice kan deze vacature wijzigen.') + '</span><span>' +
+    (mag && f.id && status !== 'gesloten' ? '<button type="button" class="crm-knop" onclick="vacSluitVraag(\'' + escApos(String(f.id)) + '\')">Sluiten…</button> ' : '') +
+    (mag && f.id ? '<button type="button" class="crm-knop" onclick="vacDupliceer(\'' + escApos(String(f.id)) + '\')">Dupliceren</button> ' : '') +
+    (mag && f.id && status === 'concept' ? '<button type="button" class="crm-knop weg" onclick="vacVerwijder(\'' + escApos(String(f.id)) + '\')">Verwijderen</button> ' : '') +
+    '<button type="button" class="crm-knop" onclick="crmKaartSluit()">' + (mag ? 'Annuleren' : 'Sluiten') + '</button> ' +
+    (mag ? '<button type="button" class="crm-knop goed" onclick="vacOpslaan(this)">' + (f.id ? 'Opslaan' : 'Vacature opslaan') + '</button>' : '') + '</span></div>';
+  return kop + '<div class="crm-body vs-body"><div class="kk-2k"><div>' + links + '</div><div>' + rechts + '</div></div></div>' + knoppen;
+}
+function vacStatusKies(el) { const p = el.parentElement; if (!p) return; p.querySelectorAll('.vs-pil').forEach(b => b.classList.toggle('aan', b === el)); const d = document.getElementById('vac-online-vanaf'); if (d && el.getAttribute('data-status') === 'online' && !d.value) d.value = toISODate(new Date()); }
+function vacStandaardTerug(id, sleutel) { const el = document.getElementById(id); if (el) el.value = _vacStandaard(sleutel); }
+
+// ── Opslaan / sluiten / verwijderen ─────────────────────────────────────────
+async function vacOpslaan(knop) {
+  const f = VAC_FORM; if (!f || !eisWijzig('crm')) return;
+  const bron = f.id ? _vacVind(f.id) : null;
+  if (f.id && !bron) { btMeld('Deze vacature bestaat niet (meer).', 'geel'); return; }
+  if (!_vacMag(bron)) { btMeld('Alleen de eigenaar, manager of backoffice kan deze vacature wijzigen.', 'geel'); return; }
+  const w = _vacLees();
+  const fout = (t, id) => { btMeld(t, 'geel'); const el = id && document.getElementById(id); if (el && el.focus) el.focus(); };
+  const leeg = (k) => !String(w[k] || '').trim();
+  if (leeg('titel')) return fout('Vul de functietitel in.', 'vac-titel');
+  if (!w.klant_sleutel) return fout('Kies de klant uit CRM · Bedrijven (staat hij er niet in: eerst toevoegen).', 'vac-klant');
+  const status = w.status || 'concept';
+  if (status === 'online') {
+    for (const [k, id, t] of [['vakgebied', 'vac-vakgebied', 'vakgebied'], ['branche', 'vac-branche', 'branche'], ['opleidingsniveau', 'vac-niveau', 'opleidingsniveau'], ['regio', 'vac-regio', 'regio / plaats'], ['intro', 'vac-intro', 'intro'], ['eisen', 'vac-eisen', 'wat wordt er van jou gevraagd']]) {
+      if (leeg(k)) return fout('Om online te gaan is ' + t + ' verplicht.', id);
+    }
+  }
+  // Vaste blokken: gelijk aan de standaardtekst = niets eigen opslaan (null), zodat een nieuwe standaardtekst overal doorwerkt.
+  const eigen = (k) => { const t = String(w[k] || '').trim(); return t && t !== String(_vacStandaard(k)).trim() ? t : null; };
+  const rij = {
+    titel: w.titel.trim(), vakgebied: w.vakgebied || null, branche: w.branche || null, opleidingsniveau: w.opleidingsniveau || null, regio: w.regio || null,
+    dienstverband: w.dienstverband || null, uren: w.uren || null, klant_sleutel: w.klant_sleutel, klant_naam: w.klant_naam || null, salaris: w.salaris || null,
+    intro: w.intro || null, eisen: w.eisen || null, aanbod: eigen('aanbod'), wie_zijn_wij: eigen('wie_zijn_wij'), stappen: eigen('stappen'),
+    status, online_vanaf: w.online_vanaf || (status === 'online' ? toISODate(new Date()) : null), sluit_op: w.sluit_op || null,
+    recruiter: w.recruiter || null, bm_naam: w.bm_naam || _vacMij(), updated_by: CURRENT_USER && CURRENT_USER.naam || null,
+  };
+  // Slug: vast zodra de vacature ooit online stond; daarvoor volgt hij de titel.
+  const ooitOnline = !!(bron && bron.online_vanaf);
+  rij.slug = ooitOnline && bron.slug ? bron.slug : _vacUniekeSlug(_vacSlug(rij.titel) || 'vacature', f.id);
+  if (knop) { knop.disabled = true; knop.textContent = 'Bezig…'; }
+  let error = null, data = null;
+  try {
+    _echoVanZelf('vacatures');
+    if (f.id) ({ data, error } = await supa.from('vacatures').update(rij).eq('id', f.id).select().single());
+    else { rij.created_by = CURRENT_USER && CURRENT_USER.id ? CURRENT_USER.id : null; ({ data, error } = await supa.from('vacatures').insert(rij).select().single()); }
+  } catch (e) { error = e; }
+  if (error) {
+    const t = /row-level security/i.test(error.message || '') ? 'je mag deze vacature niet wijzigen (eigenaar, manager of backoffice).' : /duplicate key.*slug/i.test(error.message || '') ? 'dit adres (slug) bestaat al — pas de titel iets aan.' : (error.message || error);
+    btMeld('Opslaan mislukt: ' + t, 'rood'); meldFout('vacature opslaan mislukt: ' + (error.message || error), 'vacOpslaan');
+    if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
+    return;
+  }
+  if (data) { const i = VACATURES.findIndex(v => String(v.id) === String(data.id)); if (i >= 0) VACATURES[i] = data; else VACATURES.unshift(data); }
+  btMeld(f.id ? 'Vacature bijgewerkt.' : 'Vacature opgeslagen' + (status === 'online' ? ' — gaat vannacht naar de site.' : ' als concept.'), 'groen');
+  VAC_FORM = null; crmKaartSluit();
+  renderVacatures(); _crmDossierHerteken();
+}
+function vacSluitVraag(id) {
+  const v = _vacVind(id); if (!v || !_vacMag(v)) return;
+  crmKaartToon('<h4 class="wit">Vacature sluiten · ' + escHtml(v.titel || '') + '</h4><div class="crm-sub">Waarom gaat hij dicht? Dat zie je later terug in de doorlooptijd.</div>' +
+    '<div class="crm-body"><div class="vs-soort"><button type="button" class="vs-pil" onclick="vacSluit(\'' + escApos(String(v.id)) + '\',\'ingevuld\')">Ingevuld — kandidaat gestart</button>' +
+    '<button type="button" class="vs-pil" onclick="vacSluit(\'' + escApos(String(v.id)) + '\',\'vervallen\')">Vervallen — klant trekt terug</button></div></div>' +
+    '<div class="crm-knoppen vs-voet"><span class="vs-noot">Gesloten vacatures gaan bij de volgende sync van de site.</span><span><button type="button" class="crm-knop" onclick="vacOpen(\'' + escApos(String(v.id)) + '\')">Terug</button></span></div>', 'crm-dossier vac-kaart');
+}
+async function vacSluit(id, reden) {
+  const v = _vacVind(id); if (!v || !eisWijzig('crm') || !_vacMag(v)) return;
+  _echoVanZelf('vacatures');
+  const rij = { status: 'gesloten', gesloten_op: new Date().toISOString(), gesloten_reden: reden, updated_by: CURRENT_USER && CURRENT_USER.naam || null };
+  const { data, error } = await supa.from('vacatures').update(rij).eq('id', v.id).select().single();
+  if (error) { btMeld('Sluiten mislukt: ' + (error.message || error), 'rood'); meldFout('vacature sluiten: ' + (error.message || error), 'vacSluit'); return; }
+  const i = VACATURES.findIndex(x => String(x.id) === String(v.id)); if (i >= 0) VACATURES[i] = data;
+  btMeld('Vacature gesloten (' + reden + ').', 'groen'); VAC_FORM = null; crmKaartSluit(); renderVacatures(); _crmDossierHerteken();
+}
+async function vacVerwijder(id) {
+  const v = _vacVind(id); if (!v || !eisWijzig('crm') || !_vacMag(v)) return;
+  if (v.status !== 'concept') { btMeld('Alleen een concept kun je verwijderen; een vacature die online stond sluit je.', 'geel'); return; }
+  const ok = await btBevestig('Concept "' + (v.titel || '') + '" verwijderen?'); if (!ok) return;
+  _echoVanZelf('vacatures');
+  const { error } = await supa.from('vacatures').delete().eq('id', v.id);
+  if (error) { btMeld('Verwijderen mislukt: ' + (error.message || error), 'rood'); meldFout('vacature verwijderen: ' + (error.message || error), 'vacVerwijder'); return; }
+  VACATURES = VACATURES.filter(x => String(x.id) !== String(v.id));
+  btMeld('Concept verwijderd.', 'groen'); VAC_FORM = null; crmKaartSluit(); renderVacatures(); _crmDossierHerteken();
+}
+// "Nu synchroniseren": een verzoek in vacature_sync; de plugin (deel B) pakt het op.
+async function vacSyncVraag(knop) {
+  if (!eisWijzig('crm') || !_vacMagSync()) return;
+  if (knop) { knop.disabled = true; knop.textContent = 'Gevraagd…'; }
+  const { data, error } = await supa.from('vacature_sync').insert({ status: 'gevraagd', bron: 'hand', gevraagd_door: CURRENT_USER && CURRENT_USER.naam || null }).select().single();
+  if (error) { btMeld('Sync vragen mislukt: ' + (error.message || error), 'rood'); meldFout('vacature sync vragen: ' + (error.message || error), 'vacSyncVraag'); if (knop) { knop.disabled = false; knop.textContent = 'Nu synchroniseren'; } return; }
+  VAC_SYNC = data; btMeld('Sync gevraagd — de website haalt de vacatures binnen enkele minuten op.', 'groen'); renderVacatures();
+}
+
+// ── Blok op de bedrijfskaart ────────────────────────────────────────────────
+function _vacBlokBedrijfHtml(k) {
+  if (VAC_ONTBREEKT) return '';
+  const lijst = vacaturesVoorKlant(k.sleutel);
+  const open = lijst.filter(v => v.status !== 'gesloten').length, dicht = lijst.length - open;
+  const mag = magWijzigen('crm');
+  const knop = mag ? '<button type="button" class="crm-kop-knop goud" onclick="vacNieuw(\'' + escApos(k.sleutel) + '\')">+ Vacature</button>' : '';
+  const regels = lijst.slice(0, 8).map(v => '<div class="kk-rij vac-rij' + (v.status === 'gesloten' ? ' stil' : '') + '" onclick="vacOpen(\'' + escApos(String(v.id)) + '\')" title="Vacature openen"><span>' + _vacStatusPil(v) + '</span><div><b>' + escHtml(v.titel || '') + '</b> · ' + escHtml([v.vakgebied, v.opleidingsniveau, v.regio].filter(Boolean).join(' · ')) +
+    '<span class="vac-rij-r"><span class="rec-ini" title="' + escHtml(v.bm_naam || '') + '">' + escHtml(_recInitials(v.bm_naam || '?')) + '</span>' + (v.online_vanaf ? ' sinds ' + escHtml(_vacDatum(v.online_vanaf)) : '') + '</span></div></div>').join('');
+  return '<div class="crm-kop met-knop">Vacatures<small class="crm-kop-klein">' + (lijst.length ? open + ' open · ' + dicht + ' gesloten' : 'nog geen') + '</small>' + knop + '</div>' +
+    '<div class="kk-lijst">' + (regels || '<div class="kk-rij"><span class="stil">Nog geen vacatures bij deze klant.</span></div>') + (lijst.length > 8 ? '<div class="kk-rij"><span class="stil">+ ' + (lijst.length - 8) + ' meer op de pagina Vacatures</span></div>' : '') + '</div>';
+}
+
+// ── Beheer → Vacatureteksten ────────────────────────────────────────────────
+function renderBeheerVacTeksten() {
+  const mag = _vacMagSync();
+  const blok = (sleutel) => {
+    const r = VAC_TEKSTEN[sleutel] || { titel: VAC_TEKST_VAST[sleutel], tekst: '' };
+    return '<div class="bt-venster werk-blad" style="margin-bottom:12px;"><div class="pva-blok" style="margin:0 0 8px;">' + escHtml(r.titel || VAC_TEKST_VAST[sleutel]) + '</div>' +
+      '<textarea id="vac-tekst-' + sleutel + '" rows="7" class="vs-in" style="background:#fff;color:var(--text);"' + (mag ? '' : ' disabled') + '>' + escHtml(r.tekst || '') + '</textarea>' +
+      '<div style="font-size:.74rem;color:var(--muted);margin-top:4px;">' + (sleutel === 'wie_zijn_wij' ? 'Lopende tekst.' : 'Eén regel per punt; de site maakt er een lijst van.') + (r.updated_by ? ' Laatst gewijzigd door ' + escHtml(r.updated_by) + '.' : '') + '</div></div>';
+  };
+  document.getElementById('main').innerHTML = '<div><div class="person-header"><div class="person-name">Beheer — Vacatureteksten</div>' +
+    '<div class="person-meta"><span class="meta-pill">de drie vaste blokken op elke vacaturepagina</span></div></div>' + _rechtenSubtabs() +
+    '<div style="padding:16px 20px;">' + _vacSqlHint() + blok('aanbod') + blok('wie_zijn_wij') + blok('stappen') +
+    (mag && !VAC_ONTBREEKT ? '<button type="button" class="mt-knop-eerste" onclick="vacTekstenOpslaan(this)">Opslaan</button>' : '') +
+    '<div style="margin-top:10px;font-size:.78rem;color:var(--muted);">Een vacature die een eigen tekst heeft voor een blok, houdt die; alle andere vacatures volgen deze standaardtekst bij de volgende sync.</div></div></div>';
+}
+async function vacTekstenOpslaan(knop) {
+  if (!eisWijzig('crm') || !_vacMagSync()) return;
+  const rijen = Object.keys(VAC_TEKST_VAST).map(sleutel => ({ sleutel, titel: VAC_TEKST_VAST[sleutel], tekst: String((document.getElementById('vac-tekst-' + sleutel) || {}).value || ''), updated_at: new Date().toISOString(), updated_by: CURRENT_USER && CURRENT_USER.naam || null }));
+  if (knop) { knop.disabled = true; knop.textContent = 'Bezig…'; }
+  const { data, error } = await supa.from('vacature_teksten').upsert(rijen, { onConflict: 'sleutel' }).select();
+  if (knop) { knop.disabled = false; knop.textContent = 'Opslaan'; }
+  if (error) { btMeld('Opslaan mislukt: ' + (error.message || error), 'rood'); meldFout('vacatureteksten opslaan: ' + (error.message || error), 'vacTekstenOpslaan'); return; }
+  (data || []).forEach(r => { VAC_TEKSTEN[r.sleutel] = r; });
+  btMeld('Standaardteksten opgeslagen.', 'groen');
 }
 
 let _REC_KAND_SET = null, _REC_BEDR_SET = null;   // 30-09: per hertekening één keer, voor de klikbare namen
