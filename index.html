@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261001-1313 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261002-0907 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11294,7 +11294,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261001-1313';
+const APP_VERSIE = '20261002-0907';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -41140,7 +41140,7 @@ function _vacPast(v, st) {
   if (z) { const tekst = [v.titel, _vacKlantNaam(v), v.vakgebied, v.branche, v.regio, v.opleidingsniveau, v.bm_naam, v.recruiter].join(' ').toLowerCase(); if (tekst.indexOf(z) < 0) return false; }
   return true;
 }
-function vacFilter(f) { VAC_TAB.filter = f; renderVacatures(); }
+function vacFilter(f) { VAC_TAB.filter = f; VAC_TAB.mijnGekozen = f === 'mijn'; renderVacatures(); }
 function vacZoek(q) { VAC_TAB.zoek = q; renderVacatures(); }
 
 // ── De pagina ───────────────────────────────────────────────────────────────
@@ -41166,6 +41166,7 @@ function renderVacaturesHtml() {
   const st = VAC_TAB, z = String(st.zoek || '').trim().toLowerCase();
   const alle = VACATURES;
   const n = (f) => alle.filter(v => _vacPast(v, { filter: f })).length;
+  if (st.filter === 'mijn' && !st.mijnGekozen && !n('mijn') && alle.length) st.filter = '';   // 02-10: niets van mij → Alles (tot je zelf op Mijn klikt)
   const gevonden = alle.filter(v => _vacPast(v, st)).slice().sort((a, b) => {
     const r = { online: 0, concept: 1, gesloten: 2 };
     return (r[a.status] ?? 1) - (r[b.status] ?? 1) || String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
