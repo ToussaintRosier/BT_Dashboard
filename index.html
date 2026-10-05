@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-1812 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261005-1857 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11534,7 +11534,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-1812';
+const APP_VERSIE = '20261005-1857';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20946,6 +20946,13 @@ function computeCoachingData(bm) {
     return { bm, isKAM, ytd, expectedStarters, starterGap, starterPctOfDoel, i2a, a2m, m2s, ti2a, ta2m, tm2s, m2c, c2s, tm2c, tc2s, ytdPerWk, norm, trend, points: sorted, r26, pipeEarly, weeksSinceStar, bezoekStreak, yoyDelta, prevYearYtd, pvaPct };
 }
 
+// 05-10: opnames op de coaching-tab nieuwste eerst (gespreksdatum, anders onderaan).
+function _ccOpnamesSort(lijst) {
+  return lijst.slice().sort((a, b) => (_recDatumSort(b.datum) || 0) - (_recDatumSort(a.datum) || 0));
+}
+let CC_ALLE_OPNAMES = '';   // naam van de collega waarvoor alle opnames open staan
+function ccToonAlleOpnames(naam, alles) { CC_ALLE_OPNAMES = alles ? naam : ''; refreshCoachingTab(); }
+
 function refreshCoachingTab() {
   if (bmSubTab !== 'coaching') return;
   const bm = typeof currentTab === 'number' ? BMS[currentTab] : null;
@@ -20972,7 +20979,7 @@ async function gesprekCoachAnalyse(id) {
   if (!rec) return;
   if (!rec.transcript) await _transcriptOphalen(rec);
   if (!rec.transcript) {
-    btMeld('geel', rec.heeftTranscript ? 'Het transcript kon niet worden opgehaald. Kijk in het foutenlogboek onder Beheer.' : 'Deze opname heeft geen transcript; er valt niets te analyseren.');
+    btMeld(rec.heeftTranscript ? 'Het transcript kon niet worden opgehaald. Kijk in het foutenlogboek onder Beheer.' : 'Deze opname heeft geen transcript; er valt niets te analyseren.', 'geel');
     return;
   }
   GESPREK_COACHING_RESULTS[id] = { loading: true, result: null };
@@ -20999,7 +21006,7 @@ async function bezoekCoachAnalyse(id) {
   if (!rec) return;
   if (!rec.transcript) await _transcriptOphalen(rec);
   if (!rec.transcript) {
-    btMeld('geel', rec.heeftTranscript ? 'Het transcript kon niet worden opgehaald. Kijk in het foutenlogboek onder Beheer.' : 'Deze opname heeft geen transcript; er valt niets te analyseren.');
+    btMeld(rec.heeftTranscript ? 'Het transcript kon niet worden opgehaald. Kijk in het foutenlogboek onder Beheer.' : 'Deze opname heeft geen transcript; er valt niets te analyseren.', 'geel');
     return;
   }
   BEZOEK_COACHING_RESULTS[id] = { loading: true, result: null };
@@ -22387,8 +22394,12 @@ function renderBmCoachingTab(bm) {
     : `<div class="cc-leeg">Complimenten: alles loopt op schema. Bespreek hoe het momentum vast te houden.</div>`;
 
   // ── Opnames ─────────────────────────────────────────────────────────────
-  const gesprekMet = GESPREK_RECORDS.filter(x => _heeftTranscript(x) && x.recorder_naam === bm.naam);
-  const bezoekMet  = BEZOEK_RECORDS.filter(x => _heeftTranscript(x) && x.recorder_naam === bm.naam);
+  // 05-10: nieuwste eerst op de gespreksdatum. Voorheen de laadvolgorde, waardoor
+  // intakes van augustus bovenaan stonden terwijl die van september ontbraken.
+  const gesprekMet = _ccOpnamesSort(GESPREK_RECORDS.filter(x => _heeftTranscript(x) && x.recorder_naam === bm.naam));
+  const bezoekMet  = _ccOpnamesSort(BEZOEK_RECORDS.filter(x => _heeftTranscript(x) && x.recorder_naam === bm.naam));
+  const alleOpnames = CC_ALLE_OPNAMES === bm.naam;
+  const maxRijen = alleOpnames ? Infinity : 5;
   const totalAll   = GESPREK_RECORDS.filter(_heeftTranscript).length + BEZOEK_RECORDS.filter(_heeftTranscript).length;
   const totalBm    = gesprekMet.length + bezoekMet.length;
   const datumKort = (t) => {
@@ -22439,7 +22450,8 @@ function renderBmCoachingTab(bm) {
         : `<div class="cc-leeg">Geen opnames toegewezen aan ${voornaam}.${totalAll > 0 ? ' Er zijn wel ' + totalAll + ' opname(s) beschikbaar — wijs ze toe via de recorder-tabs (Recente records → Toewijzen).' : ' Maak een opname via de ITK- of BZK-Recorder.'}</div>`)
     : `<table class="cc-tabel"><colgroup><col style="width:58px"><col style="width:46px"><col><col class="kol-afspr" style="width:80px"><col class="kol-status" style="width:96px"><col style="width:216px"></colgroup>
         <thead><tr><th>datum</th><th>type</th><th>opname</th><th class="kol-afspr">afspraken</th><th class="kol-status">analyse</th><th></th></tr></thead>
-        <tbody>${gesprekMet.slice(0, 5).map(x => recRij(x, 'itk')).join('') + bezoekMet.slice(0, 5).map(x => recRij(x, 'bzk')).join('')}</tbody></table>`;
+        <tbody>${gesprekMet.slice(0, maxRijen).map(x => recRij(x, 'itk')).join('') + bezoekMet.slice(0, maxRijen).map(x => recRij(x, 'bzk')).join('')}</tbody></table>
+        ${(gesprekMet.length > 5 || bezoekMet.length > 5) ? `<div style="padding:8px 4px 0;"><button type="button" class="kn stil k" onclick="ccToonAlleOpnames('${escApos(bm.naam)}', ${alleOpnames ? 'false' : 'true'})">${alleOpnames ? 'toon de laatste 5' : 'toon alle ' + totalBm + ' opnames'}</button></div>` : ''}`;
 
   return `
     <div class="norm-intro">
@@ -40216,7 +40228,7 @@ async function _laadTranscriptsAchtergrond(type) {
         r.heeftTranscript = !!(r.transcript && r.transcript.trim());
       }
     });
-    if (mislukt) btMeld('geel', 'Niet alle opnames konden worden opgehaald (' + mislukt + ' deel' + (mislukt === 1 ? '' : 'en') + '). Analyseer haalt ze per stuk alsnog op.');
+    if (mislukt) btMeld('Niet alle opnames konden worden opgehaald (' + mislukt + ' deel' + (mislukt === 1 ? '' : 'en') + '). Analyseer haalt ze per stuk alsnog op.', 'geel');
     if (type === 'gesprek') { _saveGesprekRec(); if (currentTab === 'gesprek') renderGesprek(); }
     else                    { _saveBezoekRec();  if (currentTab === 'bezoek')  renderBezoekRecorder(); }
     if (bmSubTab === 'coaching') refreshCoachingTab();
