@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-0853 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261005-0904 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2413,6 +2413,17 @@
   .mwdoc-venster { width:420px; max-width:calc(100vw - 24px); background:var(--l2); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:16px 18px; color:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); }
   .mwdoc-veld { display:block; font-size:.74rem; color:rgba(255,255,255,.6); margin:8px 0; } .mwdoc-veld select { margin-top:4px; }
   .mwdoc-vink { display:flex; gap:8px; align-items:center; font-size:.8rem; margin-top:10px; cursor:pointer; } .mwdoc-vink input { accent-color:#F4CB3C; }
+  /* ── Keuzelijst meerkeuze (05-10) ── */
+  .kz-it .kz-b { width:15px; height:15px; border:1.5px solid rgba(255,255,255,.4); border-radius:4px; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:.62rem; color:#253151; } .kz-it.gekozen .kz-b { background:#F4CB3C; border-color:#F4CB3C; }
+  .kz-it .kz-n { color:rgba(255,255,255,.45); font-size:.7rem; margin-left:auto; padding-left:10px; }
+  .kz-voet { display:flex; gap:6px; padding:6px 3px 2px; align-items:center; border-top:1px solid rgba(255,255,255,.1); margin-top:4px; }
+  .kz-voet button { font-family:inherit; font-size:.74rem; color:#fff; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:7px; padding:5px 10px; cursor:pointer; } .kz-voet button.goud { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); margin-left:auto; }
+  .kz-tel { background:rgba(244,203,60,.22); color:#F4CB3C; border-radius:99px; padding:0 6px; font-size:.64rem; font-weight:var(--w-nadruk); }
+  /* ── Kandidaten: filterregel, standzin, statuspillen (05-10, ontwerp_kandidaten_export v2) ── */
+  .kand-filt { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:-4px 0 8px; }
+  .kand-filt select.kz-sel + .kz-knop { max-width:260px; }
+  .kand-stand-zin { display:flex; align-items:center; gap:10px; font-size:.76rem; color:rgba(255,255,255,.6); margin:0 0 10px; } .kand-stand-zin b { color:#fff; } .kand-stand-zin .wis { margin-left:auto; }
+  .kand-stand { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; } .ks { font-size:.62rem; padding:1px 7px; border-radius:99px; background:rgba(255,255,255,.1); color:rgba(255,255,255,.8); } .ks.ok { background:rgba(37,211,102,.18); color:var(--groen, #25D366); } .ks.wacht { background:rgba(232,116,0,.2); color:#ffb067; }
   .bd-tegels { display:grid; gap:8px; margin:0 0 12px; } .bd-tegel { background:var(--l1); border-radius:10px; padding:10px 12px; }
   .bd-tegel b { display:block; font-size:1.25rem; line-height:1.1; } .bd-tegel span { font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.5); }
   .bd-tegel small { display:block; font-size:.7rem; color:rgba(255,255,255,.55); margin-top:2px; } .bd-tegel.groen b { color:#25D366; } .bd-tegel.oranje b { color:#fbbf7a; }
@@ -11511,7 +11522,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-0853';
+const APP_VERSIE = '20261005-0904';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -27188,33 +27199,15 @@ function renderKandidaten() {
     geel:   { bg: 'rgba(254,243,199,.65)', border: '#fcd34d', label: 'RLDV-actie' },
     oranje: { bg: 'rgba(255,237,213,.65)', border: '#fdba74', label: 'Nog 0' },
   };
-  const allIntakeCards = [];
-  const excludedCards = [];
-  // Alle Aanbieden-kaartjes van alle BM's (alle weken, niet alleen de
-  // laatste 10) — nodig om per kandidaatnaam het totaal aantal aanbiedingen
-  // te kunnen optellen, ook als de aanbieding pas weken na de intake volgt.
-  const allAanbCards = [];
-  for (const bm of bmsMetCijfers()) {
-    const cards = pipeLoad(bm.naam);
-    for (const c of cards) {
-      // Verwijderd via het kruisje (17-09): heeft ook een verwijderdatum, maar
-      // hoort wél in het archief — anders is er geen weg terug.
-      if (c.stage === 'Intake' && c.kandidaten_uitgesloten) { excludedCards.push({ ...c, bmNaam: bm.naam }); continue; }
-      if (c.verwijderd_op) continue;
-      if (c.stage === 'Intake') allIntakeCards.push({ ...c, bmNaam: bm.naam });
-      else if (c.stage === 'Aanbieden') allAanbCards.push(c);
-    }
-  }
-  // Matching op naam: trim + lowercase, zodat kleine spelling-/hoofdletter-
-  // verschillen tussen het Intake- en het Aanbieden-kaartje niet voor een
-  // gemiste match zorgen.
+  // 05-10: de kaartjes en het totaal aanbiedingen per naam komen uit _kandIntakeKaarten (ook voor de export).
+  // Uitgesloten kaartjes horen in het archief — anders is er geen weg terug (17-09).
+  const kaarten = _kandIntakeKaarten();
+  const { excludedCards, aanbTotalByNaam } = kaarten;
   const normName = n => (n || '').trim().toLowerCase();
-  const aanbTotalByNaam = {};
-  for (const c of allAanbCards) {
-    const key = normName(c.naam);
-    if (!key) continue;
-    aanbTotalByNaam[key] = (aanbTotalByNaam[key] || 0) + (+c.aanb || 0);
-  }
+  // 05-10: de filterregel (Fase · Aandacht · Collega · Periode); met een filter aan toont de pagina alleen wat past.
+  const ctx = _kandFiltCtx(kaarten);
+  const filtAan = kandFiltActief();
+  const allIntakeCards = filtAan ? _kandFiltSelectie(kaarten, ctx) : kaarten.allIntakeCards;
 
   const kandQ = KAND_SEARCH.trim().toLowerCase();
 
@@ -27239,6 +27232,7 @@ function renderKandidaten() {
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
         <div class="card-sub" style="font-weight:700;color:#fff;">Aanbiedingen: ${aanbTotal}</div>
         <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
+        ${_kandStandPillenHtml(_kandStand(c, ctx))}
         ${_kandKlokHtml(c)}
         ${_kandRldvHtml(c)}
         ${_kandFasesHtml(c, magKandidatenWijzigen())}
@@ -27268,12 +27262,12 @@ function renderKandidaten() {
     weekSections = weeks.map(wk => {
       // Op naam sorteren, zodat de volgorde voorspelbaar is en een kaartje
       // nooit verspringt door een wijziging elders (08-09).
-      const wkCards = allIntakeCards.filter(c => c.week === wk.week && c.jaar === wk.year)
+      const wkCards = allIntakeCards.filter(c => +c.week === +wk.week && +c.jaar === +wk.year)
         .sort((a, b) => String(a.naam || '').localeCompare(String(b.naam || ''), 'nl')
                      || String(a.id).localeCompare(String(b.id)));
       // Lege weken vallen weg (aanwijzing 16-09); alleen de huidige week blijft
       // altijd staan, ook zonder intakes.
-      if (!wkCards.length && wk.offset !== 0) return '';
+      if (!wkCards.length && (wk.offset !== 0 || filtAan)) return '';
       const cardsHtml = wkCards.length ? wkCards.map(renderKandCard).join('') : `<div class="card-sub" style="color:var(--muted);padding:8px 0;">Geen intakes deze week</div>`;
       return `<div style="margin-bottom:22px;">
         <div class="section-title" style="font-size:.92rem;margin-bottom:8px;">
@@ -27290,9 +27284,12 @@ function renderKandidaten() {
       <div class="person-name">Kandidaten${btUitlegKnop('kandidaten')}</div>
       <div class="person-meta">
         <span class="meta-pill">Laatste 10 weken</span>
+        <button type="button" class="kn" onclick="kandOverzichtPrint()" title="De selectie als lijst per collega, printbaar naar PDF">↓ Exporteren · PDF / print</button>
       </div>
     </div>
     ${_zoekBalkHtml({ id: 'kand-search-q', sugg: 'kandOverzichtSugg', waarde: KAND_SEARCH, tabs: [['', 'Alle intakes', allIntakeCards.length]], hint: 'kandidaat, BM, functie, regio', input: 'oninput="kandSetSearch(this.value)"' })}
+    ${_kandFilterBalkHtml(kaarten, ctx)}
+    ${filtAan ? '<div class="kand-stand-zin"><b>' + allIntakeCards.length + ' kandida' + (allIntakeCards.length === 1 ? 'at' : 'ten') + '</b> · ' + escHtml(_kandFiltZin(null)) + '<button type="button" class="kn stil k wis" onclick="kandFiltWis()">↺ wissen</button></div>' : ''}
     ${_kandLegendaHtml()}
     ${weekSections}
     ${kandArchiefHtml(excludedCards, canExclude)}
@@ -29945,8 +29942,8 @@ function _bedrijfKeuzes() {
 // pijltje, in tabbladen en tabelcellen). Opties kunnen een toelichting (data-sub), initialen (data-ini op
 // de select) of een pilkleur (data-pil) meegeven. Automatisch voor elke <select> binnen KZ_AUTO; de witte
 // vensters (KZ_NIET) volgen later met een lichte variant.
-const KZ_AUTO = '.crm-kaart, .jaar-voet, .bt-venster, .bum-opn, .ch-vorm, .kk-cp-form, .kk-cp-nieuw, .rec-filters, .crm-tabs, .filter-toolbar, .mwdoc-venster';
-const KZ_NIET = 'select[multiple], select[hidden], .one-keuze-knop, .bonus-veld, select[style*="background:#fff"], select[style*="background: #fff"], .pipe-modal select, .veld-licht, [data-kz="uit"]';
+const KZ_AUTO = '.crm-kaart, .jaar-voet, .bt-venster, .bum-opn, .ch-vorm, .kk-cp-form, .kk-cp-nieuw, .rec-filters, .crm-tabs, .filter-toolbar, .mwdoc-venster, .kand-filt';
+const KZ_NIET = 'select[hidden], .one-keuze-knop, .bonus-veld, select[style*="background:#fff"], select[style*="background: #fff"], .pipe-modal select, .veld-licht, [data-kz="uit"]';
 let KZ_OPEN = null;   // { sel, knop, paneel, items, focus, q, zoek }
 
 // De nieuwe aanroep voor nieuwe schermen: geeft een <select> die meteen omgezet wordt.
@@ -29972,6 +29969,13 @@ function _kzVorm(sel) {
 }
 // De tekst op de knop: de gekozen optie; een lege waarde (kies…) gedempt; initialen of pil als de lijst dat vraagt.
 function _kzLabel(sel) {
+  if (sel.multiple) {   // 05-10: meerkeuze — "Label", "Eén keuze" of "Label · n"
+    const d = sel.dataset || {}, gekozen = Array.from(sel.options).filter(o => o.selected && o.value !== '');
+    const label = d.label || sel.getAttribute('data-ph') || 'kies…';
+    if (!gekozen.length) return '<span class="kz-w">' + escHtml(label) + '</span>';
+    if (gekozen.length === 1) return '<span class="kz-w">' + escHtml(gekozen[0].text) + '</span>';
+    return '<span class="kz-w">' + escHtml(label) + ' · <span class="kz-tel">' + gekozen.length + '</span></span>';
+  }
   const o = sel.options[sel.selectedIndex] || null;
   const leeg = !o || o.value === '';
   const t = o ? o.text : (sel.getAttribute('data-ph') || 'kies…');
@@ -29985,7 +29989,7 @@ function _kzLabel(sel) {
 function _kzKnopBij(sel) {
   const knop = sel._kzKnop; if (!knop) return;
   knop.innerHTML = _kzLabel(sel); knop.disabled = !!sel.disabled;
-  knop.classList.toggle('aan', knop.classList.contains('kz-pil') && !!sel.value);
+  knop.classList.toggle('aan', knop.classList.contains('kz-pil') && (sel.multiple ? Array.from(sel.options).some(o => o.selected && o.value !== '') : !!sel.value));
 }
 function kzUpgrade(sel) {
   if (!sel || sel.classList.contains('kz-sel') || sel.matches(KZ_NIET)) return;
@@ -30040,7 +30044,7 @@ function _kzMark(tekst, q) {
 function _kzLijstTeken() {
   const K = KZ_OPEN; if (!K) return;
   const sel = K.sel, T = _kzTreffers(); K.items = T;
-  const d = sel.dataset || {}, ini = d.ini === '1', pillen = d.pillen === '1';
+  const d = sel.dataset || {}, ini = d.ini === '1', pillen = d.pillen === '1', meer = !!sel.multiple;
   if (K.focus >= T.length || (K.focus >= 0 && !T[K.focus].o)) K.focus = T.findIndex(x => x.o);
   let h = '';
   if (!T.some(x => x.o)) h += '<div class="kz-leeg">Niets gevonden</div>';
@@ -30049,10 +30053,11 @@ function _kzLijstTeken() {
     const o = x.o, leeg = o.value === '';
     h += '<div class="kz-it' + (o.selected ? ' gekozen' : '') + (o.disabled ? ' uit' : '') + (i === K.focus ? ' focus' : '') + (leeg ? ' leegkeuze' : '') + '" data-i="' + i + '" role="option" aria-selected="' + (o.selected ? 'true' : 'false') + '"' +
       (o.dataset && o.dataset.uit ? ' title="' + escHtml(o.dataset.uit) + '"' : '') + '>' +
-      '<span class="kz-v">✓</span>' + (ini && !leeg ? '<span class="kz-ini">' + escHtml(_oneInitialen(o.text)) + '</span>' : '') +
+      (meer ? '<span class="kz-b">✓</span>' : '<span class="kz-v">✓</span>') + (ini && !leeg ? '<span class="kz-ini">' + escHtml(_oneInitialen(o.text)) + '</span>' : '') +
       '<span class="kz-t">' + (pillen && !leeg ? '<span class="crm-pil' + (o.dataset && o.dataset.pil ? ' ' + escHtml(o.dataset.pil) : '') + '">' + _kzMark(o.text, K.q) + '</span>' : _kzMark(o.text, K.q)) +
-      (o.dataset && o.dataset.sub ? '<small>' + escHtml(o.dataset.sub) + '</small>' : '') + '</span></div>';
+      (o.dataset && o.dataset.sub ? (meer ? '</span><span class="kz-n">' + escHtml(o.dataset.sub) : '<small>' + escHtml(o.dataset.sub) + '</small>') : '') + '</span></div>';
   });
+  if (meer) h += '<div class="kz-voet"><button type="button" data-wis="1">↺ Wissen</button><button type="button" class="goud" data-klaar="1">Klaar</button></div>';
   K.lijst.innerHTML = h;
   const f = K.lijst.querySelector('.kz-it.focus'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
 }
@@ -30097,6 +30102,11 @@ function _kzKies(i) {
   const K = KZ_OPEN; if (!K) return;
   const x = K.items[i]; if (!x || !x.o || x.o.disabled) return;
   const sel = K.sel, oud = sel.value;
+  if (sel.multiple) {   // 05-10: meerkeuze — vakje aan/uit, paneel blijft open, change per vinkje
+    x.o.selected = !x.o.selected; K.focus = i; _kzLijstTeken(); _kzKnopBij(sel);
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    return;
+  }
   sel.value = x.o.value;
   kzSluit(); _kzKnopBij(sel);
   if (sel.value !== oud) sel.dispatchEvent(new Event('change', { bubbles: true }));
@@ -30112,6 +30122,10 @@ document.addEventListener('click', (e) => {
   const knop = e.target.closest && e.target.closest('.kz-knop');
   if (knop) { e.preventDefault(); e.stopPropagation(); if (KZ_OPEN && KZ_OPEN.knop === knop) kzSluit(); else kzOpen(knop); return; }   // stopPropagation: de knop staat soms in een klikbare rij
   if (!KZ_OPEN) return;
+  if (e.target.closest && e.target.closest('[data-wis]') && KZ_OPEN.paneel.contains(e.target)) {   // 05-10: meerkeuze wissen
+    const sel = KZ_OPEN.sel; Array.from(sel.options).forEach(o => { o.selected = false; }); _kzLijstTeken(); _kzKnopBij(sel); sel.dispatchEvent(new Event('change', { bubbles: true })); return;
+  }
+  if (e.target.closest && e.target.closest('[data-klaar]') && KZ_OPEN.paneel.contains(e.target)) { kzSluit(); return; }
   const it = e.target.closest && e.target.closest('.kz-it');
   if (it && KZ_OPEN.paneel.contains(it)) { _kzKies(+it.getAttribute('data-i')); return; }
   if (!KZ_OPEN.paneel.contains(e.target)) kzSluit();
@@ -42692,6 +42706,191 @@ async function mwDocVerwijder(id, naam, sleutel) {
   if (error) { meldFout('document verwijderen mislukt: ' + error.message, 'mwDocVerwijder'); btMeld('Niet verwijderd: ' + error.message, 'rood'); return; }
   await loadMwDocumenten(sleutel);
   if (document.querySelector('.kand-hrm')) kandHrmKaartOpen(sleutel);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KANDIDATEN · FILTERREGEL EN EXPORT (05-10, ontwerp_kandidaten_export.html v2, akkoord 05-10)
+//
+// Eén regel naast het zoekveld met vier keuzelijsten (pil-vorm): Fase · Aandacht · Collega · Periode.
+// Binnen een keuzelijst "of", ertussen "en". Eronder één standzin met wissen. De kaartjes krijgen drie
+// statuspillen (aangeboden · gesprek/contract · verslag). Exporteren · PDF / print = precies de selectie,
+// wit, per collega — dezelfde vorm als Overzicht bezoeken (accOverzichtPrintHtml).
+// Cijfers komen van waar ze al staan: fase uit de pipeline (kandVerloop), aanbiedingen uit de tegeltjes
+// en de RLDV-selectie, verslag en afspraken uit Records, GG uit het CRM.
+// Dit bestand staat in index.html (vóór `let _REC_KAND_SET`); hier als losse kopie.
+// ═══════════════════════════════════════════════════════════════════════════
+let KAND_FILT = { fase: [], aandacht: [], collega: '', periode: '' };
+const KF_FASES = [['intake', 'Intake'], ['aanbieden', 'Aangeboden'], ['match', 'Matchgesprek'], ['contract', 'Contractvoorstel'], ['starter', 'Starter (gepland)'], ['uitgesloten', 'Uitgesloten']];
+const KF_AANDACHT = [['geenverslag', 'Zonder ITK-verslag'], ['nietgedeeld', 'Afspraken niet gedeeld'], ['geenreactie', 'Aangeboden, geen reactie > 14 d'], ['checkopen', 'RLDV-check open'], ['gg', '⚑ GG-lijst'], ['onbeschikbaar', 'Niet meer beschikbaar']];
+const KF_PERIODES = [['', 'Laatste 10 weken'], ['week', 'Deze week'], ['maand', 'Deze maand'], ['vorigemaand', 'Vorige maand'], ['kwartaal', 'Dit kwartaal']];
+const _KF_FASE_VAN_STAGE = { Intake: 'intake', Aanbieden: 'aanbieden', Bezoeken: 'match', Matchgesprekken: 'match', Contractvoorstel: 'contract', Starter: 'starter' };
+
+function kandFiltActief() { const f = KAND_FILT; return !!(f.fase.length || f.aandacht.length || f.collega || f.periode); }
+// Alle intake-kaartjes van alle collega's (ook de uitgesloten apart) + het totaal aanbiedingen per naam (tegeltjes).
+function _kandIntakeKaarten() {
+  const allIntakeCards = [], excludedCards = [], aanbTotalByNaam = {};
+  const normName = n => (n || '').trim().toLowerCase();
+  for (const bm of bmsMetCijfers()) {
+    for (const c of pipeLoad(bm.naam)) {
+      if (c.stage === 'Intake' && c.kandidaten_uitgesloten) { excludedCards.push({ ...c, bmNaam: bm.naam }); continue; }
+      if (c.verwijderd_op) continue;
+      if (c.stage === 'Intake') allIntakeCards.push({ ...c, bmNaam: bm.naam });
+      else if (c.stage === 'Aanbieden') { const key = normName(c.naam); if (key) aanbTotalByNaam[key] = (aanbTotalByNaam[key] || 0) + (+c.aanb || 0); }
+    }
+  }
+  return { allIntakeCards, excludedCards, aanbTotalByNaam };
+}
+// De stand van één kandidaat in het proces — alles wat de filters en de export nodig hebben.
+function _kandStand(c, ctx) {
+  const sl = _itkSleutel(c.naam || ''), nu = Date.now();
+  ctx.standen = ctx.standen || {};
+  if (ctx.standen[sl + '|' + c.id]) return ctx.standen[sl + '|' + c.id];
+  // De verste fase over álle pipelines: de intake kan bij MW staan en het matchgesprek bij RA.
+  let huidig = null, huidigIdx = -1;
+  if (typeof kandVerloop === 'function') for (const bm of bmsMetCijfers()) {
+    const v = kandVerloop(bm.naam, c.naam).slice().reverse().find(x => x.laatste);
+    if (v) { const i = PIPE_STAGES.indexOf(v.stage); if (i > huidigIdx) { huidigIdx = i; huidig = v; } }
+  }
+  const fase = c.kandidaten_uitgesloten ? 'uitgesloten' : (huidig ? (_KF_FASE_VAN_STAGE[huidig.stage] || 'intake') : 'intake');
+  const laatste = huidig ? huidig.laatste : c;
+  const gesprek = (fase === 'match' || fase === 'contract' || fase === 'starter') && laatste
+    ? [laatste.opdrachtgever || '', laatste.gesprek ? laatste.gesprek + 'e gesprek' : (fase === 'contract' ? 'contractvoorstel' : fase === 'starter' ? 'starter' : ''), laatste.gesprek_op ? _crmDatum(Date.parse(laatste.gesprek_op)) : (laatste.start_datum ? _crmDatum(Date.parse(laatste.start_datum)) : '')].filter(Boolean).join(' · ') : '';
+  const sel = typeof rldvSelectieVoorKand === 'function' ? rldvSelectieVoorKand({ id: c.id, naam: c.naam }) : null;
+  const alle = sel && typeof _rldvAanbAlle === 'function' ? _rldvAanbAlle(sel) : [];
+  const weken = alle.map(v => (+v.jaar || 0) * 100 + (+v.week || 0)).filter(Boolean);
+  const laatsteWeek = weken.length ? Math.max.apply(null, weken) % 100 : null;
+  const aanb = ctx.aanbTotalByNaam ? (ctx.aanbTotalByNaam[String(c.naam || '').trim().toLowerCase()] || 0) : alle.length;
+  let geenReactie = 0;
+  if (sel && typeof _aanbStatusVan === 'function') rldvBedrijvenVan(sel).forEach(b => {
+    const naam = (rldvBedrijfNu(b) || b).naam || '';
+    const st = _aanbStatusVan(sel, b.id, naam, null);
+    if (st && st.stap === 'aang' && st.datumMs) geenReactie = Math.max(geenReactie, Math.floor((nu - st.datumMs) / 86400000));
+  });
+  const rec = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(r => _itkSleutel(r.naam || '') === sl) || null;
+  const items = typeof vsItemsVoorKand === 'function' ? vsItemsVoorKand({ sleutel: sl }) : [];
+  const verslag = !!rec || items.some(x => x.soort === 'ITK');
+  const afspr = rec && typeof afsprakenStatus === 'function' ? afsprakenStatus(rec.id) : null;
+  const checkOpen = !!sel && typeof rldvCheckStand === 'function' && rldvCheckStand(sel).code !== 'akkoord';
+  const k = ctx.crmMap ? ctx.crmMap.get(sl) : null;
+  const gg = !!(k && typeof _crmKandGg === 'function' && _crmKandGg(k));
+  const st = { sl, fase, faseLabel: (KF_FASES.find(x => x[0] === fase) || ['', ''])[1], gesprek, aanb, laatsteWeek, geenReactie, rec, verslag, verslagTekst: rec ? (rec.datum || 'ja') : (verslag ? 'handmatig' : ''),
+    afspr, checkOpen, selectie: !!sel, gg, onbeschikbaar: !!c.onbeschikbaar_op, vervolg: c.vervolg_op && typeof kandVervolgTekst === 'function' ? kandVervolgTekst(c) : '',
+    intakeMs: c.intake_op ? Date.parse(c.intake_op) : (+c.week && +c.jaar ? isoWeekStartDate(+c.jaar, +c.week).getTime() : 0) };
+  ctx.standen[sl + '|' + c.id] = st;
+  return st;
+}
+function _kandAandachtPast(st, w) {
+  return w === 'geenverslag' ? !st.verslag : w === 'nietgedeeld' ? (!st.afspr || st.afspr.code === 'niet-verzonden') : w === 'geenreactie' ? st.geenReactie > 14
+    : w === 'checkopen' ? st.checkOpen : w === 'gg' ? st.gg : w === 'onbeschikbaar' ? st.onbeschikbaar : true;
+}
+function _kandPeriodePast(st, p) {
+  if (!p || !st.intakeMs) return !p;
+  const d = new Date(st.intakeMs), nu = new Date();
+  if (p === 'week') { const a = isoWeek(d), b = isoWeek(nu); return a.year === b.year && a.week === b.week; }
+  if (p === 'maand') return d.getFullYear() === nu.getFullYear() && d.getMonth() === nu.getMonth();
+  if (p === 'vorigemaand') { const v = new Date(nu.getFullYear(), nu.getMonth() - 1, 1); return d.getFullYear() === v.getFullYear() && d.getMonth() === v.getMonth(); }
+  if (p === 'kwartaal') return d.getFullYear() === nu.getFullYear() && Math.floor(d.getMonth() / 3) === Math.floor(nu.getMonth() / 3);
+  return true;
+}
+// Past deze kaart bij de filters (optioneel één filter overslaan, voor de tellers per keuzelijst)?
+function _kandFiltPast(c, ctx, zonder) {
+  const f = KAND_FILT, st = _kandStand(c, ctx);
+  if (zonder !== 'fase' && f.fase.length && !f.fase.includes(st.fase)) return false;
+  if (zonder !== 'fase' && !f.fase.includes('uitgesloten') && st.fase === 'uitgesloten') return false;
+  if (zonder !== 'aandacht' && f.aandacht.length && !f.aandacht.some(w => _kandAandachtPast(st, w))) return false;
+  if (zonder !== 'collega' && f.collega && c.bmNaam !== f.collega) return false;
+  if (zonder !== 'periode' && f.periode && !_kandPeriodePast(st, f.periode)) return false;
+  return true;
+}
+function _kandFiltCtx(kaarten) {
+  const ctx = { aanbTotalByNaam: kaarten.aanbTotalByNaam, standen: {} };
+  try { ctx.crmMap = new Map(crmKandLijst().map(k => [k.sleutel, k])); } catch (e) { _meldStil('kandfilter crm', e); ctx.crmMap = new Map(); }
+  return ctx;
+}
+// De selectie: intakes (en uitgesloten als die fase gekozen is) die bij de filters passen, op naam.
+function _kandFiltSelectie(kaarten, ctx) {
+  const bron = KAND_FILT.fase.includes('uitgesloten') ? kaarten.allIntakeCards.concat(kaarten.excludedCards) : kaarten.allIntakeCards;
+  return bron.filter(c => _kandFiltPast(c, ctx)).sort((a, b) => String(a.naam || '').localeCompare(String(b.naam || ''), 'nl') || String(a.id).localeCompare(String(b.id)));
+}
+// De standzin: "12 kandidaten · aangeboden of matchgesprek · zonder ITK-verslag · Mike Wijnen · intake deze maand (oktober 2026)".
+function _kandFiltZin(n) {
+  const f = KAND_FILT, d = [];
+  if (f.fase.length) d.push(f.fase.map(x => (KF_FASES.find(y => y[0] === x) || ['', x])[1].toLowerCase()).join(' of '));
+  if (f.aandacht.length) d.push(f.aandacht.map(x => (KF_AANDACHT.find(y => y[0] === x) || ['', x])[1].toLowerCase().replace('⚑ ', '')).join(' of '));
+  if (f.collega) d.push(f.collega);
+  if (f.periode) { const nu = new Date(), mnd = (x) => x.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+    d.push('intake ' + (f.periode === 'week' ? 'deze week' : f.periode === 'maand' ? 'deze maand (' + mnd(nu) + ')' : f.periode === 'vorigemaand' ? 'vorige maand (' + mnd(new Date(nu.getFullYear(), nu.getMonth() - 1, 1)) + ')' : 'dit kwartaal')); }
+  return (n == null ? '' : n + ' kandida' + (n === 1 ? 'at' : 'ten')) + (d.length ? (n == null ? '' : ' · ') + d.join(' · ') : (n == null ? 'alle intakes van de laatste 10 weken' : ''));
+}
+// De regel: vier keuzelijsten met tellers (per keuzelijst geteld zónder die keuzelijst zelf).
+function _kandFilterBalkHtml(kaarten, ctx) {
+  const f = KAND_FILT, bron = kaarten.allIntakeCards.concat(kaarten.excludedCards);
+  const tel = (zonder, past) => bron.filter(c => (zonder === 'fase' ? true : (_kandStand(c, ctx).fase !== 'uitgesloten' || f.fase.includes('uitgesloten'))) && _kandFiltPast(c, ctx, zonder) && past(_kandStand(c, ctx), c)).length;
+  const opt = (w, l, n, aan) => '<option value="' + escHtml(w) + '"' + (aan ? ' selected' : '') + ' data-sub="' + n + '">' + escHtml(l) + '</option>';
+  const fase = '<select multiple data-kz="pil" data-label="Fase" data-meer="1" onchange="kandFiltZet(\'fase\',this)">' + KF_FASES.map(([w, l]) => opt(w, l, tel('fase', st => st.fase === w), f.fase.includes(w))).join('') + '</select>';
+  const aand = '<select multiple data-kz="pil" data-label="Aandacht" data-meer="1" onchange="kandFiltZet(\'aandacht\',this)">' + KF_AANDACHT.map(([w, l]) => opt(w, l, tel('aandacht', st => _kandAandachtPast(st, w)), f.aandacht.includes(w))).join('') + '</select>';
+  const collegas = Array.from(new Set(bron.map(c => c.bmNaam).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'nl'));
+  const coll = '<select data-kz="pil" data-label="Collega" data-ini="1" onchange="kandFiltZet(\'collega\',this)"><option value=""' + (f.collega ? '' : ' selected') + '>Collega: alle</option>' + collegas.map(n => opt(n, n, tel('collega', (st, c) => c.bmNaam === n), f.collega === n)).join('') + '</select>';
+  const per = '<select data-kz="pil" data-label="Intake" onchange="kandFiltZet(\'periode\',this)">' + KF_PERIODES.map(([w, l]) => opt(w, w ? 'Intake: ' + l.toLowerCase() : l, tel('periode', st => _kandPeriodePast(st, w)), f.periode === w)).join('') + '</select>';
+  return '<div class="kand-filt">' + fase + aand + coll + per + '</div>';
+}
+function kandFiltZet(welke, sel) {
+  if (welke === 'fase' || welke === 'aandacht') KAND_FILT[welke] = Array.from(sel.selectedOptions || []).map(o => o.value).filter(Boolean);
+  else KAND_FILT[welke] = String(sel.value || '');
+  renderKandidaten();
+}
+function kandFiltWis() { KAND_FILT = { fase: [], aandacht: [], collega: '', periode: '' }; renderKandidaten(); }
+// Drie statuspillen onder op het kaartje: aangeboden · gesprek/contract · verslag.
+function _kandStandPillenHtml(st) {
+  const p = [];
+  p.push(st.aanb ? '<span class="ks ok">aangeboden ' + st.aanb + (st.geenReactie > 14 ? ' · geen reactie ' + st.geenReactie + ' d' : '') + '</span>' : '<span class="ks">niet aangeboden</span>');
+  if (st.gesprek) p.push('<span class="ks ' + (st.fase === 'starter' ? 'ok' : 'wacht') + '">' + escHtml(st.gesprek) + '</span>');
+  p.push(st.verslag ? '<span class="ks ok">verslag' + (st.afspr && st.afspr.code !== 'niet-verzonden' ? ' · ' + escHtml(st.afspr.tekst) : '') + '</span>' : '<span class="ks">geen verslag</span>');
+  if (st.gg) p.push('<span class="ks">⚑ GG</span>');
+  return '<div class="kand-stand">' + p.join('') + '</div>';
+}
+
+// ── Export · PDF / print: de selectie als lijst per collega, wit, zonder knoppen ──
+function kandOverzichtPrintHtml() {
+  const kaarten = _kandIntakeKaarten(), ctx = _kandFiltCtx(kaarten);
+  const q = String(KAND_SEARCH || '').trim().toLowerCase();
+  let lijst = _kandFiltSelectie(kaarten, ctx);
+  if (q) lijst = lijst.filter(c => [c.naam, c.functie, c.regio, c.salarisindicatie, c.notitie, c.bmNaam].join(' ').toLowerCase().includes(q));
+  const e = escHtml, zin = _kandFiltZin(null);
+  const titel = 'Overzicht kandidaten — ' + zin;
+  const groepen = {}; lijst.forEach(c => { (groepen[c.bmNaam || '—'] = groepen[c.bmNaam || '—'] || []).push(c); });
+  const namen = Object.keys(groepen).sort((a, b) => a.localeCompare(b, 'nl'));
+  const standen = lijst.map(c => _kandStand(c, ctx));
+  const nGesp = standen.filter(s => s.fase === 'match' || s.fase === 'contract').length, nAanb = standen.reduce((t, s) => t + (s.aanb || 0), 0);
+  const sub = [KAND_FILT.collega ? KAND_FILT.collega : 'alle collega\'s', q ? 'zoekterm "' + KAND_SEARCH + '"' : '', lijst.length + ' kandida' + (lijst.length === 1 ? 'at' : 'ten'), namen.length + ' collega' + (namen.length === 1 ? '' : '\'s'),
+    nGesp + ' in gesprek', nAanb + ' aanbiedingen', 'afgedrukt ' + _crmDatum(Date.now()) + ' door ' + String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '')].filter(Boolean).join(' · ');
+  const tag = (s) => { const k = s.fase === 'match' || s.fase === 'contract' || s.fase === 'starter' ? 'ok' : s.fase === 'uitgesloten' ? 'uit' : ''; return '<span class="tag ' + k + '">' + e(s.faseLabel) + '</span>'; };
+  const kop = '<tr><th>Intake</th><th>Kandidaat</th><th>Functie</th><th>Regio</th><th>Fase</th><th>Aangeboden</th><th>Gesprek / contract</th><th>ITK-verslag</th><th>Afspraken</th><th>Volgende stap</th></tr>';
+  const blokken = namen.map(n => {
+    const rijen = groepen[n].map(c => { const s = _kandStand(c, ctx);
+      return '<tr><td>' + (s.intakeMs ? e(_crmDatum(s.intakeMs)) : '<span class="stil">—</span>') + '</td><td><b>' + e(c.naam) + '</b>' + (s.onbeschikbaar ? ' <span class="tag uit">niet beschikbaar</span>' : '') + (s.gg ? ' <span class="tag">GG</span>' : '') + '</td><td>' + (c.functie ? e(c.functie) : '<span class="stil">—</span>') + '</td><td>' + (c.regio ? e(c.regio) : '<span class="stil">—</span>') + '</td>' +
+        '<td>' + tag(s) + '</td><td>' + (s.aanb ? s.aanb + (s.laatsteWeek ? ' · laatste W' + s.laatsteWeek : '') + (s.geenReactie > 14 ? ' <span class="tag wacht">geen reactie ' + s.geenReactie + ' d</span>' : '') : '<span class="stil">—</span>') + '</td>' +
+        '<td>' + (s.gesprek ? e(s.gesprek) : '<span class="stil">—</span>') + '</td><td>' + (s.verslag ? '<span class="ok">✓ ' + e(s.verslagTekst) + '</span>' : '<span class="stil">—</span>') + '</td>' +
+        '<td>' + (s.afspr && s.afspr.code !== 'niet-verzonden' ? '<span class="tag ' + (s.afspr.code === 'akkoord' ? 'ok' : s.afspr.code === 'niet-akkoord' ? 'uit' : 'wacht') + '">' + e(s.afspr.tekst) + '</span>' : '<span class="stil">—</span>') + '</td>' +
+        '<td>' + (s.vervolg ? e(s.vervolg) : (s.checkOpen ? '<span class="tag wacht">RLDV-check open</span>' : '<span class="stil">—</span>')) + '</td></tr>'; }).join('');
+    const g = groepen[n], gs = g.map(c => _kandStand(c, ctx));
+    const samen = [g.length + ' kandida' + (g.length === 1 ? 'at' : 'ten'), gs.filter(s => s.fase === 'aanbieden').length + ' aangeboden', gs.filter(s => s.fase === 'match').length + ' matchgesprek', gs.reduce((t, s) => t + (s.aanb || 0), 0) + ' aanbiedingen'].join(' · ');
+    return '<div class="groep">' + e(n) + '<span>' + e(samen) + '</span></div><table>' + kop + rijen + '</table>';
+  }).join('');
+  return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>' + e(titel) + '</title><style>' +
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#111;margin:18px 22px;font-size:10.5px}h1{font-size:15px;margin:0}.ps{color:#555;font-size:10px;margin:2px 0 14px}' +
+    '.groep{font-weight:700;font-size:12px;border-bottom:2px solid #F4CB3C;padding:8px 0 3px;margin-top:8px;display:flex}.groep span{margin-left:auto;font-weight:400;color:#666;font-size:9.5px}' +
+    'table{width:100%;border-collapse:collapse;page-break-inside:auto}tr{page-break-inside:avoid}th{text-align:left;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:#555;padding:5px 6px;border-bottom:1px solid #ddd}td{padding:5px 6px;border-bottom:1px solid #eee;vertical-align:top}' +
+    '.tag{display:inline-block;font-size:8.5px;padding:1px 7px;border-radius:99px;background:#eef2f7;color:#253151}.tag.ok{background:#e6f8ec;color:#1a7f3c}.tag.wacht{background:#fff3e0;color:#a65300}.tag.uit{background:#fdecec;color:#b42318}.ok{color:#1a7f3c}.stil{color:#999}' +
+    '.voet{display:flex;justify-content:space-between;color:#999;font-size:9px;margin-top:14px}@media print{body{margin:10mm}}</style></head><body>' +
+    '<h1>' + e(titel) + '</h1><div class="ps">' + e(sub) + '</div>' + (blokken || '<p class="stil">Geen kandidaten in deze selectie.</p>') +
+    '<div class="voet"><span>Brightech · Cockpit</span><span>' + e(titel) + '</span></div></body></html>';
+}
+function kandOverzichtPrint() {
+  const h = kandOverzichtPrintHtml(); if (!h) return;
+  const w = window.open('', '_blank'); if (!w) { btMeld('Het printvenster werd geblokkeerd; sta pop-ups toe voor het dashboard.', 'geel'); return; }
+  w.document.open(); w.document.write(h); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) { _meldStil('kandOverzichtPrint', e); } }, 400);
 }
 
 let _REC_KAND_SET = null, _REC_BEDR_SET = null;   // 30-09: per hertekening één keer, voor de klikbare namen
