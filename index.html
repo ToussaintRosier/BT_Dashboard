@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-1857 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261005-1920 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2410,6 +2410,16 @@
   .hrm-tl { padding:16px 8px 4px; } .hrm-tl .ev-tl { min-width:0; } .hrm-tl .ev-tl b { position:absolute; top:-14px; transform:translateX(-50%); font-size:.6rem; color:rgba(255,255,255,.7); white-space:nowrap; }
   .actie-rij { display:flex; gap:8px; align-items:center; padding:6px 0; border-top:1px solid rgba(255,255,255,.06); font-size:.78rem; } .actie-rij .r { margin-left:auto; display:inline-flex; gap:6px; align-items:center; }
   .bd-tegel.kd-let { border:1px solid rgba(232,116,0,.55); }
+  /* ── Leesvenster gespreksverslag (05-10): boven de kaart, kaart blijft staan ── */
+  .vs-laag { position:fixed; inset:0; z-index:9750; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; padding:12px; }
+  .vs-venster { position:relative; width:760px; max-width:100%; max-height:88vh; overflow:auto; background:var(--l2); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:18px 22px 14px; color:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); }
+  .vs-venster .vs-vkop { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-right:34px; margin-bottom:10px; }
+  .vs-venster .vs-vkop .n { font-size:1.05rem; font-weight:var(--w-nadruk); }
+  .vs-venster .vs-vkop .s { color:rgba(255,255,255,.6); font-size:.8rem; }
+  .vs-venster .vs-x { position:absolute; top:10px; right:12px; background:none; border:none; color:rgba(255,255,255,.7); font-size:1.3rem; cursor:pointer; line-height:1; }
+  .vs-venster .vs-x:hover { color:#fff; }
+  .vs-venster .vs-lees { grid-template-columns:150px minmax(0,1fr); }
+  @media (max-width:640px) { .vs-laag { padding:0; align-items:flex-end; } .vs-venster { max-height:92vh; border-radius:16px 16px 0 0; } .vs-venster .vs-lees { grid-template-columns:1fr; } }
   .mwdoc-laag { position:fixed; inset:0; z-index:9750; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; }
   .mwdoc-venster { width:420px; max-width:calc(100vw - 24px); background:var(--l2); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:16px 18px; color:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); }
   .mwdoc-veld { display:block; font-size:.74rem; color:rgba(255,255,255,.6); margin:8px 0; } .mwdoc-veld select { margin-top:4px; }
@@ -11534,7 +11544,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-1857';
+const APP_VERSIE = '20261005-1920';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21454,7 +21464,7 @@ function _crmKaartMobielTabs(laag) {
   const na = kaart.querySelector('.crm-sub') || kaart.querySelector('h4');
   if (na) na.insertAdjacentElement('afterend', balk);
 }
-function _crmEsc(e) { if (e.key === 'Escape') crmKaartSluit(); }
+function _crmEsc(e) { if (e.key === 'Escape' && !document.getElementById('vs-laag')) crmKaartSluit(); }   // 05-10: leesvenster bovenop vangt Esc zelf
 function crmKaartSluit() {
   document.getElementById('crm-laag')?.remove();
   document.removeEventListener('keydown', _crmEsc);
@@ -41466,7 +41476,7 @@ function vsItemsVoorKand(k) {
     if (!past) return;
     uit.push({ id: 'gv:' + g.id, soort: _vsType(g) === 'itk' ? 'ITK' : (VS_SOORT_KORT[g.soort] || 'BZK'), bron: 'hand', ms: _vsDatumMs(g), datum: _crmDatum(_vsDatumMs(g)), door: _vsDoor(g).join(' + '),
                tekst: (_vsType(g) === 'itk' ? 'Intake' + (g.deel_uuid && typeof afsprakenStatus === 'function' ? ' · ' + afsprakenStatus(g.deel_uuid).tekst : '') : (VS_SOORTEN_BZK[g.soort] || 'Gesprek') + (g.bedrijf ? ' · ' + g.bedrijf : '')) + (g.samenvatting ? ' · "' + String(g.samenvatting).split('\n')[0].slice(0, 60) + '"' : ''),
-               open: "crmKaartSluit();vsOpen('" + escApos(String(g.id)) + "')", wijzig: _vsMag(g) ? "vsBewerk('" + escApos(String(g.id)) + "')" : '' });
+               open: "vsLeesVenster('" + escApos(String(g.id)) + "')", wijzig: _vsMag(g) ? "vsBewerk('" + escApos(String(g.id)) + "')" : '' });
   });
   return uit.sort((a, b) => b.ms - a.ms);
 }
@@ -41486,7 +41496,7 @@ function vsItemsVoorBedrijf(k) {
     const wie = g.soort === 'matchgesprek' ? (g.kandidaat || g.contactpersoon || '') : (g.contactpersoon || '');
     uit.push({ id: 'gv:' + g.id, soort: VS_SOORT_KORT[g.soort] || 'BZK', bron: 'hand', ms: _vsDatumMs(g), datum: _crmDatum(_vsDatumMs(g)), door: _vsDoor(g).join(' + '),
                tekst: (VS_SOORTEN_BZK[g.soort] || 'Gesprek') + (wie ? ' · ' + wie : '') + (g.samenvatting ? ' · "' + String(g.samenvatting).split('\n')[0].slice(0, 60) + '"' : ''),
-               open: "crmKaartSluit();vsOpen('" + escApos(String(g.id)) + "')", wijzig: _vsMag(g) ? "vsBewerk('" + escApos(String(g.id)) + "')" : '' });
+               open: "vsLeesVenster('" + escApos(String(g.id)) + "')", wijzig: _vsMag(g) ? "vsBewerk('" + escApos(String(g.id)) + "')" : '' });
   });
   return uit.sort((a, b) => b.ms - a.ms);
 }
@@ -41522,6 +41532,7 @@ function vsNieuwBzk(bedrijfSleutel, velden) {
   _vsPopup();
 }
 function vsBewerk(id) {
+  vsLeesSluit();
   const g = _vsVind(id); if (!g) return;
   if (!_vsMag(g)) { btMeld('Alleen de maker of een beheerder kan dit verslag wijzigen.', 'geel'); return; }
   const kb = _vsType(g) === 'bzk' ? _gvBedrijfVind(g.bedrijf) : null;
@@ -41668,6 +41679,7 @@ function _vsLogSchrijf(g) {
   waLogNoteer('kand', sl, g.kandidaat, 'ITK-verslag (handmatig) · ' + _vsDoor(g).join(' + ') + ' — ' + label, [{ soort: 'verslag', id: String(g.id), naam: 'Verslag', label }]);
 }
 async function vsVerwijder(id) {
+  vsLeesSluit();
   const g = _vsVind(id); if (!g) return;
   if (!eisWijzig(_vsType(g) === 'itk' ? 'crm' : 'accounts')) return;   // 30-09
   if (!_vsMag(g)) { btMeld('Alleen de maker of een beheerder kan dit verslag verwijderen.', 'geel'); return; }
@@ -41680,6 +41692,32 @@ async function vsVerwijder(id) {
   if (currentTab === 'records') renderRecords(); else _crmDossierHerteken();
 }
 // Openen in Records (vanaf de kaart, het gesprekslog of een koppeling).
+// 05-10: verslag lezen in een venster bóven de kandidaat-/bedrijfskaart. Je blijft
+// in het CRM; Records is één knop verder voor wie de volledige context wil.
+function vsLeesVenster(id) {
+  const g = _vsVind(id); if (!g) { btMeld('Dit verslag bestaat niet (meer).', 'geel'); return; }
+  vsLeesSluit();
+  const itk = _vsType(g) === 'itk';
+  const naam = itk ? (g.kandidaat || 'Kandidaat') : ([g.bedrijf, g.contactpersoon].filter(Boolean).join(' — ') || 'Bedrijf');
+  const laag = document.createElement('div');
+  laag.className = 'vs-laag'; laag.id = 'vs-laag';
+  laag.innerHTML = '<div class="vs-venster" role="dialog" aria-modal="true" aria-label="Gespreksverslag">' +
+    '<button type="button" class="vs-x" onclick="vsLeesSluit()" aria-label="Sluiten">&times;</button>' +
+    '<div class="vs-vkop"><span class="rec-soort ' + (itk ? 'itk">ITK' : 'bzk">' + escHtml(VS_SOORT_KORT[g.soort] || 'BZK')) + '</span>' +
+      '<span class="n">' + escHtml(naam) + '</span>' +
+      '<span class="s">' + escHtml(_vsDatumTekst(g.datum)) + (_vsDoor(g).length ? ' · ' + escHtml(_vsDoor(g).join(' + ')) : '') + '</span>' +
+      (itk && g.deel_uuid ? afsprakenStatusPil(g.deel_uuid) : '') +
+      '<button type="button" class="kn stil k" style="margin-left:auto" onclick="vsLeesSluit();crmKaartSluit();vsOpen(\'' + escApos(String(g.id)) + '\')">Naar Records</button></div>' +
+    _vsLeesHtml(g) + '</div>';
+  laag.addEventListener('click', (e) => { if (e.target === laag) vsLeesSluit(); });
+  document.body.appendChild(laag);
+  document.addEventListener('keydown', _vsLeesEsc);
+}
+function _vsLeesEsc(e) { if (e.key === 'Escape') { e.stopPropagation(); vsLeesSluit(); } }
+function vsLeesSluit() {
+  const el = document.getElementById('vs-laag'); if (el) el.remove();
+  document.removeEventListener('keydown', _vsLeesEsc);
+}
 function vsOpen(id) {
   const g = _vsVind(id); if (!g) { btMeld('Dit verslag bestaat niet (meer).', 'geel'); return; }
   RECORDS_FILTER = { soort: '', aard: '', status: '', collega: '', klant: '', medewerker: '' };
