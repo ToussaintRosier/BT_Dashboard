@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-1003 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261005-1013 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11533,7 +11533,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-1003';
+const APP_VERSIE = '20261005-1013';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -35832,6 +35832,11 @@ async function _rldvAanbTegelSync(sel, week, jaar, bm) {
     return;
   }
   if ((+cards[idx].aanb || 0) === aantal) return;
+  // 05-10: laatste vinkje weg → het tegeltje gaat weg zoals met ✕ (herstelbaar).
+  // Voorheen bleef het als "0 aanbiedingen" in de kolom staan. Komt er later
+  // weer een vinkje, dan vindt de zoekregel hierboven het verwijderde tegeltje
+  // niet meer en ontstaat een nieuw tegeltje.
+  if (!aantal) { await _kanbanUpdate(bm, cards[idx].id, { aanb: 0, verwijderd_op: toISODate(new Date()) }); return; }
   await _kanbanUpdate(bm, cards[idx].id, { aanb: aantal });
 }
 // Alle collega's die voor deze selectie en week een tegeltje hebben (plus de
