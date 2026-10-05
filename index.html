@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-0904 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261005-1003 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -6409,7 +6409,9 @@ function refreshWeekConstants() {
   TODAY  = new Date();
   // CUR is altijd de echte, actuele ISO-week.
   CUR    = isoWeek(TODAY);
-  CUTOFF = isoWeek(new Date(+TODAY - 26 * 7 * 86400000));
+  // 05-10: 25 weken terug — de cutoff-week en de huidige week tellen beide mee,
+  // dus 25 ertussen maakt precies 26 (met 26 × 7 waren het er 27).
+  CUTOFF = isoWeek(new Date(+TODAY - 25 * 7 * 86400000));
   // NEXT = de ISO-week ná de actuele week (voor "planning week erop"), met
   // correcte jaarovergang bij week 52/53.
   NEXT   = isoWeek(new Date(+TODAY + 7 * 86400000));
@@ -6668,26 +6670,33 @@ function computeRatiosYtd(naam, jaar) {
 }
 function zetRatioBereik(v) { RATIO_BEREIK = v === 'ytd' ? 'ytd' : '26'; render(); }
 
-// Vaste norm: 1.25 contractvoorstellen per starter.
-// Data is nog te nieuw voor een betrouwbare historische ratio;
-// na ±26 weken data kan dit worden vervangen door de historische waarde.
-// Ongeveer 80% van de contractvoorstellen wordt een starter. Voor één starter
-// heb je er dus 1 / 0,8 = 1,25 nodig. Deze norm wordt daarom niet uit de
-// historie gerekend maar vastgezet: hij hoort altijd bóven de startersnorm te
-// liggen, ook bij een collega die toevallig een goede reeks had.
-const CONTRACTVOORSTEL_RATIO_NORM = 1.25;
+// Vaste norm contractvoorstellen: weekdoel starters plus 20% (besluit 24-08).
+// Een contractvoorstel is de laatste stap vóór een starter; wil je je
+// startersdoel halen, dan moet je er structureel iets méér voorstellen dan er
+// hoeven te landen. Niet uit de historie gerekend maar vastgezet: de norm
+// hoort altijd bóven de startersnorm te liggen, ook na een goede reeks.
+// 05-10: dit is het énige getal — normPerPeriod en de ratiotabel gebruiken
+// allebei deze constante (voorheen stond hier 1,25 en in de norm 1,2).
+const CONTRACTVOORSTEL_RATIO_NORM = 1.2;
 
 let INDIVIDUAL_RATIOS = {};
 let TEAM_RATIOS = {};
 function recomputeRatios() {
+  TEAM_RATIOS = computeRatios(null);
+  TEAM_RATIOS.contractvoorstellen = CONTRACTVOORSTEL_RATIO_NORM;
+  TEAM_RATIOS.basis = 'team';
   INDIVIDUAL_RATIOS = {};
+  // 05-10 (besluit Toussaint): geen drempel — iedereen rekent altijd met zijn
+  // eigen ratio's over de laatste 26 weken, ook een nieuwe collega. Zonder
+  // opgeslagen weken is de ratio 0 en de norm dus 0; zonder starters is de
+  // ratio het absolute totaal. Dat is bewust: de cijfers van de collega zelf
+  // zijn de lat, en wie nieuw is krijgt een handmatige invoer als basis.
   for (const bm of bmsMetCijfers()) {
     const r = computeRatios(bm.naam);
     r.contractvoorstellen = CONTRACTVOORSTEL_RATIO_NORM;
+    r.basis = 'eigen';
     INDIVIDUAL_RATIOS[bm.naam] = r;
   }
-  TEAM_RATIOS = computeRatios(null);
-  TEAM_RATIOS.contractvoorstellen = CONTRACTVOORSTEL_RATIO_NORM;
 }
 recomputeRatios();
 
@@ -6898,6 +6907,7 @@ function normPerPeriod(doel_jaar, ratios, period, override, doelStartFraction) {
   // weeknorm evenredig omhoog. doelStartFraction = deel van het jaar vóór start.
   const scaleFactor = (doelStartFraction > 0 && doelStartFraction < 1) ? 1 / (1 - doelStartFraction) : 1;
   const s = doel_jaar * f * scaleFactor;
+  const _cvNorm = typeof CONTRACTVOORSTEL_RATIO_NORM !== 'undefined' ? CONTRACTVOORSTEL_RATIO_NORM : 1.2;
   const norm = {
     starters:             +s.toFixed(3),
     intakes:              +(ratios.intakes              * s).toFixed(1),
@@ -6910,7 +6920,8 @@ function normPerPeriod(doel_jaar, ratios, period, override, doelStartFraction) {
     // startersdoel halen, dan moet je er structureel iets méér voorstellen
     // dan er hoeven te landen. De ratio verschilde per persoon en maakte de
     // lat willekeurig; dit maakt hem voor iedereen even logisch.
-    contractvoorstellen:  +(s * 1.2).toFixed(2),
+    // 05-10: het getal staat op één plek (CONTRACTVOORSTEL_RATIO_NORM).
+    contractvoorstellen:  +(s * _cvNorm).toFixed(2),
   };
   // Vaste norm-overrides (bv. Key Accountmanager: 4 bezoeken/week, geen norm
   // op de overige KPI's) zijn per week gedefinieerd; schalen naar de view.
@@ -11522,7 +11533,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-0904';
+const APP_VERSIE = '20261005-1003';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15472,9 +15483,13 @@ function telFmt(n) { return (+n % 1 ? (+n).toFixed(1).replace('.', ',') : String
 function getPipeCountsForWeek(bmNaam, week, jaar) {
   const cards  = pipeLoad(bmNaam);
   const counts = {};
+  // 05-10: een kaartje dat met ✕ is verwijderd (verwijderd_op) telt niet mee —
+  // net als in de actieve telling hieronder. Een verwijderd Aanbieden-kaartje
+  // met een hoog aantal bleef anders in het weekcijfer (en dus in de ratio
+  // en de norm) staan.
   KPIS.forEach(k => {
     const stage = KPI_STAGE_MAP[k];
-    counts[k] = telKaarten(cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar), stage);
+    counts[k] = telKaarten(cards.filter(c => c.stage === stage && c.week === week && c.jaar === jaar && !c.verwijderd_op), stage);
   });
   return counts;
 }
@@ -21511,7 +21526,18 @@ function uitlegNorm(bmNaam, k) {
     ${regels.join('')}
     ${fix ? `<div class="crm-let-op">Voor deze rol geldt een aangepaste norm (Key Accountmanager): sommige KPI's tellen niet of anders mee.</div>` : ''}
     <div class="crm-kop">Waar de ratio's vandaan komen</div>
-    <div style="font-size:.8rem;color:rgba(255,255,255,.6);">Berekend over de laatste 26 weken${INDIVIDUAL_RATIOS[bmNaam] ? ' van ' + escHtml(bmNaam) + ' zelf' : ' van het team'}, exclusief Key Accountmanagers. Verandert het werk, dan bewegen de ratio's vanzelf mee.</div>`);
+    <div style="font-size:.8rem;color:rgba(255,255,255,.6);">${_uitlegRatioBasis(bmNaam, ratios)} Verandert het werk, dan bewegen de ratio's vanzelf mee.</div>`);
+}
+// 05-10: één zin die zegt op welke ratio's de norm rekent — eigen of team — en
+// waarom. Zo ziet een nieuwe collega meteen wanneer de lat van hemzelf wordt.
+function _uitlegRatioBasis(bmNaam, ratios) {
+  const r = ratios || {};
+  const n = r.totalStarters || 0, w = r.weeksUsed || 0;
+  if (r.basis === 'team') {
+    return 'De norm rekent met de <b>teamratio</b> (laatste 26 weken van het team, zonder Key Accountmanagers): er zijn geen eigen cijfers van ' + escHtml(bmNaam) + '.';
+  }
+  const let_op = !n ? (w ? ' Nog geen starters in die periode: de ratio is dan het totaal per KPI.' : ' Nog geen opgeslagen weken: de ratio en dus de norm staan op 0.') : '';
+  return 'Berekend over de laatste 26 weken van ' + escHtml(bmNaam) + ' zelf (' + fmt(n, 0) + ' starters, ' + fmt(w, 0) + ' weken).' + let_op;
 }
 
 // ── 14. Mijlpalen: verjaardagen en jubilea ──────────────────────────────────
