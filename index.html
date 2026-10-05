@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-1457 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261005-1812 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11534,7 +11534,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-1457';
+const APP_VERSIE = '20261005-1812';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20953,12 +20953,26 @@ function refreshCoachingTab() {
   document.getElementById('bm-subtab-content').innerHTML = renderBmCoachingTab(bm);
 }
 
+// 05-10: één transcript op aanvraag. De achtergrondlader kan mislukken (grote
+// brokken, timeout); dan bleef "wordt nog opgehaald" eindeloos komen. Nu haalt
+// Analyseer het ene record zelf op, en zet de vlag op false als er op de server
+// echt geen transcript staat.
+async function _transcriptOphalen(r) {
+  if (!r || r.transcript || !supa) return;
+  try {
+    const { data, error } = await supa.from('verslagen').select('id, transcript').eq('id', r.id).maybeSingle();
+    if (error) { _meldStil('transcript ophalen (' + r.id + ')', error); return; }
+    r.transcript = (data && data.transcript) || '';
+    r.heeftTranscript = !!(r.transcript && String(r.transcript).trim());
+  } catch (e) { _meldStil('transcript ophalen', e); }
+}
+
 async function gesprekCoachAnalyse(id) {
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
-  // Record komt uit de lokale cache: het transcript zit er nog niet bij.
+  if (!rec.transcript) await _transcriptOphalen(rec);
   if (!rec.transcript) {
-    if (rec.heeftTranscript) alert('De opname wordt nog opgehaald van de server. Probeer het over een paar seconden opnieuw.');
+    btMeld('geel', rec.heeftTranscript ? 'Het transcript kon niet worden opgehaald. Kijk in het foutenlogboek onder Beheer.' : 'Deze opname heeft geen transcript; er valt niets te analyseren.');
     return;
   }
   GESPREK_COACHING_RESULTS[id] = { loading: true, result: null };
@@ -20983,8 +20997,9 @@ async function gesprekCoachAnalyse(id) {
 async function bezoekCoachAnalyse(id) {
   const rec = BEZOEK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
+  if (!rec.transcript) await _transcriptOphalen(rec);
   if (!rec.transcript) {
-    if (rec.heeftTranscript) alert('De opname wordt nog opgehaald van de server. Probeer het over een paar seconden opnieuw.');
+    btMeld('geel', rec.heeftTranscript ? 'Het transcript kon niet worden opgehaald. Kijk in het foutenlogboek onder Beheer.' : 'Deze opname heeft geen transcript; er valt niets te analyseren.');
     return;
   }
   BEZOEK_COACHING_RESULTS[id] = { loading: true, result: null };
@@ -40186,10 +40201,13 @@ async function _laadTranscriptsAchtergrond(type) {
     // In stukken van 100 (15-09): honderden ids in één .in() maken de vraag te
     // lang, en die faalde stil — waarna alle intakes uit Coaching bleven.
     const perId = {};
-    for (let i = 0; i < ids.length; i += 100) {
-      const deel = ids.slice(i, i + 100);
+    let mislukt = 0;
+    // 05-10: brokken van 20 (was 100). Een transcript is al gauw 40.000 tekens;
+    // 100 stuks in één vraag is 4 MB en liep tegen de statement timeout aan.
+    for (let i = 0; i < ids.length; i += 20) {
+      const deel = ids.slice(i, i + 20);
       const { data, error } = await supa.from('verslagen').select('id, transcript').in('id', deel);
-      if (error) { _meldStil('transcripties ophalen (' + type + ', ' + deel.length + ' stuks)', error); continue; }
+      if (error) { mislukt++; _meldStil('transcripties ophalen (' + type + ', ' + deel.length + ' stuks)', error); continue; }
       (data || []).forEach(r => { perId[String(r.id)] = r.transcript || ''; });
     }
     lijst.forEach(r => {
@@ -40198,6 +40216,7 @@ async function _laadTranscriptsAchtergrond(type) {
         r.heeftTranscript = !!(r.transcript && r.transcript.trim());
       }
     });
+    if (mislukt) btMeld('geel', 'Niet alle opnames konden worden opgehaald (' + mislukt + ' deel' + (mislukt === 1 ? '' : 'en') + '). Analyseer haalt ze per stuk alsnog op.');
     if (type === 'gesprek') { _saveGesprekRec(); if (currentTab === 'gesprek') renderGesprek(); }
     else                    { _saveBezoekRec();  if (currentTab === 'bezoek')  renderBezoekRecorder(); }
     if (bmSubTab === 'coaching') refreshCoachingTab();
