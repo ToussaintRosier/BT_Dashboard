@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261005-1920 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261006-1122 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -17,7 +17,8 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="manifest" href="/manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- 06-10: exacte versie (was @2 = altijd de nieuwste 2.x). Verhogen is een bewuste oplevering; test_cdn_vast.js bewaakt het. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- CV-generator: tekst uit Word/PDF lezen, en het ingevulde Word-CV samenstellen -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -84,6 +85,8 @@
        kaartje/rij/tegel → blokje ín een kaartje (terug naar de paginakleur).
        Elke achtergrond van een paneel of kaart verwijst hiernaar; niets meer op een losse tint. */
     --l0:#253151; --l1:#2c3a5e; --l2:#364160; --l3:#253151;
+    /* 06-10: gedempte tekst op donker — ratio ≈ 4,6 op --l0 (de oude --muted #5b6478 is voor wit en geeft 1,9–2,2). */
+    --tekst-gedempt: rgba(255,255,255,.62);
 
     /* ── LICHTE PANELEN ──────────────────────────────────────────────────
        Puur wit botste te hard met de donkerblauwe pagina. Alle leesbare
@@ -190,6 +193,10 @@
 
   .kop-datum { color:rgba(255,255,255,.55); font-size:.78rem; white-space:nowrap;
                font-variant-numeric:tabular-nums; }
+  /* Bijgewerkt-stipje (06-10): groen, onzichtbaar tot er iets van een collega binnenkwam. */
+  .rt-stip { display:inline-block; width:8px; height:8px; border-radius:50%; background:#25D366; opacity:0;
+             transition:opacity .35s; vertical-align:middle; margin-right:2px; box-shadow:0 0 6px rgba(37,211,102,.7); }
+  .rt-stip.aan { opacity:1; }
 
   /* Naam en Uitloggen waren twee pillen naast elkaar; Uitloggen kreeg daarmee
      evenveel gewicht als je eigen naam terwijl je het één keer per dag gebruikt.
@@ -357,7 +364,9 @@
   .section-title   { font-weight: var(--w-nadruk); font-size: var(--t-lg); }
   .person-name     { font-weight: var(--w-nadruk); font-size: var(--t-xl); letter-spacing: -.01em; }
   table { width:100%; border-collapse:collapse; font-size:.84rem; }
-  thead th { background:var(--card); color:var(--muted); font-weight:700; padding:10px 14px; text-align:right; font-size:.77rem; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--border); }
+  /* 06-10: donker-veilig als standaard (de app is donker); de witte panelen hieronder zetten de lichte waarden terug. Voorheen stond hier --card/--muted en kreeg elke nieuwe tabel een lichte kop met donkere eerste kolom (7 keer apart gerepareerd). */
+  thead th { background:transparent; color:rgba(255,255,255,.7); font-weight:700; padding:10px 14px; text-align:right; font-size:.77rem; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--border); }
+  .rec-paneel thead th, .rec-dossier thead th, .pipe-modal thead th, .gv-lijst thead th, .cr-week thead th, .rec-kand thead th, .wit thead th { background:var(--card); color:var(--muted); }
   thead th:first-child { text-align:left; }
   tbody td { padding:9px 14px; border-top:1px solid var(--border); text-align:right; }
   tbody td:first-child { text-align:left; font-weight:600; }
@@ -379,7 +388,8 @@
     padding: 8px 14px;
   }
   tbody td { border-top: 1px solid rgba(37,49,81,.07); }
-  tbody td:first-child { font-weight: var(--w-normaal); color: var(--text); }
+  tbody td:first-child { font-weight: var(--w-normaal); }
+  .rec-paneel tbody td:first-child, .rec-dossier tbody td:first-child, .pipe-modal tbody td:first-child, .gv-lijst tbody td:first-child, .cr-week tbody td:first-child, .rec-kand tbody td:first-child, .wit tbody td:first-child { color: var(--text); }
   tbody tr:hover { background: rgba(37,49,81,.03); }
   /* Het ratioblok was het laatste grote witte vlak op deze schermen. */
   .norm-intro { background:var(--l1); border:0.5px solid rgba(255,255,255,.12);
@@ -3911,7 +3921,7 @@
   .pipe-card:hover { box-shadow:0 2px 6px rgba(0,0,0,.13); }
   .pipe-card.dragging { opacity:.35; }
   .pipe-card .card-naam { font-weight:700; font-size:.78rem; color:var(--text); display:flex; justify-content:space-between; align-items:flex-start; gap:3px; }
-  .pipe-card .card-sub  { font-size:.65rem; color:var(--muted); margin-top:1px; line-height:1.35; }
+  .pipe-card .card-sub  { font-size:.65rem; color:var(--tekst-gedempt); margin-top:1px; line-height:1.35; }
   .pipe-card .card-del  { background:none; border:none; color:#d1d5db; cursor:pointer; font-size:.72rem; padding:1px 3px; border-radius:3px; flex-shrink:0; line-height:1; }
   .pipe-card .card-del:hover { color:var(--danger); background:#fef2f2; }
   .pipe-card .card-edit { background:none; border:none; color:#d1d5db; cursor:pointer; font-size:.72rem; padding:1px 3px; border-radius:3px; flex-shrink:0; line-height:1; }
@@ -4174,7 +4184,7 @@
   .bz-r4 u { text-decoration:underline dotted; font-size:.66rem; font-weight:400; cursor:pointer; }
   .bz-af { margin-left:auto; width:20px; height:20px; border-radius:99px; display:inline-flex; align-items:center; justify-content:center; font-size:.7rem; flex:none; cursor:pointer; border:0; font-family:inherit; }
   .bz-af.ja { background:#25D366; color:#0f2a19; } .bz-af.nee { background:transparent; border:1px solid rgba(255,255,255,.3); color:rgba(255,255,255,.4); }
-  .bz-leeg { color:var(--muted); padding:8px 0; font-size:.8rem; }
+  .bz-leeg { color:var(--tekst-gedempt); padding:8px 0; font-size:.8rem; }
   .acc-bron:hover { background:rgba(255,255,255,.12); color:rgba(255,255,255,.75); }
   .acc-bron.aan { background:rgba(14,159,110,.28); color:#5fd6a8; }
   .acc-bron:disabled { cursor:default; } .acc-bron:disabled:hover { background:transparent; color:rgba(255,255,255,.42); }
@@ -5094,7 +5104,7 @@
   .crk { background:var(--l1); color:#fff; border-radius:12px; padding:14px 18px; margin-bottom:6px; }
   .crk h3 { margin:0 0 10px; font-size:.95rem; color:#fff; font-weight:var(--w-nadruk, 600); }
   .crk table { width:100%; border-collapse:collapse; font-size:.84rem; }
-  .crk th { font-size:.7rem; color:rgba(255,255,255,.55); font-weight:var(--w-nadruk, 600); text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12); white-space:nowrap; }
+  .crk th { background:var(--l1); font-size:.7rem; color:rgba(255,255,255,.55); font-weight:var(--w-nadruk, 600); text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12); white-space:nowrap; }
   .crk th.l, .crk td.l { text-align:left; white-space:nowrap; }
   .crk th.in { color:#93c5fd; } .crk th.uit { color:#6ee7b7; }
   .crk td { padding:6px 8px; text-align:center; border-bottom:1px solid rgba(255,255,255,.07); font-variant-numeric:tabular-nums; }
@@ -5818,7 +5828,7 @@
     </div>
   </div>
   <div class="header-controls">
-    <span class="kop-datum" id="kop-datum"></span>
+    <span class="rt-stip" id="rt-stip" aria-hidden="true"></span><span class="kop-datum" id="kop-datum"></span>
     <button class="kop-bel" id="kop-bel" onclick="selectTab('one')" title="Brightech ONE" aria-label="Brightech ONE"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7z"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg><span class="kop-bel-stip"></span></button>
     <span id="kop-naam" style="display:none;"></span>
     <button class="kop-avatar" id="kop-avatar" style="display:none;"
@@ -6759,6 +6769,8 @@ function barColor(p)    { return p>=100?'var(--over)':p>=90?'var(--success)':p>=
 function barColorDonker(p) { return p>=100?'#7dd3fc':p>=90?'#4ade80':p>=60?'#fbbf24':'#f87171'; }
 function pctWide(p)        { return Math.max(0, Math.min(200, p)) / 2; }
 function barColorWide(p)   { return p<=69?'var(--danger)':p<=94?'var(--warn)':'var(--success)'; }
+// 06-10: dezelfde drie standen als tekstkleur op een donkere ondergrond (de balk houdt de volle kleur).
+function barColorWideDonker(p) { return p<=69?'#f87171':p<=94?'#fbbf24':'#4ade80'; }
 
 function filterData(naam, year) {
   return RAW.filter(d => (!naam || d.naam===naam) && d.jaar===year);
@@ -8015,7 +8027,7 @@ async function loadOne() {
           .order('created_at', { ascending:false }).limit(150),
       supa.from('one_reacties').select('*').is('verwijderd_op', null)
           .order('created_at', { ascending:true }).limit(800),
-      supa.from('one_knoppen').select('*').limit(3000),
+      _alleRijen(() => supa.from('one_knoppen').select('*'), 6000),
       supa.from('profiles').select('naam, bm_naam, einddatum').limit(200),
       supa.from('one_poll_opties').select('*').order('volgorde').limit(600),
       supa.from('one_poll_stemmen').select('*').limit(3000),
@@ -8910,8 +8922,8 @@ async function loadOneBerichten() {
   if (!supa || !ONE_MIJN_ID) return;
   const [g, l, b, pr] = await Promise.all([
     supa.from('one_gesprekken').select('*').order('laatste_op', { ascending: false }).limit(300),
-    supa.from('one_gesprek_leden').select('*').limit(3000),
-    supa.from('one_berichten').select('*').order('created_at', { ascending: false }).limit(3000),
+    _alleRijen(() => supa.from('one_gesprek_leden').select('*')),
+    _alleRijen(() => supa.from('one_berichten').select('*').order('created_at', { ascending: false }), 3000),
     supa.from('profiles').select('id, naam, bm_naam, einddatum').limit(200),
   ]);
   if (g.error) {
@@ -9177,8 +9189,8 @@ async function loadChallenges() {
   const a = await supa.from('challenges').select('*').order('created_at', { ascending: false }).limit(300);
   if (a.error) { if (/does not exist|42P01|schema cache/i.test(a.error.message || '')) { CH_BESCHIKBAAR = false; return; } meldFout('challenges laden mislukt: ' + a.error.message, 'loadChallenges'); return; }
   CH_BESCHIKBAAR = true; CHALLENGES = a.data || [];
-  const b = await supa.from('challenge_deelnemers').select('*').limit(3000); CH_DEELNEMERS = b.data || [];
-  const c = await supa.from('challenge_voordrachten').select('*').limit(3000); CH_VOORDRACHTEN = c.data || [];
+  const b = await _alleRijen(() => supa.from('challenge_deelnemers').select('*')); CH_DEELNEMERS = b.data || [];
+  const c = await _alleRijen(() => supa.from('challenge_voordrachten').select('*')); CH_VOORDRACHTEN = c.data || [];
 }
 // De datum van een pipelinekaart: "21-9-2026" (toLocaleDateString), anders de maandag van de week.
 function _chKaartDatum(c) {
@@ -11544,7 +11556,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261005-1920';
+const APP_VERSIE = '20261006-1122';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14698,7 +14710,7 @@ function renderMedewerkersOverzicht() {
   // getallen met gelijke breedte zodat ze echt onder elkaar staan.
   const rankRows = ranking.map((r) => {
     const nogNiet = collegaNogNietGestart(r.bm.naam);
-    const kleur = barColorWide(r.p);
+    const kleur = barColorWide(r.p), kleurTekst = barColorWideDonker(r.p);
     // De balk gaat over de weg naar het jaardoel, niet over het percentage:
     // 165% van je weekverwachting kan nog steeds halverwege je jaar zijn.
     const doel  = r.bm.doel || 0;
@@ -14717,7 +14729,7 @@ function renderMedewerkersOverzicht() {
           <span class="st-vul" style="width:${nogNiet ? 0 : vul.toFixed(1)}%;background:${kleur};"></span>
           ${doel > 0 && !nogNiet ? `<span class="st-tik" style="left:${tik.toFixed(1)}%;"></span>` : ''}
         </span>
-        <span class="st-pct" style="color:${kleur};">${nogNiet ? '—' : r.p + '%'}</span>
+        <span class="st-pct" style="color:${kleurTekst};">${nogNiet ? '—' : r.p + '%'}</span>
       </div>
       <div class="st-sub">${nogNiet ? collegaStartPilHtml(r.bm.naam) + ' · jaardoel ' : 'verwacht ' + fmt(r.ytdTarget, 1) + ' · jaardoel '}${doel}${r.bm.doelOnbekend
         ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>`
@@ -15851,9 +15863,9 @@ async function laadMtActies() {
   if (!supa || (!magZien('mtacties') && !magZien('mtcoaching'))) return;
   try {
     const [a, n, c] = await Promise.all([
-      supa.from('mt_acties').select('*'),
-      supa.from('mt_notulen').select('*').order('jaar', { ascending: false }).order('week', { ascending: false }),
-      supa.from('mt_coaching_notities').select('*'),
+      _alleRijen(() => supa.from('mt_acties').select('*')),
+      _alleRijen(() => supa.from('mt_notulen').select('*').order('jaar', { ascending: false }).order('week', { ascending: false })),
+      _alleRijen(() => supa.from('mt_coaching_notities').select('*')),
     ]);
     if (a.error) meldFout(a.error.message, 'mt_acties laden'); else MT_ACTIES = a.data || [];
     if (n.error) meldFout(n.error.message, 'mt_notulen laden'); else MT_NOTULEN = n.data || [];
@@ -16922,7 +16934,7 @@ let BUM_AUTOSAVE_TIMERS = {};
 
 async function loadBumGesprekken() {
   if (!supa) return;
-  const { data, error } = await supa.from('bum_gesprek').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('bum_gesprek').select('*'));
   if (error) { console.error('BUM-gesprekken laden mislukt:', error); return; }
   BUM_RIJEN = data || [];
 }
@@ -17792,7 +17804,7 @@ let DATA_WAARSCHUWING = '';
 
 async function loadKpiWeekly() {
   if (!supa) return; // blijft op de ingebouwde voorbeelddata
-  const { data, error } = await supa.from('kpi_weekly').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('kpi_weekly').select('*'));
   if (error) {
     console.error('KPI-data laden mislukt:', error);
     DATA_WAARSCHUWING = 'De weekcijfers konden niet uit de database worden opgehaald (' +
@@ -17874,7 +17886,7 @@ function dataWaarschuwingHtml() {
 // ── Database: Projectenlijst laden (Excel-import) ─────────────────────────────
 async function loadProjecten() {
   if (!supa) return;
-  const { data, error } = await supa.from('projecten').select('*').order('projectnr');
+  const { data, error } = await _alleRijen(() => supa.from('projecten').select('*').order('projectnr'));
   if (error) { console.error('Projectenlijst laden mislukt:', error); return; }
   PROJECTEN = data || [];
 }
@@ -17896,7 +17908,7 @@ async function loadProjEvaluaties() {
 async function loadPlanVanAanpak() {
   if (!supa) return;
   // Managernotitie is zichtbaar voor iedereen, dus geen kolomrestrictie meer nodig.
-  const { data, error } = await supa.from('plan_van_aanpak').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('plan_van_aanpak').select('*'));
   if (error) { console.error('Plan van aanpak laden mislukt:', error); return; }
   PLAN_VA = data || [];
 }
@@ -17924,7 +17936,7 @@ async function loadAanmeldSaved() {
 // ── Database: Financieel (omzet per opdrachtgever, gevuld via Moneybird) ─────
 async function loadFinancieelOmzet() {
   if (!supa) return;
-  const { data, error } = await supa.from('financieel_omzet').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('financieel_omzet').select('*'));
   if (error) { console.error('Financieel-data laden mislukt:', error); return; }
   FINANCIEEL_CACHE = data || [];
 }
@@ -17933,10 +17945,10 @@ async function loadFinancieelOmzet() {
 async function loadBegroting() {
   if (!supa) return;
   const [omzet, proj, maand, week] = await Promise.all([
-    supa.from('begroting_omzet').select('*'),
-    supa.from('begroting_projectenlijn').select('*'),
-    supa.from('financieel_omzet_maand').select('*'),
-    supa.from('financieel_omzet_week').select('*'),
+    _alleRijen(() => supa.from('begroting_omzet').select('*')),
+    _alleRijen(() => supa.from('begroting_projectenlijn').select('*')),
+    _alleRijen(() => supa.from('financieel_omzet_maand').select('*')),
+    _alleRijen(() => supa.from('financieel_omzet_week').select('*')),
   ]);
   if (omzet.error) console.error('Begroting omzet laden mislukt:', omzet.error);
   if (proj.error) console.error('Begroting projectenlijn laden mislukt:', proj.error);
@@ -17952,9 +17964,9 @@ async function loadBegroting() {
 async function loadUrenrapportage() {
   if (!supa) return;
   const [maand, opdrachtgever, week] = await Promise.all([
-    supa.from('uren_kpi_maand').select('*'),
-    supa.from('uren_kpi_opdrachtgever_maand').select('*'),
-    supa.from('uren_kpi_week').select('*'),
+    _alleRijen(() => supa.from('uren_kpi_maand').select('*')),
+    _alleRijen(() => supa.from('uren_kpi_opdrachtgever_maand').select('*')),
+    _alleRijen(() => supa.from('uren_kpi_week').select('*')),
   ]);
   if (maand.error) console.error('Uren-KPI (maand) laden mislukt:', maand.error);
   if (opdrachtgever.error) console.error('Uren-KPI (opdrachtgever) laden mislukt:', opdrachtgever.error);
@@ -19729,7 +19741,7 @@ function tedoenHtml() {
 async function loadTodoStatus() {
   if (!supa) return;
   try {
-    const { data, error } = await supa.from('todo_status').select('*');
+    const { data, error } = await _alleRijen(() => supa.from('todo_status').select('*'));
     if (error) { if (!/does not exist|42P01|schema cache|PGRST205/i.test(error.message || '')) meldFout('to-do standen laden mislukt: ' + error.message, 'loadTodoStatus'); return; }
     const mij = String((CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || '');
     TODO_STATUS = {};
@@ -20438,8 +20450,78 @@ const _RT_TAKEN = {
 // opnieuw. Bij het opslaan in de pipeline zag je dat als haperen: eerst je
 // eigen hertekening, daarna nog twee die er meteen achteraan kwamen. Nu wordt
 // alles binnen een halve seconde verzameld en volgt er één hertekening.
-let _RT_WACHTRIJ = new Set();
+let _RT_WACHTRIJ = new Map();   // tabel → true (tabel opnieuw laden) / false (de rij is al verwerkt)
 let _RT_TIMER    = null;
+// Adaptief bundelen (06-10, "de cockpit ververst zichzelf herhaaldelijk"): het eerste
+// bericht na rust wordt binnen een halve seconde verwerkt; blijven de berichten komen
+// (zes collega's aan het werk), dan hooguit één ronde per drie seconden.
+let _RT_LAATSTE_RONDE = 0;
+const _RT_BUNDEL_KORT = 500, _RT_BUNDEL_LANG = 3000;
+
+// Rij-niveau (06-10). Het live-bericht bevat de rij zelf (payload.new, bij DELETE alleen
+// payload.old.id). Voor de twee grote tabellen gaat die ene rij de cache in, in plaats van
+// de hele tabel opnieuw op te halen (1.335 kaartjes in twee selects; 5.711 kandidaten) bij
+// elk bericht. Geeft de verwerker false terug — onbruikbare payload, cache nog niet
+// geladen — dan laadt de taak de tabel zoals altijd. Wat de lezer niet mag zien komt via
+// RLS ook niet als bericht binnen, dus de cache wordt hier nooit ruimer dan een herlaad.
+const _RT_RIJ = {
+  pipeline_cards: (p) => _rtRijPipeline(p),
+  crm_kandidaten: (p) => _rtRijCrm(p),
+};
+// Wat er ná een rij-verwerking nog moet gebeuren (het deel van de taak dat niet laden is).
+const _RT_NA = {
+  pipeline_cards: async () => { try { feestScan(); } catch (e) { _meldStil('feestscan na live-bericht', e); } },
+  crm_kandidaten: async () => { if (currentTab === 'crmkand') renderCrmKandidaten(); if (currentTab === 'crmsearch') renderCrmSearch(); _crmDossierHerteken(); _rldvDocsHerteken(); },
+};
+function _rtRijPipeline(p) {
+  if (!p || !PIPE_CACHE || typeof PIPE_CACHE !== 'object') return false;
+  const soort = p.eventType, rij = p.new, oud = p.old;
+  const id = rij && rij.id != null ? rij.id : (oud && oud.id != null ? oud.id : null);
+  if (id == null) return false;
+  if (soort !== 'DELETE' && (!rij || !rij.bm_naam)) return false;
+  // Weg uit elke lijst (de bm_naam kan veranderd zijn); onthoud de plek zodat een
+  // bijgewerkte kaart niet verspringt.
+  let plek = null;
+  for (const bm of Object.keys(PIPE_CACHE)) {
+    const lijst = PIPE_CACHE[bm]; if (!Array.isArray(lijst)) continue;
+    const i = lijst.findIndex(c => String(c.id) === String(id));
+    if (i >= 0) { plek = { bm, i }; lijst.splice(i, 1); }
+  }
+  // Zelfde regel als pipeFetchAll: afgewezen kaarten horen niet in de pipeline.
+  if (soort === 'DELETE' || rij.goedkeuring === 'niet_akkoord') return true;
+  const kaart = _pipeCardFromRow(rij);
+  const lijst = PIPE_CACHE[rij.bm_naam] || (PIPE_CACHE[rij.bm_naam] = []);
+  if (plek && plek.bm === rij.bm_naam) lijst.splice(Math.min(plek.i, lijst.length), 0, kaart);
+  else lijst.push(kaart);
+  return true;
+}
+function _rtRijCrm(p) {
+  if (!p || !Array.isArray(CRM_KANDIDATEN)) return false;
+  const soort = p.eventType, rij = p.new, oud = p.old;
+  const id = rij && rij.id != null ? rij.id : (oud && oud.id != null ? oud.id : null);
+  if (id == null) return false;
+  if (soort !== 'DELETE' && (!rij || !rij.naam)) return false;
+  const i = CRM_KANDIDATEN.findIndex(k => String(k.id) === String(id));
+  if (soort === 'DELETE') { if (i >= 0) CRM_KANDIDATEN.splice(i, 1); return true; }
+  if (i >= 0) CRM_KANDIDATEN[i] = rij; else CRM_KANDIDATEN.push(rij);
+  return true;
+}
+// Het bijgewerkt-stipje in de kopbalk (06-10): licht even groen op als er iets van een
+// collega binnenkwam, met in de titel wat en hoe laat — zo is een hertekening verklaarbaar.
+const _RT_LABEL = { kpi_weekly: 'weekcijfers', pipeline_cards: 'pipeline', crm_kandidaten: 'kandidaten', crm_bedrijven: 'bedrijven',
+  accounts: 'accounts', sales_leads: 'leads', projecten: 'projecten', mt_acties: 'MT', mt_notulen: 'MT', mt_coaching_notities: 'MT',
+  one_posts: 'ONE', one_berichten: 'ONE', rldv_selecties: 'RLDV', todo_status: "to-do's", vacatures: 'vacatures' };
+let _RT_STIP_TIMER = null;
+function _rtStip(tabellen) {
+  const el = document.getElementById('rt-stip');
+  if (!el) return;
+  const wat = [...new Set((tabellen || []).map(t => _RT_LABEL[t] || t))].join(', ');
+  const nu = new Date();
+  el.title = 'Bijgewerkt om ' + String(nu.getHours()).padStart(2, '0') + ':' + String(nu.getMinutes()).padStart(2, '0') + (wat ? ' · ' + wat : '') + ' (van een collega)';
+  el.classList.add('aan');
+  if (_RT_STIP_TIMER) clearTimeout(_RT_STIP_TIMER);
+  _RT_STIP_TIMER = setTimeout(() => { _RT_STIP_TIMER = null; el.classList.remove('aan'); }, 2500);
+}
 
 // De eigen echo (24-08, "de knoppen haperen"). Elke schrijfactie komt via de
 // live-verbinding als bericht terug bij de afzender zelf: je klikt Opslaan,
@@ -20449,19 +20531,28 @@ let _RT_TIMER    = null;
 // niet terug te zien: de gegevens worden wél opnieuw geladen (dat houdt de
 // cache eerlijk), alleen de hertekening blijft achterwege. Berichten van
 // collega's — buiten dit venster van vier seconden — hertekenen gewoon.
-function _rtVerzamel(tabel) {
-  _RT_WACHTRIJ.add(tabel);
+function _rtVerzamel(tabel, payload) {
+  // Rij-niveau: de rij meteen de cache in; lukt dat niet, dan straks de tabel laden.
+  let klaar = false;
+  const rij = _RT_RIJ[tabel];
+  if (rij && payload) { try { klaar = rij(payload) === true; } catch (e) { _meldStil('realtime rij ' + tabel, e); klaar = false; } }
+  _RT_WACHTRIJ.set(tabel, !klaar || _RT_WACHTRIJ.get(tabel) === true);
   if (_RT_TIMER) return;
+  const sinds = Date.now() - _RT_LAATSTE_RONDE;
+  const wacht = sinds < _RT_BUNDEL_LANG ? Math.max(_RT_BUNDEL_KORT, _RT_BUNDEL_LANG - sinds) : _RT_BUNDEL_KORT;
   _RT_TIMER = setTimeout(async () => {
     _RT_TIMER = null;
-    const tabellen = [..._RT_WACHTRIJ];
+    const tabellen = [..._RT_WACHTRIJ.keys()];
+    const laden = tabellen.filter(t => _RT_WACHTRIJ.get(t) === true);
     _RT_WACHTRIJ.clear();
     _TODO_CACHE = null;   // 29-09: to-do's opnieuw afleiden na een wijziging van een collega
     for (const t of tabellen) {
-      try { await _RT_TAKEN[t](); }
+      try { if (laden.includes(t)) await _RT_TAKEN[t](); else if (_RT_NA[t]) await _RT_NA[t](); }
       catch (e) { _meldStil('realtime bijwerken: ' + t, e); }
     }
+    _RT_LAATSTE_RONDE = Date.now();
     const vanAnder = tabellen.filter(t => Date.now() - (_EIGEN_ECHO[t] || 0) > 4000);
+    if (vanAnder.length) _rtStip(vanAnder);
     // Alleen hertekenen als het scherm waar je naar kijkt die tabel ook toont
     // (15-09, "de tekst en blokjes haperen"). Tot nu toe tekende elke wijziging
     // van een collega — een kaart verslepen, een fase afvinken — bij iedereen
@@ -20470,7 +20561,7 @@ function _rtVerzamel(tabel) {
     // zijn wél opgehaald; het scherm ziet ze zodra je ernaartoe gaat.
     if (vanAnder.length && _rtRaaktScherm(vanAnder, currentTab)) stilRender();
     else if (vanAnder.includes('rldv_selecties') && document.getElementById('sidebar')) renderTabs();
-  }, 500);
+  }, wacht);
 }
 
 // Welke schermen tonen welke tabel. Een tabel die hier niet staat, telt als
@@ -20528,7 +20619,7 @@ function _rtAansluiten(tabel) {
   const kanaal = supa.channel('kpi-live-' + tabel);
   st.kanaal = kanaal;
   kanaal
-    .on('postgres_changes', { event: '*', schema: 'public', table: tabel }, () => _rtVerzamel(tabel))
+    .on('postgres_changes', { event: '*', schema: 'public', table: tabel }, (payload) => _rtVerzamel(tabel, payload))
     .subscribe((status, err) => {
       if (st.kanaal !== kanaal) return;   // een oud kanaal (na opnieuw aansluiten) zegt niets meer
       if (status === 'SUBSCRIBED') {
@@ -23379,7 +23470,7 @@ let _projStatusGeladen = false;
 
 async function loadProjStatus() {
   if (!supa) return;
-  const { data, error } = await supa.from('project_contract_status').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('project_contract_status').select('*'));
   if (error) {
     // Tabel nog niet aangemaakt: stil verder op localStorage, éénmalig melden.
     if (!_projStatusGeladen) _meldStil('project_contract_status laden', error);
@@ -27030,9 +27121,9 @@ function renderPrognose() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <h3 style="margin:0;">Projecten</h3>
         <div style="display:flex;align-items:center;gap:5px;">
-          <span style="font-size:.68rem;color:var(--muted);margin-right:2px;">Y-as</span>
+          <span style="font-size:.68rem;color:var(--tekst-gedempt);margin-right:2px;">Y-as</span>
           <button id="proj-zoom-out" onclick="projChartZoom(-1)" title="Uitzoomen" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.95rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);">−</button>
-          <span id="proj-zoom-lbl" style="font-size:.68rem;color:var(--muted);min-width:28px;text-align:center;">auto</span>
+          <span id="proj-zoom-lbl" style="font-size:.68rem;color:var(--tekst-gedempt);min-width:28px;text-align:center;">auto</span>
           <button id="proj-zoom-in" onclick="projChartZoom(1)" title="Inzoomen" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.95rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);">+</button>
           <span id="proj-pan-hint" hidden style="font-size:.68rem;color:var(--muted);margin-right:6px;">sleep om te verschuiven</span>
           <button onclick="window._projYZoom=0;window._projYPan=0;projChartApplyZoom()" title="Reset" style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:.75rem;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--muted);">↺</button>
@@ -28561,9 +28652,13 @@ function _pipeCardFromRow(c) {
 // maakVraag() bouwt telkens een verse vraag (een gebruikte vraag kun je niet
 // opnieuw sturen); hier komt alleen range() achter.
 // ═══════════════════════════════════════════════════════════════════════════
-async function _alleRijen(maakVraag) {
+async function _alleRijen(maakVraag, max) {
+  // 06-10: optioneel plafond (max) voor lijsten die bewust begrensd zijn (berichten,
+  // knoppen); zonder plafond wordt álles opgehaald. Let op: Supabase kapt ook een
+  // expliciete .limit(3000) af op 1.000 — vandaar dat dit de enige route is.
   let alles = [], van = 0, hersteld = false;
   for (;;) {
+    if (max && alles.length >= max) return { data: alles.slice(0, max), error: null };
     let { data, error } = await maakVraag().range(van, van + 999);
     // Verlopen token (02-10): sessie verversen en deze portie één keer opnieuw — geen fout loggen.
     if (error && !hersteld && /JWT expired|PGRST301|JWSError/i.test(String(error.message || error.code || ''))) {
@@ -28572,9 +28667,14 @@ async function _alleRijen(maakVraag) {
     }
     if (error) return { data: alles, error };
     alles = alles.concat(data || []);
-    if (!data || data.length < 1000) return { data: alles, error: null };
+    if (!data || data.length < 1000) return { data: _alleRijenUniek(alles), error: null };
     van += 1000;
   }
+}
+// Bladeren zonder vaste sortering kan een rij twee keer geven; op id ontdubbelen.
+function _alleRijenUniek(rijen) {
+  if (!rijen.length || rijen[0] == null || !('id' in rijen[0])) return rijen;
+  const gezien = new Set(); return rijen.filter(r => { const k = String(r.id); if (gezien.has(k)) return false; gezien.add(k); return true; });
 }
 
 // Haalt alle pipeline-kaarten op uit de database.
@@ -28656,7 +28756,7 @@ function accountsSaveLocal() {
 
 async function accountsFetchAll() {
   if (!supa) { ACCOUNTS_CACHE = accountsLoadLocal(); return; }
-  const { data, error } = await supa.from('accounts').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('accounts').select('*'));
   if (error) { console.error('Accountmanagement laden mislukt:', error); return; }
   ACCOUNTS_CACHE = data || [];
 }
@@ -28940,7 +29040,7 @@ function apFmtDate(iso) {
 async function apLoadAll() {
   if (!supa) return;
   try {
-    const { data, error } = await supa.from('accountplannen').select('*').order('updated_at', { ascending: false });
+    const { data, error } = await _alleRijen(() => supa.from('accountplannen').select('*').order('updated_at', { ascending: false }));
     if (!error && data) ACCOUNTPLAN_RECORDS = data.map(r => ({
       ...r,
       contactpersonen: Array.isArray(r.contactpersonen) ? r.contactpersonen : [],
@@ -29392,7 +29492,7 @@ function _apAnalysePakket(x) {
 async function loadApAnalyses() {
   if (!supa || _apAnGeladen) return;
   try {
-    const { data, error } = await supa.from('ap_analyses').select('*').order('created_at', { ascending: false });
+    const { data, error } = await _alleRijen(() => supa.from('ap_analyses').select('*').order('created_at', { ascending: false }));
     if (error) { if (!/does not exist|42P01|schema cache|PGRST205/i.test(error.message || '')) meldFout('analyses laden mislukt: ' + error.message, 'loadApAnalyses'); return; }
     AP_ANALYSES = {};
     (data || []).forEach(r => { if (!AP_ANALYSES[String(r.plan_id)]) AP_ANALYSES[String(r.plan_id)] = r; });   // nieuwste per plan
@@ -30734,7 +30834,7 @@ async function apNieuwVoor(accId) {
 async function loadBezoekVervolg() {
   if (!supa) return;
   try {
-    const { data, error } = await supa.from('bezoek_vervolg').select('*').limit(2000);
+    const { data, error } = await _alleRijen(() => supa.from('bezoek_vervolg').select('*'));
     if (error) { if (!/does not exist|42P01/i.test(String(error.message || error.code || ''))) _meldStil('vervolgafspraken ophalen', error); return; }
     const nieuw = {};
     (data || []).forEach(r => { nieuw[String(r.verslag_id)] = r; });
@@ -31271,6 +31371,7 @@ async function crmKandBewerkOpslaan() {
   const nieuweNaam = _crmNaamNet((val('voornaam') || '') + ' ' + (val('achternaam') || ''));
   if (!nieuweNaam.trim()) { alert('Vul een naam in.'); return; }
   const naamAnders = _itkSleutel(nieuweNaam) !== k.sleutel;
+  if (k.crm && k.crm.bron === 'verwijderd') { crmVelden.bron = 'handmatig'; crmVelden.verwijderd_op = null; }   // 06-10: herstel
   if (!naamAnders) { crmVelden.naam = nieuweNaam; crmVelden.voornaam = val('voornaam') ? _crmNaamNet(val('voornaam')) : null; crmVelden.achternaam = val('achternaam') ? _crmNaamNet(val('achternaam'), true) : null; }
   let rij;
   if (k.crm) {
@@ -31338,21 +31439,22 @@ async function crmKandVerwijderen(sleutel) {
   if (notities) regels.push({ tekst: 'Gesprekslog (' + notities + ' notitie' + (notities === 1 ? '' : 's') + ')' });
   const tegels = (k.kaarten || []).length;
   if (tegels) regels.push({ ok: true, tekst: 'De ' + tegels + ' tegeltje' + (tegels === 1 ? '' : 's') + ' in de pipeline en de ITK-verslagen blijven staan (KPI\'s veranderen niet); de kandidaat staat alleen niet meer in het CRM' });
-  const ok = await btBevestig(k.naam + ' uit het CRM verwijderen?\n\nDit verdwijnt voor iedereen en is niet terug te draaien:', { knop: 'Verwijderen', soort: 'weg', regels, na: 'Opnieuw invoeren kan altijd via + Kandidaat.' });
+  const ok = await btBevestig(k.naam + ' uit het CRM verwijderen?\n\nDe kandidaat verdwijnt voor iedereen uit de lijsten:', { knop: 'Verwijderen', soort: 'weg', regels, na: 'De gegevens blijven bewaard; opnieuw invoeren met dezelfde naam herstelt het dossier. Definitief wissen kan alleen een manager in de database.' });
   if (!ok) return;
-  const leeg = { geboortedatum: null, adres: null, postcode: null, woonplaats: null, telefoon: null, email: null, linkedin: null, cv_link: null, cr_link: null, opmerking: null, bron: 'verwijderd' };
+  // 06-10 (besluit 1A): zacht verwijderen. De rij houdt al zijn gegevens, krijgt
+  // bron 'verwijderd' en een tijdstip, en verdwijnt uit de lijsten. Opnieuw
+  // invoeren herstelt (crmKandOpslaan / Bewerk). Definitief alleen een manager.
+  const leeg = { bron: 'verwijderd', verwijderd_op: new Date().toISOString() };
   if (supa) {
     _echoVanZelf('crm_kandidaten');
     let error;
     if (k.crm && !String(k.crm.id).startsWith('local-')) ({ error } = await supa.from('crm_kandidaten').update(leeg).eq('id', k.crm.id));
     else ({ error } = await supa.from('crm_kandidaten').insert({ sleutel: k.sleutel, naam: k.naam, ...leeg, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null }));
     if (error) { meldFout('kandidaat verwijderen mislukt: ' + error.message, 'crmKandVerwijderen'); alert('Niet verwijderd: ' + _crmSqlFout(error)); return; }
-    if (notities) { _echoVanZelf('kandidaat_notities'); await supa.from('kandidaat_notities').delete().eq('kand_sleutel', k.sleutel); }
-    await loadCrm();
+    await loadCrm();   // 06-10: het gesprekslog blijft staan (hoort bij het herstel)
   } else {
     CRM_KANDIDATEN = (CRM_KANDIDATEN || []).filter(x => x.sleutel !== k.sleutel).concat([{ id: 'local-' + Date.now(), sleutel: k.sleutel, naam: k.naam, ...leeg }]);
   }
-  if (KAND_NOTITIES) delete KAND_NOTITIES[k.sleutel];
   crmKaartSluit();
   btMeld(k.naam + ' is uit het CRM verwijderd.', 'groen');
   if (currentTab === 'crmkand') renderCrmKandidaten();
@@ -31391,7 +31493,7 @@ async function crmBedrijfBewerkOpslaan() {
     branche: val('branche'), fte: val('fte'), factor: val('factor'), inleentermijn: val('inleentermijn'), cao: val('cao'), fase: val('fase') };
   let rij;
   if (k.crm) {
-    if (k.crm.bron === 'verwijderd') velden.bron = 'handmatig';   // was verwijderd, bleef via KAM zichtbaar: weer een echt dossier
+    if (k.crm.bron === 'verwijderd') { velden.bron = 'handmatig'; velden.verwijderd_op = null; }   // was verwijderd: weer een echt dossier
     if (supa && !String(k.crm.id).startsWith('local-')) {
       _echoVanZelf('crm_bedrijven');
       const { data, error } = await supa.from('crm_bedrijven').update(velden).eq('id', k.crm.id).select().single();
@@ -32089,7 +32191,7 @@ async function crmKandOpslaan() {
   } else {
     // Eerder verwijderd (18-09): die rij hergebruiken — de sleutel is uniek.
     const eerder = lijst.find(k => k.sleutel === velden.sleutel && k.bron === 'verwijderd');
-    const nieuw = { ...velden, bron: 'handmatig', bron_bm: (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || null, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
+    const nieuw = { ...velden, bron: 'handmatig', verwijderd_op: null, bron_bm: (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || null, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
     if (supa) {
       _echoVanZelf('crm_kandidaten');
       const { data, error } = eerder && !String(eerder.id).startsWith('local-')
@@ -33779,13 +33881,13 @@ async function crmBedrijfVerwijderen(sleutel) {
   if (!eisWijzig('crm')) return;
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
   const plan = _crmBedrijfVerwijderPlan(k);
-  const ok = await btBevestig(k.naam + ' verwijderen?\n\nDit verdwijnt voor iedereen en is niet terug te draaien:', { knop: 'Verwijderen', soort: 'weg', regels: plan.regels, na: plan.na });
+  const ok = await btBevestig(k.naam + ' verwijderen?\n\nHet bedrijf verdwijnt voor iedereen uit de lijsten:', { knop: 'Verwijderen', soort: 'weg', regels: plan.regels, na: (plan.na ? plan.na + ' ' : '') + 'De gegevens blijven bewaard; opnieuw invoeren met dezelfde naam herstelt het dossier. Definitief wissen kan alleen een manager in de database.' });
   if (!ok) return;
   const nid = _crmBedrijfNotitieId(k);
   // De rij blijft bestaan met bron 'verwijderd' en lege velden (18-09): de
   // lijst wordt óók gevoed uit de pipeline-bezoeken, en die blijven staan.
   // Zonder deze rij kwam het bedrijf meteen terug als "alleen bezoeken".
-  const leeg = { adres: null, postcode: null, plaats: null, website: null, telefoon: null, kvk: null, swo_link: null, offerte_link: null, opmerking: null, contacten: [], bron: 'verwijderd' };
+  const leeg = { bron: 'verwijderd', verwijderd_op: new Date().toISOString() };   // 06-10 (besluit 1A): zacht, gegevens blijven
   let rij;
   if (supa) {
     _echoVanZelf('crm_bedrijven');
@@ -33795,12 +33897,9 @@ async function crmBedrijfVerwijderen(sleutel) {
       : await supa.from('crm_bedrijven').insert({ sleutel: k.sleutel, naam: k.naam, ...leeg, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null }).select().single();
     if (error) { meldFout('bedrijf verwijderen mislukt: ' + error.message, 'crmBedrijfVerwijderen'); alert('Niet verwijderd: ' + _crmSqlFout(error)); return; }
     rij = data;
-    // Het gesprekslog dat aan de CRM-rij hing (niet aan een KAM-klant).
-    if (echt && !k.account) await supa.from('account_notities').delete().eq('account_id', 'crm:' + k.crm.id);
   } else rij = { id: (k.crm && k.crm.id) || 'local-' + Date.now(), sleutel: k.sleutel, naam: k.naam, ...leeg };
   CRM_BEDRIJVEN = (CRM_BEDRIJVEN || []).filter(x => x.sleutel !== k.sleutel).concat([rij]);
   await _crmBronnenVerwijderen(k);
-  if (nid) delete ACC_NOTITIES[nid];
   crmKaartSluit();
   btMeld(k.naam + ' is uit CRM · Bedrijven verwijderd.', 'groen');
   if (currentTab === 'crmbedrijf') renderCrmBedrijven();
@@ -35473,8 +35572,8 @@ function renderAccounts() {
 
 async function loadRldvSelecties() {
   if (!supa || !magZien('kandidaten')) return;
-  const { data, error } = await supa.from('rldv_selecties').select('*')
-    .order('aangemaakt_op', { ascending: false });
+  const { data, error } = await _alleRijen(() => supa.from('rldv_selecties').select('*')
+    .order('aangemaakt_op', { ascending: false }));
   if (error) {
     meldFout(/relation .* does not exist/i.test(error.message || '')
       ? 'de tabel rldv_selecties bestaat nog niet — vraag de beheerder om supabase/rldv_selecties.sql te draaien'
@@ -37656,7 +37755,7 @@ function salesLeadsSaveLocal() {
 
 async function salesLeadsFetchAll() {
   if (!supa) { SALES_LEADS_CACHE = salesLeadsLoadLocal(); return; }
-  const { data, error } = await supa.from('sales_leads').select('*');
+  const { data, error } = await _alleRijen(() => supa.from('sales_leads').select('*'));
   if (error) { console.error('Sales Leads laden mislukt:', error); return; }
   SALES_LEADS_CACHE = data || [];
 }
@@ -37804,7 +37903,7 @@ function slMsFilterHtml(kind, label, options, current) {
     ? options.map(o => '<label><input type="checkbox" onchange="slToggleMultiFilter(\'' + kind +
         '\',\'' + escApos(o) + '\')" ' + (current.includes(o) ? 'checked' : '') + '>' +
         escHtml(o) + '</label>').join('')
-    : '<div style="padding:6px 8px;color:var(--muted);font-size:.8rem;">Geen opties</div>';
+    : '<div style="padding:6px 8px;color:var(--tekst-gedempt);font-size:.8rem;">Geen opties</div>';
   return '<details class="ms-dropdown' + (current.length ? ' active' : '') + '" ' +
     (SL_OPEN_DROPDOWN === kind ? 'open' : '') + ' ontoggle="slDropdownToggled(\'' + kind + '\', this.open)">' +
     '<summary><span class="ms-label">' + escHtml(summaryLabel) + '</span></summary>' +
@@ -38051,7 +38150,7 @@ function renderSalesLeadsHtml(subTabBtns) {
                        : `${kop} \u00b7 ${current.length}`;
     const itemsHtml = options.length
       ? options.map(o => `<label><input type="checkbox" onchange="slToggleMultiFilter('${kind}','${escApos(o)}')" ${current.includes(o)?'checked':''}>${escHtml(o)}</label>`).join('')
-      : `<div style="padding:6px 8px;color:var(--muted);font-size:.8rem;">Geen opties</div>`;
+      : `<div style="padding:6px 8px;color:var(--tekst-gedempt);font-size:.8rem;">Geen opties</div>`;
     return `<details class="ms-dropdown${current.length?' active':''}" ${SL_OPEN_DROPDOWN===kind?'open':''} ontoggle="slDropdownToggled('${kind}', this.open)">
       <summary><span class="ms-label">${escHtml(summaryLabel)}</span></summary>
       <div class="ms-dropdown-panel">
@@ -41790,7 +41889,7 @@ const VAC_TEKST_VAST = { aanbod: 'Wat krijg je er voor terug?', wie_zijn_wij: 'W
 // ── Laden ───────────────────────────────────────────────────────────────────
 async function loadVacatures() {
   if (!supa) return;
-  const v = await supa.from('vacatures').select('*').order('updated_at', { ascending: false }).limit(1000);
+  const v = await _alleRijen(() => supa.from('vacatures').select('*').order('updated_at', { ascending: false }));
   if (v.error) {
     if (/relation .* does not exist|schema cache/i.test(v.error.message || '')) { VAC_ONTBREEKT = true; return; }
     meldFout('vacatures laden: ' + v.error.message, 'loadVacatures'); return;
