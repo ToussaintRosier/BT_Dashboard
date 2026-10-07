@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261006-1122 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261007-1344 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2628,7 +2628,7 @@
   .rldv-st-menu .it { padding:7px 10px; border-radius:7px; font-size:.78rem; display:flex; gap:8px; align-items:center; cursor:pointer; color:#fff; }
   .rldv-st-menu .it:hover, .rldv-st-menu .it.aan { background:rgba(255,255,255,.08); } .rldv-st-menu .it small { color:rgba(255,255,255,.45); margin-left:auto; font-size:.66rem; }
   .rldv-st-menu .it.uit { opacity:.5; cursor:default; } .rldv-st-menu .lijn { height:1px; background:rgba(255,255,255,.12); margin:4px 2px; }
-  .rldv-st-menu .reden { display:flex; gap:6px; align-items:center; padding:6px 4px 2px; } .rldv-st-reden { flex:1; min-width:0; background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:6px; padding:5px 8px; font-family:inherit; font-size:.76rem; } .rldv-st-reden:focus { outline:none; border-color:#F4CB3C; } .rldv-st-reden::placeholder { color:rgba(255,255,255,.35); }
+  .rldv-st-menu .reden { display:flex; gap:6px; align-items:center; padding:6px 4px 2px; } .rldv-st-reden { flex:1; min-width:0; background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:6px; padding:5px 8px; font-family:inherit; font-size:.76rem; } .rldv-st-reden:focus { outline:none; border-color:#F4CB3C; } .rldv-st-reden.ontbreekt, .rldv-st-reden.ontbreekt:focus { border-color:#f87171; box-shadow:0 0 0 2px rgba(248,113,113,.25); } .rldv-st-reden::placeholder { color:rgba(255,255,255,.35); }
   /* Groepkop (akkoord 24-09): links, pijl vóór de titel, wit, aantal als pil, gele streep links. Sterker dan .acc-table tbody td. */
   .acc-table tbody tr.rldv-groep td { text-align:left !important; background:rgba(255,255,255,.05); color:#fff; font-size:.8rem; font-weight:var(--w-nadruk); text-transform:none; letter-spacing:0; padding:8px 10px 6px; border-bottom:0; border-top:0; cursor:pointer; box-shadow:inset 3px 0 0 #F4CB3C; white-space:nowrap; }
   .rldv-groep td .pijl { display:inline-block; width:14px; color:rgba(255,255,255,.55); font-size:.7rem; }
@@ -11556,7 +11556,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261006-1122';
+const APP_VERSIE = '20261007-1344';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19579,7 +19579,7 @@ function _todoRegels(naam) {
         bedr.forEach(b => { const id = b && b.id != null ? String(b.id) : null; const bn = b && (b.naam || b.bedrijf) || String(b || ''); if (!id) return;
           const st = _aanbStatusVan(sel, id, bn, null); if (!st || !st.aanb) return;
           if (st.stap === 'aang' && st.bron === 'zelf') wacht.push({ naam: bn, ms: st.datumMs || selMs });
-          if (st.stap === 'afg' && st.bron === 'zelf' && !st.reden) push({ ...basis, sleutel: 'reden:' + sl + ':' + id, soort: 'terugkoppeling', tekst: 'Reden afwijzing noteren · ' + bn, detail: 'handboek: ontleden waarom', deadlineMs: _todoWerkdagenErbij(st.datumMs || nu, 0), duur: 5, klik: "rldvCheckOpen('" + escApos(String(sel.id)) + "')" });
+          if (st.stap === 'afg' && st.bron === 'zelf' && !st.reden) push({ ...basis, wie: [st.door || c.bmNaam], sleutel: 'reden:' + sl + ':' + id, soort: 'terugkoppeling', tekst: 'Reden afwijzing noteren · ' + bn, detail: 'handboek: ontleden waarom', deadlineMs: _todoWerkdagenErbij(st.datumMs || nu, 0), duur: 5, klik: "rldvCheckOpen('" + escApos(String(sel.id)) + "')" });
         });
         if (wacht.length && !_todoTerugkNotitie(sl, Math.min.apply(null, wacht.map(w => w.ms)))) { wacht.sort((a, b) => a.ms - b.ms); const oud = wacht[0].ms;   // 30-09: notitie "terugkoppeling" sluit hem
           push({ ...basis, sleutel: 'terugk:' + sl, soort: 'terugkoppeling', tekst: 'Terugkoppeling vragen · ' + wacht.length + (wacht.length === 1 ? ' bedrijf' : ' bedrijven'), detail: wacht.map(w => w.naam + ' ' + _todoWerkdagenTussen(w.ms, nu) + 'd').join(' · '), deadlineMs: _todoWerkdagenErbij(oud, 2), duur: Math.min(60, 10 * wacht.length), klik: "rldvCheckOpen('" + escApos(String(sel.id)) + "')" }); }
@@ -36318,7 +36318,9 @@ function _rldvAanbMenuHtml(id, pending, st) {
     it('teruggetrokken', 'Teruggetrokken', 'ter', 'door ons') +
     '<div class="lijn"></div><div class="it uit"><span class="rldv-st-lab gesp">1ste · 2de · 3de gesprek</span><small>via Kanban</small></div>' +
     '<div class="it uit"><span class="rldv-st-lab contr">Contractvoorstel</span> <span class="rldv-st-lab start">Starter</span><small>via Kanban</small></div>' +
-    (nu === 'afgewezen' ? '<div class="reden"><input type="text" class="rldv-st-reden" placeholder="reden (optioneel) → gesprekslog" value="' + escHtml((pending && pending.reden) || (st && st.reden) || '') + '" oninput="rldvAanbRedenTyp(\'' + escApos(String(id)) + '\', this.value)" onkeydown="if(event.key===\'Enter\')rldvAanbStatusMenu(null)"><button type="button" class="kk-knop" onclick="rldvAanbStatusMenu(null)">klaar</button></div>' : '') +
+    // 07-10 (besluit Toussaint): reden verplicht bij Afgewezen én Teruggetrokken — dan staat hij altijd in het gesprekslog
+    // en ontstaat de to-do "Reden afwijzing noteren" niet meer.
+    ((nu === 'afgewezen' || nu === 'teruggetrokken') ? '<div class="reden"><input type="text" class="rldv-st-reden" placeholder="reden (verplicht) → gesprekslog" value="' + escHtml((pending && pending.reden) || (st && st.reden) || '') + '" oninput="rldvAanbRedenTyp(\'' + escApos(String(id)) + '\', this.value)" onkeydown="if(event.key===\'Enter\')rldvAanbRedenKlaar(\'' + escApos(String(id)) + '\')"><button type="button" class="kk-knop" onclick="rldvAanbRedenKlaar(\'' + escApos(String(id)) + '\')">klaar</button></div>' : '') +
     '</div>';
 }
 function rldvAanbStatusMenu(id) {
@@ -36365,9 +36367,10 @@ function rldvAanbStatusZet(id, status) {
   const v = _rldvAanbVanLijst(_rldvAanbLijst(rldvAangeboden(sel)[id]));
   const was = v ? (v.status || 'aangeboden') : 'aangeboden';
   const reden = (RLDV_AANB.statusNu[id] && RLDV_AANB.statusNu[id].reden) || '';
-  if (status === was && !(status === 'afgewezen' && reden !== (v && v.reden || ''))) delete RLDV_AANB.statusNu[id];
-  else RLDV_AANB.statusNu[id] = { status, reden: status === 'afgewezen' ? reden : '' };
-  if (status !== 'afgewezen') RLDV_AANB.menu = null;
+  const metReden = status === 'afgewezen' || status === 'teruggetrokken';   // 07-10: beide vragen een reden
+  if (status === was && !(metReden && reden !== (v && v.reden || ''))) delete RLDV_AANB.statusNu[id];
+  else RLDV_AANB.statusNu[id] = { status, reden: metReden ? reden : '' };
+  if (!metReden) RLDV_AANB.menu = null;
   _rldvAanbiedenBij();
   if (RLDV_AANB.menu) setTimeout(() => { const i = document.querySelector('.rldv-st-reden'); if (i && i.focus) i.focus(); }, 30);
 }
@@ -36378,6 +36381,30 @@ function rldvAanbRedenTyp(id, tekst) {
   e.reden = String(tekst || '').trim(); RLDV_AANB.statusNu[id] = e;
   const voet = document.getElementById('rldv-aanb-voet'); const sel = _rldvAanbSel();
   if (voet && sel) voet.innerHTML = _rldvAanbiedenVoetHtml(sel);
+}
+// Klaar in het redenveld (07-10): zonder reden blijft het menu open en kleurt het veld rood.
+function rldvAanbRedenKlaar(id) {
+  if (!RLDV_AANB) return;
+  const e = RLDV_AANB.statusNu[String(id)];
+  if (e && (e.status === 'afgewezen' || e.status === 'teruggetrokken') && !e.reden) {
+    const i = document.querySelector('.rldv-st-reden');
+    if (i) { i.classList.add('ontbreekt'); if (i.focus) i.focus(); }
+    return;
+  }
+  rldvAanbStatusMenu(null);
+}
+// Welke nog op te slaan statussen missen hun reden? [{ id, naam }]
+function _rldvAanbRedenOntbreekt(sel) {
+  const statusNu = (RLDV_AANB && RLDV_AANB.statusNu) || {};
+  const uit = [];
+  Object.keys(statusNu).forEach(id => {
+    const e = statusNu[id];
+    if (!e || (e.status !== 'afgewezen' && e.status !== 'teruggetrokken') || e.reden) return;
+    const b = (rldvBedrijvenVan(sel) || []).find(x => String(x.id) === String(id));
+    const naam = b ? ((rldvBedrijfNu(b) || b).naam || b.naam || '') : '';
+    uit.push({ id: String(id), naam: naam || 'dit bedrijf' });
+  });
+  return uit;
 }
 function rldvAanbGroep(g) {
   if (!RLDV_AANB) return;
@@ -36400,6 +36427,7 @@ function _rldvAanbiedenVoetHtml(sel) {
   const n = A.nu.size;
   const nStatus = Object.keys(A.statusNu || {}).length;   // 24-09: statuswijzigingen tellen ook als wijziging
   const gewijzigd = n !== A.was.size || [...A.nu].some(id => !A.was.has(id)) || nStatus > 0;
+  const ontbreekt = _rldvAanbRedenOntbreekt(sel);   // 07-10: reden verplicht
   const mag = magWijzigen('medewerkers');
   const bm = A.bm || '';
   const kaart = pipeLoad(bm).find(c => c.stage === 'Aanbieden' && c.vervolg_van === 'rldv:' + sel.id && +c.week === A.week && +c.jaar === A.jaar && !c.verwijderd_op);
@@ -36407,10 +36435,10 @@ function _rldvAanbiedenVoetHtml(sel) {
     ? 'Het tegeltje Aanbieden van week ' + A.week + ' bij ' + escHtml(bm) + ' staat op <b>' + (+kaart.aanb || 0) + '</b> → wordt <b>' + n + '</b>.'
     : (n ? 'Er komt een <b>nieuw</b> tegeltje "Aanbiedingen: ' + n + '" in de pipeline van ' + escHtml(bm) + ', week ' + A.week + '.' : 'Nog niets afgevinkt voor week ' + A.week + '.');
   return '<div class="rldv-aanb-voetrij">' +
-    '<div class="rldv-aanb-samenvatting"><b>' + n + '</b> afgevinkt voor week ' + A.week + ' · ' + wat + (nStatus ? ' · <b>' + nStatus + '</b> status' + (nStatus === 1 ? '' : 'sen') + ' gewijzigd (geen nieuwe aanbieding).' : '') + '</div>' +
+    '<div class="rldv-aanb-samenvatting"><b>' + n + '</b> afgevinkt voor week ' + A.week + ' · ' + wat + (nStatus ? ' · <b>' + nStatus + '</b> status' + (nStatus === 1 ? '' : 'sen') + ' gewijzigd (geen nieuwe aanbieding).' : '') + (ontbreekt.length ? ' <span class="rldv-st-let">Vul de reden in bij ' + escHtml(ontbreekt.map(o => o.naam).join(', ')) + '.</span>' : '') + '</div>' +
     '<div class="rldv-aanb-knoppen">' +
       '<button type="button" class="crm-knop" onclick="rldvAanbiedenSluit()">Annuleren</button>' +
-      (mag ? '<button type="button" class="crm-knop goed" onclick="rldvAanbiedenOpvoeren()"' + (gewijzigd && !A.bezig ? '' : ' disabled') + '>Opvoeren als aanbiedingen (' + n + ')' + (nStatus ? ' · ' + nStatus + ' status' + (nStatus === 1 ? '' : 'sen') : '') + '</button>' : '') +
+      (mag ? '<button type="button" class="crm-knop goed" onclick="rldvAanbiedenOpvoeren()"' + (gewijzigd && !A.bezig && !ontbreekt.length ? '' : ' disabled') + '>Opvoeren als aanbiedingen (' + n + ')' + (nStatus ? ' · ' + nStatus + ' status' + (nStatus === 1 ? '' : 'sen') : '') + '</button>' : '') +
     '</div></div>';
 }
 function _rldvAanbiedenHtml() {
@@ -36467,6 +36495,14 @@ function rldvAanbiedenSluit() { _rldvAanbMenuWeg(); RLDV_AANB = null; crmKaartSl
 async function rldvAanbiedenOpvoeren() {
   const sel = _rldvAanbSel();
   if (!sel || RLDV_AANB.bezig || !eisWijzig('medewerkers')) return;
+  // 07-10: reden verplicht bij Afgewezen en Teruggetrokken.
+  const ontbreekt = _rldvAanbRedenOntbreekt(sel);
+  if (ontbreekt.length) {
+    btMeld('Vul de reden in bij ' + ontbreekt.map(o => o.naam).join(', ') + '.', 'rood');
+    RLDV_AANB.menu = ontbreekt[0].id; _rldvAanbiedenBij(); _rldvAanbMenuPlaats();
+    setTimeout(() => { const i = document.querySelector('.rldv-st-reden'); if (i) { i.classList.add('ontbreekt'); if (i.focus) i.focus(); } }, 30);
+    return;
+  }
   const { week, jaar, nu, was } = RLDV_AANB;
   const aangeboden = { ...rldvAangeboden(sel) };
   const door = String(RLDV_AANB.bm || '');
@@ -36487,9 +36523,10 @@ async function rldvAanbiedenOpvoeren() {
     delete mod.status; delete mod.status_op; delete mod.status_door; delete mod.reden;
     if (e.status === 'afgewezen' || e.status === 'teruggetrokken') {
       mod.status = e.status; mod.status_op = new Date().toISOString(); mod.status_door = door;
-      if (e.status === 'afgewezen' && e.reden) mod.reden = e.reden;
+      if ((e.status === 'afgewezen' || e.status === 'teruggetrokken') && e.reden) mod.reden = e.reden;
       const b = rldvBedrijvenVan(sel).find(x => String(x.id) === id); const naam = b ? ((rldvBedrijfNu(b) || b).naam || b.naam || '') : '';
       if (e.status === 'afgewezen') logregels.push('Aanbieding bij ' + naam + ' afgewezen door opdrachtgever' + (e.reden ? ': ' + e.reden : '') + ' (week ' + laatste.week + ').');
+      else logregels.push('Aanbieding bij ' + naam + ' teruggetrokken door ons' + (e.reden ? ': ' + e.reden : '') + ' (week ' + laatste.week + ').');   // 07-10
     }
     aangeboden[id] = eerder && eerder.length ? { ...mod, eerder } : mod;
     nStatus++;
