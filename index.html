@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1133 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1138 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2128,6 +2128,12 @@
   .crm-pil.ok { background:rgba(14,159,110,.25); color:#8be0c0; }
   .crm-pil.leeg { background:transparent; border:1px dashed rgba(255,255,255,.3); color:rgba(255,255,255,.6); }
   .crm-pil.dubbel { background:rgba(232,116,0,.25); color:#ffc08a; margin-left:6px; cursor:help; }
+  .crm-pil.indoc { background:rgba(37,211,102,.18); color:#6ee7b7; margin-left:6px; cursor:help; }   /* 08-10: treffer in een document */
+  .crm-pil.indoc em { font-style:normal; text-decoration:underline; }
+  .crm-zoek-lijst .ic.d { background:rgba(37,211,102,.18); color:#6ee7b7; }
+  .crm-zoek-lijst .frag { color:var(--tekst-gedempt); font-size:.78rem; } .crm-zoek-lijst .frag em { font-style:normal; background:rgba(244,203,60,.25); border-radius:3px; color:#fff; }
+  .crm-indocs { display:inline-flex; align-items:center; gap:6px; margin-left:10px; font-size:.78rem; color:var(--tekst-gedempt); cursor:pointer; user-select:none; }
+  .crm-indocs input { width:15px; height:15px; cursor:pointer; }
   /* Vacatures (01-10) */
   .crm-pil.wacht { background:rgba(232,116,0,.22); color:#ffc08a; } .crm-pil.dicht { background:rgba(229,72,77,.2); color:#ffb3b3; }
   .vs-3k { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; } @media (max-width:640px) { .vs-3k { grid-template-columns:1fr; } }
@@ -11643,7 +11649,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1133';
+const APP_VERSIE = '20261008-1138';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14752,15 +14758,21 @@ function _crmZoekMarkeer(tekst, z) {
 function _crmZoekLijstHtml(q, res) {
   const z = String(q || '').trim().toLowerCase();
   const items = [];
+  const naamVan = (hit) => {   // de kandidaat of het bedrijf achter een documenttreffer
+    if (hit.hoort_bij === 'kandidaat') { const k = (_crmZoekLijsten().kand || []).find(x => x.sleutel === hit.sleutel); return k ? k.naam : hit.sleutel; }
+    const b = (_crmZoekLijsten().bedr || []).find(x => x.sleutel === hit.sleutel); return b ? b.naam : hit.sleutel;
+  };
   res.kandidaten.forEach(k => items.push({ soort: 'kand', sleutel: k.sleutel, html: '<span class="ic k">K</span><span><b>' + _crmZoekMarkeer(k.naam, z) + '</b>' + (k.functie ? ' · ' + escHtml(k.functie) : '') + (k.regio ? ' · ' + escHtml(k.regio) : '') + '</span><small>' + escHtml((k.stage ? k.stage + ' · ' : '') + (k.bmNaam ? String(k.bmNaam).split(' ')[0] : 'CRM')) + '</small>' }));
   res.bedrijven.forEach(b => items.push({ soort: 'bedr', sleutel: b.sleutel, html: '<span class="ic b">B</span><span><b>' + _crmZoekMarkeer(b.naam, z) + '</b>' + (b.crm && b.crm.plaats ? ' · ' + escHtml(b.crm.plaats) : '') + '</span><small>' + (b.klant ? 'klant' : b.account ? 'account' : 'CRM') + '</small>' }));
+  (res.docs || []).forEach(d => items.push({ soort: 'doc', docId: d.id, bij: d.hoort_bij, sleutel: d.sleutel, html: '<span class="ic d">' + escHtml(String(d.soort || 'doc').toUpperCase().slice(0, 3)) + '</span><span><b>' + escHtml(naamVan(d)) + '</b><span class="frag"> · "' + _docFragmentHtml(d.fragment) + '"</span></span><small>' + escHtml(d.naam || '') + '</small>' }));
   CRM_ZOEK.items = items;
+  if (!items.length && res.docsBezig) return '<div class="leeg">Geen kandidaat of bedrijf met "' + escHtml(q) + '" — in documenten zoeken…</div>';
   if (!items.length) {
     return '<div class="leeg">Geen kandidaat of bedrijf met "' + escHtml(q) + '".' + (typeof magWijzigen === 'function' && magWijzigen('crm') ? ' <button type="button" class="kn hoofd k" onmousedown="event.preventDefault()" onclick="crmZoekSluit();crmKandWizard()">Nieuwe kandidaat</button>' : '') + '</div>';
   }
   let html = '', vorige = '';
   items.forEach((it, i) => {
-    const kop = it.soort === 'kand' ? 'Kandidaten' : 'Bedrijven';
+    const kop = it.soort === 'kand' ? 'Kandidaten' : it.soort === 'doc' ? 'In documenten' : 'Bedrijven';
     if (kop !== vorige) { html += '<div class="kop">' + kop + '</div>'; vorige = kop; }
     html += '<div class="it' + (i === CRM_ZOEK.keuze ? ' aan' : '') + '" onmousedown="event.preventDefault()" onclick="crmZoekOpen(' + i + ', false)" onmouseenter="CRM_ZOEK.keuze=' + i + '">' + it.html + '</div>';
   });
@@ -14773,8 +14785,25 @@ function crmZoekTyp(v) {
   const lijst = document.getElementById('crm-zoek-lijst'); if (!lijst) return;
   if (CRM_ZOEK.q.trim().length < 2) { lijst.hidden = true; lijst.innerHTML = ''; CRM_ZOEK.items = []; return; }
   CRM_ZOEK.keuze = Math.min(CRM_ZOEK.keuze, 0);
-  lijst.innerHTML = _crmZoekLijstHtml(CRM_ZOEK.q, _crmZoekResultaten(CRM_ZOEK.q, _crmZoekBm()));
+  const res = _crmZoekResultaten(CRM_ZOEK.q, _crmZoekBm());
+  res.docs = CRM_ZOEK.docsQ === CRM_ZOEK.q.trim() ? (CRM_ZOEK.docs || []) : []; res.docsBezig = CRM_ZOEK.docsQ !== CRM_ZOEK.q.trim();
+  lijst.innerHTML = _crmZoekLijstHtml(CRM_ZOEK.q, res);
   lijst.hidden = false;
+  if (res.docsBezig) _crmZoekDocsLater(CRM_ZOEK.q);
+}
+// Documenten erbij zoeken, 300 ms na de laatste toets (de database doet het werk).
+let _CRM_ZOEK_DOCS_TIMER = null;
+function _crmZoekDocsLater(q) {
+  clearTimeout(_CRM_ZOEK_DOCS_TIMER);
+  _CRM_ZOEK_DOCS_TIMER = setTimeout(async () => {
+    const z = String(q || '').trim();
+    const hits = await docZoek(z, 8);
+    if (CRM_ZOEK.q.trim() !== z) return;   // er is intussen verder getypt
+    CRM_ZOEK.docs = hits; CRM_ZOEK.docsQ = z;
+    const lijst = document.getElementById('crm-zoek-lijst'); if (!lijst || lijst.hidden) return;
+    const res = _crmZoekResultaten(z, _crmZoekBm()); res.docs = hits; res.docsBezig = false;
+    lijst.innerHTML = _crmZoekLijstHtml(z, res);
+  }, 300);
 }
 function crmZoekSluit() { const lijst = document.getElementById('crm-zoek-lijst'); if (lijst) { lijst.hidden = true; } }
 function crmZoekToets(e) {
@@ -14797,6 +14826,11 @@ function crmZoekOpen(i, naarPagina) {
   }
   const it = CRM_ZOEK.items[i]; if (!it) return;
   crmZoekSluit();
+  if (it.soort === 'doc') {   // 08-10: de kaart openen en daarna het document zelf
+    if (it.bij === 'kandidaat') crmKandOpen(it.sleutel); else crmBedrijfOpen(it.sleutel);
+    setTimeout(() => { if (!_docVan(it.docId)) { docLaad(it.bij, it.sleutel).then(() => docBekijk(it.docId)); } else docBekijk(it.docId); }, 400);
+    return;
+  }
   if (it.soort === 'kand') crmKandOpen(it.sleutel); else crmBedrijfOpen(it.sleutel);
 }
 // Sneltoets / : cursor in het zoekveld (niet als je al ergens typt, en niet in een venster).
@@ -31616,7 +31650,8 @@ function klantDossierOpen(sleutel) {
 let CRM_KANDIDATEN = null;   // rijen uit crm_kandidaten; null = nog niet geladen
 let CRM_BEDRIJVEN = null;    // rijen uit crm_bedrijven; null = nog niet geladen
 let CRM_ONTBREEKT = false;   // crm.sql nog niet gedraaid: de pagina's zeggen dat
-let CRM_KAND_TAB = { zoek: '', filter: '', alles: false, sort: 'naam', dir: 1 };   // de pagina Kandidaten; opent op naam A→Z (18-09)
+let CRM_KAND_TAB = { zoek: '', filter: '', alles: false, sort: 'naam', dir: 1, inDocs: false };   // de pagina Kandidaten; opent op naam A→Z (18-09) · inDocs (08-10): ook in CV's zoeken
+let CRM_DOC_HITS = { q: '', map: {} };   // 08-10: treffers in documenten voor het huidige zoekwoord (sleutel → fragment)
 let CRM_BEDR_TAB = { zoek: '', filter: '', alles: false, sort: 'naam', dir: 1 };   // de pagina Bedrijven; opent op naam A→Z (18-09)
 let CRM_WIZ = null;          // de open wizard: { soort, stap, id, w, velden, titel, fout }
 let _CRM_WIZ_NA = null;      // wat er na Opslaan in de wizard moet gebeuren (bijv. terug naar het pipeline-venster); null = dossier openen
@@ -32108,6 +32143,21 @@ function _docRijHtml(d, nOuder, mag) {
     '<span class="doc-akt"><button type="button" onclick="docBekijk(' + d.id + ')">Bekijken</button>' +
     (mag ? '<button type="button" onclick="docVervang(' + d.id + ')">Vervangen</button><button type="button" onclick="docMenu(' + d.id + ', event)" title="Meer">⋯</button>' : '') + '</span></div>';
 }
+// Zoeken in de tekst van documenten (08-10, stap 3): de database zoekt met Nederlandse woordstammen
+// (bt_doc_zoek); de Cockpit stuurt alleen het zoekwoord. Terug: id, hoort_bij, sleutel, soort, naam, fragment.
+async function docZoek(q, max) {
+  const z = String(q || '').trim();
+  if (!supa || z.length < 3) return [];
+  try {
+    const { data, error } = await supa.rpc('bt_doc_zoek', { q: z, p_max: max || 20 });
+    if (error) { if (!/does not exist|42883|PGRST202/i.test(String(error.message || error.code || ''))) _meldStil('documenten zoeken', error); return []; }
+    return data || [];
+  } catch (e) { _meldStil('documenten zoeken', e); return []; }
+}
+// Het fragment komt met <em>…</em> uit de database; alles ontsmetten en alleen die markering terugzetten.
+function _docFragmentHtml(frag) {
+  return escHtml(String(frag || '')).replace(/&lt;em&gt;/g, '<em>').replace(/&lt;\/em&gt;/g, '</em>');
+}
 function _docVan(id) { for (const k of Object.keys(DOC_CACHE)) { const l = DOC_CACHE[k]; if (Array.isArray(l)) { const d = l.find(x => x.id === +id); if (d) return d; } } return null; }
 // Tekst uit het bestand halen (zelfde weg als de CV-generator). Leeg bij .doc, afbeeldingen, enz.
 async function _docTekst(file) {
@@ -32561,8 +32611,10 @@ function _crmKandPast(k, st) {
   const z = String(st.zoek || '').trim().toLowerCase();
   if (!z) return true;
   const r = k.crm || {};
-  return [k.naam, k.woonplaats, k.functie, k.regio, k.invoerder || '', _crmKandIntake(k).tekst, r.email, r.telefoon, r.postcode,
-          ((KAND_NOTITIES && KAND_NOTITIES[k.sleutel]) || []).map(n => n.tekst).join(' ')].filter(Boolean).join(' ').toLowerCase().includes(z);
+  if ([k.naam, k.woonplaats, k.functie, k.regio, k.invoerder || '', _crmKandIntake(k).tekst, r.email, r.telefoon, r.postcode,
+          ((KAND_NOTITIES && KAND_NOTITIES[k.sleutel]) || []).map(n => n.tekst).join(' ')].filter(Boolean).join(' ').toLowerCase().includes(z)) return true;
+  // 08-10: ook in CV's — treffers uit de database voor precies dit zoekwoord
+  return !!(st.inDocs && typeof CRM_DOC_HITS !== 'undefined' && CRM_DOC_HITS.q === z && CRM_DOC_HITS.map[k.sleutel]);
 }
 // ── Kandidaten uit de projectenlijst die het CRM nog niet kent (18-09) ──────
 // De projectenlijst (Excel-import + starters uit de pipeline) kent mensen die
@@ -32655,7 +32707,8 @@ function renderCrmKandidatenHtml() {
     const dubbel = k.dubbel && k.dubbel.length ? '<span class="crm-pil dubbel" title="Lijkt op ' + escHtml(k.dubbel.map(sl => (lijst.find(x => x.sleutel === sl) || { naam: sl }).naam).join(', ')) + ' — open het dossier en kies Samenvoegen">dubbel?</span>' : '';
     return '<tr class="crm-lijstrij" onclick="crmKandOpen(\'' + escApos(k.sleutel) + '\')" title="Dossier openen">' +
       '<td class="nr">' + (i + 1) + '</td>' +
-      '<td class="naam">' + _oneMarkeer(k.naam, z) + dubbel + _crmKandStandPillen(k) + '</td>' +
+      '<td class="naam">' + _oneMarkeer(k.naam, z) + dubbel + _crmKandStandPillen(k) +
+        (st.inDocs && z && CRM_DOC_HITS.q === z && CRM_DOC_HITS.map[k.sleutel] ? '<span class="crm-pil indoc" title="' + escHtml(String(CRM_DOC_HITS.map[k.sleutel]).replace(/<\/?em>/g, '')) + '">in CV</span>' : '') + '</td>' +
       '<td class="d" title="' + escHtml(r.email || '') + '">' + _crmMailCel(r.email, z) + '</td>' +
       '<td class="d">' + _crmTelCel(r.telefoon, z, k.naam) + '</td>' +
       '<td class="d">' + (k.woonplaats ? _oneMarkeer(k.woonplaats, z) : '<span class="stil">—</span>') + '</td>' +
@@ -32669,7 +32722,8 @@ function renderCrmKandidatenHtml() {
   const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['met', 'Met intake', lijst.filter(k => k.intake).length], ['zonder', 'Zonder intake', lijst.filter(k => !k.intake).length],
       ['gg', '⚑ GG-lijst', lijst.filter(k => _crmKandGg(k)).length], ['procedure', 'In procedure', lijst.filter(k => _crmKandProcedure(k)).length],
       ['kanban', 'In Kanban', lijst.filter(k => _crmKandKanban(k)).length], ['nieuw', 'Nieuw', lijst.filter(k => _crmKandNieuw(k)).length]],
-    { id: 'crm-kand-q', sugg: 'crmKandSugg', zet: 'crmKandFilter', zoek: 'crmKandZoek', hint: 'naam, e-mail, telefoon, woonplaats, functie, collega en notities' });
+    { id: 'crm-kand-q', sugg: 'crmKandSugg', zet: 'crmKandFilter', zoek: 'crmKandZoek', hint: 'naam, e-mail, telefoon, woonplaats, functie, collega en notities' + (st.inDocs ? ' — en in de tekst van CV\'s en andere documenten' : '') })
+    .replace('</div>', '<label class="crm-indocs" title="Zoekt ook in de tekst van CV\'s, CR\'s en andere documenten (Nederlandse woordstammen: lassen vindt ook lasser)"><input type="checkbox"' + (st.inDocs ? ' checked' : '') + ' onchange="crmKandInDocs(this.checked)">ook in CV\'s</label></div>');
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
     '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmKandWizard()">+ Kandidaat</button>' : '') + '</div></div>' +
@@ -32694,8 +32748,27 @@ function crmKandSort(col) { _crmSortZet(CRM_KAND_TAB, col); renderCrmKandidaten(
 // elke letter duizenden rijen opnieuw op te bouwen. Het veld zelf houdt je tekst.
 let _CRM_ZOEK_TIMER = null;
 function _crmZoekLater(fn) { clearTimeout(_CRM_ZOEK_TIMER); _CRM_ZOEK_TIMER = setTimeout(fn, 160); }
+function crmKandInDocs(aan) { CRM_KAND_TAB.inDocs = !!aan; if (aan) _crmKandDocsZoek(CRM_KAND_TAB.zoek); else renderCrmKandidaten(); }
+// Met "ook in CV's" aan: de database zoeken, de treffers onthouden per sleutel en de lijst hertekenen.
+let _CRM_KAND_DOCS_TIMER = null;
+function _crmKandDocsZoek(v) {
+  clearTimeout(_CRM_KAND_DOCS_TIMER);
+  const z = String(v || '').trim().toLowerCase();
+  if (z.length < 3) { CRM_DOC_HITS = { q: z, map: {} }; renderCrmKandidaten(); return; }
+  _CRM_KAND_DOCS_TIMER = setTimeout(async () => {
+    const hits = await docZoek(z, 100);
+    if (String(CRM_KAND_TAB.zoek || '').trim().toLowerCase() !== z) return;
+    const map = {};
+    hits.forEach(h => { if (h.hoort_bij === 'kandidaat' && !map[h.sleutel]) map[h.sleutel] = h.fragment || ''; });
+    CRM_DOC_HITS = { q: z, map };
+    renderCrmKandidaten();
+    const inp = document.getElementById('crm-kand-q');
+    if (inp && document.activeElement !== inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) { _meldStil('cursor zoekveld', e); } }
+  }, 300);
+}
 function crmKandZoek(v) {
   CRM_KAND_TAB.zoek = v;
+  if (CRM_KAND_TAB.inDocs) _crmKandDocsZoek(v);
   _crmZoekLater(() => {
     renderCrmKandidaten();
     const inp = document.getElementById('crm-kand-q');
