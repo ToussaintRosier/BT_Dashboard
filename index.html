@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1210 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1235 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2084,6 +2084,13 @@
   .aik-tabel td, .aik-tabel th { padding:6px 9px; } .aik-tabel td.r, .aik-tabel th.r { text-align:right; font-variant-numeric:tabular-nums; }
   .aik-tabel input { width:84px; background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:5px; padding:3px 6px; font-size:.78rem; text-align:right; }
   .aik-blok { background:var(--l1); border-radius:10px; padding:12px 14px; margin:0 0 14px; } .aik-blok h4 { margin:0 0 8px; font-size:.9rem; color:#fff; }
+  /* Beheer › Documenten importeren (08-10, ontwerp_documenten.html § 5) */
+  .imp-kies { border:2px dashed rgba(244,203,60,.5); border-radius:10px; padding:16px; text-align:center; color:var(--tekst-gedempt); margin:10px 0; } .imp-kies label { color:#F4CB3C; font-weight:600; cursor:pointer; }
+  .imp-balk { height:10px; border-radius:5px; background:rgba(255,255,255,.12); overflow:hidden; margin:8px 0; } .imp-balk i { display:block; height:100%; background:#F4CB3C; transition:width .3s; }
+  .imp-log { font-family:ui-monospace,Menlo,monospace; font-size:.74rem; background:var(--l0); border-radius:8px; padding:10px 12px; color:#dfe6f5; margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap; }
+  .imp-los table { width:100%; border-collapse:collapse; font-size:.8rem; } .imp-los td, .imp-los th { padding:5px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; }
+  .imp-los input { background:var(--l0); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:6px; padding:3px 8px; font-size:.78rem; width:220px; }
+  .imp-los .voorstel { color:#6ee7b7; cursor:pointer; text-decoration:underline; }
   .aik-maand { display:flex; gap:8px; align-items:center; margin:8px 0 4px; } .aik-maand b { min-width:130px; text-align:center; }
   .aik-stil { color:var(--tekst-gedempt); font-size:.78rem; }
   .kand-archief-tabel td { padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; color:#fff; background:transparent; }
@@ -2503,6 +2510,7 @@
   .bd-tegel small { display:block; font-size:.7rem; color:rgba(255,255,255,.55); margin-top:2px; } .bd-tegel.groen b { color:#25D366; } .bd-tegel.oranje b { color:#fbbf7a; }
   .bd-samen { font-size:.8rem; line-height:1.45; margin-bottom:6px; } .bd-samen b { color:#F4CB3C; }
   .bd-wizard .crm-form { max-width:none; } .bd-wizard .bd-g2 .crm-form-veld { grid-column:auto; }
+  .crm-wizard .crm-form.bd-los { display:block; max-width:none; }   /* 08-10: vakken over de hele breedte (was een kwart) */
   /* Wizard: CV lezen en documenten (08-10, ontwerp_documenten.html § 3) */
   .wiz-cv { border:2px dashed rgba(244,203,60,.5); border-radius:10px; padding:12px 14px; margin:0 0 12px; color:var(--tekst-gedempt); font-size:.82rem; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .wiz-cv.over { background:rgba(244,203,60,.1); border-color:#F4CB3C; } .wiz-cv b { color:#F4CB3C; } .wiz-cv label { color:#F4CB3C; cursor:pointer; font-weight:600; }
@@ -11679,7 +11687,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1210';
+const APP_VERSIE = '20261008-1235';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13074,7 +13082,7 @@ function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
   return `<div class="bm-subtabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}${k('docimport', 'Documenten')}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -13876,6 +13884,199 @@ function renderBeheerAiKosten() {
     </div></div>`;
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// BEHEER › DOCUMENTEN IMPORTEREN (08-10, ontwerp_documenten.html § 5, akkoord Toussaint)
+//
+// De CV-map (OneDrive · OPERATIONEEL MANAGEMENT/CV, 9.207 bestanden) in één keer de Cockpit in:
+// map kiezen in de browser → per bestand de naam lezen ("Achternaam, Voornaam (CV/CR)"), de
+// kandidaat zoeken (eerst de OneDrive-links die op 22-09 in cv_link/cr_link zijn gezet, dan de
+// naam, dan "lijkt op" als voorstel), tekst eruit (pdf.js/mammoth), uploaden, rij met bron
+// 'import' en bron_pad (de oude OneDrive-link). Word + PDF van hetzelfde stuk = één document.
+// Wat al geïmporteerd is, wordt overgeslagen; pauzeren en later verdergaan kan. Losse
+// documenten krijgen de sleutel van de naam uit het bestand: zodra die kandidaat wordt
+// aangemaakt, hangen ze er vanzelf aan; hieronder staat ook een koppelknop.
+// ═════════════════════════════════════════════════════════════════════════
+const IMP_BASIS = 'https://brightechnl-my.sharepoint.com/personal/t_rosier_brightech_nl/Documents/OPERATIONEEL%20MANAGEMENT/CV/';
+const IMP_TUSSEN = new Set(['van', 'de', 'der', 'den', 'het', 'te', 'ten', 'ter', 'op', 'in', "'t", 'aan', 'bij', 'la', 'le', 'du', 'von', 'da', 'di', 'del', 'della', 'el', 'y', 'v', 'vd', 'vande', 'vander']);
+const IMP_RUIS = new Set(['cv', 'cr', 'crc', 'cvc', 'resume', 'curriculum', 'vitae', 'indeed', 'eigen', 'kopie', 'copy', 'definitief', 'versie', 'final', 'pdf', 'docx', 'brightech', 'origineel', 'nieuw', 'oud']);
+let IMP = null;   // { bestanden, rijen, bezig, pauze, klaar, teller, log, start }
+function _impPlat(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ı/g, 'i').replace(/[-_.]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+// Bestandsnaam → { voornaam, achternaam, sleutel, sleutel2, soort ('cv'|'cr'), versie, ext, sjabloon }
+function _impNaam(bestand) {
+  const ext = (String(bestand).match(/\.([A-Za-z0-9]+)$/) || ['', ''])[1].toLowerCase();
+  let b = String(bestand).replace(/\.[A-Za-z0-9]+$/, '');
+  const uit = { bestand, ext, voornaam: '', achternaam: '', sleutel: null, sleutel2: null, soort: 'cv', versie: 0, sjabloon: /^AA\b/i.test(b) };
+  if (uit.sjabloon) return uit;
+  // Soort: CR als ergens CR/CRC staat (ook "CR2", "CR Enexis", zonder haakjes); anders CV (besluit 08-10: zonder aanduiding = CV).
+  const isCr = /(?<![a-z])CR\s*C?\s*\d*(?![a-z])/i.test(b) && !/\bcurriculum\b/i.test(b);
+  uit.soort = isCr ? 'cr' : 'cv';
+  let m = b.match(/(?<![a-z])C[RV]\s*C?\s*(\d)/i); if (m) uit.versie = +m[1];
+  m = b.match(/\((\d)\)/); if (m) uit.versie = Math.max(uit.versie, +m[1]);
+  let t = b.replace(/\([^)]*\)?/g, ' ').replace(/\bC[RV]\s*C?\s*\d*\b/gi, ' ').replace(/[_+]/g, ' ');
+  if (t.indexOf(',') < 0) t = t.replace(/-/g, ' ');                       // "Ted-Meijer-resume"; mét komma blijft "Jean-Pierre" heel
+  t = t.replace(/([a-zà-öø-ÿ])([A-Z])/g, '$1 $2');                        // "JulianJohnen" → "Julian Johnen" (alleen gewone kleine letters: Turkse İ niet)
+  t = t.replace(/\b(20\d\d|19\d\d)\b/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[.,;\s]+|[.,;\s]+$/g, '');
+  let komma = t.indexOf(',') >= 0;
+  if (!komma && /^[A-Za-zÀ-ž' ]+\. [A-Za-zÀ-ž]/.test(t)) { t = t.replace('.', ','); komma = true; }   // "Hoofs. Charles"
+  const woorden = (x) => x.split(/[\s.]+/).filter(w => w && !IMP_RUIS.has(_impPlat(w)));
+  let voor = '', achter = '', W = [];
+  if (komma) {
+    const [a, v] = t.split(',', 2);
+    const A = woorden(a), V = woorden(v || '');
+    while (V.length > 1 && IMP_TUSSEN.has(_impPlat(V[V.length - 1]))) A.unshift(V.pop());   // "Bruyn, Carlo de" → de Bruyn
+    while (A.length > 1 && IMP_TUSSEN.has(_impPlat(A[A.length - 1]))) A.unshift(A.pop());   // "Daal van, Marc" → van Daal
+    voor = V.slice(0, 1).join(' '); achter = A.join(' ');
+  } else {
+    W = woorden(t).filter(w => !IMP_TUSSEN.has(_impPlat(w))); if (!W.length) W = woorden(t);
+    if (W.length >= 2) { voor = W[0]; achter = W.slice(1).join(' '); }
+    else { achter = W.join(' '); }
+  }
+  uit.voornaam = voor; uit.achternaam = achter;
+  if (voor && achter) {
+    uit.sleutel = _impPlat(voor + ' ' + achter);
+    if (!komma && W.length >= 2) uit.sleutel2 = _impPlat(W.slice(1).join(' ') + ' ' + W[0]);   // "Bosmans Jerome": ook Achternaam Voornaam
+  }
+  return uit;
+}
+// Dezelfde naam zonder extensie, voor Word + PDF van hetzelfde stuk.
+function _impStam(bestand) { return _impPlat(String(bestand).replace(/\.[A-Za-z0-9]+$/, '')).replace(/\s+/g, ' '); }
+// De kandidaat bij een bestand: { sleutel, hoe: 'link'|'naam'|'lijkt'|'los', voorstel, losSleutel }
+function _impKoppel(n, lijst) {
+  const uit = { sleutel: null, hoe: 'los', voorstel: null, losSleutel: n.sleutel || ('los:' + _impPlat(n.bestand)) };
+  if (n.sjabloon) return uit;
+  const lijstOk = (lijst || []).filter(k => k && k.sleutel && !(k.crm && k.crm.bron === 'verwijderd'));
+  // 1. De OneDrive-links van 22-09: eindigt cv_link/cr_link op dit bestand?
+  const naam = String(n.bestand || '');
+  const eindigtOp = (l) => { try { const d = decodeURIComponent(String(l || '')); return d.endsWith('/' + naam) || d.endsWith(naam); } catch (_) { return String(l || '').endsWith(encodeURIComponent(naam)); } };
+  for (const k of lijstOk) { const r = k.crm || {}; if ((r.cv_link && eindigtOp(r.cv_link)) || (r.cr_link && eindigtOp(r.cr_link))) { uit.sleutel = k.sleutel; uit.hoe = 'link'; return uit; } }
+  if (!n.sleutel) return uit;
+  // 2. Op naam (platte sleutel), ook in omgekeerde volgorde.
+  const plat = new Map(); lijstOk.forEach(k => { const p = _impPlat(k.naam || k.sleutel); if (!plat.has(p)) plat.set(p, k); });
+  const kand = plat.get(n.sleutel) || (n.sleutel2 ? plat.get(n.sleutel2) : null);
+  if (kand) { uit.sleutel = kand.sleutel; uit.hoe = 'naam'; return uit; }
+  // 3. Lijkt op (één letter verschil) → alleen een voorstel.
+  const ds = _crmDubbelSleutel(n.sleutel);
+  for (const k of lijstOk) { if (_crmLijktOp(_crmDubbelSleutel(k.naam || ''), ds)) { uit.voorstel = k.sleutel; uit.hoe = 'lijkt'; return uit; } }
+  return uit;
+}
+function _impAlGedaan(bestand) {
+  const url = IMP_BASIS + encodeURIComponent(bestand);
+  for (const k of Object.keys(DOC_CACHE)) { const l = DOC_CACHE[k]; if (Array.isArray(l) && l.some(d => d.bron === 'import' && (d.bron_pad === url || d.naam === bestand))) return true; }
+  return false;
+}
+function impScan(files) {
+  const lijst = Array.from(files || []).filter(f => f && f.name && !/^\./.test(f.name) && !/\//.test(f.name));
+  if (!lijst.length) { btMeld('Geen bestanden gevonden in die map.', 'geel'); return; }
+  const kand = crmKandLijst();
+  const rijen = lijst.map(f => { const n = _impNaam(f.name); const k = _impKoppel(n, kand); return { file: f, n, k, stam: _impStam(f.name), status: n.sjabloon ? 'sjabloon' : _impAlGedaan(f.name) ? 'gedaan' : 'wacht' }; });
+  // Volgorde: PDF vóór Word van hetzelfde stuk (de Word wordt dan de oudere versie).
+  rijen.sort((a, b) => a.stam === b.stam ? ((a.n.ext === 'pdf' ? 0 : 1) - (b.n.ext === 'pdf' ? 0 : 1)) : a.file.name.localeCompare(b.file.name, 'nl'));
+  IMP = { rijen, bezig: false, pauze: false, klaar: false, log: [], start: 0, gedaanNu: 0, stamIds: {} };
+  renderBeheerDocImport();
+}
+function _impTel() {
+  const r = (IMP && IMP.rijen) || [];
+  const tel = (st) => r.filter(x => x.status === st).length;
+  return { totaal: r.length, gedaan: tel('gedaan'), gekoppeld: r.filter(x => x.status === 'gedaan' && x.k.sleutel).length, los: r.filter(x => x.status === 'gedaan' && !x.k.sleutel).length, sjabloon: tel('sjabloon'), fout: tel('fout'), wacht: tel('wacht'),
+           teKoppelen: r.filter(x => x.status === 'wacht' && x.k.sleutel).length, lijkt: r.filter(x => x.status === 'wacht' && x.k.hoe === 'lijkt').length, teLos: r.filter(x => x.status === 'wacht' && !x.k.sleutel).length };
+}
+function _impLog(regel) { if (!IMP) return; IMP.log.unshift(regel); if (IMP.log.length > 60) IMP.log.length = 60; }
+async function impStart() {
+  if (!IMP || IMP.bezig) return;
+  if (!eisWijzig('crm')) return;
+  if (!supa) { btMeld('Importeren kan alleen met de database.', 'geel'); return; }
+  IMP.bezig = true; IMP.pauze = false; IMP.start = Date.now(); IMP.gedaanNu = 0;
+  renderBeheerDocImport();
+  for (const rij of IMP.rijen) {
+    if (IMP.pauze) break;
+    if (rij.status !== 'wacht') continue;
+    const n = rij.n, f = rij.file;
+    try {
+      if (n.sjabloon) { rij.status = 'sjabloon'; continue; }
+      if (f.size > DOC_MAX_MB * 1024 * 1024) { rij.status = 'fout'; rij.fout = 'groter dan ' + DOC_MAX_MB + ' MB'; _impLog('⚠ ' + f.name + ' → te groot, overgeslagen'); continue; }
+      const sleutel = rij.k.sleutel || rij.k.losSleutel;
+      const bronPad = IMP_BASIS + encodeURIComponent(f.name);
+      // Word van een stuk waarvan de PDF al geïmporteerd is: als oudere versie eronder hangen.
+      const pdfId = n.ext !== 'pdf' ? IMP.stamIds[rij.stam] : null;
+      const extra = { bron: 'import', bronPad, versieVan: pdfId || null };
+      const uit = await docUpload('kandidaat', sleutel, [f], n.soort, extra);
+      if (!uit || !uit.length) { rij.status = 'fout'; rij.fout = 'opslaan mislukt'; _impLog('✗ ' + f.name + ' → opslaan mislukt'); continue; }
+      const doc = uit[0];
+      if (n.ext === 'pdf') IMP.stamIds[rij.stam] = doc.id;
+      if (pdfId) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', doc.id); await supa.from('documenten').update({ vervangen_op: null }).eq('id', pdfId); }   // de PDF blijft de toonversie
+      if (rij.k.voorstel) await supa.from('documenten').update({ meta: { voorstel: rij.k.voorstel } }).eq('id', doc.id).then(() => {}, () => {});
+      rij.status = 'gedaan'; IMP.gedaanNu++;
+      _impLog((rij.k.sleutel ? '✓ ' : '? ') + f.name + ' → ' + (rij.k.sleutel ? rij.k.sleutel + ' (' + rij.k.hoe + ')' : 'los' + (rij.k.voorstel ? ' · lijkt op ' + rij.k.voorstel : '')) + ' · ' + n.soort.toUpperCase() + (pdfId ? ' · versie onder de PDF' : ''));
+    } catch (e) { rij.status = 'fout'; rij.fout = String(e && e.message || e); _impLog('✗ ' + f.name + ' → ' + rij.fout); _meldStil('import document', e); }
+    if (IMP.gedaanNu % 3 === 0) renderBeheerDocImport();
+  }
+  IMP.bezig = false;
+  IMP.klaar = !IMP.rijen.some(x => x.status === 'wacht');
+  renderBeheerDocImport();
+  if (IMP.klaar) btMeld('Import klaar: ' + _impTel().gedaan + ' documenten.', 'groen');
+}
+function impPauze() { if (IMP) { IMP.pauze = true; renderBeheerDocImport(); } }
+// Losse documenten (geen kandidaat met deze sleutel): koppelen aan een kandidaat.
+function _impLosLijst() {
+  const kand = new Set(crmKandLijst().filter(k => !(k.crm && k.crm.bron === 'verwijderd')).map(k => k.sleutel));
+  const uit = [];
+  Object.keys(DOC_CACHE).forEach(k => { const l = DOC_CACHE[k]; if (!Array.isArray(l)) return; l.forEach(d => { if (d.hoort_bij === 'kandidaat' && !d.vervangen_op && !kand.has(d.sleutel)) uit.push(d); }); });
+  return uit.sort((a, b) => String(a.sleutel).localeCompare(String(b.sleutel), 'nl'));
+}
+function _impLosHtml() {
+  if (typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) return '<div class="aik-stil">Documenten worden nog geladen…</div>';
+  const los = _impLosLijst();
+  if (!los.length) return '<div class="aik-stil">Geen losse documenten — alles hangt aan een kandidaat.</div>';
+  const rijen = los.slice(0, 200).map(d => { const vs = d.meta && d.meta.voorstel ? String(d.meta.voorstel) : ''; return '<tr><td>' + escHtml(d.naam) + '</td><td>' + escHtml(d.sleutel) + (vs ? '<br><span class="voorstel" title="Lijkt op deze kandidaat — klik om in te vullen" onclick="document.getElementById(\'imp-kop-' + d.id + '\').value=\'' + escApos(vs) + '\'">lijkt op ' + escHtml(vs) + '</span>' : '') + '</td><td>' + escHtml(String(d.soort || '').toUpperCase()) + '</td>' +
+    '<td><input type="text" id="imp-kop-' + d.id + '" placeholder="naam van de kandidaat in het CRM…" list="imp-kand-lijst"' + (vs ? ' value="' + escHtml(vs) + '"' : '') + '> <button type="button" class="kn hoofd k" onclick="docKoppel(' + d.id + ', document.getElementById(\'imp-kop-' + d.id + '\').value)">Koppelen</button></td></tr>'; }).join('');
+  const namen = crmKandLijst().slice(0, 6000).map(k => '<option value="' + escHtml(k.naam) + '">').join('');
+  return '<div class="imp-los"><table><thead><tr><th>Bestand</th><th>Naam uit het bestand</th><th>Soort</th><th>Koppelen aan</th></tr></thead><tbody>' + rijen + '</tbody></table>' +
+    (los.length > 200 ? '<div class="aik-stil">… en nog ' + (los.length - 200) + ' meer; koppel eerst deze, de lijst schuift op.</div>' : '') + '<datalist id="imp-kand-lijst">' + namen + '</datalist></div>';
+}
+async function docKoppel(id, naam) {
+  if (!eisWijzig('crm') || !supa) return;
+  const k = crmKandLijst().find(x => _itkSleutel(x.naam) === _itkSleutel(naam) || x.sleutel === _itkSleutel(naam));
+  if (!k) { btMeld('Geen kandidaat "' + naam + '" in het CRM.', 'rood'); return; }
+  const d = _docVan(id); if (!d) return;
+  _echoVanZelf('documenten');
+  const { error } = await supa.from('documenten').update({ sleutel: k.sleutel }).eq('id', id);
+  if (error) { btMeld('Koppelen mislukt: ' + error.message, 'rood'); return; }
+  if (d.soort === 'cv' || d.soort === 'cr') await _docLinkZet(k.sleutel, d.soort, 'doc:' + id);
+  await loadDocumenten();
+  btMeld(d.naam + ' gekoppeld aan ' + k.naam + '.', 'groen');
+  renderBeheerDocImport();
+}
+function renderBeheerDocImport() {
+  const kop = `<div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>${_rechtenSubtabs()}`;
+  const main = document.getElementById('main');
+  if (!isManagerLevel()) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">Documenten importeren is alleen voor managers.</div></div>`; return; }
+  const T = _impTel();
+  const kies = `<div class="imp-kies">Kies de CV-map (OneDrive · OPERATIONEEL MANAGEMENT/CV): <label>map kiezen<input type="file" webkitdirectory directory multiple hidden onchange="impScan(this.files)"></label>
+    <div class="aik-stil" style="margin-top:6px;">De browser leest de bestandsnamen; er wordt pas iets geüpload als je op Start drukt. Zorg dat de map op deze Mac volledig gedownload is (OneDrive: "Altijd behouden op dit apparaat").</div></div>`;
+  let stand = '';
+  if (IMP) {
+    const pct = T.totaal ? Math.round((T.gedaan + T.sjabloon + T.fout) / T.totaal * 100) : 0;
+    const perStuk = IMP.gedaanNu ? (Date.now() - IMP.start) / IMP.gedaanNu : 1100;
+    const rest = Math.round(T.wacht * perStuk / 60000);
+    stand = `<div class="aik-kaarten">
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.totaal)}</div><div class="t">bestanden in de map</div><div class="s">${_aiGetal(T.sjabloon)} sjablonen overgeslagen</div></div>
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.gedaan)}</div><div class="t">geïmporteerd</div><div class="s">${_aiGetal(T.fout)} mislukt</div></div>
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.gekoppeld)}</div><div class="t">gekoppeld aan een kandidaat</div><div class="s">nog te koppelen: ${_aiGetal(T.teKoppelen)}</div></div>
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.los)}</div><div class="t">los (later koppelen)</div><div class="s">nog te doen: ${_aiGetal(T.teLos)} · waarvan ${_aiGetal(T.lijkt)} met voorstel</div></div>
+    </div>
+    <div class="imp-balk"><i style="width:${pct}%"></i></div>
+    <div class="aik-stil">${pct}% · ±${(perStuk / 1000).toFixed(1).replace('.', ',')} s per bestand · nog ±${rest} min
+      ${IMP.bezig ? '<button class="kn k" style="margin-left:10px;" onclick="impPauze()">Pauzeren</button>' : (T.wacht ? '<button class="kn hoofd k" style="margin-left:10px;" onclick="impStart()">' + (T.gedaan ? 'Verder' : 'Start') + ' (' + _aiGetal(T.wacht) + ' te gaan)</button>' : '<b style="margin-left:10px;color:#25D366;">Klaar.</b>')}
+      — je kunt dit tabblad niet sluiten tijdens de import; pauzeren en later de map opnieuw kiezen kan wel (wat er al staat wordt overgeslagen).</div>
+    <div class="imp-log">${escHtml(IMP.log.slice(0, 12).join('\n') || 'Nog niet gestart.')}</div>`;
+  }
+  main.innerHTML = `<div>${kop}
+    <div style="padding:12px 20px 20px;font-size:.85rem;">
+      <div class="aik-blok"><h4>Documenten importeren uit de CV-map</h4>${IMP ? '' : kies}${stand}</div>
+      <div class="aik-blok"><h4>Losse documenten <span class="aik-stil" style="font-weight:400;">— geen kandidaat met deze naam in het CRM; koppel ze hier, of maak de kandidaat aan (dan hangen ze er vanzelf aan)</span></h4>${_impLosHtml()}</div>
+    </div></div>`;
+}
+
 function renderBeheer() {
   if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
   if (BEHEER_SUBVIEW === 'mijlpalen')  { renderBeheerMijlpalen(); return; }
@@ -13884,6 +14085,7 @@ function renderBeheer() {
   if (BEHEER_SUBVIEW === 'database')   { renderBeheerDatabase(); return; }
   if (BEHEER_SUBVIEW === 'vacteksten') { renderBeheerVacTeksten(); return; }   // 01-10
   if (BEHEER_SUBVIEW === 'aikosten')   { renderBeheerAiKosten(); return; }     // 08-10
+  if (BEHEER_SUBVIEW === 'docimport')  { renderBeheerDocImport(); return; }    // 08-10: documenten importeren
   const huidigJaar = new Date().getFullYear();
 
   // Bouw doelen-map: naam → jaardoel voor huidig jaar
@@ -32155,7 +32357,7 @@ function _crmSqlHint() {
 // ═════════════════════════════════════════════════════════════════════════
 let DOC_CACHE = {};            // 'kandidaat:<sleutel>' → rijen (zonder tekst) · ontbreekt = nog niet geladen
 let DOC_ALLE_GELADEN = false;  // 08-10: na het inloggen één keer alles (zonder tekst) in de cache → geen wachttijd op de kaart
-const DOC_KOLOMMEN = 'id,hoort_bij,sleutel,soort,naam,pad,type,grootte,versie_van,vervangen_op,bron,bron_pad,vertrouwelijk,geupload_door_naam,created_at,verwijderd_op';
+const DOC_KOLOMMEN = 'id,hoort_bij,sleutel,soort,naam,pad,type,grootte,versie_van,vervangen_op,bron,bron_pad,vertrouwelijk,geupload_door_naam,created_at,verwijderd_op,meta';   // meta (08-10): o.a. voorstel bij een los document
 async function loadDocumenten() {
   if (!supa) { DOC_ALLE_GELADEN = true; return; }
   const { data, error } = await _alleRijen(() => supa.from('documenten').select(DOC_KOLOMMEN).is('verwijderd_op', null).order('created_at', { ascending: false }));
