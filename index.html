@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1235 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1340 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11687,7 +11687,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1235';
+const APP_VERSIE = '20261008-1340';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13986,6 +13986,8 @@ async function impStart() {
   if (!eisWijzig('crm')) return;
   if (!supa) { btMeld('Importeren kan alleen met de database.', 'geel'); return; }
   IMP.bezig = true; IMP.pauze = false; IMP.start = Date.now(); IMP.gedaanNu = 0;
+  IMP.rijen.forEach(r => { if (r.status === 'fout') r.status = 'wacht'; });   // 08-10: mislukte bestanden opnieuw proberen bij Verder
+  let leegOpRij = 0;
   renderBeheerDocImport();
   for (const rij of IMP.rijen) {
     if (IMP.pauze) break;
@@ -13993,12 +13995,21 @@ async function impStart() {
     const n = rij.n, f = rij.file;
     try {
       if (n.sjabloon) { rij.status = 'sjabloon'; continue; }
+      // Leeg bestand = OneDrive heeft het nog niet gedownload (alleen een plaatshouder). Niet uploaden; na vijf
+      // achter elkaar stoppen met uitleg — anders gaan honderden bestanden "mislukt" (melding Toussaint 08-10).
+      if (!f.size) {
+        rij.status = 'fout'; rij.fout = 'leeg (nog niet gedownload uit OneDrive)'; leegOpRij++;
+        _impLog('⚠ ' + f.name + ' → leeg bestand: OneDrive heeft het nog niet gedownload');
+        if (leegOpRij >= 5) { IMP.pauze = true; _impLog('⏸ Gestopt: vijf lege bestanden achter elkaar. Zet de map CV in OneDrive op "Altijd behouden op dit apparaat", wacht tot alle bestanden een groen vinkje hebben en druk dan op Verder — de lege worden dan opnieuw geprobeerd.'); btMeld('Import gepauzeerd: de bestanden zijn nog niet gedownload uit OneDrive. Zie het logboek.', 'geel'); break; }
+        continue;
+      }
+      leegOpRij = 0;
       if (f.size > DOC_MAX_MB * 1024 * 1024) { rij.status = 'fout'; rij.fout = 'groter dan ' + DOC_MAX_MB + ' MB'; _impLog('⚠ ' + f.name + ' → te groot, overgeslagen'); continue; }
       const sleutel = rij.k.sleutel || rij.k.losSleutel;
       const bronPad = IMP_BASIS + encodeURIComponent(f.name);
       // Word van een stuk waarvan de PDF al geïmporteerd is: als oudere versie eronder hangen.
       const pdfId = n.ext !== 'pdf' ? IMP.stamIds[rij.stam] : null;
-      const extra = { bron: 'import', bronPad, versieVan: pdfId || null };
+      const extra = { bron: 'import', bronPad, versieVan: pdfId || null, stil: true };
       const uit = await docUpload('kandidaat', sleutel, [f], n.soort, extra);
       if (!uit || !uit.length) { rij.status = 'fout'; rij.fout = 'opslaan mislukt'; _impLog('✗ ' + f.name + ' → opslaan mislukt'); continue; }
       const doc = uit[0];
@@ -14060,7 +14071,7 @@ function renderBeheerDocImport() {
     const rest = Math.round(T.wacht * perStuk / 60000);
     stand = `<div class="aik-kaarten">
       <div class="aik-kaart"><div class="n">${_aiGetal(T.totaal)}</div><div class="t">bestanden in de map</div><div class="s">${_aiGetal(T.sjabloon)} sjablonen overgeslagen</div></div>
-      <div class="aik-kaart"><div class="n">${_aiGetal(T.gedaan)}</div><div class="t">geïmporteerd</div><div class="s">${_aiGetal(T.fout)} mislukt</div></div>
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.gedaan)}</div><div class="t">geïmporteerd</div><div class="s">${_aiGetal(T.fout)} mislukt${T.fout ? ' (bij Verder opnieuw geprobeerd)' : ''}</div></div>
       <div class="aik-kaart"><div class="n">${_aiGetal(T.gekoppeld)}</div><div class="t">gekoppeld aan een kandidaat</div><div class="s">nog te koppelen: ${_aiGetal(T.teKoppelen)}</div></div>
       <div class="aik-kaart"><div class="n">${_aiGetal(T.los)}</div><div class="t">los (later koppelen)</div><div class="s">nog te doen: ${_aiGetal(T.teLos)} · waarvan ${_aiGetal(T.lijkt)} met voorstel</div></div>
     </div>
@@ -32506,13 +32517,13 @@ async function docUpload(hoortBij, sleutel, files, soort, extra) {
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
     const pad = hoortBij + '/' + _docPadVeilig(sleutel) + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
     const up = await supa.storage.from('documenten').upload(pad, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-    if (up.error) { meldFout('document uploaden mislukt: ' + up.error.message, 'docUpload'); btMeld('Uploaden van ' + file.name + ' mislukt: ' + up.error.message, 'rood'); continue; }
+    if (up.error) { meldFout('document uploaden mislukt: ' + up.error.message, 'docUpload'); if (!extra.stil) btMeld('Uploaden van ' + file.name + ' mislukt: ' + up.error.message, 'rood'); continue; }
     const rij = { hoort_bij: hoortBij, sleutel: String(sleutel), soort, naam: file.name, pad, type: file.type || null, grootte: file.size, tekst: tekst || null,
                   versie_van: extra.versieVan || null, bron: extra.bron || 'upload', bron_pad: extra.bronPad || null,
                   geupload_door: (CURRENT_USER && CURRENT_USER.id) || null, geupload_door_naam: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '') };
     _echoVanZelf('documenten');
     const { data, error } = await supa.from('documenten').insert(rij).select('id,hoort_bij,sleutel,soort,naam,pad,type,grootte,versie_van,vervangen_op,bron,bron_pad,vertrouwelijk,geupload_door_naam,created_at,verwijderd_op').single();
-    if (error) { meldFout('document opslaan mislukt: ' + error.message, 'docUpload'); btMeld('Opslaan van ' + file.name + ' mislukt: ' + error.message, 'rood'); try { await supa.storage.from('documenten').remove([pad]); } catch (e2) { _meldStil('document opruimen na mislukte opslag', e2); } continue; }
+    if (error) { meldFout('document opslaan mislukt: ' + error.message, 'docUpload'); if (!extra.stil) btMeld('Opslaan van ' + file.name + ' mislukt: ' + error.message, 'rood'); try { await supa.storage.from('documenten').remove([pad]); } catch (e2) { _meldStil('document opruimen na mislukte opslag', e2); } continue; }
     if (extra.versieVan) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', extra.versieVan); }
     uit.push(data);
     // Een CV of CR op een kandidaat: de link op de CRM-rij wordt 'doc:<id>' — zo blijven to-do's, iconen en RLDV-knoppen kloppen.
@@ -32521,8 +32532,8 @@ async function docUpload(hoortBij, sleutel, files, soort, extra) {
   delete DOC_BEZIG[k];
   delete DOC_CACHE[k];
   await docLaad(hoortBij, sleutel);
-  if (uit.length) btMeld(uit.length === 1 ? uit[0].naam + ' opgeslagen.' : uit.length + ' documenten opgeslagen.', 'groen');
-  _crmDossierHerteken();
+  if (uit.length && !extra.stil) btMeld(uit.length === 1 ? uit[0].naam + ' opgeslagen.' : uit.length + ' documenten opgeslagen.', 'groen');
+  if (!extra.stil) _crmDossierHerteken();
   return uit;
 }
 function _docBlokBij(k) { const el = document.querySelector('.doc-blok[data-doc="' + k.replace(/"/g, '') + '"]'); if (!el) { _crmDossierHerteken(); return; } const b = el.querySelector('.doc-bezig'); if (b) b.textContent = DOC_BEZIG[k] || ''; else { const d = document.createElement('div'); d.className = 'doc-bezig'; d.textContent = DOC_BEZIG[k] || ''; const drop = el.querySelector('.doc-drop'); el.insertBefore(d, drop || null); } }
