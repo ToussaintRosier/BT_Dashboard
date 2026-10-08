@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1126 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1133 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2483,6 +2483,11 @@
   .bd-tegel small { display:block; font-size:.7rem; color:rgba(255,255,255,.55); margin-top:2px; } .bd-tegel.groen b { color:#25D366; } .bd-tegel.oranje b { color:#fbbf7a; }
   .bd-samen { font-size:.8rem; line-height:1.45; margin-bottom:6px; } .bd-samen b { color:#F4CB3C; }
   .bd-wizard .crm-form { max-width:none; } .bd-wizard .bd-g2 .crm-form-veld { grid-column:auto; }
+  /* Wizard: CV lezen en documenten (08-10, ontwerp_documenten.html § 3) */
+  .wiz-cv { border:2px dashed rgba(244,203,60,.5); border-radius:10px; padding:12px 14px; margin:0 0 12px; color:var(--tekst-gedempt); font-size:.82rem; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .wiz-cv.over { background:rgba(244,203,60,.1); border-color:#F4CB3C; } .wiz-cv b { color:#F4CB3C; } .wiz-cv label { color:#F4CB3C; cursor:pointer; font-weight:600; }
+  .wiz-cv.bezig { border-style:solid; border-color:rgba(244,203,60,.35); }
+  .wiz-docs { grid-column:1 / -1; } .wiz-docs .doc-rij select { background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:6px; padding:3px 6px; font-size:.76rem; }
   .bd-wizard .bd-vak .crm-form { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; } .bd-wizard .bd-vak .crm-form-veld.breed { grid-column:1 / -1; }
   @media (max-width:900px) { .bd-g2 { grid-template-columns:1fr; } }
   /* Het ✕ rechtsboven (17-09): float doet niets in een flex-kolom, dus absoluut. */
@@ -11638,7 +11643,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1126';
+const APP_VERSIE = '20261008-1133';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19149,6 +19154,7 @@ async function loadProfileAndStart() {
   _dagstartWaakhond();
   subscribeRealtime();
   _publiceerAchtergrond();
+  setTimeout(() => { loadDocumenten().catch(e => _meldStil('documenten vooraf laden', e)); }, 800);   // 08-10: documenten alvast in de cache
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -20820,7 +20826,7 @@ const _RT_TAKEN = {
   vacatures:        async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); _crmDossierHerteken(); },
   vacature_teksten: async () => { await loadVacatures(); if (currentTab === 'beheer' && BEHEER_SUBVIEW === 'vacteksten') renderBeheer(); },
   vacature_sync:    async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); },
-  documenten:        async () => { DOC_CACHE = {}; _crmDossierHerteken(); },   // 08-10: documenten op de kaarten
+  documenten:        async () => { await loadDocumenten(); },   // 08-10: documenten op de kaarten (alles opnieuw, zonder tekst)
 };
 
 // Eén wijziging levert vaak meerdere berichten op — een opgeslagen week raakt
@@ -32016,6 +32022,17 @@ function _crmSqlHint() {
 // iconen, RLDV-knoppen) blijft werken; oude OneDrive-links blijven gewoon links.
 // ═════════════════════════════════════════════════════════════════════════
 let DOC_CACHE = {};            // 'kandidaat:<sleutel>' → rijen (zonder tekst) · ontbreekt = nog niet geladen
+let DOC_ALLE_GELADEN = false;  // 08-10: na het inloggen één keer alles (zonder tekst) in de cache → geen wachttijd op de kaart
+const DOC_KOLOMMEN = 'id,hoort_bij,sleutel,soort,naam,pad,type,grootte,versie_van,vervangen_op,bron,bron_pad,vertrouwelijk,geupload_door_naam,created_at,verwijderd_op';
+async function loadDocumenten() {
+  if (!supa) { DOC_ALLE_GELADEN = true; return; }
+  const { data, error } = await _alleRijen(() => supa.from('documenten').select(DOC_KOLOMMEN).is('verwijderd_op', null).order('created_at', { ascending: false }));
+  if (error) { if (!/does not exist|42P01|schema cache|PGRST205/i.test(String(error.message || error.code || ''))) _meldStil('documenten laden', error); return; }
+  const per = {};
+  (data || []).forEach(d => { const k = _docSleutel(d.hoort_bij, d.sleutel); (per[k] = per[k] || []).push(d); });
+  DOC_CACHE = per; DOC_ALLE_GELADEN = true;
+  _crmDossierHerteken();
+}
 let DOC_BEZIG = {};            // 'kandidaat:<sleutel>' → tekst van de voortgang
 const DOC_MAX_MB = 25;
 const DOC_TEKST_MAX = 200000;  // tekens per document in de database
@@ -32057,11 +32074,12 @@ function _docBlokHtml(hoortBij, sleutel, opties) {
   opties = opties || {};
   const k = _docSleutel(hoortBij, sleutel), sE = escApos(String(sleutel));
   const kop = '<div class="crm-kop">' + (opties.kop || 'Documenten') + '</div>';
+  let laden = false;
   if (!(k in DOC_CACHE)) {
-    docLaad(hoortBij, sleutel).then(() => { if (typeof _crmDossierHerteken === 'function') _crmDossierHerteken(); });
-    return '<div class="doc-blok">' + kop + '<div class="kk-tekst stil">Documenten laden…</div></div>';
+    if (DOC_ALLE_GELADEN) DOC_CACHE[k] = [];   // alles is al binnen: geen documenten voor deze kaart
+    else { laden = true; docLaad(hoortBij, sleutel).then(() => { if (typeof _crmDossierHerteken === 'function') _crmDossierHerteken(); }); }
   }
-  const alle = DOC_CACHE[k];
+  const alle = DOC_CACHE[k] || [];
   if (alle && alle.ontbreekt) return '<div class="doc-blok">' + kop + '<div class="kk-tekst stil">De documentenopslag is nog niet aangezet: draai supabase/documenten.sql.</div></div>';
   const huidig = (alle || []).filter(d => !d.vervangen_op);
   const ouder = (id) => { let n = 0, v = (alle || []).find(d => d.id === id); while (v && v.versie_van) { n++; v = (alle || []).find(d => d.id === v.versie_van); } return n; };
@@ -32077,7 +32095,7 @@ function _docBlokHtml(hoortBij, sleutel, opties) {
     : '';
   const bezig = DOC_BEZIG[k] ? '<div class="doc-bezig">' + escHtml(DOC_BEZIG[k]) + '</div>' : '';
   return '<div class="doc-blok" data-doc="' + escHtml(k) + '">' + kop.replace('</div>', (huidig.length ? '<small class="crm-kop-klein">' + huidig.length + '</small>' : '') + '</div>') +
-    (rijen || '<div class="kk-tekst stil">Nog geen documenten.</div>') + bezig + drop + '</div>';
+    (rijen || '<div class="kk-tekst stil">' + (laden ? 'Documenten laden…' : 'Nog geen documenten.') + '</div>') + bezig + drop + '</div>';
 }
 function _docRijHtml(d, nOuder, mag) {
   const soorten = DOC_SOORTEN[d.hoort_bij] || DOC_SOORTEN.kandidaat;
@@ -32698,6 +32716,7 @@ function _crmWizHtml() {
   const alle = W.velden.flatMap(x => x.velden);
   sec.velden.forEach(f => { if (f.voorstel && !String(W.w[f.k] || '').trim() && String(W.w[f.voorstel[0]] || '').trim()) { W.w[f.k] = _crmWizVoorstelFn(f.voorstel[1])(W.w[f.voorstel[0]]); W.auto[f.k] = true; } });
   const veldHtml = (f) => {
+    if ((f.k === 'cv_link' || f.k === 'cr_link') && W.soort === 'kand' && !W.id) return '';   // 08-10: nieuwe kandidaat → documenten i.p.v. links
     const id = 'crm-w-' + f.k, v = String(W.w[f.k] == null ? '' : W.w[f.k]);
     const lab = '<label for="' + id + '">' + escHtml(f.l) + (f.req ? ' <span class="crm-req">*</span>' : '') + '</label>';
     const doel = alle.find(g => g.voorstel && g.voorstel[0] === f.k);
@@ -32714,7 +32733,7 @@ function _crmWizHtml() {
   const velden = sec.groepen
     ? '<div class="bd-g2">' + sec.groepen.map(g => '<div class="bd-vak"><div class="crm-kop">' + escHtml(g.titel) + '</div><div class="crm-form">' + g.velden.map(veldHtml).join('') + '</div></div>').join('') + '</div>'
     : sec.soort === 'contacten' ? _crmWizContactenHtml(W)
-    : sec.velden.map(veldHtml).join('');
+    : sec.velden.map(veldHtml).join('') + (W.soort === 'kand' && !W.id && sec.velden.some(f => f.k === 'cv_link') ? _crmWizDocsHtml(W) : '');
   // Vaste maat op elke stap (akkoord 17-09): de foutregel staat er altijd
   // (onzichtbaar als er niets is) en Terug ook (onzichtbaar op stap 1), zodat
   // velden en knoppen op elke stap op precies dezelfde plek staan.
@@ -32722,13 +32741,74 @@ function _crmWizHtml() {
   const opslaan = W.soort === 'kand' ? 'crmKandOpslaan()' : 'crmBedrijfOpslaan()';
   return '<h4 class="wit" title="' + escHtml(W.titel) + '">' + escHtml(W.titel) + '</h4>' +
     '<div class="crm-sub">Stap ' + (W.stap + 1) + ' van ' + W.velden.length + ' · ' + escHtml(sec.titel) + (W.stap === 0 ? ' · alleen * is verplicht' : '') + '</div>' +
-    balk + (sec.groepen || sec.soort === 'contacten' ? '<div class="crm-form bd-los">' + velden + '</div>' : '<div class="crm-form">' + velden + '</div>') + fout +
+    balk + _crmWizCvHtml(W) + (sec.groepen || sec.soort === 'contacten' ? '<div class="crm-form bd-los">' + velden + '</div>' : '<div class="crm-form">' + velden + '</div>') + fout +
     '<div class="crm-knoppen">' +
       (laatste ? '<button class="crm-knop goed crm-knop-vast crm-wiz-door" onclick="' + opslaan + '">Opslaan</button>' : '<button class="crm-knop goed crm-knop-vast crm-wiz-door" onclick="crmWizStap(1)">Volgende →</button>') +
       '<button class="crm-knop crm-knop-vast crm-wiz-terug' + (W.stap > 0 ? '' : ' onzichtbaar') + '" onclick="crmWizStap(-1)"' + (W.stap > 0 ? '' : ' tabindex="-1" aria-hidden="true"') + '>← Terug</button>' +
     '</div>';
 }
 function _crmWizVoorstelFn(naam) { return naam === 'crmWoonregioVan' ? crmWoonregioVan : crmVakgebiedVan; }
+// ── Wizard: beginnen met het CV (08-10, ontwerp_documenten.html § 3) ─────────
+// Sleep het CV in stap 1: de Cockpit haalt de tekst eruit, de Edge Function cv-lezen (Haiku)
+// geeft naam, geboortedatum, adres, contact en functie terug; alleen lege velden worden
+// ingevuld (als voorstel, te controleren). Het CV blijft in de wizard en gaat bij Opslaan mee.
+function _crmWizCvHtml(W) {
+  if (!(!W.id && W.soort === 'kand' && W.stap === 0)) return '';
+  if (W.cvBezig) return '<div class="wiz-cv bezig">⏳ ' + escHtml(W.cvBezig) + '</div>';
+  const cv = (W.docs || []).find(d => d.soort === 'cv');
+  if (cv) return '<div class="wiz-cv">✓ <b>' + escHtml(cv.file.name) + '</b> ingelezen' + (cv.gevuld != null ? ' · ' + cv.gevuld + ' veld' + (cv.gevuld === 1 ? '' : 'en') + ' ingevuld — controleer ze' : '') + ' · het CV gaat bij Opslaan mee als document</div>';
+  return '<div class="wiz-cv" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="crmWizCvDrop(event)">' +
+    '<span><b>Begin met het CV</b> (optioneel): sleep het hierheen of </span><label>kies een bestand<input type="file" hidden accept=".pdf,.docx,.doc,.txt" onchange="if(this.files[0])crmWizCvLezen(this.files[0]);this.value=\'\';"></label>' +
+    '<span>— de Cockpit vult naam, adres, contact en functie alvast in.</span></div>';
+}
+function crmWizCvDrop(ev) { ev.preventDefault(); ev.currentTarget.classList.remove('over'); const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f) crmWizCvLezen(f); }
+async function crmWizCvLezen(file) {
+  const W = CRM_WIZ; if (!W || W.id) return;
+  if (file.size > DOC_MAX_MB * 1024 * 1024) { btMeld(file.name + ' is groter dan ' + DOC_MAX_MB + ' MB.', 'rood'); return; }
+  _crmWizLees();
+  W.docs = W.docs || [];
+  W.cvBezig = 'CV lezen: ' + file.name + '…'; _crmWizToon();
+  const tekst = await _docTekst(file);
+  let gevuld = 0, fout = '';
+  if (!tekst) {
+    fout = 'Geen tekst in dit bestand (scan of oud .doc) — vul de velden zelf in; het CV gaat wel mee.';
+  } else if (supa) {
+    try {
+      W.cvBezig = 'Velden uit het CV halen…'; _crmWizToon();
+      const sessie = (await supa.auth.getSession())?.data?.session;
+      const res = await fetch(SUPABASE_URL + '/functions/v1/cv-lezen', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessie?.access_token || '') }, body: JSON.stringify({ tekst: tekst.slice(0, 15000) }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.error) fout = 'Lezen mislukt: ' + (d.error || ('HTTP ' + res.status)) + ' — vul de velden zelf in.';
+      else {
+        W.auto = W.auto || {};
+        Object.keys(d.velden || {}).forEach(k => { const v = String(d.velden[k] || '').trim(); if (!String(W.w[k] || '').trim() && v) { W.w[k] = v; W.auto[k] = true; gevuld++; } });
+      }
+    } catch (e) { fout = 'Lezen mislukt: ' + String(e && e.message || e); _meldStil('cv-lezen', e); }
+  }
+  W.docs.push({ file, soort: 'cv', gevuld: fout ? null : gevuld, tekst: tekst || '' });
+  W.cvBezig = ''; W.fout = fout; _crmWizToon();
+  if (!fout) btMeld(gevuld ? gevuld + ' veld' + (gevuld === 1 ? '' : 'en') + ' uit het CV ingevuld — controleer ze.' : 'CV ingelezen; er waren geen velden om in te vullen.', 'groen');
+}
+// Stap 3: de documenten die bij Opslaan meegaan (CV uit stap 1, en wat je hier nog toevoegt).
+function _crmWizDocsHtml(W) {
+  const docs = W.docs || [];
+  const soorten = DOC_SOORTEN.kandidaat;
+  const rijen = docs.map((d, i) => '<div class="doc-rij"><span class="doc-ic">' + escHtml((String(d.file.name).split('.').pop() || 'file').slice(0, 4).toUpperCase()) + '</span>' +
+    '<span class="doc-naam"><b>' + escHtml(d.file.name) + '</b><small>' + _docGrootte(d.file.size) + (d.gevuld != null ? ' · ' + d.gevuld + ' velden ingevuld uit dit CV' : '') + '</small></span>' +
+    '<select onchange="crmWizDocSoort(' + i + ', this.value)">' + soorten.map(x => '<option value="' + x[0] + '"' + (x[0] === d.soort ? ' selected' : '') + '>' + escHtml(x[1]) + '</option>').join('') + '</select>' +
+    '<span class="doc-akt"><button type="button" onclick="crmWizDocWeg(' + i + ')" title="Weghalen">✕</button></span></div>').join('');
+  return '<div class="crm-form-veld breed wiz-docs"><label>Documenten bij deze kandidaat</label>' + (rijen || '<div class="kk-tekst stil">Nog geen documenten — het CV uit stap 1 komt hier te staan.</div>') +
+    '<div class="doc-drop" ondragover="event.preventDefault();this.classList.add(\'over\')" ondragleave="this.classList.remove(\'over\')" ondrop="crmWizDocsDrop(event)"><span>Sleep een bestand hierheen of</span><label>kies een bestand<input type="file" multiple hidden accept=".pdf,.doc,.docx,.odt,.rtf,.png,.jpg,.jpeg,.gif,.webp,.txt" onchange="crmWizDocsToevoegen(this.files);this.value=\'\';"></label><span class="stil">· gaat bij Opslaan mee</span></div></div>';
+}
+function crmWizDocsDrop(ev) { ev.preventDefault(); ev.currentTarget.classList.remove('over'); crmWizDocsToevoegen(ev.dataTransfer && ev.dataTransfer.files); }
+function crmWizDocsToevoegen(files) {
+  const W = CRM_WIZ; if (!W) return;
+  _crmWizLees(); W.docs = W.docs || [];
+  Array.from(files || []).forEach(f => { if (f.size > DOC_MAX_MB * 1024 * 1024) { btMeld(f.name + ' is groter dan ' + DOC_MAX_MB + ' MB.', 'rood'); return; } const heeftCv = W.docs.some(d => d.soort === 'cv'); W.docs.push({ file: f, soort: heeftCv ? (W.docs.some(d => d.soort === 'cr') ? 'overig' : 'cr') : 'cv' }); });
+  _crmWizToon();
+}
+function crmWizDocSoort(i, soort) { const W = CRM_WIZ; if (W && W.docs && W.docs[i]) W.docs[i].soort = soort; }
+function crmWizDocWeg(i) { const W = CRM_WIZ; if (!W || !W.docs) return; _crmWizLees(); W.docs.splice(i, 1); _crmWizToon(); }
 // Contactpersonen in de wizard (02-10): tabel + invoerregel; opslaan zet ze bij het bedrijf.
 function _crmWizContactenHtml(W) {
   const lijst = W.contacten || [];
@@ -32859,7 +32939,13 @@ async function crmKandOpslaan() {
     } else rij = { id: eerder ? eerder.id : 'local-' + Date.now(), ...nieuw };
     CRM_KANDIDATEN = lijst.filter(k => !eerder || String(k.id) !== String(eerder.id)).concat([rij]);
   }
+  const docs = W.docs || [];
   CRM_WIZ = null;
+  // 08-10: de documenten uit de wizard (CV uit stap 1, aanvullingen uit stap 3) nu opslaan bij de nieuwe kandidaat.
+  if (docs.length && supa) {
+    btMeld(docs.length === 1 ? 'Kandidaat opgeslagen — document wordt bewaard…' : 'Kandidaat opgeslagen — ' + docs.length + ' documenten worden bewaard…', 'geel');
+    for (const d of docs) { try { await docUpload('kandidaat', velden.sleutel, [d.file], d.soort, { bron: 'wizard' }); } catch (e) { _meldStil('wizard-document opslaan', e); } }
+  }
   if (_CRM_WIZ_NA) { const na = _CRM_WIZ_NA; _CRM_WIZ_NA = null; na(rij); }
   else crmKandOpen(velden.sleutel);
   if (currentTab === 'crmkand') renderCrmKandidaten();
