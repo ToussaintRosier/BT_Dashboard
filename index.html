@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261007-1344 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1009 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2077,6 +2077,15 @@
   .kand-archief-zoek .one-ber-zoek { margin-bottom:0; flex:1; }
   .kand-archief-sel { background:#253151; color:#fff; border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:.8rem; }
   .kand-archief-tabel { width:100%; border-collapse:collapse; font-size:.8rem; }
+  /* Beheer › AI-kosten (08-10) */
+  .aik-kaarten { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin:12px 0 16px; }
+  .aik-kaart { background:var(--l1); border-radius:10px; padding:12px 14px; } .aik-kaart .n { font-size:1.5rem; font-weight:700; color:#F4CB3C; font-variant-numeric:tabular-nums; }
+  .aik-kaart .t { font-size:.74rem; color:var(--tekst-gedempt); margin-top:2px; } .aik-kaart .s { font-size:.72rem; color:rgba(255,255,255,.5); }
+  .aik-tabel td, .aik-tabel th { padding:6px 9px; } .aik-tabel td.r, .aik-tabel th.r { text-align:right; font-variant-numeric:tabular-nums; }
+  .aik-tabel input { width:84px; background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:5px; padding:3px 6px; font-size:.78rem; text-align:right; }
+  .aik-blok { background:var(--l1); border-radius:10px; padding:12px 14px; margin:0 0 14px; } .aik-blok h4 { margin:0 0 8px; font-size:.9rem; color:#fff; }
+  .aik-maand { display:flex; gap:8px; align-items:center; margin:8px 0 4px; } .aik-maand b { min-width:130px; text-align:center; }
+  .aik-stil { color:var(--tekst-gedempt); font-size:.78rem; }
   .kand-archief-tabel td { padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; color:#fff; background:transparent; }
   .kand-archief-rij:hover td { background:rgba(255,255,255,.04); }
   .kand-archief-tabel td.d { color:rgba(255,255,255,.55); }
@@ -11556,7 +11565,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261007-1344';
+const APP_VERSIE = '20261008-1009';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12931,8 +12940,8 @@ function beheerSubview(welke) { BEHEER_SUBVIEW = welke; renderBeheer(); }
 function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
-  return `<div class="bm-subtabs" style="display:flex;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}</div>`;
+  return `<div class="bm-subtabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 0;">
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -13544,6 +13553,196 @@ function renderBeheerDatabase() {
     </div></div>`;
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// BEHEER › AI-KOSTEN (08-10)
+//
+// Verzoek Toussaint: "een tooltje om te zien wat de uitgaven aan AI zijn — wat de actuele
+// prijs is en hoeveel we die gebruiken." Twee bronnen:
+//   · ai_kosten    — één rij per aanroep, geschreven door de Edge Functions (tokens, audio).
+//                    Schatting = gebruik × tarief uit ai_tarieven (supabase/ai_kosten.sql).
+//   · Admin API    — de echte factuurcijfers van Anthropic per dag en model, via de Edge
+//                    Function ai-kosten-anthropic (secret ANTHROPIC_ADMIN_KEY).
+// De tarieven staan in de database met "gecontroleerd op"; managers passen ze hier aan.
+// ═════════════════════════════════════════════════════════════════════════
+let AI_KOSTEN = null;        // { rijen, tarieven, namen, fout }
+let AI_KOSTEN_MAAND = null;  // 'JJJJ-MM'; null = deze maand
+let AI_KOSTEN_ADMIN = null;  // { bezig, fout, van, tot, dagen, totaal_usd, opgehaald }
+const AI_KOSTEN_DAGEN_TERUG = 95;   // drie maanden terugkijken
+
+function _aiMaandNu() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function _aiMaandPlus(m, delta) { const [j, mm] = m.split('-').map(Number); const d = new Date(j, mm - 1 + delta, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function _aiMaandTekst(m) { const [j, mm] = m.split('-').map(Number); return new Date(j, mm - 1, 1).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }); }
+function _aiUsd(n) { return '$ ' + (+n || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function _aiGetal(n) { return (+n || 0).toLocaleString('nl-NL'); }
+
+// Tarief bij een modelnaam: de sleutel is een prefix ('claude-opus-4-5' past op 'claude-opus-4-5-20251101').
+function _aiTarief(tarieven, model) {
+  const m = String(model || '');
+  let best = null;
+  (tarieven || []).forEach(t => { if (t && t.sleutel && m.indexOf(t.sleutel) === 0 && (!best || t.sleutel.length > best.sleutel.length)) best = t; });
+  return best;
+}
+// Kosten van één rij in USD. Onbekend model: 0 — liever te laag en gemeld dan geraden.
+function _aiKostenVanRij(r, tarieven) {
+  if (!r) return 0;
+  const M = 1e6;
+  if (r.leverancier === 'assemblyai') {
+    const t = (tarieven || []).find(x => x.sleutel === 'assemblyai');
+    return t ? (+r.audio_sec || 0) / 3600 * (+t.prijs_uur || 0) : 0;
+  }
+  const t = _aiTarief(tarieven, r.model);
+  let usd = 0;
+  if (t) usd += (+r.tokens_in || 0) / M * (+t.prijs_in || 0) + (+r.tokens_uit || 0) / M * (+t.prijs_uit || 0)
+             + (+r.tokens_cache_lees || 0) / M * (+t.prijs_cache_lees || 0) + (+r.tokens_cache_schrijf || 0) / M * (+t.prijs_cache_schrijf || 0);
+  if (+r.zoekopdrachten) { const w = (tarieven || []).find(x => x.sleutel === 'web_search'); if (w) usd += (+r.zoekopdrachten) / 1000 * (+w.prijs_in || 0); }
+  return usd;
+}
+// Overzicht voor één maand: totaal, per functie, per collega, per dag.
+function _aiKostenOverzicht(rijen, tarieven, maand, namen) {
+  const koersRij = (tarieven || []).find(x => x.sleutel === 'koers');
+  const koers = koersRij && +koersRij.prijs_in > 0 ? +koersRij.prijs_in : 1;
+  const perFunctie = {}, perCollega = {}, perDag = {};
+  let totaalUsd = 0, aanroepen = 0, zonderTarief = 0;
+  (rijen || []).forEach(r => {
+    const dag = String(r.op || '').slice(0, 10);
+    if (dag.slice(0, 7) !== maand) return;
+    const usd = _aiKostenVanRij(r, tarieven);
+    if (r.leverancier === 'anthropic' && !_aiTarief(tarieven, r.model)) zonderTarief++;
+    const tokens = (+r.tokens_in || 0) + (+r.tokens_uit || 0) + (+r.tokens_cache_lees || 0) + (+r.tokens_cache_schrijf || 0);
+    const audioMin = (+r.audio_sec || 0) / 60;
+    const naam = (namen && r.user_id && namen[r.user_id]) || 'onbekend';
+    const tel = (map, k, extra) => { const x = map[k] || (map[k] = { aanroepen: 0, tokens: 0, audioMin: 0, usd: 0, ...extra }); x.aanroepen++; x.tokens += tokens; x.audioMin += audioMin; x.usd += usd; };
+    tel(perFunctie, r.functie, { functie: r.functie, modellen: new Set() }); perFunctie[r.functie].modellen.add(r.model || '?');
+    tel(perCollega, naam, { naam });
+    tel(perDag, dag, { dag });
+    totaalUsd += usd; aanroepen++;
+  });
+  const lijst = (map) => Object.values(map).map(x => ({ ...x, audioMin: Math.round(x.audioMin), modellen: x.modellen ? [...x.modellen].sort() : undefined }));
+  return {
+    maand, totaalUsd, totaalEur: totaalUsd * koers, koers, aanroepen, zonderTarief,
+    perFunctie: lijst(perFunctie).sort((a, b) => b.usd - a.usd),
+    perCollega: lijst(perCollega).sort((a, b) => b.usd - a.usd),
+    perDag: lijst(perDag).sort((a, b) => a.dag < b.dag ? -1 : 1),
+  };
+}
+async function laadAiKosten() {
+  if (!supa) { AI_KOSTEN = { rijen: [], tarieven: [], namen: {}, fout: 'Geen database (demo-stand).' }; return; }
+  const sinds = new Date(Date.now() - AI_KOSTEN_DAGEN_TERUG * 864e5).toISOString();
+  const { data: rijen, error } = await _alleRijen(() => supa.from('ai_kosten').select('*').gte('op', sinds).order('op', { ascending: false }));
+  const { data: tarieven, error: e2 } = await supa.from('ai_tarieven').select('*').order('leverancier').order('sleutel');
+  const namen = {};
+  (typeof BEHEER_PROFIELEN !== 'undefined' ? BEHEER_PROFIELEN : []).forEach(p => { if (p && p.id) namen[p.id] = p.naam || p.bm_naam || ''; });
+  let fout = null;
+  if (error || e2) {
+    const m = String((error || e2).message || error || e2);
+    fout = /does not exist|42P01|schema cache|PGRST205/i.test(m) ? 'De tabellen ontbreken nog: draai supabase/ai_kosten.sql in de SQL-editor.' : m;
+  }
+  AI_KOSTEN = { rijen: rijen || [], tarieven: tarieven || [], namen, fout };
+}
+function aiKostenMaand(delta) { AI_KOSTEN_MAAND = _aiMaandPlus(AI_KOSTEN_MAAND || _aiMaandNu(), delta); renderBeheerAiKosten(); }
+async function aiKostenVernieuw() { AI_KOSTEN = null; renderBeheerAiKosten(); }
+async function aiTariefOpslaan(sleutel) {
+  if (!supa || !isManagerLevel() || !eisWijzig('beheer')) return;
+  const v = (k) => { const el = document.getElementById('aik-' + k + '-' + sleutel); return el ? Number(String(el.value || '').replace(',', '.')) || 0 : 0; };
+  const velden = { prijs_in: v('in'), prijs_uit: v('uit'), prijs_cache_lees: v('cl'), prijs_cache_schrijf: v('cs'), prijs_uur: v('uur'), gecontroleerd_op: new Date().toISOString().slice(0, 10), updated_at: new Date().toISOString() };
+  const { error } = await supa.from('ai_tarieven').update(velden).eq('sleutel', sleutel);
+  if (error) { btMeld('Tarief opslaan mislukt: ' + error.message, 'rood'); return; }
+  btMeld('Tarief ' + sleutel + ' opgeslagen (gecontroleerd op vandaag).', 'groen');
+  AI_KOSTEN = null; renderBeheerAiKosten();
+}
+// Factuurcijfers van Anthropic (Admin API) voor de gekozen maand.
+async function aiKostenAdminOphalen() {
+  if (!supa) return;
+  const maand = AI_KOSTEN_MAAND || _aiMaandNu();
+  const van = maand + '-01', tot = _aiMaandPlus(maand, 1) + '-01';
+  AI_KOSTEN_ADMIN = { bezig: true, maand };
+  renderBeheerAiKosten();
+  try {
+    const sessie = (await supa.auth.getSession())?.data?.session;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/ai-kosten-anthropic', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessie?.access_token || '') },
+      body: JSON.stringify({ van, tot }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || d.error) AI_KOSTEN_ADMIN = { bezig: false, maand, fout: d.error || ('HTTP ' + res.status) };
+    else AI_KOSTEN_ADMIN = { bezig: false, maand, ...d };
+  } catch (e) { AI_KOSTEN_ADMIN = { bezig: false, maand, fout: String(e && e.message || e) }; }
+  renderBeheerAiKosten();
+}
+function renderBeheerAiKosten() {
+  const kop = `<div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>${_rechtenSubtabs()}`;
+  const main = document.getElementById('main');
+  if (!isManagerLevel()) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">AI-kosten zijn alleen voor managers.</div></div>`; return; }
+  if (AI_KOSTEN === null) {
+    AI_KOSTEN = { laden: true };
+    laadAiKosten().then(renderBeheerAiKosten);
+    main.innerHTML = `<div>${kop}<div class="op-pagina-zwak" style="padding:20px;font-size:.85rem;">AI-kosten laden…</div></div>`;
+    return;
+  }
+  if (AI_KOSTEN.laden) return;
+  if (AI_KOSTEN.fout) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">${escHtml(AI_KOSTEN.fout)}</div></div>`; return; }
+  const maand = AI_KOSTEN_MAAND || _aiMaandNu();
+  const o = _aiKostenOverzicht(AI_KOSTEN.rijen, AI_KOSTEN.tarieven, maand, AI_KOSTEN.namen);
+  const vorig = _aiKostenOverzicht(AI_KOSTEN.rijen, AI_KOSTEN.tarieven, _aiMaandPlus(maand, -1), AI_KOSTEN.namen);
+  const dagenInMaand = o.perDag.length || 1;
+  const eersteMeting = AI_KOSTEN.rijen.length ? String(AI_KOSTEN.rijen[AI_KOSTEN.rijen.length - 1].op || '').slice(0, 10) : null;
+  const kaarten = `<div class="aik-kaarten">
+    <div class="aik-kaart"><div class="n">${fmtEuro(o.totaalEur)}</div><div class="t">${escHtml(_aiMaandTekst(maand))} · geschat</div><div class="s">${_aiUsd(o.totaalUsd)} · koers ${String(o.koers).replace('.', ',')}</div></div>
+    <div class="aik-kaart"><div class="n">${fmtEuro(vorig.totaalEur)}</div><div class="t">${escHtml(_aiMaandTekst(_aiMaandPlus(maand, -1)))}</div><div class="s">${_aiGetal(vorig.aanroepen)} aanroepen</div></div>
+    <div class="aik-kaart"><div class="n">${fmtEuro(o.totaalEur / dagenInMaand)}</div><div class="t">per dag met gebruik</div><div class="s">${dagenInMaand} dag${dagenInMaand === 1 ? '' : 'en'} · ${_aiGetal(o.aanroepen)} aanroepen</div></div>
+    <div class="aik-kaart"><div class="n">${AI_KOSTEN_ADMIN && AI_KOSTEN_ADMIN.maand === maand && AI_KOSTEN_ADMIN.totaal_usd != null ? _aiUsd(AI_KOSTEN_ADMIN.totaal_usd) : '—'}</div><div class="t">factuur Anthropic (Admin API)</div><div class="s">${AI_KOSTEN_ADMIN && AI_KOSTEN_ADMIN.maand === maand && AI_KOSTEN_ADMIN.opgehaald ? 'opgehaald ' + escHtml(String(AI_KOSTEN_ADMIN.opgehaald).slice(11, 16)) : 'nog niet opgehaald'}</div></div>
+  </div>`;
+  const rijF = o.perFunctie.map(f => `<tr><td>${escHtml(f.functie)}</td><td class="aik-stil">${escHtml(f.modellen.join(', '))}</td><td class="r">${_aiGetal(f.aanroepen)}</td><td class="r">${_aiGetal(f.tokens)}</td><td class="r">${f.audioMin ? _aiGetal(f.audioMin) : '—'}</td><td class="r">${_aiUsd(f.usd)}</td><td class="r"><b>${fmtEuro(f.usd * o.koers)}</b></td></tr>`).join('');
+  const rijC = o.perCollega.map(c => `<tr><td>${escHtml(c.naam)}</td><td class="r">${_aiGetal(c.aanroepen)}</td><td class="r">${_aiGetal(c.tokens)}</td><td class="r">${c.audioMin ? _aiGetal(c.audioMin) : '—'}</td><td class="r"><b>${fmtEuro(c.usd * o.koers)}</b></td></tr>`).join('');
+  const rijD = o.perDag.map(d => `<tr><td>${escHtml(d.dag.split('-').reverse().join('-'))}</td><td class="r">${_aiGetal(d.aanroepen)}</td><td class="r">${_aiGetal(d.tokens)}</td><td class="r">${d.audioMin ? _aiGetal(d.audioMin) : '—'}</td><td class="r"><b>${fmtEuro(d.usd * o.koers)}</b></td></tr>`).join('');
+  const tar = AI_KOSTEN.tarieven.map(t => {
+    const i = (k, v) => `<input id="aik-${k}-${escHtml(t.sleutel)}" value="${escHtml(String(v == null ? '' : v).replace('.', ','))}">`;
+    const isKoers = t.sleutel === 'koers', isAudio = t.leverancier === 'assemblyai';
+    return `<tr><td><b>${escHtml(t.sleutel)}</b><div class="aik-stil">${escHtml(t.omschrijving || '')}</div></td>` +
+      `<td class="r">${isAudio ? '—' : i('in', t.prijs_in)}</td><td class="r">${isAudio || isKoers ? '—' : i('uit', t.prijs_uit)}</td>` +
+      `<td class="r">${isAudio || isKoers || t.sleutel === 'web_search' ? '—' : i('cl', t.prijs_cache_lees)}</td><td class="r">${isAudio || isKoers || t.sleutel === 'web_search' ? '—' : i('cs', t.prijs_cache_schrijf)}</td>` +
+      `<td class="r">${isAudio ? i('uur', t.prijs_uur) : '—'}</td>` +
+      `<td class="aik-stil">${escHtml(String(t.gecontroleerd_op || '').split('-').reverse().join('-'))}${t.bron ? '<br>' + escHtml(t.bron) : ''}</td>` +
+      `<td><button class="kn hoofd k" onclick="aiTariefOpslaan('${escApos(t.sleutel)}')">Opslaan</button></td></tr>`;
+  }).join('');
+  const adminHtml = (() => {
+    const a = AI_KOSTEN_ADMIN;
+    if (a && a.bezig) return '<div class="aik-stil">Factuurcijfers ophalen…</div>';
+    if (a && a.maand === maand && a.fout) return `<div class="info-box blue" style="margin:8px 0 0;">${escHtml(a.fout)}</div>`;
+    if (a && a.maand === maand && Array.isArray(a.dagen)) {
+      const perModel = {};
+      a.dagen.forEach(d => { perModel[d.model] = (perModel[d.model] || 0) + d.usd; });
+      const rijen = Object.keys(perModel).sort((x, y) => perModel[y] - perModel[x]).map(m => `<tr><td>${escHtml(m)}</td><td class="r">${_aiUsd(perModel[m])}</td><td class="r"><b>${fmtEuro(perModel[m] * o.koers)}</b></td></tr>`).join('');
+      return `<table class="kand-archief-tabel aik-tabel"><thead><tr><th>Model / post</th><th class="r">USD</th><th class="r">EUR</th></tr></thead><tbody>${rijen || '<tr><td colspan="3" class="aik-stil">Geen kosten in deze maand.</td></tr>'}</tbody></table>
+        <div class="aik-stil" style="margin-top:6px;">Totaal ${_aiUsd(a.totaal_usd)} = ${fmtEuro(a.totaal_usd * o.koers)} · schatting uit de Cockpit ${_aiUsd(o.totaalUsd)} · ${escHtml(a.bron || '')}. Controleer de eerste keer tegen Console › Cost.</div>`;
+    }
+    return '<div class="aik-stil">Nog niet opgehaald voor deze maand.</div>';
+  })();
+  main.innerHTML = `<div>${kop}
+    <div style="padding:12px 20px 20px;font-size:.85rem;">
+      <div class="aik-maand"><button class="kn k" style="font-size:1rem;padding:2px 12px;" onclick="aiKostenMaand(-1)" title="Vorige maand">‹</button><b>${escHtml(_aiMaandTekst(maand))}</b><button class="kn k" style="font-size:1rem;padding:2px 12px;" onclick="aiKostenMaand(1)" title="Volgende maand">›</button>
+        <button class="kn k" style="font-size:.95rem;padding:2px 10px;" onclick="aiKostenVernieuw()" title="Opnieuw laden">↻</button>
+        <span class="aik-stil">${eersteMeting ? 'gemeten sinds ' + escHtml(eersteMeting.split('-').reverse().join('-')) : 'nog geen metingen — de Edge Functions schrijven vanaf de eerstvolgende aanroep'}${o.zonderTarief ? ' · <span class="rldv-st-let">' + o.zonderTarief + ' aanroep' + (o.zonderTarief === 1 ? '' : 'en') + ' zonder tarief (model ontbreekt in de prijslijst)</span>' : ''}</span></div>
+      ${kaarten}
+      <div class="aik-blok"><h4>Per functie</h4>
+        <table class="kand-archief-tabel aik-tabel"><thead><tr><th>Functie</th><th>Model</th><th class="r">Aanroepen</th><th class="r">Tokens</th><th class="r">Audio (min)</th><th class="r">USD</th><th class="r">EUR</th></tr></thead>
+        <tbody>${rijF || '<tr><td colspan="7" class="aik-stil">Geen gebruik in deze maand.</td></tr>'}</tbody></table></div>
+      <div class="aik-blok"><h4>Per collega</h4>
+        <table class="kand-archief-tabel aik-tabel"><thead><tr><th>Collega</th><th class="r">Aanroepen</th><th class="r">Tokens</th><th class="r">Audio (min)</th><th class="r">EUR</th></tr></thead>
+        <tbody>${rijC || '<tr><td colspan="5" class="aik-stil">Geen gebruik in deze maand.</td></tr>'}</tbody></table></div>
+      <div class="aik-blok"><h4>Per dag</h4>
+        <table class="kand-archief-tabel aik-tabel"><thead><tr><th>Dag</th><th class="r">Aanroepen</th><th class="r">Tokens</th><th class="r">Audio (min)</th><th class="r">EUR</th></tr></thead>
+        <tbody>${rijD || '<tr><td colspan="5" class="aik-stil">Geen gebruik in deze maand.</td></tr>'}</tbody></table></div>
+      <div class="aik-blok"><h4>Factuurcijfers Anthropic <button class="kn hoofd k" onclick="aiKostenAdminOphalen()" style="margin-left:8px;">Ophalen voor ${escHtml(_aiMaandTekst(maand))}</button></h4>
+        <div class="aik-stil" style="margin-bottom:6px;">Rechtstreeks uit de Anthropic Admin API (zelfde cijfers als Console › Cost). Vereist de secret <code>ANTHROPIC_ADMIN_KEY</code>. AssemblyAI heeft zo'n API niet; daarvoor geldt de schatting.</div>
+        ${adminHtml}</div>
+      <div class="aik-blok"><h4>Tarieven (USD per miljoen tokens · audio per uur · koers EUR per USD)</h4>
+        <table class="kand-archief-tabel aik-tabel"><thead><tr><th>Model / post</th><th class="r">Invoer</th><th class="r">Uitvoer</th><th class="r">Cache lezen</th><th class="r">Cache schrijven</th><th class="r">Per uur</th><th>Gecontroleerd · bron</th><th></th></tr></thead>
+        <tbody>${tar || '<tr><td colspan="8" class="aik-stil">Geen tarieven — draai supabase/ai_kosten.sql.</td></tr>'}</tbody></table>
+        <div class="aik-stil" style="margin-top:6px;">Een rij Opslaan zet "gecontroleerd op" op vandaag. Prijzen: platform.claude.com/docs/en/about-claude/pricing en assemblyai.com/pricing.</div></div>
+    </div></div>`;
+}
+
 function renderBeheer() {
   if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
   if (BEHEER_SUBVIEW === 'mijlpalen')  { renderBeheerMijlpalen(); return; }
@@ -13551,6 +13750,7 @@ function renderBeheer() {
   if (BEHEER_SUBVIEW === 'fouten')     { renderBeheerFouten(); return; }
   if (BEHEER_SUBVIEW === 'database')   { renderBeheerDatabase(); return; }
   if (BEHEER_SUBVIEW === 'vacteksten') { renderBeheerVacTeksten(); return; }   // 01-10
+  if (BEHEER_SUBVIEW === 'aikosten')   { renderBeheerAiKosten(); return; }     // 08-10
   const huidigJaar = new Date().getFullYear();
 
   // Bouw doelen-map: naam → jaardoel voor huidig jaar
