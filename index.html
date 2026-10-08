@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1340 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1509 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11687,7 +11687,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1340';
+const APP_VERSIE = '20261008-1509';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13959,6 +13959,44 @@ function _impKoppel(n, lijst) {
   for (const k of lijstOk) { if (_crmLijktOp(_crmDubbelSleutel(k.naam || ''), ds)) { uit.voorstel = k.sleutel; uit.hoe = 'lijkt'; return uit; } }
   return uit;
 }
+// Ruimer koppelen (08-10, Toussaint: "op naam iets ruimer, desnoods het CV openen"). Alleen als het
+// éénduidig is: a) achternaam gelijk + voornaam begint hetzelfde (3 letters) · b) naam één letter anders ·
+// c) e-mailadres uit de tekst = e-mail van een kandidaat · d) telefoonnummer uit de tekst · e) de volledige
+// naam van een kandidaat staat in de tekst. Meer dan één kandidaat → geen koppeling, wel een voorstel.
+function _impRuimKoppel(n, tekst, lijst) {
+  const uit = { sleutel: null, hoe: 'los', voorstel: null };
+  if (!n || n.sjabloon) return uit;
+  const L = (lijst || []).filter(k => k && k.sleutel && k.naam && !(k.crm && k.crm.bron === 'verwijderd'));
+  const uniek = (hits, hoe) => { if (hits.length === 1) { uit.sleutel = hits[0].sleutel; uit.hoe = hoe; return true; } if (hits.length > 1) { uit.voorstel = uit.voorstel || hits[0].sleutel; uit.hoe = 'meerdere'; } return false; };
+  const plat = (k) => _impPlat(k.naam);
+  // a) achternaam gelijk + voornaam begint hetzelfde
+  if (n.voornaam && n.achternaam && n.voornaam.length >= 3) {
+    const va = _impPlat(n.voornaam).slice(0, 3), aa = _impPlat(n.achternaam);
+    const hits = L.filter(k => { const p = plat(k); const d = p.split(' '); const kAchter = d.slice(1).join(' '), kVoor = d[0] || ''; return (kAchter === aa || p.endsWith(' ' + aa) || p.startsWith(aa + ' ')) && kVoor.slice(0, 3) === va; });
+    if (uniek(hits, 'naam-ruim')) return uit;
+  }
+  // b) één letter anders
+  if (n.sleutel && n.sleutel.length >= 6) {
+    const ds = _crmDubbelSleutel(n.sleutel), ds2 = n.sleutel2 ? _crmDubbelSleutel(n.sleutel2) : null;
+    const hits = L.filter(k => { const kd = _crmDubbelSleutel(k.naam); return _crmLijktOp(kd, ds) || (ds2 && _crmLijktOp(kd, ds2)); });
+    if (uniek(hits, 'lijkt')) return uit;
+  }
+  const T = String(tekst || '');
+  if (T.length >= 20) {
+    const tl = T.toLowerCase();
+    // c) e-mail
+    const mails = Array.from(new Set((tl.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || [])));
+    if (mails.length) { const hits = L.filter(k => { const m = String((k.crm || {}).email || '').trim().toLowerCase(); return m && mails.includes(m); }); if (uniek(hits, 'email')) return uit; }
+    // d) telefoon: alle cijferreeksen van ≥ 9 cijfers, vergeleken op de laatste 9
+    const cijfers = Array.from(new Set((T.match(/[+()\d][\d\s()\-\.]{7,}\d/g) || []).map(x => x.replace(/\D/g, '').replace(/^0031/, '0').replace(/^31/, '0')).filter(x => x.length >= 9).map(x => x.slice(-9))));
+    if (cijfers.length) { const hits = L.filter(k => { const tel = String((k.crm || {}).telefoon || '').replace(/\D/g, '').replace(/^0031/, '0').replace(/^31/, '0'); return tel.length >= 9 && cijfers.includes(tel.slice(-9)); }); if (uniek(hits, 'telefoon')) return uit; }
+    // e) volledige naam in de tekst (platte vergelijking, hele woorden)
+    const tp = ' ' + _impPlat(T).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ') + ' ';
+    const hits = L.filter(k => { const p = plat(k); return p.length >= 7 && p.indexOf(' ') > 0 && tp.indexOf(' ' + p + ' ') >= 0; });
+    if (uniek(hits, 'tekst')) return uit;
+  }
+  return uit;
+}
 function _impAlGedaan(bestand) {
   const url = IMP_BASIS + encodeURIComponent(bestand);
   for (const k of Object.keys(DOC_CACHE)) { const l = DOC_CACHE[k]; if (Array.isArray(l) && l.some(d => d.bron === 'import' && (d.bron_pad === url || d.naam === bestand))) return true; }
@@ -14005,11 +14043,18 @@ async function impStart() {
       }
       leegOpRij = 0;
       if (f.size > DOC_MAX_MB * 1024 * 1024) { rij.status = 'fout'; rij.fout = 'groter dan ' + DOC_MAX_MB + ' MB'; _impLog('⚠ ' + f.name + ' → te groot, overgeslagen'); continue; }
+      // Tekst hier al lezen (één keer): voor de koppeling via de inhoud én voor de database.
+      const tekst = (await _docTekst(f)).slice(0, DOC_TEKST_MAX);
+      if (!rij.k.sleutel) {
+        const ruim = _impRuimKoppel(n, tekst, IMP.kand || (IMP.kand = crmKandLijst()));
+        if (ruim.sleutel) { rij.k.sleutel = ruim.sleutel; rij.k.hoe = ruim.hoe; }
+        else if (ruim.voorstel && !rij.k.voorstel) rij.k.voorstel = ruim.voorstel;
+      }
       const sleutel = rij.k.sleutel || rij.k.losSleutel;
       const bronPad = IMP_BASIS + encodeURIComponent(f.name);
       // Word van een stuk waarvan de PDF al geïmporteerd is: als oudere versie eronder hangen.
       const pdfId = n.ext !== 'pdf' ? IMP.stamIds[rij.stam] : null;
-      const extra = { bron: 'import', bronPad, versieVan: pdfId || null, stil: true };
+      const extra = { bron: 'import', bronPad, versieVan: pdfId || null, stil: true, tekst: tekst };
       const uit = await docUpload('kandidaat', sleutel, [f], n.soort, extra);
       if (!uit || !uit.length) { rij.status = 'fout'; rij.fout = 'opslaan mislukt'; _impLog('✗ ' + f.name + ' → opslaan mislukt'); continue; }
       const doc = uit[0];
@@ -14017,7 +14062,7 @@ async function impStart() {
       if (pdfId) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', doc.id); await supa.from('documenten').update({ vervangen_op: null }).eq('id', pdfId); }   // de PDF blijft de toonversie
       if (rij.k.voorstel) await supa.from('documenten').update({ meta: { voorstel: rij.k.voorstel } }).eq('id', doc.id).then(() => {}, () => {});
       rij.status = 'gedaan'; IMP.gedaanNu++;
-      _impLog((rij.k.sleutel ? '✓ ' : '? ') + f.name + ' → ' + (rij.k.sleutel ? rij.k.sleutel + ' (' + rij.k.hoe + ')' : 'los' + (rij.k.voorstel ? ' · lijkt op ' + rij.k.voorstel : '')) + ' · ' + n.soort.toUpperCase() + (pdfId ? ' · versie onder de PDF' : ''));
+      _impLog((rij.k.sleutel ? '✓ ' : '? ') + f.name + ' → ' + (rij.k.sleutel ? rij.k.sleutel + ' (' + rij.k.hoe + ')' : 'los' + (rij.k.voorstel ? ' · lijkt op ' + rij.k.voorstel : '')) + ' · ' + n.soort.toUpperCase() + (pdfId ? ' · versie onder de PDF' : ''));   // hoe: link · naam · naam-ruim · lijkt · email · telefoon · tekst
     } catch (e) { rij.status = 'fout'; rij.fout = String(e && e.message || e); _impLog('✗ ' + f.name + ' → ' + rij.fout); _meldStil('import document', e); }
     if (IMP.gedaanNu % 3 === 0) renderBeheerDocImport();
   }
@@ -14043,6 +14088,42 @@ function _impLosHtml() {
   const namen = crmKandLijst().slice(0, 6000).map(k => '<option value="' + escHtml(k.naam) + '">').join('');
   return '<div class="imp-los"><table><thead><tr><th>Bestand</th><th>Naam uit het bestand</th><th>Soort</th><th>Koppelen aan</th></tr></thead><tbody>' + rijen + '</tbody></table>' +
     (los.length > 200 ? '<div class="aik-stil">… en nog ' + (los.length - 200) + ' meer; koppel eerst deze, de lijst schuift op.</div>' : '') + '<datalist id="imp-kand-lijst">' + namen + '</datalist></div>';
+}
+// Achteraf (08-10): de losse documenten nog eens langs met de ruime regels, met hun tekst uit de database.
+async function impRuimKoppelen() {
+  if (!eisWijzig('crm') || !supa) return;
+  if (IMP && IMP.bezig) { btMeld('Wacht tot de import klaar of gepauzeerd is.', 'geel'); return; }
+  const los = _impLosLijst();
+  if (!los.length) { btMeld('Geen losse documenten.', 'geel'); return; }
+  const kand = crmKandLijst();
+  let gekoppeld = 0, voorstel = 0;
+  IMP = IMP || { rijen: [], bezig: false, pauze: false, klaar: true, log: [], start: Date.now(), gedaanNu: 0, stamIds: {} };
+  IMP.bezig = true; renderBeheerDocImport();
+  for (let i = 0; i < los.length; i += 40) {
+    const brok = los.slice(i, i + 40);
+    const { data, error } = await supa.from('documenten').select('id,tekst').in('id', brok.map(d => d.id));
+    if (error) { _meldStil('tekst ophalen voor koppelen', error); continue; }
+    const tekstVan = {}; (data || []).forEach(r => { tekstVan[r.id] = r.tekst || ''; });
+    for (const d of brok) {
+      const n = _impNaam(d.naam);
+      const r = _impRuimKoppel(n, tekstVan[d.id] || '', kand);
+      if (r.sleutel) {
+        const k = kand.find(x => x.sleutel === r.sleutel);
+        const { error: e2 } = await supa.from('documenten').update({ sleutel: r.sleutel }).eq('id', d.id);
+        if (e2) { _impLog('✗ ' + d.naam + ' → koppelen mislukt: ' + e2.message); continue; }
+        if (d.soort === 'cv' || d.soort === 'cr') await _docLinkZet(r.sleutel, d.soort, 'doc:' + d.id);
+        gekoppeld++; _impLog('✓ ' + d.naam + ' → ' + (k ? k.naam : r.sleutel) + ' (' + r.hoe + ')');
+      } else if (r.voorstel) {
+        await supa.from('documenten').update({ meta: { voorstel: r.voorstel } }).eq('id', d.id).then(() => {}, () => {});
+        voorstel++;
+      }
+    }
+    renderBeheerDocImport();
+  }
+  IMP.bezig = false;
+  await loadDocumenten();
+  btMeld(gekoppeld + ' documenten alsnog gekoppeld' + (voorstel ? ', ' + voorstel + ' met een voorstel' : '') + '.', 'groen');
+  renderBeheerDocImport();
 }
 async function docKoppel(id, naam) {
   if (!eisWijzig('crm') || !supa) return;
@@ -14084,7 +14165,8 @@ function renderBeheerDocImport() {
   main.innerHTML = `<div>${kop}
     <div style="padding:12px 20px 20px;font-size:.85rem;">
       <div class="aik-blok"><h4>Documenten importeren uit de CV-map</h4>${IMP ? '' : kies}${stand}</div>
-      <div class="aik-blok"><h4>Losse documenten <span class="aik-stil" style="font-weight:400;">— geen kandidaat met deze naam in het CRM; koppel ze hier, of maak de kandidaat aan (dan hangen ze er vanzelf aan)</span></h4>${_impLosHtml()}</div>
+      <div class="aik-blok"><h4>Losse documenten <span class="aik-stil" style="font-weight:400;">— geen kandidaat met deze naam in het CRM; koppel ze hier, of maak de kandidaat aan (dan hangen ze er vanzelf aan)</span>
+        <button class="kn hoofd k" style="margin-left:10px;" onclick="impRuimKoppelen()" title="Nog eens langs alle losse documenten met ruimere regels: achternaam + begin voornaam, één letter anders, en het e-mailadres, telefoonnummer of de naam in de tekst van het CV. Alleen éénduidige treffers worden gekoppeld.">Losse documenten ruimer koppelen</button></h4>${_impLosHtml()}</div>
     </div></div>`;
 }
 
@@ -32512,7 +32594,7 @@ async function docUpload(hoortBij, sleutel, files, soort, extra) {
     if (file.size > DOC_MAX_MB * 1024 * 1024) { btMeld(file.name + ' is groter dan ' + DOC_MAX_MB + ' MB en is overgeslagen.', 'rood'); continue; }
     DOC_BEZIG[k] = 'Bezig met ' + file.name + (lijst.length > 1 ? ' (' + (i + 1) + '/' + lijst.length + ')' : '') + ' — tekst lezen…';
     _docBlokBij(k);
-    const tekst = (await _docTekst(file)).slice(0, DOC_TEKST_MAX);
+    const tekst = extra.tekst != null ? String(extra.tekst).slice(0, DOC_TEKST_MAX) : (await _docTekst(file)).slice(0, DOC_TEKST_MAX);   // 08-10: de import leest de tekst al
     DOC_BEZIG[k] = 'Bezig met ' + file.name + ' — uploaden…'; _docBlokBij(k);
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
     const pad = hoortBij + '/' + _docPadVeilig(sleutel) + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
