@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1509 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1515 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11687,7 +11687,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1509';
+const APP_VERSIE = '20261008-1515';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14002,9 +14002,11 @@ function _impAlGedaan(bestand) {
   for (const k of Object.keys(DOC_CACHE)) { const l = DOC_CACHE[k]; if (Array.isArray(l) && l.some(d => d.bron === 'import' && (d.bron_pad === url || d.naam === bestand))) return true; }
   return false;
 }
-function impScan(files) {
+async function impScan(files) {
   const lijst = Array.from(files || []).filter(f => f && f.name && !/^\./.test(f.name) && !/\//.test(f.name));
   if (!lijst.length) { btMeld('Geen bestanden gevonden in die map.', 'geel'); return; }
+  // Eerst de documentenlijst binnen hebben (08-10): anders telt "al geïmporteerd" niets en gaat alles opnieuw.
+  if (typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) { btMeld('Even geduld: de documentenlijst wordt geladen…', 'geel'); await loadDocumenten(); }
   const kand = crmKandLijst();
   const rijen = lijst.map(f => { const n = _impNaam(f.name); const k = _impKoppel(n, kand); return { file: f, n, k, stam: _impStam(f.name), status: n.sjabloon ? 'sjabloon' : _impAlGedaan(f.name) ? 'gedaan' : 'wacht' }; });
   // Volgorde: PDF vóór Word van hetzelfde stuk (de Word wordt dan de oudere versie).
@@ -14033,6 +14035,7 @@ async function impStart() {
     const n = rij.n, f = rij.file;
     try {
       if (n.sjabloon) { rij.status = 'sjabloon'; continue; }
+      if (_impAlGedaan(f.name)) { rij.status = 'gedaan'; continue; }   // 08-10: nooit dubbel, ook niet na een herstart
       // Leeg bestand = OneDrive heeft het nog niet gedownload (alleen een plaatshouder). Niet uploaden; na vijf
       // achter elkaar stoppen met uitleg — anders gaan honderden bestanden "mislukt" (melding Toussaint 08-10).
       if (!f.size) {
@@ -14063,8 +14066,9 @@ async function impStart() {
       if (rij.k.voorstel) await supa.from('documenten').update({ meta: { voorstel: rij.k.voorstel } }).eq('id', doc.id).then(() => {}, () => {});
       rij.status = 'gedaan'; IMP.gedaanNu++;
       _impLog((rij.k.sleutel ? '✓ ' : '? ') + f.name + ' → ' + (rij.k.sleutel ? rij.k.sleutel + ' (' + rij.k.hoe + ')' : 'los' + (rij.k.voorstel ? ' · lijkt op ' + rij.k.voorstel : '')) + ' · ' + n.soort.toUpperCase() + (pdfId ? ' · versie onder de PDF' : ''));   // hoe: link · naam · naam-ruim · lijkt · email · telefoon · tekst
-    } catch (e) { rij.status = 'fout'; rij.fout = String(e && e.message || e); _impLog('✗ ' + f.name + ' → ' + rij.fout); _meldStil('import document', e); }
-    if (IMP.gedaanNu % 3 === 0) renderBeheerDocImport();
+    } catch (e) { rij.status = 'fout'; rij.fout = String(e && e.message || e); _impLog('✗ ' + f.name + ' → ' + rij.fout); _meldStil('import document', e); renderBeheerDocImport(); }
+    IMP.verwerkt = (IMP.verwerkt || 0) + 1;
+    if (IMP.verwerkt <= 10 || IMP.verwerkt % 3 === 0) renderBeheerDocImport();   // 08-10: de eerste tien altijd tonen (anders lijkt het stil te staan)
   }
   IMP.bezig = false;
   IMP.klaar = !IMP.rijen.some(x => x.status === 'wacht');
@@ -14160,7 +14164,7 @@ function renderBeheerDocImport() {
     <div class="aik-stil">${pct}% · ±${(perStuk / 1000).toFixed(1).replace('.', ',')} s per bestand · nog ±${rest} min
       ${IMP.bezig ? '<button class="kn k" style="margin-left:10px;" onclick="impPauze()">Pauzeren</button>' : (T.wacht ? '<button class="kn hoofd k" style="margin-left:10px;" onclick="impStart()">' + (T.gedaan ? 'Verder' : 'Start') + ' (' + _aiGetal(T.wacht) + ' te gaan)</button>' : '<b style="margin-left:10px;color:#25D366;">Klaar.</b>')}
       — je kunt dit tabblad niet sluiten tijdens de import; pauzeren en later de map opnieuw kiezen kan wel (wat er al staat wordt overgeslagen).</div>
-    <div class="imp-log">${escHtml(IMP.log.slice(0, 12).join('\n') || 'Nog niet gestart.')}</div>`;
+    <div class="imp-log">${escHtml(IMP.log.slice(0, 12).join('\n') || (IMP.bezig ? 'Bezig met het eerste bestand (tekst lezen kan bij een groot PDF een paar seconden duren)…' : 'Nog niet gestart.'))}</div>`;
   }
   main.innerHTML = `<div>${kop}
     <div style="padding:12px 20px 20px;font-size:.85rem;">
