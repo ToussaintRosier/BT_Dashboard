@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-1830 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-2154 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-1830';
+const APP_VERSIE = '20261009-2154';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14066,6 +14066,7 @@ const IMP_DOC_EXT = /\.(pdf|docx?|odt|rtf|txt)$/i;
 const IMP_LEES_WACHT = [1000, 3000, 8000];   // wachttijden tussen leespogingen (09-10)
 const IMP_NALOOP_RONDES = 2;                 // extra rondes over onleesbare bestanden na de hele lijst
 const IMP_NALOOP_PAUZE = 10000;
+const IMP_ADEMPAUZE = 250;                   // ms tussen twee bestanden (09-10): de database bij laten blijven
 // Soort fout bij het uploaden: 'sessie' (vernieuwen en opnieuw), 'netwerk' (wachten en opnieuw), 'anders' (één keer).
 function _impSoortFout(reden) {
   const r = String(reden || '');
@@ -14195,6 +14196,7 @@ async function impStart() {
     }
     IMP.verwerkt = (IMP.verwerkt || 0) + 1;
     if (IMP.verwerkt <= 10 || IMP.verwerkt % 3 === 0) renderBeheerDocImport();   // de eerste tien altijd tonen (anders lijkt het stil te staan)
+    if (uitkomst === 'gedaan') await deps.slaap(IMP_ADEMPAUZE);   // 09-10: adempauze voor de database
   }
   }
   IMP.bezig = false;
@@ -32926,7 +32928,7 @@ async function loadDocumenten() {
 }
 let DOC_BEZIG = {};            // 'kandidaat:<sleutel>' → tekst van de voortgang
 const DOC_MAX_MB = 25;
-const DOC_TEKST_MAX = 200000;  // tekens per document in de database
+const DOC_TEKST_MAX = 60000;   // tekens per document in de database (09-10: was 200.000 — lichter voor de zoekindex)
 const DOC_SOORTEN = {
   kandidaat:  [['cv', 'CV'], ['cr', 'CR'], ['overig', 'Overig']],
   bedrijf:    [['samenwerking', 'Samenwerking'], ['klant', 'Klantdossier'], ['overig', 'Overig']],
