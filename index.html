@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-1005 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-1011 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-1005';
+const APP_VERSIE = '20261009-1011';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14059,10 +14059,13 @@ function _bestandFoutTekst(e) {
 async function _impHeeftInhoud(f) {
   try { const b = await f.slice(0, 1).arrayBuffer(); return !!(b && b.byteLength); } catch (e) { return false; }
 }
-const IMP_ONLEESBAAR_UITLEG = 'ℹ Onleesbaar = de browser kreeg het bestand niet open (vaak: bestanden in een submap, of de OneDrive-map in Safari). De import gaat gewoon door. Wil je ze alsnog: kopieer de map CV naar je Bureaublad (⌘C/⌘V), kies hier die map en druk op Verder — of probeer het in Chrome. Wat al in de Cockpit staat wordt overgeslagen.';
+const IMP_ONLEESBAAR_UITLEG = 'ℹ Onleesbaar = Safari kreeg het bestand op dat moment niet open (OneDrive haalt het bij het eerste gebruik binnen). Ze zijn al in extra rondes opnieuw geprobeerd; druk op Verder voor nog een ronde. Blijft het hangen: kopieer de map CV naar je Bureaublad en kies die map, of gebruik Chrome. Wat al in de Cockpit staat wordt overgeslagen.';
 function _impLog(regel) { if (!IMP) return; IMP.log.unshift(regel); if (IMP.log.length > 60) IMP.log.length = 60; }
 // ── Import-motor v2 (09-10): elk bestand onafhankelijk, nooit stoppen om één bestand ─────────────────────────
 const IMP_DOC_EXT = /\.(pdf|docx?|odt|rtf|txt)$/i;
+const IMP_LEES_WACHT = [1000, 3000, 8000];   // wachttijden tussen leespogingen (09-10)
+const IMP_NALOOP_RONDES = 2;                 // extra rondes over onleesbare bestanden na de hele lijst
+const IMP_NALOOP_PAUZE = 10000;
 // Soort fout bij het uploaden: 'sessie' (vernieuwen en opnieuw), 'netwerk' (wachten en opnieuw), 'anders' (één keer).
 function _impSoortFout(reden) {
   const r = String(reden || '');
@@ -14089,12 +14092,15 @@ function _impDeps() {
 // Eén bestand. Uitkomst: 'gedaan' | 'onleesbaar' | 'netwerk' | 'sessie' | 'anders'. ctx = { kand, stamIds }.
 async function _impVerwerk(rij, deps, ctx) {
   const n = rij.n, f = rij.file;
-  // 1. Lezen, helemaal in het geheugen (twee pogingen). Wat hier lukt, komt ook aan: de upload leest niets meer van schijf.
+  // 1. Lezen, helemaal in het geheugen. Wat hier lukt, komt ook aan: de upload leest niets meer van schijf.
+  //    Vier pogingen met 1, 3 en 8 s ertussen (09-10): Safari leest een OneDrive-bestand bij het eerste gebruik vaak
+  //    even niet ("The I/O read operation failed") terwijl OneDrive het binnenhaalt; even later lukt het wel.
   let buf = null, leesFout = '';
-  for (let p = 0; p < 2 && !buf; p++) {
+  const wacht = IMP_LEES_WACHT;
+  for (let p = 0; p <= wacht.length && !buf; p++) {
     try { buf = await deps.lees(f); if (!buf || !buf.byteLength) { buf = null; leesFout = '0 bytes'; } }
     catch (e) { leesFout = String((e && e.message) || e || 'onbekend'); }
-    if (!buf && p === 0) await deps.slaap(300);
+    if (!buf && p < wacht.length) await deps.slaap(wacht[p]);
   }
   if (!buf) { rij.status = 'onleesbaar'; rij.fout = leesFout; deps.log('⚠ ' + f.name + ' → onleesbaar voor de browser (' + leesFout + ')'); return 'onleesbaar'; }
   const file = new File([buf], f.name, { type: f.type || '' });
@@ -14153,6 +14159,14 @@ async function impStart() {
   const ctx = { kand: IMP.kand || (IMP.kand = crmKandLijst()), stamIds: IMP.stamIds || (IMP.stamIds = {}) };
   const opRij = { verbinding: 0, zelfde: 0, reden: '' };
   renderBeheerDocImport();
+  for (let ronde = 0; ronde <= IMP_NALOOP_RONDES; ronde++) {
+  if (ronde > 0) {   // naloop (09-10): wat onleesbaar bleef nog eens proberen, na een adempauze
+    const nog = IMP.rijen.filter(x => x.status === 'onleesbaar');
+    if (!nog.length || IMP.pauze) break;
+    _impLog('↻ Ronde ' + (ronde + 1) + ': ' + _aiGetal(nog.length) + ' onleesbare bestanden nog eens proberen na ' + (IMP_NALOOP_PAUZE / 1000) + ' s…'); renderBeheerDocImport();
+    await deps.slaap(IMP_NALOOP_PAUZE);
+    nog.forEach(x => { x.status = 'wacht'; });
+  }
   for (const rij of IMP.rijen) {
     if (IMP.pauze) break;
     if (rij.status !== 'wacht') continue;
@@ -14175,6 +14189,7 @@ async function impStart() {
     }
     IMP.verwerkt = (IMP.verwerkt || 0) + 1;
     if (IMP.verwerkt <= 10 || IMP.verwerkt % 3 === 0) renderBeheerDocImport();   // de eerste tien altijd tonen (anders lijkt het stil te staan)
+  }
   }
   IMP.bezig = false;
   IMP.klaar = !IMP.rijen.some(x => x.status === 'wacht');
