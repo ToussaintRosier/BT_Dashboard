@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1515 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261008-1824 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2091,6 +2091,20 @@
   .imp-los table { width:100%; border-collapse:collapse; font-size:.8rem; } .imp-los td, .imp-los th { padding:5px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; }
   .imp-los input { background:var(--l0); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:6px; padding:3px 8px; font-size:.78rem; width:220px; }
   .imp-los .voorstel { color:#6ee7b7; cursor:pointer; text-decoration:underline; }
+  /* 08-10 avond: losse documenten in drie stappen */
+  .los-stap { margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.08); }
+  .los-stap h5 { margin:0 0 8px; font-size:.9rem; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .los-stap h5 .nr { display:inline-block; background:#F4CB3C; color:#253151; border-radius:50%; width:22px; height:22px; text-align:center; line-height:22px; font-weight:800; }
+  .los-stap h5 .knoppen { margin-left:auto; display:flex; gap:8px; }
+  .los-stap table { width:100%; border-collapse:collapse; font-size:.8rem; } .los-stap td, .los-stap th { padding:5px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; vertical-align:top; }
+  .los-stap th { color:#aeb8cf; font-weight:600; font-size:.75rem; }
+  .los-stap tr.uit td { color:#8f9bb8; }
+  .los-stap input[type=checkbox] { width:16px; height:16px; accent-color:#F4CB3C; }
+  .los-pil { display:inline-block; background:var(--l2); border-radius:6px; padding:1px 7px; font-size:.7rem; font-weight:700; margin-right:4px; color:#fff; }
+  .los-pil.cv { background:#2f6b4a; } .los-pil.cr { background:#2f5a8a; }
+  .los-stap .lijkt { color:#F4CB3C; } .los-stap .leeg { color:#8f9bb8; }
+  .los-stap details summary { cursor:pointer; color:#dfe5f3; margin:4px 0 8px; font-size:.8rem; }
+  .kn.rood { background:#7a2e2e; color:#fff; }
   .aik-maand { display:flex; gap:8px; align-items:center; margin:8px 0 4px; } .aik-maand b { min-width:130px; text-align:center; }
   .aik-stil { color:var(--tekst-gedempt); font-size:.78rem; }
   .kand-archief-tabel td { padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; color:#fff; background:transparent; }
@@ -11687,7 +11701,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1515';
+const APP_VERSIE = '20261008-1824';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14020,6 +14034,17 @@ function _impTel() {
   return { totaal: r.length, gedaan: tel('gedaan'), gekoppeld: r.filter(x => x.status === 'gedaan' && x.k.sleutel).length, los: r.filter(x => x.status === 'gedaan' && !x.k.sleutel).length, sjabloon: tel('sjabloon'), fout: tel('fout'), wacht: tel('wacht'),
            teKoppelen: r.filter(x => x.status === 'wacht' && x.k.sleutel).length, lijkt: r.filter(x => x.status === 'wacht' && x.k.hoe === 'lijkt').length, teLos: r.filter(x => x.status === 'wacht' && !x.k.sleutel).length };
 }
+// Chrome kan een OneDrive-bestand dat alleen in de cloud staat niet lezen ("The I/O read operation failed",
+// NotReadableError, of een lege inhoud). Eén uitleg voor alle schermen die een bestand inlezen.
+const BESTAND_CLOUD_TEKST = 'Dit bestand staat alleen in de cloud (OneDrive); de browser kan het niet lezen. Open het één keer, of zet het in Finder op "Altijd behouden op dit apparaat", en kies het daarna opnieuw.';
+function _bestandFoutTekst(e) {
+  const m = String((e && e.message) || e || '');
+  return /I\/O read operation|NotReadableError|could not be read|not readable|no content provided/i.test(m) ? BESTAND_CLOUD_TEKST : m;
+}
+// Heeft het bestand echt inhoud? Een OneDrive-bestand dat alleen in de cloud staat meldt wel een grootte, maar leest leeg.
+async function _impHeeftInhoud(f) {
+  try { const b = await f.slice(0, 1).arrayBuffer(); return !!(b && b.byteLength); } catch (e) { return false; }
+}
 function _impLog(regel) { if (!IMP) return; IMP.log.unshift(regel); if (IMP.log.length > 60) IMP.log.length = 60; }
 async function impStart() {
   if (!IMP || IMP.bezig) return;
@@ -14038,7 +14063,7 @@ async function impStart() {
       if (_impAlGedaan(f.name)) { rij.status = 'gedaan'; continue; }   // 08-10: nooit dubbel, ook niet na een herstart
       // Leeg bestand = OneDrive heeft het nog niet gedownload (alleen een plaatshouder). Niet uploaden; na vijf
       // achter elkaar stoppen met uitleg — anders gaan honderden bestanden "mislukt" (melding Toussaint 08-10).
-      if (!f.size) {
+      if (!f.size || !(await _impHeeftInhoud(f))) {   // 08-10 avond: ook grootte > 0 maar inhoud leeg (alleen in de cloud)
         rij.status = 'fout'; rij.fout = 'leeg (nog niet gedownload uit OneDrive)'; leegOpRij++;
         _impLog('⚠ ' + f.name + ' → leeg bestand: OneDrive heeft het nog niet gedownload');
         if (leegOpRij >= 5) { IMP.pauze = true; _impLog('⏸ Gestopt: vijf lege bestanden achter elkaar. Zet de map CV in OneDrive op "Altijd behouden op dit apparaat", wacht tot alle bestanden een groen vinkje hebben en druk dan op Verder — de lege worden dan opnieuw geprobeerd.'); btMeld('Import gepauzeerd: de bestanden zijn nog niet gedownload uit OneDrive. Zie het logboek.', 'geel'); break; }
@@ -14059,7 +14084,16 @@ async function impStart() {
       const pdfId = n.ext !== 'pdf' ? IMP.stamIds[rij.stam] : null;
       const extra = { bron: 'import', bronPad, versieVan: pdfId || null, stil: true, tekst: tekst };
       const uit = await docUpload('kandidaat', sleutel, [f], n.soort, extra);
-      if (!uit || !uit.length) { rij.status = 'fout'; rij.fout = 'opslaan mislukt'; _impLog('✗ ' + f.name + ' → opslaan mislukt'); continue; }
+      if (!uit || !uit.length) {
+        const reden = String(extra.fout || 'opslaan mislukt');
+        if (/no content provided/i.test(reden)) {   // Storage kreeg een lege inhoud: het bestand staat alleen in de cloud
+          rij.status = 'fout'; rij.fout = 'leeg (nog niet gedownload uit OneDrive)'; leegOpRij++;
+          _impLog('⚠ ' + f.name + ' → leeg bestand: OneDrive heeft het nog niet gedownload');
+          if (leegOpRij >= 5) { IMP.pauze = true; _impLog('⏸ Gestopt: vijf lege bestanden achter elkaar. Zet de map CV in OneDrive op "Altijd behouden op dit apparaat", wacht tot alle bestanden een groen vinkje hebben en druk dan op Verder.'); btMeld('Import gepauzeerd: de bestanden zijn nog niet gedownload uit OneDrive. Zie het logboek.', 'geel'); break; }
+          continue;
+        }
+        rij.status = 'fout'; rij.fout = 'opslaan mislukt: ' + reden; _impLog('✗ ' + f.name + ' → opslaan mislukt: ' + reden); continue;
+      }
       const doc = uit[0];
       if (n.ext === 'pdf') IMP.stamIds[rij.stam] = doc.id;
       if (pdfId) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', doc.id); await supa.from('documenten').update({ vervangen_op: null }).eq('id', pdfId); }   // de PDF blijft de toonversie
@@ -14077,18 +14111,204 @@ async function impStart() {
 }
 function impPauze() { if (IMP) { IMP.pauze = true; renderBeheerDocImport(); } }
 // Losse documenten (geen kandidaat met deze sleutel): koppelen aan een kandidaat.
+// ── Losse documenten in drie stappen (08-10 avond) ───────────────────────────────────────────────────────────
+let LOS = { vink: {}, gelezen: {}, bezig: false, pauze: false, log: [], klaar: 0, totaal: 0 };
+// Woorden die zeggen dat de "naam" uit het bestand geen persoonsnaam is.
+const LOS_RUIS = new Set(['cv', 'cvs', 'curriculum', 'vitae', 'resume', 'blanco', 'format', 'formulier', 'aanmeldformulier', 'lijst', 'aanwezigheidslijst', 'presentatie', 'stagiaire', 'stagiair', 'kopie', 'copy', 'nieuw', 'nieuwe', 'definitief', 'document', 'sjabloon', 'template', 'bijlage', 'projecten', 'versie', 'concept', 'onbekend', 'test', 'scan', 'voorbeeld', 'leeg', 'intake', 'checklist', 'overzicht', 'profiel', 'vacature', 'offerte', 'contract', 'factuur', 'planning', 'rapport', 'verslag', 'gespreksverslag', 'brief', 'motivatie', 'motivatiebrief', 'diploma', 'certificaat', 'vca', 'pdf', 'docx', 'doc']);
+function _losIsNaam(sleutel) {
+  const w = String(sleutel || '').trim().split(/\s+/).filter(Boolean);
+  if (w.length < 2 || w.length > 4) return false;
+  if (w.some(x => /\d/.test(x))) return false;
+  if (w.some(x => LOS_RUIS.has(x))) return false;
+  if (w.some(x => !/^[a-zà-öø-ÿ'’\-\.]+$/i.test(x))) return false;
+  return w.filter(x => x.length >= 2).length >= 2;
+}
+// De losse documenten per naam (sleutel) bij elkaar; de nieuwste CV en CR per groep.
+function _losGroepen() {
+  const per = {};
+  _impLosLijst().forEach(d => { (per[d.sleutel] = per[d.sleutel] || []).push(d); });
+  const kand = typeof crmKandLijst === 'function' ? crmKandLijst() : [];
+  return Object.keys(per).sort((a, b) => a.localeCompare(b, 'nl')).map(sl => {
+    const docs = per[sl].slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    const n = _impNaam(docs[0].naam);
+    const cv = docs.find(d => d.soort === 'cv') || null, cr = docs.find(d => d.soort === 'cr') || null;
+    const isNaam = _losIsNaam(sl);
+    let lijkt = null;
+    if (isNaam) { const r = _impRuimKoppel(n, '', kand); if (r.sleutel) lijkt = r.sleutel; else if (r.voorstel) lijkt = r.voorstel; }
+    const lk = lijkt ? kand.find(k => k.sleutel === lijkt) : null;
+    const voornaam = n.voornaam || sl.split(' ')[0], achternaam = n.achternaam || sl.split(' ').slice(1).join(' ');
+    return { sleutel: sl, voornaam, achternaam, naam: _crmNaamNet(voornaam) + ' ' + _crmNaamNet(achternaam, true), docs, cv, cr, isNaam, lijkt: lk ? lk.sleutel : null, lijktNaam: lk ? lk.naam : '', vink: LOS.vink[sl] !== false, gelezen: LOS.gelezen[sl] || null };
+  });
+}
+function losVink(sl, aan) { LOS.vink[sl] = !!aan; }
+function _losLog(regel) { LOS.log.unshift(regel); if (LOS.log.length > 60) LOS.log.length = 60; }
+function _losWaarom(sl) {
+  const w = String(sl || '').split(/\s+/).filter(Boolean);
+  if (w.some(x => /\d/.test(x))) return 'cijfers in de naam';
+  const r = w.find(x => LOS_RUIS.has(x)); if (r) return 'woord "' + r + '"';
+  if (w.length < 2) return 'één woord';
+  if (w.length > 4) return 'te veel woorden';
+  return 'geen persoonsnaam';
+}
+function _losVeldenTekst(v) {
+  if (!v) return '<span class="leeg">nog niet gelezen</span>';
+  const delen = [v.functie, v.woonplaats, v.telefoon, v.email].map((x, i) => x ? escHtml(x) : '<span class="leeg">geen ' + ['functie', 'woonplaats', 'telefoon', 'e-mail'][i] + '</span>');
+  return delen.join(' · ');
+}
+function _losBlokHtml() {
+  if (typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) return '<div class="aik-stil">Documenten worden nog geladen…</div>';
+  const G = _losGroepen();
+  if (!G.length) return '<div class="aik-stil">Geen losse documenten — alles hangt aan een kandidaat.</div>';
+  const docsTot = G.reduce((a, g) => a + g.docs.length, 0), cvTot = G.reduce((a, g) => a + g.docs.filter(d => d.soort === 'cv').length, 0);
+  const zonder = G.filter(g => !g.isNaam), namen = G.filter(g => g.isNaam);
+  const lijkt = namen.filter(g => g.lijkt), nieuw = namen.filter(g => !g.lijkt);
+  const zonderAan = zonder.filter(g => g.vink), aanAan = nieuw.filter(g => g.vink), kopAan = lijkt.filter(g => g.vink);
+  const teLezen = nieuw.filter(g => g.vink && g.cv && !g.gelezen).length;
+  const rest = G.filter(g => !g.vink);
+  const bezig = LOS.bezig;
+  const tegels = `<div class="aik-kaarten">
+    <div class="aik-kaart"><div class="n">${_aiGetal(docsTot)}</div><div class="t">losse documenten</div><div class="s">CV ${_aiGetal(cvTot)} · CR ${_aiGetal(docsTot - cvTot)}</div></div>
+    <div class="aik-kaart"><div class="n">${_aiGetal(zonder.length)}</div><div class="t">zonder naam</div><div class="s">sjablonen, lijsten, formulieren, cijfers</div></div>
+    <div class="aik-kaart"><div class="n">${_aiGetal(namen.length)}</div><div class="t">namen</div><div class="s">dubbele bestanden van één persoon samengevoegd</div></div>
+    <div class="aik-kaart"><div class="n">${_aiGetal(lijkt.length)}</div><div class="t">lijken op een bestaande kandidaat</div><div class="s">worden gekoppeld, niet aangemaakt</div></div>
+  </div>`;
+  const rijZonder = (g) => `<tr class="${g.vink ? '' : 'uit'}"><td><input type="checkbox" ${g.vink ? 'checked' : ''} onchange="losVink('${escApos(g.sleutel)}', this.checked)"></td><td>${g.docs.map(d => escHtml(d.naam)).join('<br>')}</td><td>${escHtml(g.sleutel)}</td><td>${escHtml(_losWaarom(g.sleutel))}</td></tr>`;
+  const stap1 = `<div class="los-stap"><h5><span class="nr">1</span>Zonder naam weghalen <span class="aik-stil" style="font-weight:400;">— de naam uit het bestand is geen persoonsnaam</span>
+      <span class="knoppen">${zonder.length ? `<button class="kn rood k" ${bezig ? 'disabled' : ''} onclick="losWeghalen()">${_aiGetal(zonderAan.reduce((a, g) => a + g.docs.length, 0))} documenten weghalen</button>` : ''}</span></h5>
+    ${zonder.length ? `<details><summary>Toon de ${_aiGetal(zonder.length)} (alles aangevinkt; vink uit wat moet blijven)</summary><table><thead><tr><th style="width:30px"></th><th>Bestand</th><th>Naam uit het bestand</th><th>Waarom</th></tr></thead><tbody>${zonder.slice(0, 300).map(rijZonder).join('')}</tbody></table>${zonder.length > 300 ? '<div class="aik-stil">… en nog ' + (zonder.length - 300) + ' meer.</div>' : ''}</details>
+    <div class="aik-stil">Weghalen = zacht verwijderd (verwijderd_op), zoals overal in de Cockpit; het bestand in OneDrive blijft staan. Alleen manager/beheer.</div>` : '<div class="aik-stil">Niets zonder naam.</div>'}</div>`;
+  const rijNaam = (g) => {
+    const pillen = (g.cv ? '<span class="los-pil cv">CV</span>' : '') + (g.cr ? '<span class="los-pil cr">CR</span>' : '') + (g.docs.length > (g.cv ? 1 : 0) + (g.cr ? 1 : 0) ? '<span class="los-pil">+' + (g.docs.length - (g.cv ? 1 : 0) - (g.cr ? 1 : 0)) + '</span>' : '');
+    const v = g.gelezen;
+    const vak = v ? crmVakgebiedVan(v.functie || '') : 'Onbekend', regio = v ? crmWoonregioVan(v.woonplaats || '') : 'Onbekend';
+    const wat = g.lijkt ? '<span class="lijkt">koppelen aan ' + escHtml(g.lijktNaam) + '</span> (geen dubbele kandidaat)' : !g.cv ? 'nieuwe kandidaat (alleen een CR, velden blijven leeg)' : 'nieuwe kandidaat, documenten hangen er vanzelf aan';
+    return `<tr class="${g.vink ? '' : 'uit'}"><td><input type="checkbox" ${g.vink ? 'checked' : ''} onchange="losVink('${escApos(g.sleutel)}', this.checked)"></td><td><b>${escHtml(g.naam)}</b>${g.lijkt ? ' <span class="lijkt">lijkt op ' + escHtml(g.lijktNaam) + '</span>' : ''}</td><td>${pillen}</td><td>${g.lijkt ? '—' : _losVeldenTekst(v)}</td><td>${g.lijkt ? '—' : (v ? escHtml(vak + ' · ' + regio) : '<span class="leeg">Onbekend · Onbekend</span>')}</td><td>${wat}</td></tr>`;
+  };
+  const voortgang = LOS.totaal ? `<div class="imp-balk"><i style="width:${Math.round(LOS.klaar / LOS.totaal * 100)}%"></i></div><div class="aik-stil">${_aiGetal(LOS.klaar)} / ${_aiGetal(LOS.totaal)}${bezig ? ' · <button class="kn k" onclick="LOS.pauze = true">Pauzeren</button> — je kunt dit tabblad niet sluiten zolang dit loopt' : ''}</div>` : '';
+  const log = LOS.log.length ? `<div class="imp-log">${escHtml(LOS.log.slice(0, 12).join('\n'))}</div>` : '';
+  const stap2 = `<div class="los-stap"><h5><span class="nr">2</span>Kandidaten aanmaken uit losse CV's <span class="aik-stil" style="font-weight:400;">— per naam één kandidaat; het CV wordt gelezen zoals in de invoerwizard</span>
+      <span class="knoppen">${teLezen ? `<button class="kn k" ${bezig ? 'disabled' : ''} onclick="losLezen()">Eerst CV's lezen (${_aiGetal(teLezen)} × ±1 ct)</button>` : ''}${(aanAan.length || kopAan.length) ? `<button class="kn hoofd k" ${bezig ? 'disabled' : ''} onclick="losAanmaken()">${_aiGetal(aanAan.length)} kandidaten aanmaken${kopAan.length ? ' · ' + _aiGetal(kopAan.length) + ' koppelen' : ''}</button>` : ''}</span></h5>
+    ${namen.length ? `<table><thead><tr><th style="width:30px"></th><th>Naam</th><th>Documenten</th><th>Uit het CV gelezen</th><th>Vakgebied · woonregio</th><th>Wat er gebeurt</th></tr></thead><tbody>${namen.slice(0, 400).map(rijNaam).join('')}</tbody></table>${namen.length > 400 ? '<div class="aik-stil">… en nog ' + (namen.length - 400) + ' meer; de lijst schuift op.</div>' : ''}` : '<div class="aik-stil">Geen namen meer over.</div>'}
+    ${voortgang}${log}
+    <div class="aik-stil" style="margin-top:6px;">Nieuwe kandidaten: bron "import", eigenaar = jij, vakgebied uit de functie en woonregio uit de woonplaats — lukt dat niet, dan "Onbekend" (zoals de wizard toestaat). CV-lezen gaat via dezelfde Edge-functie als de wizard (Haiku); de kosten komen in Beheer › AI-kosten.</div></div>`;
+  const stap3 = `<div class="los-stap"><h5><span class="nr">3</span>Wat overblijft, met de hand <span class="aik-stil" style="font-weight:400;">— alleen de uitgevinkte groepen</span></h5>${rest.length ? _impLosHtml(rest.reduce((a, g) => a.concat(g.docs), [])) : '<div class="aik-stil">Niets uitgevinkt — alles staat hierboven.</div>'}</div>`;
+  return tegels + stap1 + stap2 + stap3;
+}
+// Stap 1: zacht verwijderen van de aangevinkte groepen zonder naam.
+async function losWeghalen() {
+  if (!eisWijzig('crm') || !supa) return;
+  if (!(typeof isManagerLevel === 'function' && isManagerLevel())) { btMeld('Documenten weghalen kan alleen een manager.', 'geel'); return; }
+  if (LOS.bezig) return;
+  const docs = _losGroepen().filter(g => !g.isNaam && g.vink).reduce((a, g) => a.concat(g.docs), []);
+  if (!docs.length) { btMeld('Niets aangevinkt.', 'geel'); return; }
+  const ok = await btBevestig(_aiGetal(docs.length) + ' documenten zonder naam weghalen? Ze worden zacht verwijderd; het bestand in OneDrive blijft staan.', { knop: 'Weghalen' });
+  if (!ok) return;
+  LOS.bezig = true; renderBeheerDocImport();
+  let weg = 0;
+  for (let i = 0; i < docs.length; i += 50) {
+    const ids = docs.slice(i, i + 50).map(d => d.id);
+    _echoVanZelf('documenten');
+    const { error } = await supa.from('documenten').update({ verwijderd_op: new Date().toISOString() }).in('id', ids);
+    if (error) { _losLog('✗ weghalen mislukt: ' + error.message); continue; }
+    weg += ids.length;
+  }
+  LOS.bezig = false;
+  await loadDocumenten();
+  _losLog('✓ ' + _aiGetal(weg) + ' documenten zonder naam weggehaald');
+  btMeld(_aiGetal(weg) + ' documenten weggehaald.', 'groen');
+  renderBeheerDocImport();
+}
+// De tekst van een document uit de database (de lijst in het geheugen heeft hem niet).
+async function _losTekst(id) {
+  const { data, error } = await supa.from('documenten').select('tekst').eq('id', id).single();
+  if (error) { _meldStil('tekst ophalen', error); return ''; }
+  return String((data && data.tekst) || '');
+}
+// Velden uit het CV halen — dezelfde Edge-functie als de wizard (cv-lezen).
+async function _losLees(g) {
+  if (!g.cv) return null;
+  const tekst = await _losTekst(g.cv.id);
+  if (!tekst.trim()) { LOS.gelezen[g.sleutel] = { _leeg: true }; return LOS.gelezen[g.sleutel]; }
+  const sessie = (await supa.auth.getSession())?.data?.session;
+  const res = await fetch(SUPABASE_URL + '/functions/v1/cv-lezen', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessie?.access_token || '') }, body: JSON.stringify({ tekst: tekst.slice(0, 15000) }) });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || d.error) throw new Error(d.error || ('HTTP ' + res.status));
+  const v = {}; Object.keys(d.velden || {}).forEach(k => { v[k] = String(d.velden[k] || '').trim(); });
+  LOS.gelezen[g.sleutel] = v;
+  return v;
+}
+// Stap 2a: alle aangevinkte nieuwe namen met een CV lezen (zodat je ziet wat er ingevuld wordt vóór je aanmaakt).
+async function losLezen() {
+  if (!eisWijzig('crm') || !supa || LOS.bezig) return;
+  const G = _losGroepen().filter(g => g.isNaam && !g.lijkt && g.vink && g.cv && !g.gelezen);
+  if (!G.length) { btMeld('Alles is al gelezen.', 'geel'); return; }
+  LOS.bezig = true; LOS.pauze = false; LOS.klaar = 0; LOS.totaal = G.length; renderBeheerDocImport();
+  for (const g of G) {
+    if (LOS.pauze) break;
+    try { const v = await _losLees(g); _losLog((v && !v._leeg ? '✓ ' : '⚠ ') + g.naam + (v && !v._leeg ? ' → ' + [v.functie, v.woonplaats].filter(Boolean).join(' · ') : ' → geen tekst in het CV (scan?)')); }
+    catch (e) { _losLog('✗ ' + g.naam + ' → lezen mislukt: ' + String(e && e.message || e)); _meldStil('cv-lezen (los)', e); }
+    LOS.klaar++;
+    if (LOS.klaar <= 10 || LOS.klaar % 5 === 0) renderBeheerDocImport();
+  }
+  LOS.bezig = false; renderBeheerDocImport();
+}
+// Stap 2b: aanmaken (nieuw) of koppelen (lijkt op een bestaande kandidaat).
+async function losAanmaken() {
+  if (!eisWijzig('crm') || !supa || LOS.bezig) return;
+  const G = _losGroepen().filter(g => g.isNaam && g.vink);
+  if (!G.length) { btMeld('Niets aangevinkt.', 'geel'); return; }
+  const nieuw = G.filter(g => !g.lijkt).length, kop = G.length - nieuw;
+  const ok = await btBevestig(_aiGetal(nieuw) + ' kandidaten aanmaken' + (kop ? ' en ' + _aiGetal(kop) + ' koppelen aan een bestaande kandidaat' : '') + '? De CV\'s die nog niet gelezen zijn worden onderweg gelezen (±1 ct per CV).', { knop: 'Aanmaken' });
+  if (!ok) return;
+  LOS.bezig = true; LOS.pauze = false; LOS.klaar = 0; LOS.totaal = G.length; renderBeheerDocImport();
+  let gemaakt = 0, gekoppeld = 0;
+  for (const g of G) {
+    if (LOS.pauze) break;
+    try {
+      if (g.lijkt) {
+        // Koppelen: de documenten krijgen de sleutel van de bestaande kandidaat; cv/cr-link erbij.
+        const { error } = await supa.from('documenten').update({ sleutel: g.lijkt }).in('id', g.docs.map(d => d.id));
+        if (error) throw new Error(error.message);
+        if (g.cv) await _docLinkZet(g.lijkt, 'cv', 'doc:' + g.cv.id);
+        if (g.cr) await _docLinkZet(g.lijkt, 'cr', 'doc:' + g.cr.id);
+        gekoppeld++; _losLog('→ ' + g.naam + ' → gekoppeld aan ' + g.lijktNaam + ' (lijkt op)');
+      } else {
+        let v = g.gelezen;
+        if (!v && g.cv) { try { v = await _losLees(g); } catch (e) { _losLog('⚠ ' + g.naam + ' → CV lezen mislukt (' + String(e && e.message || e) + '); kandidaat zonder velden'); v = null; } }
+        v = v && !v._leeg ? v : {};
+        const voornaam = _crmNaamNet(g.voornaam), achternaam = _crmNaamNet(g.achternaam, true);
+        const rij = { voornaam, achternaam, naam: _crmNaamNet(voornaam + ' ' + achternaam), sleutel: g.sleutel,
+                      geboortedatum: v.geboortedatum || null, adres: v.adres || '', postcode: v.postcode || '', woonplaats: v.woonplaats || '', telefoon: v.telefoon || '', email: v.email || '', linkedin: v.linkedin || '', functie: v.functie || '',
+                      vakgebied: crmVakgebiedVan(v.functie || ''), woonregio: crmWoonregioVan(v.woonplaats || ''),
+                      cv_link: g.cv ? 'doc:' + g.cv.id : '', cr_link: g.cr ? 'doc:' + g.cr.id : '',
+                      bron: 'import', verwijderd_op: null, bron_bm: (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || null, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null };
+        _echoVanZelf('crm_kandidaten');
+        const { data, error } = await supa.from('crm_kandidaten').upsert(rij, { onConflict: 'sleutel' }).select().single();
+        if (error) throw new Error(error.message);
+        CRM_KANDIDATEN = (CRM_KANDIDATEN || []).filter(k => k.sleutel !== g.sleutel).concat([data]);
+        gemaakt++; _losLog('✓ ' + g.naam + ' → aangemaakt · ' + [g.cv ? 'CV' : '', g.cr ? 'CR' : ''].filter(Boolean).join(' + ') + ' gekoppeld · ' + rij.vakgebied + ' · ' + rij.woonregio + (Object.keys(v).length ? '' : ' (zonder velden)'));
+      }
+    } catch (e) { _losLog('✗ ' + g.naam + ' → mislukt: ' + String(e && e.message || e)); _meldStil('los aanmaken', e); }
+    LOS.klaar++;
+    if (LOS.klaar <= 10 || LOS.klaar % 5 === 0) renderBeheerDocImport();
+  }
+  LOS.bezig = false;
+  await loadDocumenten();
+  btMeld(_aiGetal(gemaakt) + ' kandidaten aangemaakt' + (gekoppeld ? ', ' + _aiGetal(gekoppeld) + ' gekoppeld' : '') + '.', 'groen');
+  renderBeheerDocImport();
+}
 function _impLosLijst() {
   const kand = new Set(crmKandLijst().filter(k => !(k.crm && k.crm.bron === 'verwijderd')).map(k => k.sleutel));
   const uit = [];
   Object.keys(DOC_CACHE).forEach(k => { const l = DOC_CACHE[k]; if (!Array.isArray(l)) return; l.forEach(d => { if (d.hoort_bij === 'kandidaat' && !d.vervangen_op && !kand.has(d.sleutel)) uit.push(d); }); });
   return uit.sort((a, b) => String(a.sleutel).localeCompare(String(b.sleutel), 'nl'));
 }
-function _impLosHtml() {
+function _impLosHtml(lijst) {
   if (typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) return '<div class="aik-stil">Documenten worden nog geladen…</div>';
-  const los = _impLosLijst();
+  const los = lijst || _impLosLijst();
   if (!los.length) return '<div class="aik-stil">Geen losse documenten — alles hangt aan een kandidaat.</div>';
   const rijen = los.slice(0, 200).map(d => { const vs = d.meta && d.meta.voorstel ? String(d.meta.voorstel) : ''; return '<tr><td>' + escHtml(d.naam) + '</td><td>' + escHtml(d.sleutel) + (vs ? '<br><span class="voorstel" title="Lijkt op deze kandidaat — klik om in te vullen" onclick="document.getElementById(\'imp-kop-' + d.id + '\').value=\'' + escApos(vs) + '\'">lijkt op ' + escHtml(vs) + '</span>' : '') + '</td><td>' + escHtml(String(d.soort || '').toUpperCase()) + '</td>' +
-    '<td><input type="text" id="imp-kop-' + d.id + '" placeholder="naam van de kandidaat in het CRM…" list="imp-kand-lijst"' + (vs ? ' value="' + escHtml(vs) + '"' : '') + '> <button type="button" class="kn hoofd k" onclick="docKoppel(' + d.id + ', document.getElementById(\'imp-kop-' + d.id + '\').value)">Koppelen</button></td></tr>'; }).join('');
+    '<td><input type="text" id="imp-kop-' + d.id + '" placeholder="naam van de kandidaat in het CRM…" list="imp-kand-lijst"' + (vs ? ' value="' + escHtml(vs) + '"' : '') + '> <button type="button" class="kn hoofd k" onclick="docKoppel(' + d.id + ', document.getElementById(\'imp-kop-' + d.id + '\').value)">Koppelen</button> <button type="button" class="kn k" onclick="docVerwijder(' + d.id + ').then(() => renderBeheerDocImport())" title="Zacht verwijderen">Weghalen</button></td></tr>'; }).join('');
   const namen = crmKandLijst().slice(0, 6000).map(k => '<option value="' + escHtml(k.naam) + '">').join('');
   return '<div class="imp-los"><table><thead><tr><th>Bestand</th><th>Naam uit het bestand</th><th>Soort</th><th>Koppelen aan</th></tr></thead><tbody>' + rijen + '</tbody></table>' +
     (los.length > 200 ? '<div class="aik-stil">… en nog ' + (los.length - 200) + ' meer; koppel eerst deze, de lijst schuift op.</div>' : '') + '<datalist id="imp-kand-lijst">' + namen + '</datalist></div>';
@@ -14169,8 +14389,8 @@ function renderBeheerDocImport() {
   main.innerHTML = `<div>${kop}
     <div style="padding:12px 20px 20px;font-size:.85rem;">
       <div class="aik-blok"><h4>Documenten importeren uit de CV-map</h4>${IMP ? '' : kies}${stand}</div>
-      <div class="aik-blok"><h4>Losse documenten <span class="aik-stil" style="font-weight:400;">— geen kandidaat met deze naam in het CRM; koppel ze hier, of maak de kandidaat aan (dan hangen ze er vanzelf aan)</span>
-        <button class="kn hoofd k" style="margin-left:10px;" onclick="impRuimKoppelen()" title="Nog eens langs alle losse documenten met ruimere regels: achternaam + begin voornaam, één letter anders, en het e-mailadres, telefoonnummer of de naam in de tekst van het CV. Alleen éénduidige treffers worden gekoppeld.">Losse documenten ruimer koppelen</button></h4>${_impLosHtml()}</div>
+      <div class="aik-blok"><h4>Losse documenten <span class="aik-stil" style="font-weight:400;">— geen kandidaat met deze naam in het CRM</span>
+        <button class="kn k" style="margin-left:10px;" onclick="impRuimKoppelen()" title="Nog eens langs alle losse documenten met ruimere regels: achternaam + begin voornaam, één letter anders, en het e-mailadres, telefoonnummer of de naam in de tekst van het CV. Alleen éénduidige treffers worden gekoppeld.">Eerst ruimer koppelen</button></h4>${_losBlokHtml()}</div>
     </div></div>`;
 }
 
@@ -28515,8 +28735,8 @@ function _kandGestartTekst(st) {
 function _kandDocLinks(naam) {
   const sl = _itkSleutel(naam || ''); if (!sl || !Array.isArray(CRM_KANDIDATEN)) return { cv: '', cr: '' };
   const r = CRM_KANDIDATEN.find(x => String(x.sleutel || _itkSleutel(x.naam)) === sl);
-  const net = (l) => { l = r ? String(l || '').trim() : ''; return l ? (/^https?:\/\//i.test(l) ? l : 'https://' + l) : ''; };
-  return { cv: net(r && r.cv_link), cr: net(r && r.cr_link) };
+  const net = (l) => { l = r ? String(l || '').trim() : ''; return !l ? '' : /^doc:\d+$/.test(l) ? l : (/^https?:\/\//i.test(l) ? l : 'https://' + l); };   // 08-10 avond: 'doc:<id>' = document in de Cockpit
+  return { cv: net(_kandDocLinkVan(r, 'cv')), cr: net(_kandDocLinkVan(r, 'cr')) };
 }
 function kandAutoFases(c) {
   const auto = new Map();
@@ -28573,7 +28793,7 @@ function _kandFaseBron(sleutel, c) {
   if (sleutel === 'vervolg') return { klik: "kandVervolgVenster('" + escApos(bm) + "','" + c.id + "')", doel: 'vervolgafspraak plannen of bekijken' };
   if (sleutel === 'cv') {
     const d = _kandDocLinks(c.naam);
-    if (d.cv && d.cr) return { klik: "window.open('" + escApos(d.cr) + "','_blank')", doel: 'het commercieel CV openen' };
+    if (d.cv && d.cr) { const dm = d.cr.match(/^doc:(\d+)$/); return { klik: dm ? 'docBekijk(' + dm[1] + ')' : "window.open('" + escApos(d.cr) + "','_blank')", doel: 'het commercieel CV openen' }; }   // 08-10 avond: document in de Cockpit
     // Nog niet compleet: de klik opent de NAW-kaart, daar hang je CV en CR aan het dossier.
     return { klik: "crmKaartSluit();crmKandOpen('" + escApos(_itkSleutel(c.naam || '')) + "')", doel: 'de Kandidaatkaart openen om CV en commercieel CV te koppelen' };
   }
@@ -31415,10 +31635,11 @@ function _bzLinks(b) {
     uit.push(kb ? { ico: '▦', label: 'Kanban · ' + fase, aan: true, klik: "kandKaartOpen('" + escApos(String(kb.door || '')) + "','" + escApos(String(kb.id)) + "')", titel: 'Kanban-kaartje openen' }
                 : { ico: '▦', label: 'Kanban', aan: false, klik: "selectTab('kanban')", titel: 'Nog geen Kanban-kaartje — naar het bord' });
     const k = _bzKandVind(b.kandidaat, b.kandidaatSleutel);
-    const doc = (url, lbl) => { const l = String(url || '').trim(); const href = l ? (/^https?:\/\//i.test(l) ? l : 'https://' + l) : '';
-      return href ? { ico: '📄', label: lbl, aan: true, href, titel: lbl + ' openen in een nieuw tabblad' }
+    const doc = (url, lbl) => { const l = String(url || '').trim(); const dm = l.match(/^doc:(\d+)$/); const href = l && !dm ? (/^https?:\/\//i.test(l) ? l : 'https://' + l) : '';
+      return dm ? { ico: '📄', label: lbl, aan: true, klik: 'docBekijk(' + dm[1] + ')', titel: lbl + ' openen' }   // 08-10 avond: document in de Cockpit
+           : href ? { ico: '📄', label: lbl, aan: true, href, titel: lbl + ' openen in een nieuw tabblad' }
                   : { ico: '📄', label: lbl, aan: false, klik: k ? "crmKandOpen('" + escApos(String(k.sleutel)) + "')" : '', titel: 'Geen ' + lbl + ' in het CRM' + (k ? ' — klik om de Kandidaatkaart te openen' : '') }; };
-    uit.push(doc((k && k.crm || {}).cv_link, 'CV')); uit.push(doc((k && k.crm || {}).cr_link, 'CR'));   // 29-09: de CRM-rij zit onder k.crm
+    uit.push(doc(_kandDocLinkVan(k && k.crm, 'cv'), 'CV')); uit.push(doc(_kandDocLinkVan(k && k.crm, 'cr'), 'CR'));   // 29-09: de CRM-rij zit onder k.crm
     uit.push(vervolg);
   } else if (b.soortBezoek === 'evaluatie') {
     const sl = b.medewerkerSleutel || _itkSleutel(b.medewerker || '');
@@ -32598,18 +32819,19 @@ async function docUpload(hoortBij, sleutel, files, soort, extra) {
     if (file.size > DOC_MAX_MB * 1024 * 1024) { btMeld(file.name + ' is groter dan ' + DOC_MAX_MB + ' MB en is overgeslagen.', 'rood'); continue; }
     DOC_BEZIG[k] = 'Bezig met ' + file.name + (lijst.length > 1 ? ' (' + (i + 1) + '/' + lijst.length + ')' : '') + ' — tekst lezen…';
     _docBlokBij(k);
+    if (!(await _impHeeftInhoud(file))) { extra.fout = 'No content provided (alleen in de cloud)'; if (!extra.stil) btMeld(file.name + ': ' + BESTAND_CLOUD_TEKST, 'rood'); continue; }   // 08-10 avond: cloud-only OneDrive-bestand
     const tekst = extra.tekst != null ? String(extra.tekst).slice(0, DOC_TEKST_MAX) : (await _docTekst(file)).slice(0, DOC_TEKST_MAX);   // 08-10: de import leest de tekst al
     DOC_BEZIG[k] = 'Bezig met ' + file.name + ' — uploaden…'; _docBlokBij(k);
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
     const pad = hoortBij + '/' + _docPadVeilig(sleutel) + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
     const up = await supa.storage.from('documenten').upload(pad, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-    if (up.error) { meldFout('document uploaden mislukt: ' + up.error.message, 'docUpload'); if (!extra.stil) btMeld('Uploaden van ' + file.name + ' mislukt: ' + up.error.message, 'rood'); continue; }
+    if (up.error) { extra.fout = up.error.message; meldFout('document uploaden mislukt: ' + up.error.message, 'docUpload'); if (!extra.stil) btMeld('Uploaden van ' + file.name + ' mislukt: ' + up.error.message, 'rood'); continue; }
     const rij = { hoort_bij: hoortBij, sleutel: String(sleutel), soort, naam: file.name, pad, type: file.type || null, grootte: file.size, tekst: tekst || null,
                   versie_van: extra.versieVan || null, bron: extra.bron || 'upload', bron_pad: extra.bronPad || null,
                   geupload_door: (CURRENT_USER && CURRENT_USER.id) || null, geupload_door_naam: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '') };
     _echoVanZelf('documenten');
     const { data, error } = await supa.from('documenten').insert(rij).select('id,hoort_bij,sleutel,soort,naam,pad,type,grootte,versie_van,vervangen_op,bron,bron_pad,vertrouwelijk,geupload_door_naam,created_at,verwijderd_op').single();
-    if (error) { meldFout('document opslaan mislukt: ' + error.message, 'docUpload'); if (!extra.stil) btMeld('Opslaan van ' + file.name + ' mislukt: ' + error.message, 'rood'); try { await supa.storage.from('documenten').remove([pad]); } catch (e2) { _meldStil('document opruimen na mislukte opslag', e2); } continue; }
+    if (error) { extra.fout = error.message; meldFout('document opslaan mislukt: ' + error.message, 'docUpload'); if (!extra.stil) btMeld('Opslaan van ' + file.name + ' mislukt: ' + error.message, 'rood'); try { await supa.storage.from('documenten').remove([pad]); } catch (e2) { _meldStil('document opruimen na mislukte opslag', e2); } continue; }
     if (extra.versieVan) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', extra.versieVan); }
     uit.push(data);
     // Een CV of CR op een kandidaat: de link op de CRM-rij wordt 'doc:<id>' — zo blijven to-do's, iconen en RLDV-knoppen kloppen.
@@ -32707,6 +32929,21 @@ async function docVerwijder(id) {
   _crmDossierHerteken();
 }
 
+// 08-10 avond: het CV/CR van een kandidaat — eerst het document in de Cockpit (nieuwste, niet vervangen), dan pas de
+// oude OneDrive-link. Eén plek, zodat CRM, Kandidaatkaart, RLDV-check, Overzicht bezoeken en Overzicht kandidaten
+// allemaal hetzelfde document openen.
+function _docVanKand(sleutel, soort) {
+  const l = typeof DOC_CACHE !== 'undefined' ? DOC_CACHE[_docSleutel('kandidaat', String(sleutel || ''))] : null;
+  if (!Array.isArray(l)) return null;
+  return l.filter(d => d.soort === soort && !d.verwijderd_op && !d.vervangen_op).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] || null;
+}
+function _kandDocLinkVan(r, soort) {
+  if (!r) return '';
+  const sl = String(r.sleutel || _itkSleutel(r.naam || ''));
+  const d = sl ? _docVanKand(sl, soort) : null;
+  if (d) return 'doc:' + d.id;
+  return String((soort === 'cv' ? r.cv_link : r.cr_link) || '').trim();
+}
 function _crmDocIcoon(link, label, kort) {
   const KORT = { cv: 'CV', cr: 'CR', swo: 'SWO', off: 'OFF' };
   const l = String(link || '').trim();
@@ -33089,7 +33326,7 @@ function renderCrmKandidatenHtml() {
   const gevonden = _crmSorteer(lijst.filter(k => _crmKandPast(k, st)), st, (k, col) =>
     col === 'naam' ? k.naam : col === 'woonplaats' ? k.woonplaats : col === 'functie' ? k.functie : col === 'email' ? ((k.crm || {}).email || '') : col === 'telefoon' ? ((k.crm || {}).telefoon || '')
     : col === 'woonregio' ? _crmWoonregio(k) : col === 'vakgebied' ? _crmVakgebied(k)
-    : col === 'docs' ? (((k.crm || {}).cv_link ? 1 : 0) + ((k.crm || {}).cr_link ? 1 : 0))
+    : col === 'docs' ? ((_kandDocLinkVan(k.crm, 'cv') ? 1 : 0) + (_kandDocLinkVan(k.crm, 'cr') ? 1 : 0))
     : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '') : '');
   const beperkt = !z && !st.alles && gevonden.length > CRM_TOON;
   const toon = beperkt ? gevonden.slice(0, CRM_TOON) : gevonden;
@@ -33108,7 +33345,7 @@ function renderCrmKandidatenHtml() {
       '<td class="d">' + _crmRegioPil(_crmWoonregio(k), true) + '</td>' +
       '<td class="d" title="' + escHtml(k.functie || '') + '">' + (k.functie ? _oneMarkeer(k.functie, z) : '<span class="stil">—</span>') + '</td>' +
       '<td class="d">' + _crmVakPil(_crmVakgebied(k)) + '</td>' +
-      '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td>' +
+      '<td class="d docs">' + _crmDocIcoon(_kandDocLinkVan(r, 'cv'), 'CV', 'cv') + _crmDocIcoon(_kandDocLinkVan(r, 'cr'), 'Commercieel CV', 'cr') + '</td>' +
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
   }).join('');
   // 28-09: vier standaardfilters erbij, met teller: GG-lijst · In procedure · In Kanban · Nieuw.
@@ -33267,6 +33504,7 @@ async function crmWizCvLezen(file) {
   _crmWizLees();
   W.docs = W.docs || [];
   W.cvBezig = 'CV lezen: ' + file.name + '…'; _crmWizToon();
+  if (!(await _impHeeftInhoud(file))) { W.cvBezig = ''; W.fout = file.name + ': ' + BESTAND_CLOUD_TEKST; _crmWizToon(); return; }   // 08-10 avond: alleen in de cloud
   const tekst = await _docTekst(file);
   let gevuld = 0, fout = '';
   if (!tekst) {
@@ -33538,7 +33776,7 @@ function kandKaartLeegHtml(sleutel) {
   const kop = '<span class="crm-dossier-sleutel" data-sleutel="' + escHtml(k.sleutel) + '" hidden></span>' +
     '<h4 class="wit">' + escHtml(k.naam) + '<span class="crm-pil' + (f.klasse ? ' ' + f.klasse : '') + '">' + escHtml(f.tekst) + '</span>' +
     (k.invoerder ? '<span class="crm-pil">' + escHtml(k.invoerder) + '</span>' : '') +
-    '<span class="kk-iks">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</span></h4>';
+    '<span class="kk-iks">' + _crmDocIcoon(_kandDocLinkVan(r, 'cv'), 'CV', 'cv') + _crmDocIcoon(_kandDocLinkVan(r, 'cr'), 'Commercieel CV', 'cr') + '</span></h4>';
   return kop + '<div class="crm-sub">Kandidaatkaart · nog niet in een pipeline</div>' +
     '<div class="crm-body"><div class="kk-2k"><div>' +
       '<div class="crm-kop">Verloop</div>' +
@@ -33589,7 +33827,7 @@ function crmKandDossierHtml(sleutel) {
     '<div class="kk-rij"><span>' + escHtml(label) + '</span>' + waarde + (extra || '') + '</div>';
   // Standaardvelden staan er altijd (aanwijzing 17-09): leeg is "—", zodat je ziet wat nog ontbreekt.
   const rijA = (label, waarde, extra) => rij(label, (waarde === '' || waarde === null || waarde === undefined) ? '<span class="stil">—</span>' : waarde, extra);
-  const iconen = '<span class="kk-iks">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</span>';
+  const iconen = '<span class="kk-iks">' + _crmDocIcoon(_kandDocLinkVan(r, 'cv'), 'CV', 'cv') + _crmDocIcoon(_kandDocLinkVan(r, 'cr'), 'Commercieel CV', 'cr') + '</span>';
   const kop = '<span class="crm-dossier-sleutel" data-sleutel="' + escHtml(k.sleutel) + '" hidden></span>' +
     '<h4 class="wit">' + escHtml(k.naam) + '<span class="crm-pil' + (f.klasse ? ' ' + f.klasse : '') + '">' + escHtml(f.tekst) + '</span>' +
     (k.invoerder ? '<span class="crm-pil" title="Collega van de intake">' + escHtml(k.invoerder) + '</span>' : '') +
@@ -34218,8 +34456,8 @@ function _crmSearchVoorwaarden() {
   if (z(S.tekst).length >= 3) { const f = (k) => CRM_DOC_HITS.q === z(S.tekst) && !!CRM_DOC_HITS.map[k.sleutel]; f._tekst = true; v.push(f); }   // altijd EN met de rest: zie crmSearchPast
   if (S.vak.length) v.push(k => S.vak.includes(_crmVakgebied(k)));
   if (S.regio.length) v.push(k => S.regio.includes(_crmWoonregio(k)));
-  if (S.cv) v.push(k => !!(k.crm || {}).cv_link);
-  if (S.cr) v.push(k => !!(k.crm || {}).cr_link);
+  if (S.cv) v.push(k => !!_kandDocLinkVan(k.crm, 'cv'));
+  if (S.cr) v.push(k => !!_kandDocLinkVan(k.crm, 'cr'));
   if (S.mail) v.push(k => !!(k.crm || {}).email);
   if (S.tel) v.push(k => !!(k.crm || {}).telefoon);
   return v;
@@ -34262,7 +34500,7 @@ function _crmSearchWaarde(k, col) {
   return col === 'naam' ? k.naam : col === 'functie' ? (k.functie || '') : col === 'vakgebied' ? _crmVakgebied(k)
     : col === 'woonregio' ? _crmWoonregio(k) : col === 'woonplaats' ? (k.woonplaats || '') : col === 'telefoon' ? (r.telefoon || '')
     : col === 'email' ? (r.email || '') : col === 'laatste' ? (k.laatsteMs > 0 ? -k.laatsteMs : '')
-    : col === 'docs' ? ((r.cv_link ? 1 : 0) + (r.cr_link ? 1 : 0))
+    : col === 'docs' ? ((_kandDocLinkVan(r, 'cv') ? 1 : 0) + (_kandDocLinkVan(r, 'cr') ? 1 : 0))
     : col === 'treffer' ? (CRM_DOC_HITS.map[k.sleutel] ? -(CRM_DOC_HITS.map[k.sleutel].rang || 0) : '') : '';   // 08-10: beste treffer eerst
 }
 function _crmSearchTreffers(lijst) {
@@ -34320,7 +34558,7 @@ function renderCrmSearchHtml() {
       '<td class="d">' + _crmTelCel(r.telefoon, '', k.naam) + '</td>' +
       '<td class="d" title="' + escHtml(r.email || '') + '">' + _crmMailCel(r.email, '') + '</td>' +
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td>' +
-      '<td class="d docs">' + _crmDocIcoon(r.cv_link, 'CV', 'cv') + _crmDocIcoon(r.cr_link, 'Commercieel CV', 'cr') + '</td></tr>';
+      '<td class="d docs">' + _crmDocIcoon(_kandDocLinkVan(r, 'cv'), 'CV', 'cv') + _crmDocIcoon(_kandDocLinkVan(r, 'cr'), 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
   const knop = (tekst, onclick, klasse) => '<button type="button" class="crm-knop ' + (klasse || '') + '" onclick="' + onclick + '">' + tekst + '</button>';
   return '<div><div class="person-header"><div class="person-name">CRM-Search' + btUitlegKnop('kandidaten') + '</div>' +
@@ -38128,7 +38366,7 @@ function _rldvDocsHtml(sel) {
              : '<span class="rldv-doc uit" title="Kandidaat staat niet in CRM · Kandidaten">📄 ' + escHtml(lbl) + '</span>';
   };
   return '<div class="rldv-docs" data-sel="' + escHtml(String((sel && sel.id) || '')) + '"><div class="rldv-doc-kop">Documenten' + (k ? '' : '<span class="rldv-uitg-bron">niet in CRM</span>') + '</div>' +
-    '<div class="rldv-doc-rij">' + knop((k && k.crm || {}).cv_link, 'CV') + knop((k && k.crm || {}).cr_link, 'CR') + '</div></div>';   // 29-09: de CRM-rij zit onder k.crm
+    '<div class="rldv-doc-rij">' + knop(_kandDocLinkVan(k && k.crm, 'cv'), 'CV') + knop(_kandDocLinkVan(k && k.crm, 'cr'), 'CR') + '</div></div>';   // 29-09: de CRM-rij zit onder k.crm · 08-10 avond: document in de Cockpit eerst
 }
 // Na een CRM-wijziging (28-09): elk open Documenten-vak (check, afvinkvenster) ter
 // plekke verversen en de kandidaatkaart opnieuw tekenen — zonder het venster te sluiten.
@@ -40026,7 +40264,7 @@ async function cvGenProcessFile(file) {
       ? `✅ CV ingelezen (${CV_GEN.extractedText.length} tekens). Controleer de tekst hieronder en klik daarna op "Genereer tekstsuggestie".`
       : '⚠️ Geen tekst gevonden in dit bestand — vul de tekst hieronder zelf in (bijv. plak de tekst uit het CV).';
   } catch (e) {
-    CV_GEN.statusMsg = `❌ Inlezen mislukt: ${escHtml(String(e?.message || e))}`;
+    CV_GEN.statusMsg = `❌ Inlezen mislukt: ${escHtml(_bestandFoutTekst(e))}`;   // 08-10 avond: cloud-only OneDrive-bestand herkend
   } finally {
     CV_GEN.busyExtract = false;
     render();
@@ -45451,7 +45689,7 @@ function _mmKandKies(naam) {
     if (regio) PLAATSING.regio = regio;
     const vak = typeof _crmVakgebied === 'function' ? _crmVakgebied(k) : '';
     if (vak && vak !== 'Onbekend') PLAATSING.vakgebied = vak;
-    PLAATSING.kandCv = (k.crm && (k.crm.cv_link || k.crm.cr_link)) || '';
+    PLAATSING.kandCv = _kandDocLinkVan(k.crm, 'cv') || _kandDocLinkVan(k.crm, 'cr') || '';
   }
   renderPlaatsing();
 }
@@ -45482,7 +45720,7 @@ function renderPlaatsing() {
     <div class="mm-prof">
       <div class="mm-lbl">Kandidaat uit het CRM <span>optioneel · vult het profiel</span></div>
       ${_kiezerHtml({ lijst: () => crmKandLijst().map(k => ({ naam: k.naam, sub: k.functie || '' })), waarde: p.kandNaam, placeholder: 'typ de naam van de kandidaat…', nieuw: false, kies: '_mmKandKies(this.value)', leeg: 'Geen kandidaat gevonden' })}
-      ${p.kandCv ? `<div class="mm-hint"><a href="${escHtml(p.kandCv)}" target="_blank" rel="noopener">CV uit het CRM openen ›</a> — plak de tekst in het CV-vak voor een betere match</div>` : ''}
+      ${p.kandCv ? `<div class="mm-hint">${/^doc:\d+$/.test(p.kandCv) ? `<a href="#" onclick="event.preventDefault();docBekijk(${p.kandCv.slice(4)})">CV uit het CRM openen ›</a>` : `<a href="${escHtml(p.kandCv)}" target="_blank" rel="noopener">CV uit het CRM openen ›</a>`} — plak de tekst in het CV-vak voor een betere match</div>` : ''}
 
       <div class="mm-lbl">Gewenste functietitel(s) <b>*</b></div>
       ${p.functietitels.map((t, i) => `
@@ -45570,7 +45808,7 @@ async function plaatsingProcessFile(file) {
     PLAATSING.cvTekst = text.trim();
     if (!PLAATSING.cvTekst) PLAATSING.statusMsg = '⚠️ Geen tekst gevonden in dit bestand — vul zelf tekst in.';
   } catch (e) {
-    PLAATSING.statusMsg = `❌ CV inlezen mislukt: ${escHtml(String(e?.message || e))}`;
+    PLAATSING.statusMsg = `❌ CV inlezen mislukt: ${escHtml(_bestandFoutTekst(e))}`;   // 08-10 avond: cloud-only OneDrive-bestand herkend
   } finally {
     PLAATSING.cvBusyExtract = false;
     renderPlaatsing();
