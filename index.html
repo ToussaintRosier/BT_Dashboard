@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-0954 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-1005 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-0954';
+const APP_VERSIE = '20261009-1005';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14036,7 +14036,7 @@ async function impScan(files) {
   // Eerst de documentenlijst binnen hebben (08-10): anders telt "al geïmporteerd" niets en gaat alles opnieuw.
   if (typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) { btMeld('Even geduld: de documentenlijst wordt geladen…', 'geel'); await loadDocumenten(); }
   const kand = crmKandLijst();
-  const rijen = lijst.map(f => { const n = _impNaam(f.name); const k = _impKoppel(n, kand); return { file: f, n, k, stam: _impStam(f.name), status: n.sjabloon ? 'sjabloon' : _impAlGedaan(f.name) ? 'gedaan' : 'wacht' }; });
+  const rijen = lijst.map(f => { const n = _impNaam(f.name); const k = _impKoppel(n, kand); return { file: f, n, k, stam: _impStam(f.name), status: !IMP_DOC_EXT.test(f.name) ? 'overig' : n.sjabloon ? 'sjabloon' : _impAlGedaan(f.name) ? 'gedaan' : 'wacht' }; });   // 09-10: geen document (afbeelding, html, tmp) → overig
   // Volgorde: PDF vóór Word van hetzelfde stuk (de Word wordt dan de oudere versie).
   rijen.sort((a, b) => a.stam === b.stam ? ((a.n.ext === 'pdf' ? 0 : 1) - (b.n.ext === 'pdf' ? 0 : 1)) : a.file.name.localeCompare(b.file.name, 'nl'));
   IMP = { rijen, bezig: false, pauze: false, klaar: false, log: [], start: 0, gedaanNu: 0, stamIds: {} };
@@ -14045,7 +14045,7 @@ async function impScan(files) {
 function _impTel() {
   const r = (IMP && IMP.rijen) || [];
   const tel = (st) => r.filter(x => x.status === st).length;
-  return { totaal: r.length, gedaan: tel('gedaan'), gekoppeld: r.filter(x => x.status === 'gedaan' && x.k.sleutel).length, los: r.filter(x => x.status === 'gedaan' && !x.k.sleutel).length, sjabloon: tel('sjabloon'), fout: tel('fout'), wacht: tel('wacht'),
+  return { totaal: r.length, gedaan: tel('gedaan'), gekoppeld: r.filter(x => x.status === 'gedaan' && x.k.sleutel).length, los: r.filter(x => x.status === 'gedaan' && !x.k.sleutel).length, sjabloon: tel('sjabloon'), overig: tel('overig'), onleesbaar: tel('onleesbaar'), fout: tel('fout'), wacht: tel('wacht'),
            teKoppelen: r.filter(x => x.status === 'wacht' && x.k.sleutel).length, lijkt: r.filter(x => x.status === 'wacht' && x.k.hoe === 'lijkt').length, teLos: r.filter(x => x.status === 'wacht' && !x.k.sleutel).length };
 }
 // Chrome kan een OneDrive-bestand dat alleen in de cloud staat niet lezen ("The I/O read operation failed",
@@ -14059,70 +14059,127 @@ function _bestandFoutTekst(e) {
 async function _impHeeftInhoud(f) {
   try { const b = await f.slice(0, 1).arrayBuffer(); return !!(b && b.byteLength); } catch (e) { return false; }
 }
-const IMP_ONLEESBAAR_UITLEG = '⏸ Gestopt: vijf onleesbare bestanden achter elkaar. De browser mag bestanden in de OneDrive-map niet lezen (vooral Safari). Doe dit: Finder → map CV → kopieer hem naar je Bureaublad (slepen met ⌥ ingedrukt, of ⌘C/⌘V) → kies hier díe map → Start. Wat al in de Cockpit staat wordt overgeslagen. Of gebruik Chrome met de OneDrive-map.';
+const IMP_ONLEESBAAR_UITLEG = 'ℹ Onleesbaar = de browser kreeg het bestand niet open (vaak: bestanden in een submap, of de OneDrive-map in Safari). De import gaat gewoon door. Wil je ze alsnog: kopieer de map CV naar je Bureaublad (⌘C/⌘V), kies hier die map en druk op Verder — of probeer het in Chrome. Wat al in de Cockpit staat wordt overgeslagen.';
 function _impLog(regel) { if (!IMP) return; IMP.log.unshift(regel); if (IMP.log.length > 60) IMP.log.length = 60; }
+// ── Import-motor v2 (09-10): elk bestand onafhankelijk, nooit stoppen om één bestand ─────────────────────────
+const IMP_DOC_EXT = /\.(pdf|docx?|odt|rtf|txt)$/i;
+// Soort fout bij het uploaden: 'sessie' (vernieuwen en opnieuw), 'netwerk' (wachten en opnieuw), 'anders' (één keer).
+function _impSoortFout(reden) {
+  const r = String(reden || '');
+  if (/jwt|401|not authenticated|token|expired|invalid claim/i.test(r)) return 'sessie';
+  if (/failed to fetch|load failed|network|timeout|timed out|\b50[0-4]\b|\b429\b|socket|econn|abort/i.test(r)) return 'netwerk';
+  return 'anders';
+}
+// De echte afhankelijkheden van de motor; de test geeft nagemaakte mee.
+function _impDeps() {
+  if (!magWijzigen('crm')) return null;
+  return {
+    lees: (f) => f.arrayBuffer(),
+    tekst: (naam, buf, type) => _docTekst(new File([buf], naam, { type: type || '' })),
+    upload: async (rij, file, extra) => { const uit = await docUpload('kandidaat', rij.sleutel, [file], rij.n.soort, extra); return { uit: uit || [], fout: extra.fout || '' }; },
+    vernieuwSessie: async () => { try { await supa.auth.refreshSession(); } catch (e) { _meldStil('sessie vernieuwen', e); } },
+    slaap: (ms) => new Promise(r => setTimeout(r, ms)),
+    log: _impLog,
+    na: async (rij, doc, pdfId) => {
+      if (pdfId) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', doc.id); await supa.from('documenten').update({ vervangen_op: null }).eq('id', pdfId); }   // de PDF blijft de toonversie
+      if (rij.k.voorstel) await supa.from('documenten').update({ meta: { voorstel: rij.k.voorstel } }).eq('id', doc.id).then(() => {}, () => {});
+    },
+  };
+}
+// Eén bestand. Uitkomst: 'gedaan' | 'onleesbaar' | 'netwerk' | 'sessie' | 'anders'. ctx = { kand, stamIds }.
+async function _impVerwerk(rij, deps, ctx) {
+  const n = rij.n, f = rij.file;
+  // 1. Lezen, helemaal in het geheugen (twee pogingen). Wat hier lukt, komt ook aan: de upload leest niets meer van schijf.
+  let buf = null, leesFout = '';
+  for (let p = 0; p < 2 && !buf; p++) {
+    try { buf = await deps.lees(f); if (!buf || !buf.byteLength) { buf = null; leesFout = '0 bytes'; } }
+    catch (e) { leesFout = String((e && e.message) || e || 'onbekend'); }
+    if (!buf && p === 0) await deps.slaap(300);
+  }
+  if (!buf) { rij.status = 'onleesbaar'; rij.fout = leesFout; deps.log('⚠ ' + f.name + ' → onleesbaar voor de browser (' + leesFout + ')'); return 'onleesbaar'; }
+  const file = new File([buf], f.name, { type: f.type || '' });
+  // 2. Tekst (één keer): voor de koppeling via de inhoud én voor de database.
+  let tekst = '';
+  try { tekst = String((await deps.tekst(f.name, buf, f.type)) || ''); } catch (e) { tekst = ''; }
+  tekst = tekst.replace(/\u0000/g, '').slice(0, DOC_TEKST_MAX);
+  if (!rij.k.sleutel) {
+    const ruim = _impRuimKoppel(n, tekst, ctx.kand);
+    if (ruim.sleutel) { rij.k.sleutel = ruim.sleutel; rij.k.hoe = ruim.hoe; }
+    else if (ruim.voorstel && !rij.k.voorstel) rij.k.voorstel = ruim.voorstel;
+  }
+  rij.sleutel = rij.k.sleutel || rij.k.losSleutel;
+  const bronPad = IMP_BASIS + encodeURIComponent(f.name);
+  const pdfId = n.ext !== 'pdf' ? ctx.stamIds[rij.stam] : null;   // Word van een stuk waarvan de PDF er al is: oudere versie
+  // 3. Uploaden met herkansing.
+  let uit = null, fout = '', soort = '';
+  for (let p = 0; p < 4; p++) {
+    const extra = { bron: 'import', bronPad, versieVan: pdfId || null, stil: true, tekst };
+    const r = await deps.upload(rij, file, extra);
+    if (r && r.uit && r.uit.length) { uit = r.uit; fout = ''; break; }
+    fout = (r && r.fout) || 'opslaan mislukt (geen reden)'; soort = _impSoortFout(fout);
+    if (soort === 'sessie') { await deps.vernieuwSessie(); continue; }
+    if (soort === 'netwerk') { await deps.slaap(1000 * Math.pow(2, p)); continue; }
+    break;
+  }
+  if (!uit) {
+    rij.status = 'fout'; rij.fout = fout; rij.soortFout = soort;
+    deps.log('✗ ' + f.name + ' → ' + (soort === 'netwerk' ? 'geen verbinding: ' : soort === 'sessie' ? 'sessie verlopen: ' : 'opslaan mislukt: ') + fout);
+    return soort;
+  }
+  const doc = uit[0];
+  if (n.ext === 'pdf') ctx.stamIds[rij.stam] = doc.id;
+  try { await deps.na(rij, doc, pdfId); } catch (e) { deps.log('⚠ ' + f.name + ' → opgeslagen, maar versie/voorstel bijwerken mislukte: ' + String((e && e.message) || e)); }
+  rij.status = 'gedaan';
+  deps.log((rij.k.sleutel ? '✓ ' : '? ') + f.name + ' → ' + (rij.k.sleutel ? rij.k.sleutel + ' (' + rij.k.hoe + ')' : 'los' + (rij.k.voorstel ? ' · lijkt op ' + rij.k.voorstel : '')) + ' · ' + n.soort.toUpperCase() + (pdfId ? ' · versie onder de PDF' : ''));   // hoe: link · naam · naam-ruim · lijkt · email · telefoon · tekst
+  return 'gedaan';
+}
+// Samenvatting aan het einde (of bij een pauze).
+function _impSamenvatting() {
+  const T = _impTel();
+  const redenen = {};
+  (IMP.rijen || []).filter(x => x.status === 'fout').forEach(x => { const r = String(x.fout || '?').slice(0, 80); redenen[r] = (redenen[r] || 0) + 1; });
+  const top = Object.entries(redenen).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([r, n]) => n + '× ' + r).join(' · ');
+  let regel = '■ Stand: ' + _aiGetal(T.gedaan) + ' geïmporteerd (' + _aiGetal(T.gekoppeld) + ' gekoppeld, ' + _aiGetal(T.los) + ' los) · ' + _aiGetal(T.onleesbaar) + ' onleesbaar · ' + _aiGetal(T.fout) + ' mislukt · ' + _aiGetal(T.wacht) + ' te gaan' + (top ? ' — redenen: ' + top : '');
+  if (T.onleesbaar) regel += '\n' + IMP_ONLEESBAAR_UITLEG;
+  return regel;
+}
 async function impStart() {
   if (!IMP || IMP.bezig) return;
   if (!eisWijzig('crm')) return;
   if (!supa) { btMeld('Importeren kan alleen met de database.', 'geel'); return; }
   IMP.bezig = true; IMP.pauze = false; IMP.start = Date.now(); IMP.gedaanNu = 0;
-  IMP.rijen.forEach(r => { if (r.status === 'fout') r.status = 'wacht'; });   // 08-10: mislukte bestanden opnieuw proberen bij Verder
-  let leegOpRij = 0;
+  IMP.rijen.forEach(r => { if (r.status === 'fout' || r.status === 'onleesbaar') r.status = 'wacht'; });   // bij Verder alles wat niet lukte opnieuw
+  const deps = _impDeps(); if (!deps) { IMP.bezig = false; return; }
+  const ctx = { kand: IMP.kand || (IMP.kand = crmKandLijst()), stamIds: IMP.stamIds || (IMP.stamIds = {}) };
+  const opRij = { verbinding: 0, zelfde: 0, reden: '' };
   renderBeheerDocImport();
   for (const rij of IMP.rijen) {
     if (IMP.pauze) break;
     if (rij.status !== 'wacht') continue;
-    const n = rij.n, f = rij.file;
+    const f = rij.file;
+    let uitkomst = 'anders';
     try {
-      if (n.sjabloon) { rij.status = 'sjabloon'; continue; }
-      if (_impAlGedaan(f.name)) { rij.status = 'gedaan'; continue; }   // 08-10: nooit dubbel, ook niet na een herstart
-      // Leeg bestand = OneDrive heeft het nog niet gedownload (alleen een plaatshouder). Niet uploaden; na vijf
-      // achter elkaar stoppen met uitleg — anders gaan honderden bestanden "mislukt" (melding Toussaint 08-10).
-      if (!f.size || !(await _impHeeftInhoud(f))) {   // 08-10 avond: ook grootte > 0 maar inhoud leeg (alleen in de cloud)
-        rij.status = 'fout'; rij.fout = 'onleesbaar voor de browser (OneDrive-map)'; leegOpRij++;
-        _impLog('⚠ ' + f.name + ' → de browser kan dit bestand niet lezen');
-        if (leegOpRij >= 5) { IMP.pauze = true; _impLog(IMP_ONLEESBAAR_UITLEG); btMeld('Import gepauzeerd: de browser kan de bestanden in de OneDrive-map niet lezen. Zie het logboek.', 'geel'); break; }
-        continue;
-      }
-      leegOpRij = 0;
+      if (rij.n.sjabloon) { rij.status = 'sjabloon'; continue; }
+      if (_impAlGedaan(f.name)) { rij.status = 'gedaan'; continue; }   // nooit dubbel, ook niet na een herstart
       if (f.size > DOC_MAX_MB * 1024 * 1024) { rij.status = 'fout'; rij.fout = 'groter dan ' + DOC_MAX_MB + ' MB'; _impLog('⚠ ' + f.name + ' → te groot, overgeslagen'); continue; }
-      // Tekst hier al lezen (één keer): voor de koppeling via de inhoud én voor de database.
-      const tekst = (await _docTekst(f)).slice(0, DOC_TEKST_MAX);
-      if (!rij.k.sleutel) {
-        const ruim = _impRuimKoppel(n, tekst, IMP.kand || (IMP.kand = crmKandLijst()));
-        if (ruim.sleutel) { rij.k.sleutel = ruim.sleutel; rij.k.hoe = ruim.hoe; }
-        else if (ruim.voorstel && !rij.k.voorstel) rij.k.voorstel = ruim.voorstel;
-      }
-      const sleutel = rij.k.sleutel || rij.k.losSleutel;
-      const bronPad = IMP_BASIS + encodeURIComponent(f.name);
-      // Word van een stuk waarvan de PDF al geïmporteerd is: als oudere versie eronder hangen.
-      const pdfId = n.ext !== 'pdf' ? IMP.stamIds[rij.stam] : null;
-      const extra = { bron: 'import', bronPad, versieVan: pdfId || null, stil: true, tekst: tekst };
-      const uit = await docUpload('kandidaat', sleutel, [f], n.soort, extra);
-      if (!uit || !uit.length) {
-        const reden = String(extra.fout || 'opslaan mislukt');
-        if (/no content provided/i.test(reden)) {   // Storage kreeg een lege inhoud: het bestand staat alleen in de cloud
-          rij.status = 'fout'; rij.fout = 'onleesbaar voor de browser (OneDrive-map)'; leegOpRij++;
-          _impLog('⚠ ' + f.name + ' → de browser kan dit bestand niet lezen');
-          if (leegOpRij >= 5) { IMP.pauze = true; _impLog(IMP_ONLEESBAAR_UITLEG); btMeld('Import gepauzeerd: de browser kan de bestanden in de OneDrive-map niet lezen. Zie het logboek.', 'geel'); break; }
-          continue;
-        }
-        rij.status = 'fout'; rij.fout = 'opslaan mislukt: ' + reden; _impLog('✗ ' + f.name + ' → opslaan mislukt: ' + reden); continue;
-      }
-      const doc = uit[0];
-      if (n.ext === 'pdf') IMP.stamIds[rij.stam] = doc.id;
-      if (pdfId) { await supa.from('documenten').update({ vervangen_op: new Date().toISOString() }).eq('id', doc.id); await supa.from('documenten').update({ vervangen_op: null }).eq('id', pdfId); }   // de PDF blijft de toonversie
-      if (rij.k.voorstel) await supa.from('documenten').update({ meta: { voorstel: rij.k.voorstel } }).eq('id', doc.id).then(() => {}, () => {});
-      rij.status = 'gedaan'; IMP.gedaanNu++;
-      _impLog((rij.k.sleutel ? '✓ ' : '? ') + f.name + ' → ' + (rij.k.sleutel ? rij.k.sleutel + ' (' + rij.k.hoe + ')' : 'los' + (rij.k.voorstel ? ' · lijkt op ' + rij.k.voorstel : '')) + ' · ' + n.soort.toUpperCase() + (pdfId ? ' · versie onder de PDF' : ''));   // hoe: link · naam · naam-ruim · lijkt · email · telefoon · tekst
-    } catch (e) { rij.status = 'fout'; rij.fout = String(e && e.message || e); _impLog('✗ ' + f.name + ' → ' + rij.fout); _meldStil('import document', e); renderBeheerDocImport(); }
+      uitkomst = await _impVerwerk(rij, deps, ctx);
+      if (uitkomst === 'gedaan') IMP.gedaanNu++;
+    } catch (e) { rij.status = 'fout'; rij.fout = String((e && e.message) || e); _impLog('✗ ' + f.name + ' → ' + rij.fout); _meldStil('import document', e); }
+    // Stoppen alleen als níéts meer lukt — nooit om een bestand dat de browser niet kan lezen.
+    if (uitkomst === 'gedaan' || uitkomst === 'onleesbaar') { opRij.verbinding = 0; opRij.zelfde = 0; }
+    else if (uitkomst === 'netwerk' || uitkomst === 'sessie') {
+      if (++opRij.verbinding >= 5) { IMP.pauze = true; _impLog('⏸ Gestopt: vijf keer achter elkaar geen verbinding of een verlopen sessie. Controleer je internet, ververs zo nodig de pagina en druk op Verder — alles wat niet lukte wordt opnieuw geprobeerd.'); btMeld('Import gepauzeerd: geen verbinding. Zie het logboek.', 'geel'); }
+    } else {
+      if (rij.fout === opRij.reden) opRij.zelfde++; else { opRij.zelfde = 1; opRij.reden = rij.fout; }
+      if (opRij.zelfde >= 20) { IMP.pauze = true; _impLog('⏸ Gestopt: twintig keer achter elkaar dezelfde fout: "' + opRij.reden + '". Dat zit in de database of de rechten, niet in de bestanden — stuur deze regel door.'); btMeld('Import gepauzeerd: steeds dezelfde fout. Zie het logboek.', 'geel'); }
+    }
     IMP.verwerkt = (IMP.verwerkt || 0) + 1;
-    if (IMP.verwerkt <= 10 || IMP.verwerkt % 3 === 0) renderBeheerDocImport();   // 08-10: de eerste tien altijd tonen (anders lijkt het stil te staan)
+    if (IMP.verwerkt <= 10 || IMP.verwerkt % 3 === 0) renderBeheerDocImport();   // de eerste tien altijd tonen (anders lijkt het stil te staan)
   }
   IMP.bezig = false;
   IMP.klaar = !IMP.rijen.some(x => x.status === 'wacht');
+  _impLog(_impSamenvatting());
   renderBeheerDocImport();
-  if (IMP.klaar) btMeld('Import klaar: ' + _impTel().gedaan + ' documenten.', 'groen');
 }
 function impPauze() { if (IMP) { IMP.pauze = true; renderBeheerDocImport(); } }
 // Losse documenten (geen kandidaat met deze sleutel): koppelen aan een kandidaat.
@@ -14386,12 +14443,12 @@ function renderBeheerDocImport() {
     <div class="aik-stil" style="margin-top:6px;">De browser leest de bestandsnamen; er wordt pas iets geüpload als je op Start drukt. Leest de browser de bestanden niet (Safari met de OneDrive-map): kopieer de map CV naar je Bureaublad en kies die kopie, of gebruik Chrome.</div></div>`;
   let stand = '';
   if (IMP) {
-    const pct = T.totaal ? Math.round((T.gedaan + T.sjabloon + T.fout) / T.totaal * 100) : 0;
+    const pct = T.totaal ? Math.round((T.totaal - T.wacht) / T.totaal * 100) : 0;
     const perStuk = IMP.gedaanNu ? (Date.now() - IMP.start) / IMP.gedaanNu : 1100;
     const rest = Math.round(T.wacht * perStuk / 60000);
     stand = `<div class="aik-kaarten">
-      <div class="aik-kaart"><div class="n">${_aiGetal(T.totaal)}</div><div class="t">bestanden in de map</div><div class="s">${_aiGetal(T.sjabloon)} sjablonen overgeslagen</div></div>
-      <div class="aik-kaart"><div class="n">${_aiGetal(T.gedaan)}</div><div class="t">geïmporteerd</div><div class="s">${_aiGetal(T.fout)} mislukt${T.fout ? ' (bij Verder opnieuw geprobeerd)' : ''}</div></div>
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.totaal)}</div><div class="t">bestanden in de map</div><div class="s">${_aiGetal(T.sjabloon)} sjablonen · ${_aiGetal(T.overig)} geen document (afbeelding, html) overgeslagen</div></div>
+      <div class="aik-kaart"><div class="n">${_aiGetal(T.gedaan)}</div><div class="t">geïmporteerd</div><div class="s">${_aiGetal(T.fout)} mislukt · ${_aiGetal(T.onleesbaar)} onleesbaar${(T.fout || T.onleesbaar) ? ' (bij Verder opnieuw)' : ''}</div></div>
       <div class="aik-kaart"><div class="n">${_aiGetal(T.gekoppeld)}</div><div class="t">gekoppeld aan een kandidaat</div><div class="s">nog te koppelen: ${_aiGetal(T.teKoppelen)}</div></div>
       <div class="aik-kaart"><div class="n">${_aiGetal(T.los)}</div><div class="t">los (later koppelen)</div><div class="s">nog te doen: ${_aiGetal(T.teLos)} · waarvan ${_aiGetal(T.lijkt)} met voorstel</div></div>
     </div>
