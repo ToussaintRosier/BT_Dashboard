@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-1204 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-1826 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-1204';
+const APP_VERSIE = '20261009-1826';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -28905,17 +28905,25 @@ function _kandNaamVind(naam, namen) {
   return past.length === 1 ? past[0] : null;
 }
 // Alle ITK-verslagen van deze kandidaat (opnames én handmatige), op naam — tolerant.
+let _KAND_REC_CACHE = { sig: '', tijd: 0, recs: [], namen: [], perSleutel: new Map(), uitkomst: new Map() };
+function _kandRecCacheWeg() { _KAND_REC_CACHE.sig = ''; }
 function _kandRecordsVan(naam) {
-  const recs = (typeof GESPREK_RECORDS !== 'undefined' && Array.isArray(GESPREK_RECORDS) ? GESPREK_RECORDS : []).slice();
-  if (typeof _vsHandmatig === 'function' && typeof _vsAlsGesprekRecord === 'function') {
-    const ids = new Set(recs.map(r => String(r.id)));
-    _vsHandmatig().filter(g => g.type === 'itk').forEach(g => { const r = _vsAlsGesprekRecord(g); if (r && !ids.has(String(r.id))) recs.push(r); });
-  }
   const sl = _itkSleutel(naam || ''); if (!sl) return [];
-  const exact = recs.filter(r => _itkSleutel(r.naam || '') === sl);
-  if (exact.length) return exact;
-  const m = _kandNaamVind(naam, recs.map(r => r.naam || ''));
-  return m ? recs.filter(r => _itkSleutel(r.naam || '') === _itkSleutel(m)) : [];
+  const g = typeof GESPREK_RECORDS !== 'undefined' && Array.isArray(GESPREK_RECORDS) ? GESPREK_RECORDS : [];
+  const hm = typeof _vsHandmatig === 'function' && typeof _vsAlsGesprekRecord === 'function' ? _vsHandmatig().filter(x => x && x.type === 'itk') : [];
+  const sig = g.length + ':' + hm.length + ':' + (g.length ? String(g[0].id) + '|' + String(g[g.length - 1].id) : '') + ':' + (hm.length ? String(hm[0].id) : '');
+  const C = _KAND_REC_CACHE;
+  if (C.sig !== sig || Date.now() - C.tijd > 30000) {   // één keer per verslagen-set (09-10: anders minuten per render)
+    const recs = g.slice(); const ids = new Set(recs.map(r => String(r.id)));
+    hm.forEach(x => { const r = _vsAlsGesprekRecord(x); if (r && !ids.has(String(r.id))) recs.push(r); });
+    const per = new Map(); recs.forEach(r => { const k = _itkSleutel(r.naam || ''); if (!k) return; (per.get(k) || per.set(k, []).get(k)).push(r); });
+    C.sig = sig; C.tijd = Date.now(); C.recs = recs; C.perSleutel = per; C.namen = Array.from(per.keys()).map(k => per.get(k)[0].naam || ''); C.uitkomst = new Map();
+  }
+  if (C.uitkomst.has(sl)) return C.uitkomst.get(sl);
+  let uit = C.perSleutel.get(sl) || [];
+  if (!uit.length) { const m = _kandNaamVind(naam, C.namen); uit = m ? (C.perSleutel.get(_itkSleutel(m)) || []) : []; }
+  C.uitkomst.set(sl, uit);
+  return uit;
 }
 function _kandRecordVan(naam) { return _kandRecordsVan(naam)[0] || null; }
 function _kandAfsprakenVerzonden(kandNaam) {
@@ -42640,6 +42648,7 @@ async function gesprekNaamZetHuidig(naam) {
 async function gesprekRecordNaamZet(id, naam) {
   if (!eisWijzig('gesprek')) return;
   naam = String(naam || '').trim(); if (!naam) return;
+  _kandRecCacheWeg();
   if (typeof _crmKandBestaat === 'function' && !_crmKandBestaat(naam)) { btMeld('Kies de kandidaat uit het CRM. Staat ' + naam + ' er nog niet in, voeg hem eerst toe onder CRM · Kandidaten.', 'geel'); return; }   // 09-10
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id)); if (!rec) return;
   rec.naam = naam;
@@ -43580,6 +43589,7 @@ function _vsTerug(f) {
 function vsAnnuleer() { const f = VS_FORM; VS_FORM = null; crmKaartSluit(); _vsTerug(f); }
 
 async function vsOpslaan(knop) {
+  _kandRecCacheWeg();
   const f = VS_FORM; if (!f) return;
   const itk = f.type === 'itk';
   if (!eisWijzig(itk ? 'crm' : 'accounts')) return;   // 30-09
