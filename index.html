@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-1826 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-1830 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-1826';
+const APP_VERSIE = '20261009-1830';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -21660,7 +21660,7 @@ const _RT_TAKEN = {
   vacatures:        async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); _crmDossierHerteken(); },
   vacature_teksten: async () => { await loadVacatures(); if (currentTab === 'beheer' && BEHEER_SUBVIEW === 'vacteksten') renderBeheer(); },
   vacature_sync:    async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); },
-  documenten:        async () => { await loadDocumenten(); },   // 08-10: documenten op de kaarten (alles opnieuw, zonder tekst)
+  documenten:        async () => { await loadDocumenten(); },   // 08-10: alleen als de rij niet in de cache kon (vóór de eerste lading)
 };
 
 // Eén wijziging levert vaak meerdere berichten op — een opgeslagen week raakt
@@ -21685,9 +21685,24 @@ const _RT_BUNDEL_KORT = 500, _RT_BUNDEL_LANG = 3000;
 const _RT_RIJ = {
   pipeline_cards: (p) => _rtRijPipeline(p),
   crm_kandidaten: (p) => _rtRijCrm(p),
+  documenten:     (p) => _rtRijDocumenten(p),   // 09-10: anders laadde elke upload van een collega de hele lijst opnieuw
 };
+// Documenten (09-10): de gemelde rij de cache in, zonder tekst. Vóór de eerste volledige lading: gewoon laden.
+function _rtRijDocumenten(p) {
+  if (!p || typeof DOC_CACHE !== 'object' || !DOC_CACHE || typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) return false;
+  const soort = p.eventType, rij = p.new, oud = p.old;
+  const id = rij && rij.id != null ? rij.id : (oud && oud.id != null ? oud.id : null);
+  if (id == null) return false;
+  for (const k of Object.keys(DOC_CACHE)) { const l = DOC_CACHE[k]; if (Array.isArray(l)) { const i = l.findIndex(d => d.id === id); if (i >= 0) l.splice(i, 1); } }
+  if (soort === 'DELETE' || !rij || rij.verwijderd_op || !rij.hoort_bij) return true;
+  const r = {}; DOC_KOLOMMEN.split(',').forEach(c => { r[c] = rij[c] !== undefined ? rij[c] : null; });
+  const k = _docSleutel(rij.hoort_bij, rij.sleutel);
+  (DOC_CACHE[k] = DOC_CACHE[k] || []).unshift(r);   // nieuwste eerst, zoals loadDocumenten
+  return true;
+}
 // Wat er ná een rij-verwerking nog moet gebeuren (het deel van de taak dat niet laden is).
 const _RT_NA = {
+  documenten: async () => { if (typeof _crmDossierHerteken === 'function') _crmDossierHerteken(); },   // 09-10: rij zit al in de cache
   pipeline_cards: async () => { try { feestScan(); } catch (e) { _meldStil('feestscan na live-bericht', e); } },
   crm_kandidaten: async () => { if (currentTab === 'crmkand') renderCrmKandidaten(); if (currentTab === 'crmsearch') renderCrmSearch(); _crmDossierHerteken(); _rldvDocsHerteken(); },
 };
