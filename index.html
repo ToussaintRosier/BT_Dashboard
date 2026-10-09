@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261008-1824 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-0934 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11701,7 +11701,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261008-1824';
+const APP_VERSIE = '20261009-0934';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -32820,7 +32820,7 @@ async function docUpload(hoortBij, sleutel, files, soort, extra) {
     DOC_BEZIG[k] = 'Bezig met ' + file.name + (lijst.length > 1 ? ' (' + (i + 1) + '/' + lijst.length + ')' : '') + ' — tekst lezen…';
     _docBlokBij(k);
     if (!(await _impHeeftInhoud(file))) { extra.fout = 'No content provided (alleen in de cloud)'; if (!extra.stil) btMeld(file.name + ': ' + BESTAND_CLOUD_TEKST, 'rood'); continue; }   // 08-10 avond: cloud-only OneDrive-bestand
-    const tekst = extra.tekst != null ? String(extra.tekst).slice(0, DOC_TEKST_MAX) : (await _docTekst(file)).slice(0, DOC_TEKST_MAX);   // 08-10: de import leest de tekst al
+    const tekst = (extra.tekst != null ? String(extra.tekst) : await _docTekst(file)).replace(/\u0000/g, '').slice(0, DOC_TEKST_MAX);   // 08-10: de import leest de tekst al · 09-10: NUL-tekens eruit (Postgres weigert ze)
     DOC_BEZIG[k] = 'Bezig met ' + file.name + ' — uploaden…'; _docBlokBij(k);
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
     const pad = hoortBij + '/' + _docPadVeilig(sleutel) + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
