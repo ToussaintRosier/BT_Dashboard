@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-1011 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261009-1204 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-1011';
+const APP_VERSIE = '20261009-1204';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14074,10 +14074,16 @@ function _impSoortFout(reden) {
   return 'anders';
 }
 // De echte afhankelijkheden van de motor; de test geeft nagemaakte mee.
+// Drie manieren om een bestand te lezen (09-10): Safari laat bij lange reeksen af en toe één weg even vallen.
+const IMP_LEESWEGEN = [
+  (f) => f.arrayBuffer(),
+  (f) => new Promise((ok, nee) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => nee(r.error || new Error('FileReader mislukt')); r.readAsArrayBuffer(f); }),
+  async (f) => { const u = URL.createObjectURL(f); try { const res = await fetch(u); if (!res.ok) throw new Error('blob-URL ' + res.status); return await res.arrayBuffer(); } finally { URL.revokeObjectURL(u); } },
+];
 function _impDeps() {
   if (!magWijzigen('crm')) return null;
   return {
-    lees: (f) => f.arrayBuffer(),
+    lees: (f, poging) => IMP_LEESWEGEN[(poging || 0) % IMP_LEESWEGEN.length](f),
     tekst: (naam, buf, type) => _docTekst(new File([buf], naam, { type: type || '' })),
     upload: async (rij, file, extra) => { const uit = await docUpload('kandidaat', rij.sleutel, [file], rij.n.soort, extra); return { uit: uit || [], fout: extra.fout || '' }; },
     vernieuwSessie: async () => { try { await supa.auth.refreshSession(); } catch (e) { _meldStil('sessie vernieuwen', e); } },
@@ -14098,7 +14104,7 @@ async function _impVerwerk(rij, deps, ctx) {
   let buf = null, leesFout = '';
   const wacht = IMP_LEES_WACHT;
   for (let p = 0; p <= wacht.length && !buf; p++) {
-    try { buf = await deps.lees(f); if (!buf || !buf.byteLength) { buf = null; leesFout = '0 bytes'; } }
+    try { buf = await deps.lees(f, p); if (!buf || !buf.byteLength) { buf = null; leesFout = '0 bytes'; } }   // poging p → leesweg p
     catch (e) { leesFout = String((e && e.message) || e || 'onbekend'); }
     if (!buf && p < wacht.length) await deps.slaap(wacht[p]);
   }
@@ -14477,6 +14483,7 @@ function renderBeheerDocImport() {
     <div style="padding:12px 20px 20px;font-size:.85rem;">
       <div class="aik-blok"><h4>Documenten importeren uit de CV-map</h4>${IMP ? '' : kies}${stand}</div>
       <div class="aik-blok"><h4>Losse documenten <span class="aik-stil" style="font-weight:400;">— geen kandidaat met deze naam in het CRM</span>
+        <button class="kn k" style="margin-left:10px;" onclick="docLinksOpruimen()" title="Kandidaten die een document in de Cockpit hebben maar in het CRM nog een oude OneDrive-link: die link wordt omgezet naar het document.">Oude links opruimen (${_aiGetal(_docOudeLinks().length)})</button>
         <button class="kn k" style="margin-left:10px;" onclick="impRuimKoppelen()" title="Nog eens langs alle losse documenten met ruimere regels: achternaam + begin voornaam, één letter anders, en het e-mailadres, telefoonnummer of de naam in de tekst van het CV. Alleen éénduidige treffers worden gekoppeld.">Eerst ruimer koppelen</button></h4>${_losBlokHtml()}</div>
     </div></div>`;
 }
@@ -20626,7 +20633,7 @@ function _todoRegels(naam) {
   const recMap = new Map(); (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).forEach(r => { const k = _itkSleutel(r.naam || ''); if (!k) return; const b = recMap.get(k); if (!b || _recDatumSort(r.datum) > _recDatumSort(b.datum)) recMap.set(k, r); });
   // 30-09: een handmatig ITK-verslag telt als verslag (de to-do "ITK-verslag maken" verdwijnt); geen result → geen afspraken-delen.
   if (typeof _vsHandmatig === 'function') _vsHandmatig().filter(g => g.type === 'itk').forEach(g => { const k = _itkSleutel(g.kandidaat || ''); if (k && !recMap.has(k)) recMap.set(k, _vsAlsGesprekRecord(g)); });   // 30-09: met result → ook "Afspraken delen"
-  const recVan = (sl) => recMap.get(sl) || null;
+  const recVan = (sl) => recMap.get(sl) || _kandRecordVan(sl) || null;   // 09-10: tolerant op naam (melding Robin)
   const selMap = new Map(); (typeof RLDV_SELECTIES !== 'undefined' && Array.isArray(RLDV_SELECTIES) ? RLDV_SELECTIES : []).forEach(r => { const k = _itkSleutel(r.kandidaat_naam || ''); if (!k) return; const b = selMap.get(k); if (!b || String(r.aangemaakt_op || '') > String(b.aangemaakt_op || '')) selMap.set(k, r); });
   const selVan = (n) => selMap.get(_itkSleutel(n || '')) || null;
   const kbPer = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null;
@@ -28875,12 +28882,44 @@ function kandKlokTekst(c) {
 // gepubliceerd is, is de status 'verzonden' (of verder: akkoord / niet
 // akkoord). We leiden het af en schrijven het niet weg — anders zouden twee
 // plekken hetzelfde moeten weten en konden ze uit elkaar gaan lopen.
+// ── Verslag ↔ kandidaat op naam (09-10, melding Robin) ─────────────────────────────────────────────────────
+// Passen twee namen bij elkaar? Exact → zonder accenten → één letter anders → de ene zit in de andere met
+// dezelfde voornaam ("pablo chavez" ⊂ "pablo chavez aragon"). Bewust niet ruimer: alleen voornaam of alleen
+// achternaam gelijk is géén match.
+function _kandNaamPast(a, b) {
+  const pa = _crmPlat(a), pb = _crmPlat(b);
+  if (!pa || !pb) return false;
+  if (pa === pb) return true;
+  if (_crmLijktOp(pa, pb)) return true;
+  const wa = pa.split(' '), wb = pb.split(' ');
+  if (wa.length < 2 || wb.length < 2 || wa[0] !== wb[0]) return false;
+  const [kort, lang] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
+  return kort.every(w => lang.includes(w));
+}
+// Eén naam uit een lijst die bij deze naam past — of null als er geen of meer dan één is.
+function _kandNaamVind(naam, namen) {
+  const sl = _itkSleutel(naam || ''); if (!sl) return null;
+  const exact = (namen || []).find(n => _itkSleutel(n) === sl); if (exact) return exact;
+  const uniek = new Map(); (namen || []).forEach(n => { const k = _itkSleutel(n); if (k && !uniek.has(k)) uniek.set(k, n); });
+  const past = Array.from(uniek.values()).filter(n => _kandNaamPast(naam, n));
+  return past.length === 1 ? past[0] : null;
+}
+// Alle ITK-verslagen van deze kandidaat (opnames én handmatige), op naam — tolerant.
+function _kandRecordsVan(naam) {
+  const recs = (typeof GESPREK_RECORDS !== 'undefined' && Array.isArray(GESPREK_RECORDS) ? GESPREK_RECORDS : []).slice();
+  if (typeof _vsHandmatig === 'function' && typeof _vsAlsGesprekRecord === 'function') {
+    const ids = new Set(recs.map(r => String(r.id)));
+    _vsHandmatig().filter(g => g.type === 'itk').forEach(g => { const r = _vsAlsGesprekRecord(g); if (r && !ids.has(String(r.id))) recs.push(r); });
+  }
+  const sl = _itkSleutel(naam || ''); if (!sl) return [];
+  const exact = recs.filter(r => _itkSleutel(r.naam || '') === sl);
+  if (exact.length) return exact;
+  const m = _kandNaamVind(naam, recs.map(r => r.naam || ''));
+  return m ? recs.filter(r => _itkSleutel(r.naam || '') === _itkSleutel(m)) : [];
+}
+function _kandRecordVan(naam) { return _kandRecordsVan(naam)[0] || null; }
 function _kandAfsprakenVerzonden(kandNaam) {
-  const sleutel = _itkSleutel(kandNaam || '');
-  if (!sleutel) return false;
-  return (GESPREK_RECORDS || []).some(r =>
-    _itkSleutel(r.naam) === sleutel &&
-    !!(AFSPRAKEN_GEDEELD[String(r.id)] || {}).gepubliceerd);
+  return _kandRecordsVan(kandNaam).some(r => !!(AFSPRAKEN_GEDEELD[String(r.id)] || {}).gepubliceerd);   // 09-10: tolerant op naam
 }
 
 // Is deze kandidaat gestart? Dan staat er op het Kanban een Starter-tegeltje
@@ -28976,7 +29015,7 @@ function _kandFaseBron(sleutel, c) {
   }
   if (sleutel === 'intake' || sleutel === 'delen') {
     const sl = _itkSleutel(c.naam || '');
-    const rec = sl ? (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(r => _itkSleutel(r.naam) === sl) : null;
+    const rec = sl ? _kandRecordVan(c.naam || '') : null;   // 09-10: tolerant op naam
     return rec ? { klik: "crmKaartSluit();recordsNaarRecord('gesprek','" + escApos(String(rec.id)) + "')", doel: 'het record openen' } : null;
   }
   const sel = rldvSelectieVoorKand(c);
@@ -29354,7 +29393,7 @@ function kandKaartHtml(bmNaam, id) {
     (bewerk ? rijB('Notitie', _crmBewerkVeld('notitie', { type: 'textarea' })) : rij('Notitie', escHtml(veld('notitie'))));
   // Verslag en afspraken
   const sleutel = _itkSleutel(c0.naam);
-  const rec = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(r => _itkSleutel(r.naam) === sleutel) || null;
+  const rec = _kandRecordVan(c0.naam);   // 09-10: tolerant op naam
   const knopRec = rec ? '<button class="kk-knop" onclick="crmKaartSluit();recordsNaarRecord(\'gesprek\',\'' + escApos(String(rec.id)) + '\')">openen</button>' : '';
   // 24-09: de gedeelde afspraken bekijken (het deelvenster staat boven de kaart; de kaart blijft open).
   const knopAfspr = rec ? '<button class="kk-knop" onclick="afsprakenDelen(\'' + escApos(String(rec.id)) + '\')">bekijken</button>' : '';
@@ -32500,7 +32539,7 @@ const CRM_KAND_VELDEN = [
     { k: 'adres', l: 'Straat en huisnummer', breed: true }, { k: 'postcode', l: 'Postcode' }, { k: 'woonplaats', l: 'Woonplaats' },
     { k: 'telefoon', l: 'Telefoon', type: 'tel' }, { k: 'email', l: 'E-mail', type: 'email' }, { k: 'linkedin', l: 'LinkedIn', type: 'url', breed: true } ] },
   { titel: 'Documenten en werk', velden: [
-    { k: 'cv_link', l: 'CV (OneDrive-link)', type: 'url', breed: true }, { k: 'cr_link', l: 'Commercieel CV / CR (OneDrive-link)', type: 'url', breed: true },
+    { k: 'cv_link', l: 'CV (oude link — alleen zolang er geen document is)', type: 'url', breed: true }, { k: 'cr_link', l: 'CR (oude link — alleen zolang er geen document is)', type: 'url', breed: true },
     { k: 'functie', l: 'Functie' }, { k: 'vakgebied', l: 'Vakgebied', req: true, select: CRM_VAKGEBIEDEN, voorstel: ['functie', 'crmVakgebiedVan'] },
     { k: 'regio', l: 'Regio (reisbereid)' }, { k: 'woonregio', l: 'Woonregio', req: true, select: CRM_WOONREGIOS, voorstel: ['woonplaats', 'crmWoonregioVan'] },
     { k: 'opmerking', l: 'Opmerking', type: 'textarea', breed: true } ] },
@@ -32967,7 +33006,8 @@ async function _docTekst(file) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
       const delen = [];
-      for (let p = 1; p <= Math.min(pdf.numPages, 60); p++) { const page = await pdf.getPage(p); const c = await page.getTextContent(); delen.push(c.items.map(it => it.str).join(' ')); }
+      try { for (let p = 1; p <= Math.min(pdf.numPages, 60); p++) { const page = await pdf.getPage(p); const c = await page.getTextContent(); delen.push(c.items.map(it => it.str).join(' ')); page.cleanup(); } }
+      finally { try { await pdf.destroy(); } catch (e2) { _meldStil('pdf opruimen', e2); } }   // 09-10: geheugen vrijgeven (duizenden PDF's achter elkaar)
       return delen.join('\n\n').trim();
     }
     if (/\.txt$/.test(naam)) return String(await file.text()).trim();
@@ -33112,7 +33152,39 @@ async function docVerwijder(id) {
 function _docVanKand(sleutel, soort) {
   const l = typeof DOC_CACHE !== 'undefined' ? DOC_CACHE[_docSleutel('kandidaat', String(sleutel || ''))] : null;
   if (!Array.isArray(l)) return null;
-  return l.filter(d => d.soort === soort && !d.verwijderd_op && !d.vervangen_op).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] || null;
+  const versie = (d) => { const m = String(d.naam || '').match(/\((?:cv|cr)\s*(\d+)\)|\b(?:cv|cr)(\d+)\b/i); return m ? +(m[1] || m[2]) : 0; };   // 09-10: CV2 > CV1 > CV
+  return l.filter(d => d.soort === soort && !d.verwijderd_op && !d.vervangen_op).sort((a, b) => (versie(b) - versie(a)) || String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] || null;
+}
+// Kandidaten met een document in de Cockpit maar nog een oude OneDrive-link in cv_link/cr_link (09-10).
+// Het blok "Oude links" op de Kandidaatkaart (09-10): per soort alleen als er nog geen document is.
+function _oudeLinksBlok(r, sleutel, blok, rijA) {
+  const oud = (soort) => { const l = String(r[soort + '_link'] || '').trim(); return l && !/^doc:/.test(l) && !_docVanKand(String(sleutel), soort) ? l : ''; };
+  const cv = oud('cv'), cr = oud('cr');
+  if (!cv && !cr) return '';
+  return blok('Oude links', (cv ? rijA('CV', _crmLink(cv, 'OneDrive')) : '') + (cr ? rijA('Commercieel CV', _crmLink(cr, 'OneDrive')) : ''));
+}
+function _docOudeLinks() {
+  const uit = [];
+  (CRM_KANDIDATEN || []).forEach(r => {
+    if (!r || r.bron === 'verwijderd') return;
+    const sl = String(r.sleutel || _itkSleutel(r.naam || ''));
+    ['cv', 'cr'].forEach(soort => {
+      const link = String(r[soort + '_link'] || '').trim();
+      if (!link || /^doc:\d+$/.test(link)) return;
+      const d = _docVanKand(sl, soort);
+      if (d) uit.push({ r, sleutel: sl, soort, doc: d });
+    });
+  });
+  return uit;
+}
+async function docLinksOpruimen() {
+  if (!eisWijzig('crm') || !supa) return;
+  const lijst = _docOudeLinks();
+  if (!lijst.length) { btMeld('Geen oude links meer: elke kandidaat met een document wijst ernaar.', 'groen'); return; }
+  let n = 0;
+  for (const x of lijst) { await _docLinkZet(x.sleutel, x.soort, 'doc:' + x.doc.id); n++; }
+  btMeld(n + ' oude link' + (n === 1 ? '' : 's') + ' omgezet naar het document in de Cockpit.', 'groen');
+  if (typeof renderBeheerDocImport === 'function') renderBeheerDocImport();
 }
 function _kandDocLinkVan(r, soort) {
   if (!r) return '';
@@ -34053,9 +34125,7 @@ function crmKandDossierHtml(sleutel) {
       rijA('E-mail', r.email ? '<a class="crm-link" href="mailto:' + escHtml(r.email) + '">' + escHtml(r.email) + '</a>' : '') +
       rijA('LinkedIn', _crmLink(r.linkedin, 'profiel openen'))) +
     _docBlokHtml('kandidaat', k.sleutel) +   // 08-10: documenten in de Cockpit (ontwerp_documenten.html)
-    ((r.cv_link && !/^doc:/.test(r.cv_link)) || (r.cr_link && !/^doc:/.test(r.cr_link))
-      ? blok('Oude links', rijA('CV', _crmLink(r.cv_link, 'OneDrive')) + rijA('Commercieel CV', _crmLink(r.cr_link, 'OneDrive')))
-      : '');
+    _oudeLinksBlok(r, k.sleutel, blok, rijA);   // 09-10: alleen voor een soort zónder document in de Cockpit
   const functieNu = k.functie || r.functie || '';
   const rechts = bewerk ?
     blok('Functie & vakgebied',
@@ -42551,7 +42621,7 @@ function _recNaamRegelHtml(naam, zet, bewerk) {
 // de intake-namen uit de pipelines, zonder dubbelen.
 function _recNaamKeuzes() {
   const per = new Map();
-  [].concat(typeof _crmKandNamen === 'function' ? _crmKandNamen() : [], typeof _pipeIntakeNamen === 'function' ? _pipeIntakeNamen() : [])
+  [].concat(typeof _crmKandNamen === 'function' ? _crmKandNamen() : [])   // 09-10: alleen het CRM (geen pipeline-namen meer) — één naam voor alles
     .forEach(n => { const k = _itkSleutel(n); if (k && !per.has(k)) per.set(k, String(n).trim()); });
   return Array.from(per.values()).sort((a, b) => a.localeCompare(b, 'nl'));
 }
@@ -42562,6 +42632,7 @@ function _recNaamKeuzes() {
 // GESPREK én op het zojuist opgeslagen record (lokaal + server).
 async function gesprekNaamZetHuidig(naam) {
   naam = String(naam || '').trim(); if (!naam) return;
+  if (typeof _crmKandBestaat === 'function' && !_crmKandBestaat(naam)) { btMeld('Kies de kandidaat uit het CRM. Staat ' + naam + ' er nog niet in, voeg hem eerst toe onder CRM · Kandidaten (+ in het zoekveld).', 'geel'); return; }   // 09-10
   GESPREK.naam = naam;
   if (GESPREK.recordId) { await gesprekRecordNaamZet(GESPREK.recordId, naam); return; }
   renderGesprek();
@@ -42569,6 +42640,7 @@ async function gesprekNaamZetHuidig(naam) {
 async function gesprekRecordNaamZet(id, naam) {
   if (!eisWijzig('gesprek')) return;
   naam = String(naam || '').trim(); if (!naam) return;
+  if (typeof _crmKandBestaat === 'function' && !_crmKandBestaat(naam)) { btMeld('Kies de kandidaat uit het CRM. Staat ' + naam + ' er nog niet in, voeg hem eerst toe onder CRM · Kandidaten.', 'geel'); return; }   // 09-10
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id)); if (!rec) return;
   rec.naam = naam;
   _saveGesprekRec();
@@ -44766,7 +44838,7 @@ function _kandStand(c, ctx) {
     const st = _aanbStatusVan(sel, b.id, naam, null);
     if (st && st.stap === 'aang' && st.datumMs) geenReactie = Math.max(geenReactie, Math.floor((nu - st.datumMs) / 86400000));
   });
-  const rec = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).find(r => _itkSleutel(r.naam || '') === sl) || null;
+  const rec = _kandRecordVan(c.naam || '');   // 09-10: tolerant op naam (typfout, accent, tweede achternaam)
   const items = typeof vsItemsVoorKand === 'function' ? vsItemsVoorKand({ sleutel: sl }) : [];
   const verslag = !!rec || items.some(x => x.soort === 'ITK');
   const afspr = rec && typeof afsprakenStatus === 'function' ? afsprakenStatus(rec.id) : null;
