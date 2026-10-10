@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261010-1109 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261010-1644 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2118,6 +2118,7 @@
   .vkz-lijst { max-height:52vh; overflow:auto; } .vkz-lijst tr.aan td { background:rgba(244,203,60,.08); }
   .vkz-lijst input[type=checkbox] { width:16px; height:16px; accent-color:#F4CB3C; }
   .vkz-mand { background:var(--l2); border-radius:10px; padding:10px 12px; } .vkz-mand .rij { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:.84rem; } .vkz-mand .rij small { margin-left:auto; color:var(--tekst-gedempt); }
+  .vac-naar-opt { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:.86rem; } .vac-naar-opt:hover { background:rgba(255,255,255,.09); } .vac-naar-opt small { margin-left:auto; color:var(--tekst-gedempt); white-space:nowrap; }
   .vkz-rang { color:#F4CB3C; letter-spacing:1px; font-size:.7rem; } .vkz-frag { color:var(--tekst-gedempt); font-size:.72rem; } .vkz-frag em { font-style:normal; background:rgba(244,203,60,.25); border-radius:3px; }
   .aik-maand { display:flex; gap:8px; align-items:center; margin:8px 0 4px; } .aik-maand b { min-width:130px; text-align:center; }
   .aik-stil { color:var(--tekst-gedempt); font-size:.78rem; }
@@ -11729,7 +11730,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261010-1109';
+const APP_VERSIE = '20261010-1644';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20783,7 +20784,7 @@ function _todoRegels(naam) {
     const wie = x.bm_naam || v.bm_naam; if (!wie) return;
     const klant = typeof _vacKlantNaam === 'function' ? _vacKlantNaam(v) : (v.klant_naam || '');
     push({ cat: 'kand', groep: sl, groepSoort: 'kand', groepNaam: x.kandidaat_naam, groepDetail: 'vacature ' + (v.titel || '') + ' · ' + String(wie).split(' ')[0], wie: [wie],
-           sleutel: 'vac:' + x.id, soort: 'vacature', tekst: 'Voorstellen voor ' + (v.titel || 'vacature') + (klant ? ' — ' + klant : ''), detail: 'CR naar de klant · ' + VAC_SEL_TERMIJN_WD + ' werkdagen na selectie',
+           sleutel: 'vac:' + x.id, soort: 'vacature', tekst: 'Voorstellen voor ' + (v.titel || 'vacature') + (klant ? ' — ' + klant : ''), detail: 'CR naar de klant · ' + VAC_SEL_TERMIJN_WD + ' werkdagen na selectie' + (x.herkomst && String(x.herkomst).startsWith('crm-search') ? ' · via CRM-Search' : '') + (x.geselecteerd_door ? ' · door ' + String(x.geselecteerd_door).split(' ')[0] : ''),
            deadlineMs: _todoWerkdagenErbij(ms, VAC_SEL_TERMIJN_WD), duur: 15, klik: "kandRldvKaartOpen('" + escApos(sl) + "')" });
   });
   // B · GG-lijst: één regel, elke 2 werkdagen; na 14 dagen afhaken
@@ -34899,7 +34900,8 @@ function renderCrmSearchHtml() {
       '<div class="crm-s-voet"><span><b id="crm-s-nsel">' + nSel + '</b> geselecteerd</span>' +
         knop('alles', 'crmSearchAlles(true)') + knop('niets', 'crmSearchAlles(false)') +
         '<span class="rechts">' + knop('Mail (BCC)', 'crmSearchMail()') + knop('kopieer e-mailadressen', "crmSearchKopieer('email')") + knop('kopieer telefoonnummers', "crmSearchKopieer('telefoon')") +
-        knop('Zet in ONE-bericht', 'crmSearchNaarOne()') + knop('Exporteer naar Excel', 'crmSearchExcel()', 'goed') + '</span></div>' +
+        knop('Zet in ONE-bericht', 'crmSearchNaarOne()') + knop('Exporteer naar Excel', 'crmSearchExcel()', 'goed') +
+        (magWijzigen('crm') ? knop('Toevoegen aan vacature (' + (nSel || T.length) + ')', 'crmSearchNaarVacature()', 'geel') : '') + '</span></div>' +   // 10-10: omgekeerd RLDV vanuit de zoekmachine
     '</div></div>';
 }
 function renderCrmSearch() {
@@ -43896,7 +43898,7 @@ function _vacSelBlokHtml(v) {
     const k = kand.find(y => y.sleutel === x.kandidaat_sleutel); const r = (k && k.crm) || {};
     const st = _vacSelStand(x, v);
     const docs = ['cv', 'cr'].map(srt => _crmDocIcoon(_kandDocLinkVan(r, srt), srt === 'cv' ? 'CV' : 'Commercieel CV', srt)).join('');
-    const naam = '<span class="crm-klik" onclick="crmKaartSluit();kandRldvKaartOpen(\'' + escApos(x.kandidaat_sleutel) + '\')"><b>' + escHtml(x.kandidaat_naam) + '</b></span>' + (k && (k.functie || k.woonplaats) ? '<br><small class="stil">' + escHtml([k.functie, k.woonplaats].filter(Boolean).join(' · ')) + '</small>' : '');
+    const naam = '<span class="crm-klik" title="' + escHtml((x.herkomst ? (x.herkomst.startsWith('crm-search') ? 'via CRM-Search' + x.herkomst.slice(10).replace(/^:/, ' —') : 'via de kiezer') + ' · ' : '') + (x.geselecteerd_door || '') + ' ' + _vacSelDatum(x.geselecteerd_op)) + '" onclick="crmKaartSluit();kandRldvKaartOpen(\'' + escApos(x.kandidaat_sleutel) + '\')"><b>' + escHtml(x.kandidaat_naam) + '</b></span>' + (k && (k.functie || k.woonplaats) ? '<br><small class="stil">' + escHtml([k.functie, k.woonplaats].filter(Boolean).join(' · ')) + '</small>' : '');
     const voorg = x.voorgesteld_op ? '<span class="vsel-vink ok">✓</span> ' + _vacSelDatum(x.voorgesteld_op) : (mag && st === 'geselecteerd' ? '<button type="button" class="vsel-kn geel" onclick="vacSelVoorstellen(\'' + escApos(String(x.id)) + '\')">Voorgesteld ✓</button><span class="vsel-todo"> to-do ' + escHtml(String(x.bm_naam || v.bm_naam || '').split(' ')[0]) + '</span>' : '<span class="vsel-vink"></span>');
     const uitkomst = x.status === 'afgewezen' || x.status === 'teruggetrokken' ? '<small class="stil" title="reden">' + escHtml(x.reden || '') + '</small>'
       : (mag && st !== 'geselecteerd' && x.status !== 'aangenomen' ? _vacSelStatusKnoppen(x, st) : (x.status === 'aangenomen' ? '<small class="stil">' + _vacSelDatum(x.status_op) + '</small>' : ''));
@@ -44058,22 +44060,72 @@ function vacKiezerTyp(v) {
     if (VAC_KIEZER === K) _vacKiezerToon();
   }, 300);
 }
-async function vacKiezerOpslaan() {
-  const K = VAC_KIEZER; if (!K || !K.gekozen.size || !eisWijzig('crm') || !supa) return;
-  const v = _vacVind(K.vacId); if (!v) return;
+// Kandidaten in de selectie van een vacature zetten — vanuit de kiezer én vanuit CRM-Search (10-10).
+// lijst: [{ sleutel, naam }], herkomst: 'kiezer' | 'crm-search: <zoekopdracht>'. Geeft het aantal nieuwe rijen terug (null = afgebroken).
+async function _vacSelOpslaan(v, lijst, herkomst) {
+  if (!v || !lijst.length || !eisWijzig('crm') || !supa) return null;
   const kand = crmKandLijst(); const door = _vacMij();
+  const al = new Set(vacSelVoorVacature(v.id).map(x => x.kandidaat_sleutel));
+  const nieuw = lijst.filter(x => !al.has(x.sleutel));
+  if (!nieuw.length) { btMeld('Iedereen staat al in de selectie van ' + (v.titel || 'deze vacature') + '.', 'geel'); return 0; }
   // Zit iemand al in een procedure bij een ander bedrijf? Even bevestigen.
   const kb = typeof _aanbKbPer === 'function' ? _aanbKbPer() : null;
-  const inProc = Array.from(K.gekozen.keys()).filter(sl => kb && ['g1', 'g2', 'g3', 'contract'].some(f => (kb[f] || []).some(c => _itkSleutel(c.naam || '') === sl)));
-  if (inProc.length) { const ok = await btBevestig(inProc.map(sl => K.gekozen.get(sl)).join(', ') + (inProc.length === 1 ? ' zit' : ' zitten') + ' al in een procedure. Toch selecteren voor deze vacature?', { knop: 'Toch selecteren' }); if (!ok) return; }
-  const rijen = Array.from(K.gekozen.entries()).map(([sl, naam]) => { const k = kand.find(x => x.sleutel === sl); return { vacature_id: v.id, kandidaat_sleutel: sl, kandidaat_naam: naam, bm_naam: _vacSelEigenaar(k, v), status: 'geselecteerd', geselecteerd_door: door, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null }; });
+  const inProc = nieuw.filter(x => kb && ['g1', 'g2', 'g3', 'contract'].some(f => (kb[f] || []).some(c => _itkSleutel(c.naam || '') === x.sleutel)));
+  if (inProc.length) { const ok = await btBevestig(inProc.map(x => x.naam).join(', ') + (inProc.length === 1 ? ' zit' : ' zitten') + ' al in een procedure. Toch selecteren voor deze vacature?', { knop: 'Toch selecteren' }); if (!ok) return null; }
+  const rijen = nieuw.map(x => { const k = kand.find(y => y.sleutel === x.sleutel); return { vacature_id: v.id, kandidaat_sleutel: x.sleutel, kandidaat_naam: x.naam, bm_naam: _vacSelEigenaar(k, v), status: 'geselecteerd', geselecteerd_door: door, herkomst: String(herkomst || 'kiezer').slice(0, 300), created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null }; });
   _echoVanZelf('vacature_selecties');
-  const { data, error } = await supa.from('vacature_selecties').upsert(rijen, { onConflict: 'vacature_id,kandidaat_sleutel', ignoreDuplicates: true }).select();
-  if (error) { btMeld('Niet opgeslagen: ' + error.message, 'rood'); return; }
+  let { data, error } = await supa.from('vacature_selecties').upsert(rijen, { onConflict: 'vacature_id,kandidaat_sleutel', ignoreDuplicates: true }).select();
+  if (error && /herkomst/i.test(error.message || '')) { rijen.forEach(r => { delete r.herkomst; }); ({ data, error } = await supa.from('vacature_selecties').upsert(rijen, { onConflict: 'vacature_id,kandidaat_sleutel', ignoreDuplicates: true }).select()); }   // kolom herkomst nog niet gedraaid
+  if (error) { btMeld('Niet opgeslagen: ' + error.message, 'rood'); return null; }
   (data || []).forEach(r => { if (!VAC_SEL.some(x => String(x.id) === String(r.id))) VAC_SEL.push(r); });
   _TODO_CACHE = null;
-  btMeld((data || []).length + ' kandidat' + ((data || []).length === 1 ? '' : 'en') + ' geselecteerd voor ' + (v.titel || 'de vacature') + '.', 'groen');
+  const n = (data || []).length;
+  btMeld(n + ' kandidat' + (n === 1 ? '' : 'en') + ' geselecteerd voor ' + (v.titel || 'de vacature') + ' — to-do bij de collega\'s.', 'groen');
+  return n;
+}
+async function vacKiezerOpslaan() {
+  const K = VAC_KIEZER; if (!K || !K.gekozen.size) return;
+  const v = _vacVind(K.vacId); if (!v) return;
+  const n = await _vacSelOpslaan(v, Array.from(K.gekozen.entries()).map(([sleutel, naam]) => ({ sleutel, naam })), 'kiezer');
+  if (n == null) return;
   VAC_KIEZER = null; crmKaartSluit(); vacOpen(v.id);
+}
+// ── CRM-Search → Toevoegen aan vacature (10-10) ──
+let VAC_NAAR = null;   // { kandidaten: [{sleutel, naam}], q, zoek }
+function crmSearchNaarVacature() {
+  if (!eisWijzig('crm')) return;
+  if (VAC_SEL_ONTBREEKT) { btMeld('Draai eerst supabase/vacature_selecties.sql in de SQL-editor.', 'geel'); return; }
+  const sel = _crmSearchGekozen(); const alle = _crmSearchTreffers();
+  const lijst = (sel.length ? sel : alle).map(k => ({ sleutel: k.sleutel, naam: k.naam }));
+  if (!lijst.length) { btMeld('Geen kandidaten om toe te voegen — zoek eerst.', 'geel'); return; }
+  VAC_NAAR = { kandidaten: lijst, alle: !sel.length, q: '', zoek: _crmSearchOmschrijving() };
+  _vacNaarToon();
+}
+function _vacNaarToon() { if (!VAC_NAAR) return; crmKaartToon(_vacNaarHtml(), 'crm-kaart vac-naar', () => { VAC_NAAR = null; }); const el = document.getElementById('vac-naar-q'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { _meldStil('vacature kiezen cursor', e); } } }
+function _vacNaarLijst() {
+  const q = _crmPlat(VAC_NAAR.q);
+  return VACATURES.filter(v => v.status !== 'gesloten' && (!q || _crmPlat([v.titel, _vacKlantNaam(v), v.regio].filter(Boolean).join(' ')).includes(q)))
+    .sort((a, b) => (a.status === 'online' ? 0 : 1) - (b.status === 'online' ? 0 : 1) || String(a.titel || '').localeCompare(String(b.titel || ''), 'nl')).slice(0, 12);
+}
+function _vacNaarHtml() {
+  const N = VAC_NAAR; const n = N.kandidaten.length;
+  const opties = _vacNaarLijst().map(v => { const klant = _vacKlantNaam(v); const al = vacSelVoorVacature(v.id).length;
+    return '<div class="vac-naar-opt" onclick="vacNaarKies(\'' + escApos(String(v.id)) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b>' + (klant ? ' — ' + escHtml(klant) : '') + (v.regio ? ' · ' + escHtml(v.regio) : '') + '<small>' + escHtml(v.status || '') + ' · ' + al + ' geselecteerd</small></div>'; }).join('');
+  return '<h4 class="wit">Toevoegen aan vacature</h4><div class="crm-sub">' + n + ' kandidat' + (n === 1 ? '' : 'en') + (N.alle ? ' (alle treffers — er was niets aangevinkt)' : ' aangevinkt in CRM-Search') + '</div>' +
+    '<div class="crm-body">' +
+    '<div class="crm-zoek" style="margin:0 0 10px;max-width:none;"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input id="vac-naar-q" type="text" value="' + escHtml(N.q) + '" placeholder="vacature: titel, klant of plaats…" autocomplete="off" oninput="vacNaarTyp(this.value)"></div>' +
+    '<div class="vac-naar-lijst">' + (opties || '<div class="stil">Geen open vacature gevonden (alleen concept en online tellen).</div>') + '</div>' +
+    '<small class="vs-noot" style="display:block;margin-top:10px;">Wie al in de vacature zit wordt overgeslagen; wie in een procedure zit vraagt een bevestiging. Per kandidaat komt een to-do bij zijn collega: "Voorstellen voor …" (' + VAC_SEL_TERMIJN_WD + ' werkdagen). Herkomst: via CRM-Search' + (N.zoek ? ' — ' + escHtml(N.zoek) : '') + '.</small></div>' +
+    '<div class="crm-knoppen"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>';
+}
+function vacNaarTyp(v) { if (!VAC_NAAR) return; VAC_NAAR.q = String(v || ''); _vacNaarToon(); }
+async function vacNaarKies(vacId) {
+  const N = VAC_NAAR; if (!N) return;
+  const v = _vacVind(vacId); if (!v) return;
+  const n = await _vacSelOpslaan(v, N.kandidaten, 'crm-search' + (N.zoek ? ': ' + N.zoek : ''));
+  if (n == null) return;
+  VAC_NAAR = null; crmKaartSluit();
+  if (n && typeof CRM_SEARCH !== 'undefined' && CRM_SEARCH) { CRM_SEARCH.sel = {}; if (typeof renderCrmSearch === 'function' && currentTab === 'crmsearch') renderCrmSearch(); }
 }
 // ── Hulpjes ─────────────────────────────────────────────────────────────────
 function _vacMij() { return (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''; }
