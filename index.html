@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261010-1025 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261010-1109 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2105,6 +2105,20 @@
   .los-stap .lijkt { color:#F4CB3C; } .los-stap .leeg { color:#8f9bb8; }
   .los-stap details summary { cursor:pointer; color:#dfe5f3; margin:4px 0 8px; font-size:.8rem; }
   .kn.rood { background:#7a2e2e; color:#fff; }
+  /* Vacature-selectie (10-10) */
+  .vsel-trechter { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px; } .vsel-trechter span { background:var(--l2); border-radius:999px; padding:4px 10px; font-size:.76rem; color:#dfe5f3; } .vsel-trechter b { color:#F4CB3C; }
+  .vsel-tabel { width:100%; border-collapse:collapse; font-size:.82rem; } .vsel-tabel th { text-align:left; color:var(--tekst-gedempt); font-weight:600; font-size:.7rem; padding:5px 6px; border-bottom:1px solid rgba(255,255,255,.12); } .vsel-tabel td { padding:6px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:middle; }
+  .vsel-pil { display:inline-block; border-radius:6px; padding:1px 7px; font-size:.68rem; font-weight:700; white-space:nowrap; }
+  .vsel-pil.geselecteerd { background:var(--l2); color:#dfe5f3; } .vsel-pil.voorgesteld { background:#2f5a8a; color:#fff; } .vsel-pil.gesprek { background:#5a4a1a; color:#F4CB3C; } .vsel-pil.aangenomen { background:#1f6b3f; color:#fff; } .vsel-pil.afgewezen { background:#7a2e2e; color:#fff; } .vsel-pil.teruggetrokken { background:#4a5577; color:#cdd4e6; }
+  .vsel-vink { display:inline-flex; width:20px; height:20px; border-radius:6px; border:1px solid rgba(255,255,255,.3); align-items:center; justify-content:center; font-size:.8rem; } .vsel-vink.ok { background:#25D366; border-color:#25D366; color:#1b2238; font-weight:800; }
+  .vsel-kn { border:1px solid rgba(255,255,255,.25); background:none; color:#fff; border-radius:7px; padding:3px 8px; font-size:.72rem; cursor:pointer; font-family:inherit; margin-right:3px; } .vsel-kn.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:700; } .vsel-kn:hover { background:rgba(255,255,255,.1); } .vsel-kn.geel:hover { background:#F4CB3C; }
+  .vsel-todo { color:#E87400; font-size:.7rem; }
+  .vkz-body { display:grid; grid-template-columns:1.3fr 1fr; gap:14px; } @media (max-width:900px) { .vkz-body { grid-template-columns:1fr; } }
+  .vkz-chips { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 10px; } .vkz-chips button { border:1px solid rgba(255,255,255,.2); background:var(--l2); color:#dfe5f3; border-radius:999px; padding:4px 10px; font-size:.74rem; cursor:pointer; font-family:inherit; } .vkz-chips button.aan { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:700; }
+  .vkz-lijst { max-height:52vh; overflow:auto; } .vkz-lijst tr.aan td { background:rgba(244,203,60,.08); }
+  .vkz-lijst input[type=checkbox] { width:16px; height:16px; accent-color:#F4CB3C; }
+  .vkz-mand { background:var(--l2); border-radius:10px; padding:10px 12px; } .vkz-mand .rij { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:.84rem; } .vkz-mand .rij small { margin-left:auto; color:var(--tekst-gedempt); }
+  .vkz-rang { color:#F4CB3C; letter-spacing:1px; font-size:.7rem; } .vkz-frag { color:var(--tekst-gedempt); font-size:.72rem; } .vkz-frag em { font-style:normal; background:rgba(244,203,60,.25); border-radius:3px; }
   .aik-maand { display:flex; gap:8px; align-items:center; margin:8px 0 4px; } .aik-maand b { min-width:130px; text-align:center; }
   .aik-stil { color:var(--tekst-gedempt); font-size:.78rem; }
   .kand-archief-tabel td { padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; color:#fff; background:transparent; }
@@ -11715,7 +11729,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261010-1025';
+const APP_VERSIE = '20261010-1109';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -20761,6 +20775,17 @@ function _todoRegels(naam) {
       }
     }
   });
+  // A2 · Vacature-selecties (10-10, omgekeerd RLDV): geselecteerd → binnen 2 werkdagen voorstellen (CR naar de klant).
+  (typeof VAC_SEL !== 'undefined' && Array.isArray(VAC_SEL) ? VAC_SEL : []).filter(x => x && x.status === 'geselecteerd').forEach(x => {
+    const v = typeof _vacVind === 'function' ? _vacVind(x.vacature_id) : null; if (!v || v.status === 'gesloten') return;
+    const sl = String(x.kandidaat_sleutel || ''); if (!sl || weg.has(sl)) return;
+    const ms = Date.parse(x.geselecteerd_op || '') || nu; if (ms < ING) return;
+    const wie = x.bm_naam || v.bm_naam; if (!wie) return;
+    const klant = typeof _vacKlantNaam === 'function' ? _vacKlantNaam(v) : (v.klant_naam || '');
+    push({ cat: 'kand', groep: sl, groepSoort: 'kand', groepNaam: x.kandidaat_naam, groepDetail: 'vacature ' + (v.titel || '') + ' · ' + String(wie).split(' ')[0], wie: [wie],
+           sleutel: 'vac:' + x.id, soort: 'vacature', tekst: 'Voorstellen voor ' + (v.titel || 'vacature') + (klant ? ' — ' + klant : ''), detail: 'CR naar de klant · ' + VAC_SEL_TERMIJN_WD + ' werkdagen na selectie',
+           deadlineMs: _todoWerkdagenErbij(ms, VAC_SEL_TERMIJN_WD), duur: 15, klik: "kandRldvKaartOpen('" + escApos(sl) + "')" });
+  });
   // B · GG-lijst: één regel, elke 2 werkdagen; na 14 dagen afhaken
   const gg = (typeof CRM_KANDIDATEN !== 'undefined' && Array.isArray(CRM_KANDIDATEN) ? CRM_KANDIDATEN : []).filter(r => r.gg_lijst_op && r.bron !== 'verwijderd' && _todoNaamEq(r.gg_lijst_door, mij) && !weg.has(String(r.sleutel || _itkSleutel(r.naam))));
   if (gg.length) {
@@ -21062,7 +21087,7 @@ function _todoKern(naam) {
   const l = todoLijst(naam).filter(x => !x.later);
   const laat = l.filter(x => x.stand === 'laat'), vandaag = l.filter(x => x.stand === 'vandaag');
   const soorten = (lijst) => { const per = {}; lijst.forEach(x => { per[x.soort] = (per[x.soort] || 0) + 1; }); return Object.entries(per).sort((a, b) => b[1] - a[1]); };
-  const naamVan = { cv: 'CV', cr: 'CR', verslag: 'verslag', delen: 'afspraken delen', bel: 'belmoment', rldv: 'RLDV', aanbieden: 'aanbieden', terugkoppeling: 'terugkoppeling', gesprek: 'matchgesprek', contract: 'contract', aanmelding: 'aanmelding', bezoek: 'bezoekverslag', score: 'scorekaart', plan: 'accountplan-actie', evaluatie: 'evaluatie' };
+  const naamVan = { vacature: 'vacature', cv: 'CV', cr: 'CR', verslag: 'verslag', delen: 'afspraken delen', bel: 'belmoment', rldv: 'RLDV', aanbieden: 'aanbieden', terugkoppeling: 'terugkoppeling', gesprek: 'matchgesprek', contract: 'contract', aanmelding: 'aanmelding', bezoek: 'bezoekverslag', score: 'scorekaart', plan: 'accountplan-actie', evaluatie: 'evaluatie' };
   const woorden = (lijst) => soorten(lijst).slice(0, 3).map(([s, n]) => (n > 1 ? n + '× ' : 'een ') + (naamVan[s] || s)).join(', ').replace(/, ([^,]*)$/, ' en $1');
   if (laat.length) return { kern: (laat.length === 1 ? 'Eén ding wacht al te lang: ' : laat.length + ' dingen wachten al te lang: ') + woorden(laat) + '.', sub: 'De procedure geeft daar een termijn voor. Vandaag eerst die, dan de rest.' };
   if (vandaag.length) return { kern: 'Niets te laat. Vandaag staan er ' + vandaag.length + ' op de rol: ' + woorden(vandaag) + '.', sub: 'Plan ze in en het blijft zo.' };
@@ -21185,7 +21210,7 @@ function _todoTeamHtml() {
     return { bm, l, laat: tel('laat'), vandaag: tel('vandaag'), open: tel('open'), gepland: tel('gepland'), oudste: laat[0] || null, uitgesteld: alle.filter(x => x.uitgesteld >= 3).length };
   }).sort((a, b) => b.laat - a.laat || b.vandaag - a.vandaag || a.bm.naam.localeCompare(b.bm.naam, 'nl'));
   const tot = rijen.reduce((s, r) => ({ laat: s.laat + r.laat, vandaag: s.vandaag + r.vandaag, open: s.open + r.open, gepland: s.gepland + r.gepland }), { laat: 0, vandaag: 0, open: 0, gepland: 0 });
-  const naamVan = { cv: 'CV', cr: 'CR uitwerken', verslag: 'ITK-verslag', delen: 'Afspraken delen', bel: 'Belmoment / statusupdate', rldv: 'RLDV-lijst / check', aanbieden: 'Aanbieden', terugkoppeling: 'Terugkoppeling', gesprek: 'Matchgesprek voorbereiden', contract: 'Contract', aanmelding: 'Aanmelding', bezoek: 'Bezoekverslag / vervolg', score: 'Scorekaart', plan: 'Accountplan-actie', evaluatie: 'Evaluatie' };
+  const naamVan = { vacature: 'Voorstellen voor vacature', cv: 'CV', cr: 'CR uitwerken', verslag: 'ITK-verslag', delen: 'Afspraken delen', bel: 'Belmoment / statusupdate', rldv: 'RLDV-lijst / check', aanbieden: 'Aanbieden', terugkoppeling: 'Terugkoppeling', gesprek: 'Matchgesprek voorbereiden', contract: 'Contract', aanmelding: 'Aanmelding', bezoek: 'Bezoekverslag / vervolg', score: 'Scorekaart', plan: 'Accountplan-actie', evaluatie: 'Evaluatie' };
   const termijn = { cr: 'handboek: zelfde dag', delen: 'handboek: 1 dag', terugkoppeling: 'handboek: 48 uur', gesprek: 'handboek: altijd, ≥ 2 dagen vóór', aanmelding: 'handboek: ≥ 1 week vóór start', evaluatie: 'handboek: 2 weken vooraf', bel: 'handboek: dag 2 / dag 7', bezoek: '1 werkdag', rldv: '2 / 1 werkdagen', aanbieden: '2 werkdagen na check', verslag: 'zelfde dag' };
   const perSoort = {};
   rijen.forEach(r => r.l.filter(x => x.stand === 'laat').forEach(x => { const p = perSoort[x.soort] = perSoort[x.soort] || { n: 0, wie: new Set(), dagen: 0 }; p.n++; p.wie.add(r.bm.naam); p.dagen += x.dagenLaat; }));
@@ -21662,6 +21687,7 @@ const _RT_TAKEN = {
   vacatures:        async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); _crmDossierHerteken(); },
   vacature_teksten: async () => { await loadVacatures(); if (currentTab === 'beheer' && BEHEER_SUBVIEW === 'vacteksten') renderBeheer(); },
   vacature_sync:    async () => { await loadVacatures(); if (currentTab === 'vacatures') renderVacatures(); },
+  vacature_selecties: async () => { await loadVacatureSelecties(); _vacSelHerteken(); },   // 10-10
   documenten:        async () => { await loadDocumenten(); },   // 08-10: alleen als de rij niet in de cache kon (vóór de eerste lading)
 };
 
@@ -21688,7 +21714,18 @@ const _RT_RIJ = {
   pipeline_cards: (p) => _rtRijPipeline(p),
   crm_kandidaten: (p) => _rtRijCrm(p),
   documenten:     (p) => _rtRijDocumenten(p),   // 09-10: anders laadde elke upload van een collega de hele lijst opnieuw
+  vacature_selecties: (p) => _rtRijVacSel(p),   // 10-10
 };
+function _rtRijVacSel(p) {
+  if (!p || typeof VAC_SEL === 'undefined' || !Array.isArray(VAC_SEL)) return false;
+  const rij = p.new, oud = p.old; const id = rij && rij.id != null ? rij.id : (oud && oud.id != null ? oud.id : null);
+  if (id == null) return false;
+  const i = VAC_SEL.findIndex(x => String(x.id) === String(id));
+  if (p.eventType === 'DELETE') { if (i >= 0) VAC_SEL.splice(i, 1); return true; }
+  if (!rij || !rij.vacature_id) return false;
+  if (i >= 0) VAC_SEL[i] = rij; else VAC_SEL.push(rij);
+  return true;
+}
 // Documenten (09-10): de gemelde rij de cache in, zonder tekst. Vóór de eerste volledige lading: gewoon laden.
 function _rtRijDocumenten(p) {
   if (!p || typeof DOC_CACHE !== 'object' || !DOC_CACHE || typeof DOC_ALLE_GELADEN === 'undefined' || !DOC_ALLE_GELADEN) return false;
@@ -21705,6 +21742,7 @@ function _rtRijDocumenten(p) {
 // Wat er ná een rij-verwerking nog moet gebeuren (het deel van de taak dat niet laden is).
 const _RT_NA = {
   documenten: async () => { if (typeof _crmDossierHerteken === 'function') _crmDossierHerteken(); },   // 09-10: rij zit al in de cache
+  vacature_selecties: async () => { _vacSelHerteken(); },   // 10-10
   pipeline_cards: async () => { try { feestScan(); } catch (e) { _meldStil('feestscan na live-bericht', e); } },
   crm_kandidaten: async () => { if (currentTab === 'crmkand') renderCrmKandidaten(); if (currentTab === 'crmsearch') renderCrmSearch(); _crmDossierHerteken(); _rldvDocsHerteken(); },
 };
@@ -21821,6 +21859,7 @@ const _RT_SCHERMEN = {
   crm_kandidaten: ['crmkand'], crm_bedrijven: ['crmbedrijf'], ap_analyses: ['accounts'], todo_status: ['bm'],
   vacatures: ['vacatures', 'crmbedrijf'], vacature_teksten: ['vacatures', 'beheer'], vacature_sync: ['vacatures'],
   documenten: ['crmkand', 'crmbedrijf'],
+  vacature_selecties: ['vacatures', 'crmkand', 'kandidaten', 'kanban'],   // 10-10
 };
 function _rtRaaktScherm(tabellen, tab) {
   const scherm = typeof tab === 'number' ? (typeof BMS !== 'undefined' && tab >= BMS.length ? 'team' : 'bm') : String(tab);
@@ -43807,8 +43846,235 @@ async function loadVacatures() {
   if (t.error) _meldStil('vacature_teksten laden', t.error); else { VAC_TEKSTEN = {}; (t.data || []).forEach(r => { VAC_TEKSTEN[r.sleutel] = r; }); }
   const s = await supa.from('vacature_sync').select('*').order('gevraagd_op', { ascending: false }).limit(1);
   if (s.error) _meldStil('vacature_sync laden', s.error); else VAC_SYNC = (s.data || [])[0] || null;
+  await loadVacatureSelecties();   // 10-10: de selecties horen bij de vacatures
 }
 
+// ═══ Vacature-selectie — omgekeerd RLDV (10-10, ontwerp_vacature_selectie.html) ══════════════════════════════
+let VAC_SEL = [];
+let VAC_SEL_ONTBREEKT = false;
+const VAC_SEL_TERMIJN_WD = 2;
+const VAC_SEL_LABELS = { geselecteerd: 'geselecteerd', voorgesteld: 'voorgesteld', gesprek: 'gesprek', aangenomen: 'aangenomen', afgewezen: 'afgewezen', teruggetrokken: 'teruggetrokken' };
+let VAC_KIEZER = null;   // { vacId, q, vak, regio, cvAan, gekozen: Map(sleutel → naam), docHits: {sleutel → {rang, fragment}}, timer }
+async function loadVacatureSelecties() {
+  if (!supa) return;
+  const r = await _alleRijen(() => supa.from('vacature_selecties').select('*').order('geselecteerd_op', { ascending: false }));
+  if (r.error) { if (/relation .* does not exist|schema cache|PGRST205/i.test(r.error.message || '')) { VAC_SEL_ONTBREEKT = true; return; } _meldStil('vacature_selecties laden', r.error); return; }
+  VAC_SEL_ONTBREEKT = false; VAC_SEL = r.data || [];
+}
+function vacSelVoorVacature(vacId) { return VAC_SEL.filter(x => String(x.vacature_id) === String(vacId)); }
+function vacSelVoorKand(sleutel) { const sl = String(sleutel || ''); return VAC_SEL.filter(x => x.kandidaat_sleutel === sl); }
+// De stand van een selectie: wat er staat, of wat het bord al verder weet (gesprek / contract / starter bij deze klant).
+function _vacSelStand(x, v) {
+  if (x.status === 'afgewezen' || x.status === 'teruggetrokken' || x.status === 'aangenomen') return x.status;
+  const klant = v ? _vacKlantNaam(v) : '';
+  const kb = klant && typeof _aanbKanbanStap === 'function' ? _aanbKanbanStap(x.kandidaat_naam, klant) : null;
+  if (kb && kb.stap === 'starter') return 'aangenomen';
+  if (kb && (kb.stap === 'g1' || kb.stap === 'g2' || kb.stap === 'g3' || kb.stap === 'contract')) return 'gesprek';
+  return x.status;
+}
+function _vacSelTrechter(lijst, v) {
+  const t = { geselecteerd: 0, voorgesteld: 0, gesprek: 0, aangenomen: 0, afgewezen: 0, teruggetrokken: 0 };
+  lijst.forEach(x => { const st = _vacSelStand(x, v); t[st] = (t[st] || 0) + 1; });
+  return t;
+}
+function _vacSelDatum(d) { const ms = Date.parse(d || ''); return ms ? _crmDatum(ms).slice(0, 5) : ''; }
+function _vacSelEigenaar(k, v) { return (k && k.intake && k.intake.bm_naam) || (k && k.crm && k.crm.bron_bm) || (v && v.bm_naam) || _vacMij(); }
+function _vacSelHerteken() {
+  if (typeof VAC_FORM !== 'undefined' && VAC_FORM && VAC_FORM.id && document.querySelector('.vac-kaart')) { VAC_FORM.velden = Object.assign({}, VAC_FORM.velden || {}, typeof _vacLees === 'function' ? _vacLees() : {}); _vacPopup(); return; }
+  if (typeof _crmDossierHerteken === 'function') _crmDossierHerteken();
+}
+// ── Blok op de vacature ──
+function _vacSelBlokHtml(v) {
+  if (!v || !v.id) return '<div class="crm-kop">Kandidaten</div><div class="kk-lijst"><div class="kk-rij"><span class="stil">Sla de vacature eerst op; daarna kun je kandidaten selecteren.</span></div></div>';
+  if (VAC_SEL_ONTBREEKT) return '<div class="crm-kop">Kandidaten</div><div class="kk-lijst"><div class="kk-rij"><span class="stil">Draai eerst supabase/vacature_selecties.sql in de SQL-editor.</span></div></div>';
+  const lijst = vacSelVoorVacature(v.id).slice().sort((a, b) => String(a.kandidaat_naam).localeCompare(String(b.kandidaat_naam), 'nl'));
+  const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
+  const t = _vacSelTrechter(lijst, v);
+  const trechter = '<div class="vsel-trechter">' + ['geselecteerd', 'voorgesteld', 'gesprek', 'aangenomen', 'afgewezen', 'teruggetrokken'].filter(k => t[k] || k === 'geselecteerd' || k === 'voorgesteld').map(k => '<span>' + k + ' <b>' + t[k] + '</b></span>').join('') + '</div>';
+  const kand = typeof crmKandLijst === 'function' ? crmKandLijst() : [];
+  const rijen = lijst.map(x => {
+    const k = kand.find(y => y.sleutel === x.kandidaat_sleutel); const r = (k && k.crm) || {};
+    const st = _vacSelStand(x, v);
+    const docs = ['cv', 'cr'].map(srt => _crmDocIcoon(_kandDocLinkVan(r, srt), srt === 'cv' ? 'CV' : 'Commercieel CV', srt)).join('');
+    const naam = '<span class="crm-klik" onclick="crmKaartSluit();kandRldvKaartOpen(\'' + escApos(x.kandidaat_sleutel) + '\')"><b>' + escHtml(x.kandidaat_naam) + '</b></span>' + (k && (k.functie || k.woonplaats) ? '<br><small class="stil">' + escHtml([k.functie, k.woonplaats].filter(Boolean).join(' · ')) + '</small>' : '');
+    const voorg = x.voorgesteld_op ? '<span class="vsel-vink ok">✓</span> ' + _vacSelDatum(x.voorgesteld_op) : (mag && st === 'geselecteerd' ? '<button type="button" class="vsel-kn geel" onclick="vacSelVoorstellen(\'' + escApos(String(x.id)) + '\')">Voorgesteld ✓</button><span class="vsel-todo"> to-do ' + escHtml(String(x.bm_naam || v.bm_naam || '').split(' ')[0]) + '</span>' : '<span class="vsel-vink"></span>');
+    const uitkomst = x.status === 'afgewezen' || x.status === 'teruggetrokken' ? '<small class="stil" title="reden">' + escHtml(x.reden || '') + '</small>'
+      : (mag && st !== 'geselecteerd' && x.status !== 'aangenomen' ? _vacSelStatusKnoppen(x, st) : (x.status === 'aangenomen' ? '<small class="stil">' + _vacSelDatum(x.status_op) + '</small>' : ''));
+    const weg = mag && st === 'geselecteerd' ? '<button type="button" class="vsel-kn" title="Uit de selectie halen" onclick="vacSelWeg(\'' + escApos(String(x.id)) + '\')">✕</button>' : '';
+    return '<tr><td>' + naam + '</td><td>' + docs + '</td><td>' + escHtml(String(x.bm_naam || '').split(' ')[0]) + '</td><td><span class="vsel-pil ' + st + '">' + escHtml(VAC_SEL_LABELS[st] || st) + '</span></td><td>' + voorg + '</td><td>' + uitkomst + '</td><td>' + weg + '</td></tr>';
+  }).join('');
+  return '<div class="crm-kop">Kandidaten <small class="crm-kop-klein">omgekeerd RLDV: wie stellen we voor?</small>' +
+    (mag ? '<button type="button" class="crm-knop goed" style="margin-left:auto;" onclick="vacKiezerOpen(\'' + escApos(String(v.id)) + '\')">+ Kandidaten selecteren</button>' : '') + '</div>' +
+    trechter +
+    (lijst.length ? '<table class="vsel-tabel"><thead><tr><th>Kandidaat</th><th>Docs</th><th>Collega</th><th>Status</th><th>Voorgesteld</th><th>Uitkomst</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table>'
+                  : '<div class="kk-lijst"><div class="kk-rij"><span class="stil">Nog geen kandidaten geselecteerd.</span></div></div>') +
+    '<small class="vs-noot">Voorgesteld ✓ = CR naar de klant; dat zet ook de aanbieding op het bord van de collega. Afgewezen en teruggetrokken vragen een reden (gaat naar het gesprekslog).</small>';
+}
+function _vacSelStatusKnoppen(x, st) {
+  const id = escApos(String(x.id));
+  return (st !== 'gesprek' ? '<button type="button" class="vsel-kn" onclick="vacSelStatusZet(\'' + id + '\',\'gesprek\')">gesprek</button>' : '') +
+    '<button type="button" class="vsel-kn" onclick="vacSelStatusZet(\'' + id + '\',\'aangenomen\')">aangenomen</button>' +
+    '<button type="button" class="vsel-kn" onclick="vacSelStatusZet(\'' + id + '\',\'afgewezen\')">afgewezen…</button>' +
+    '<button type="button" class="vsel-kn" onclick="vacSelStatusZet(\'' + id + '\',\'teruggetrokken\')">teruggetrokken…</button>';
+}
+// ── Blok bij de kandidaat (RLDV-blad) ──
+function _kandVacaturesBlokHtml(sleutel, naam) {
+  if (VAC_SEL_ONTBREEKT) return '';
+  const lijst = vacSelVoorKand(sleutel);
+  const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
+  const rijen = lijst.map(x => {
+    const v = _vacVind(x.vacature_id) || { titel: 'vacature' };
+    const st = _vacSelStand(x, v); const klant = _vacKlantNaam(v);
+    const voorg = x.voorgesteld_op ? '<span class="vsel-vink ok">✓</span> ' + _vacSelDatum(x.voorgesteld_op) : (mag && st === 'geselecteerd' ? '<button type="button" class="vsel-kn geel" onclick="vacSelVoorstellen(\'' + escApos(String(x.id)) + '\')">Voorgesteld ✓</button><span class="vsel-todo"> to-do · ' + VAC_SEL_TERMIJN_WD + ' wd</span>' : '<span class="vsel-vink"></span>');
+    const knoppen = x.status === 'afgewezen' || x.status === 'teruggetrokken' ? '<small class="stil">' + escHtml(x.reden || '') + '</small>' : (mag && st !== 'geselecteerd' && x.status !== 'aangenomen' ? _vacSelStatusKnoppen(x, st) : '');
+    return '<tr><td><span class="crm-klik" onclick="crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b></span>' + (klant ? '<br><small class="stil">' + escHtml(klant + (v.regio ? ' · ' + v.regio : '')) + '</small>' : '') + '</td>' +
+      '<td>' + escHtml(String(x.geselecteerd_door || '').split(' ')[0]) + ' · ' + _vacSelDatum(x.geselecteerd_op) + '</td><td>' + voorg + '</td><td><span class="vsel-pil ' + st + '">' + escHtml(VAC_SEL_LABELS[st] || st) + '</span></td><td>' + knoppen + '</td></tr>';
+  }).join('');
+  return '<div class="bd-vak" style="margin-top:12px;"><div class="crm-kop">Vacatures <small class="crm-kop-klein">geselecteerd voor een vacature (omgekeerd RLDV)</small></div>' +
+    (lijst.length ? '<table class="vsel-tabel"><thead><tr><th>Vacature</th><th>Geselecteerd door</th><th>Voorgesteld</th><th>Status</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table>'
+                  : '<div class="kk-lijst"><div class="kk-rij"><span class="stil">Niet geselecteerd voor een vacature. Selecteren doe je op de vacature zelf (Vacatures → + Kandidaten selecteren).</span></div></div>') + '</div>';
+}
+// ── Acties ──
+async function vacSelVoorstellen(id) {
+  if (!eisWijzig('crm') || !supa) return;
+  const x = VAC_SEL.find(y => String(y.id) === String(id)); if (!x) return;
+  const v = _vacVind(x.vacature_id); if (!v) { btMeld('Deze vacature bestaat niet meer.', 'geel'); return; }
+  const klant = _vacKlantNaam(v); const door = _vacMij(); const nu = new Date().toISOString();
+  const bm = x.bm_naam || v.bm_naam || door;
+  let kaartId = x.kaart_id || null;
+  // Het Aanbieden-tegeltje op het bord van de eigenaar (zoals een RLDV-aanbieding), één per selectie.
+  if (!kaartId && typeof _kanbanSchrijf === 'function' && magWijzigen('medewerkers')) {
+    try { const w = isoWeek(new Date()); const kaart = await _kanbanSchrijf(bm, { naam: x.kandidaat_naam, stage: 'Aanbieden', week: w.week, jaar: w.year, aanb: 1, vervolg_van: 'vac:' + x.id, opdrachtgever: klant || null }); kaartId = kaart && kaart.id ? String(kaart.id) : null; }
+    catch (e) { _meldStil('aanbieding uit vacature op het bord', e); }
+  }
+  const velden = { status: 'voorgesteld', voorgesteld_op: nu, voorgesteld_door: door, status_op: nu, status_door: door, kaart_id: kaartId, updated_at: nu };
+  _echoVanZelf('vacature_selecties');
+  const { error } = await supa.from('vacature_selecties').update(velden).eq('id', x.id);
+  if (error) { btMeld('Niet opgeslagen: ' + error.message, 'rood'); return; }
+  Object.assign(x, velden);
+  try { await waLogNoteer('kand', x.kandidaat_sleutel, x.kandidaat_naam, 'Voorgesteld voor vacature "' + (v.titel || '') + '"' + (klant ? ' bij ' + klant : '') + ' (CR naar de klant).'); } catch (e) { _meldStil('vacature → gesprekslog', e); }
+  _TODO_CACHE = null;
+  btMeld(x.kandidaat_naam + ' voorgesteld voor ' + (v.titel || 'de vacature') + (kaartId ? ' — aanbieding staat op het bord.' : '.'), 'groen');
+  _vacSelHerteken();
+}
+async function vacSelStatusZet(id, status) {
+  if (!eisWijzig('crm') || !supa) return;
+  const x = VAC_SEL.find(y => String(y.id) === String(id)); if (!x) return;
+  const v = _vacVind(x.vacature_id) || {}; const klant = _vacKlantNaam(v);
+  let reden = '';
+  if (status === 'afgewezen' || status === 'teruggetrokken') {   // zelfde regel als de RLDV-aanbieding (08-10): reden verplicht
+    reden = await btVraagTekst((status === 'afgewezen' ? 'Afgewezen door ' : 'Teruggetrokken bij ') + (klant || 'de klant') + ' — wat is de reden?',
+      { tekst: 'De reden komt in het gesprekslog van ' + x.kandidaat_naam + '.', placeholder: 'reden (verplicht) → gesprekslog', knop: status === 'afgewezen' ? 'Afwijzen' : 'Terugtrekken' });
+    if (reden == null || !String(reden).trim()) return;
+    reden = String(reden).trim();
+  }
+  const nu = new Date().toISOString(), door = _vacMij();
+  const velden = { status, status_op: nu, status_door: door, reden: reden || null, updated_at: nu };
+  _echoVanZelf('vacature_selecties');
+  const { error } = await supa.from('vacature_selecties').update(velden).eq('id', x.id);
+  if (error) { btMeld('Niet opgeslagen: ' + error.message, 'rood'); return; }
+  Object.assign(x, velden);
+  if (reden) { try { await waLogNoteer('kand', x.kandidaat_sleutel, x.kandidaat_naam, 'Vacature "' + (v.titel || '') + '"' + (klant ? ' bij ' + klant : '') + (status === 'afgewezen' ? ' afgewezen door opdrachtgever: ' : ' teruggetrokken door ons: ') + reden); } catch (e) { _meldStil('vacature reden → gesprekslog', e); } }
+  _TODO_CACHE = null;
+  btMeld('Status bijgewerkt: ' + status + '.', 'groen');
+  _vacSelHerteken();
+}
+async function vacSelWeg(id) {
+  if (!eisWijzig('crm') || !supa) return;
+  const x = VAC_SEL.find(y => String(y.id) === String(id)); if (!x) return;
+  if (x.status !== 'geselecteerd') { btMeld('Al voorgesteld — zet dan een status (teruggetrokken) in plaats van verwijderen.', 'geel'); return; }
+  _echoVanZelf('vacature_selecties');
+  const { error } = await supa.from('vacature_selecties').delete().eq('id', x.id);
+  if (error) { btMeld('Niet verwijderd: ' + error.message, 'rood'); return; }
+  VAC_SEL = VAC_SEL.filter(y => String(y.id) !== String(x.id));
+  _TODO_CACHE = null;
+  _vacSelHerteken();
+}
+// ── De kiezer ──
+function vacKiezerOpen(vacId) {
+  if (!eisWijzig('crm')) return;
+  const v = _vacVind(vacId); if (!v) return;
+  const regio = v.regio ? crmWoonregioVan(v.regio) : '';
+  VAC_KIEZER = { vacId: String(v.id), q: '', vak: '', regio: regio && regio !== 'Onbekend' ? regio : '', cvAan: true, gekozen: new Map(), docHits: {}, timer: null };
+  _vacKiezerToon();
+}
+function _vacKiezerToon() { if (!VAC_KIEZER) return; crmKaartToon(_vacKiezerHtml(), 'crm-kaart-breed vac-kiezer', () => { VAC_KIEZER = null; }); const el = document.getElementById('vkz-q'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { _meldStil('kiezer cursor', e); } } }
+function _vacKiezerPast(k, K) {
+  const q = _crmPlat(K.q);
+  if (K.vak && _crmVakgebied(k) !== K.vak) return false;
+  if (K.regio && _crmWoonregio(k) !== K.regio) return false;
+  if (K.cvAan && !_kandDocLinkVan(k.crm, 'cv')) return false;
+  if (!q) return true;
+  if (K.docHits[k.sleutel]) return true;
+  return _crmPlat([k.naam, k.functie, k.woonplaats, (k.crm || {}).email].filter(Boolean).join(' ')).includes(q);
+}
+function _vacKiezerLijst() {
+  const K = VAC_KIEZER; const al = new Set(vacSelVoorVacature(K.vacId).map(x => x.kandidaat_sleutel));
+  const lijst = crmKandLijst().filter(k => !(k.crm && k.crm.bron === 'verwijderd') && !al.has(k.sleutel) && _vacKiezerPast(k, K));
+  lijst.sort((a, b) => ((K.docHits[b.sleutel] || {}).rang || 0) - ((K.docHits[a.sleutel] || {}).rang || 0) || (b.laatsteMs || 0) - (a.laatsteMs || 0) || String(a.naam).localeCompare(String(b.naam), 'nl'));
+  return lijst;
+}
+function _vacKiezerHtml() {
+  const K = VAC_KIEZER; const v = _vacVind(K.vacId) || {}; const klant = _vacKlantNaam(v);
+  const lijst = _vacKiezerLijst(); const toon = lijst.slice(0, 80);
+  const chip = (aan, label, klik) => '<button type="button" class="' + (aan ? 'aan' : '') + '" onclick="' + klik + '">' + escHtml(label) + '</button>';
+  const chips = '<div class="vkz-chips">' + CRM_VAKGEBIEDEN.filter(x => x !== 'Onbekend').map(x => chip(K.vak === x, x, "vacKiezerZet('vak','" + escApos(x) + "')")).join('') + '</div>' +
+    '<div class="vkz-chips">' + CRM_WOONREGIOS.filter(x => x !== 'Onbekend').map(x => chip(K.regio === x, x, "vacKiezerZet('regio','" + escApos(x) + "')")).join('') + chip(K.cvAan, 'CV aanwezig', "vacKiezerZet('cvAan')") + '</div>';
+  const inProc = (k) => { const kb = typeof _aanbKbPer === 'function' ? _aanbKbPer() : null; if (!kb) return ''; const sl = k.sleutel; let t = ''; ['g1', 'g2', 'g3', 'contract'].forEach(f => (kb[f] || []).forEach(c => { if (_itkSleutel(c.naam || '') === sl) t = _kanbanKlantVan(c) || 'in procedure'; })); return t; };
+  const rijen = toon.map(k => { const aan = K.gekozen.has(k.sleutel); const h = K.docHits[k.sleutel]; const proc = inProc(k); const r = k.crm || {};
+    return '<tr class="' + (aan ? 'aan' : '') + '"><td><input type="checkbox" ' + (aan ? 'checked' : '') + ' onchange="vacKiezerVink(\'' + escApos(k.sleutel) + '\', this.checked)"></td>' +
+      '<td><b>' + escHtml(k.naam) + '</b>' + (proc ? ' <span class="vsel-pil gesprek" title="zit in een procedure">' + escHtml(proc) + '</span>' : '') + (h && h.fragment ? '<div class="vkz-frag">' + String(h.fragment).replace(/<(?!\/?em>)[^>]*>/g, '') + '</div>' : '') + '</td>' +
+      '<td>' + escHtml([k.functie, k.woonplaats].filter(Boolean).join(' · ')) + '</td><td>' + ['cv', 'cr'].map(srt => _crmDocIcoon(_kandDocLinkVan(r, srt), srt === 'cv' ? 'CV' : 'Commercieel CV', srt)).join('') + '</td>' +
+      '<td>' + _crmContactKort(k.laatsteMs) + '</td><td class="vkz-rang">' + (h ? '●'.repeat(Math.max(1, Math.min(3, Math.round((h.rang || 0) * 3 / (K.docMax || 1))))) : '') + '</td></tr>'; }).join('');
+  const mand = Array.from(K.gekozen.entries()).map(([sl, naam]) => '<div class="rij"><b>' + escHtml(naam) + '</b><small>' + escHtml(String(_vacSelEigenaar(crmKandLijst().find(x => x.sleutel === sl), v)).split(' ')[0]) + '</small><button type="button" class="vsel-kn" onclick="vacKiezerVink(\'' + escApos(sl) + '\', false)">✕</button></div>').join('');
+  return '<h4 class="wit">Kandidaten selecteren</h4><div class="crm-sub">' + escHtml((v.titel || 'vacature') + (klant ? ' — ' + klant : '') + (v.regio ? ' · ' + v.regio : '')) + '</div>' +
+    '<div class="crm-body"><div class="vkz-body"><div>' +
+    '<div class="crm-zoek" style="margin:0;max-width:none;"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input id="vkz-q" type="text" value="' + escHtml(K.q) + '" placeholder="naam, functie, plaats — of woorden uit het CV/CR (EN, OF, -)…" autocomplete="off" oninput="vacKiezerTyp(this.value)"></div>' +
+    chips +
+    '<div class="vkz-lijst"><table class="vsel-tabel"><thead><tr><th></th><th>Kandidaat</th><th>Functie · plaats</th><th>Docs</th><th>Contact</th><th>Treffer</th></tr></thead><tbody>' + (rijen || '<tr><td colspan="6" class="stil">Niemand gevonden — verruim de filters.</td></tr>') + '</tbody></table>' +
+    (lijst.length > toon.length ? '<div class="stil" style="padding:6px;">… en nog ' + (lijst.length - toon.length) + ' meer; verfijn de zoekterm.</div>' : '') + '</div></div>' +
+    '<div><div class="vkz-mand"><div class="crm-kop" style="margin-top:0;">Geselecteerd <small class="crm-kop-klein">' + K.gekozen.size + '</small></div>' + (mand || '<div class="stil">Vink kandidaten aan in de lijst.</div>') +
+    '<small class="vs-noot" style="display:block;margin-top:8px;">Bij opslaan: per kandidaat een regel bij de vacature en een to-do voor zijn collega ("Voorstellen voor ' + escHtml(v.titel || 'vacature') + ' · ' + VAC_SEL_TERMIJN_WD + ' werkdagen").</small></div></div></div></div>' +
+    '<div class="crm-knoppen"><button type="button" class="crm-knop" onclick="crmKaartSluit();vacOpen(\'' + escApos(K.vacId) + '\')">Annuleren</button> <button type="button" class="crm-knop goed" ' + (K.gekozen.size ? '' : 'disabled ') + 'onclick="vacKiezerOpslaan()">' + K.gekozen.size + ' kandidat' + (K.gekozen.size === 1 ? '' : 'en') + ' selecteren</button></div>';
+}
+function vacKiezerZet(veld, waarde) {
+  const K = VAC_KIEZER; if (!K) return;
+  if (veld === 'cvAan') K.cvAan = !K.cvAan; else K[veld] = K[veld] === waarde ? '' : waarde;
+  _vacKiezerToon();
+}
+function vacKiezerVink(sleutel, aan) {
+  const K = VAC_KIEZER; if (!K) return;
+  if (aan) { const k = crmKandLijst().find(x => x.sleutel === sleutel); if (k) K.gekozen.set(sleutel, k.naam); } else K.gekozen.delete(sleutel);
+  _vacKiezerToon();
+}
+function vacKiezerTyp(v) {
+  const K = VAC_KIEZER; if (!K) return;
+  K.q = String(v || '');
+  if (K.timer) clearTimeout(K.timer);
+  K.timer = setTimeout(async () => {
+    const z = K.q.trim();
+    if (z.length >= 3) { const hits = await docZoek(z, 300); const map = {}; let max = 0; hits.forEach(h => { if (h.hoort_bij && h.hoort_bij !== 'kandidaat') return; if (!map[h.sleutel]) { map[h.sleutel] = { rang: +h.rang || 0, fragment: h.fragment || '' }; max = Math.max(max, +h.rang || 0); } }); K.docHits = map; K.docMax = max; }
+    else K.docHits = {};
+    if (VAC_KIEZER === K) _vacKiezerToon();
+  }, 300);
+}
+async function vacKiezerOpslaan() {
+  const K = VAC_KIEZER; if (!K || !K.gekozen.size || !eisWijzig('crm') || !supa) return;
+  const v = _vacVind(K.vacId); if (!v) return;
+  const kand = crmKandLijst(); const door = _vacMij();
+  // Zit iemand al in een procedure bij een ander bedrijf? Even bevestigen.
+  const kb = typeof _aanbKbPer === 'function' ? _aanbKbPer() : null;
+  const inProc = Array.from(K.gekozen.keys()).filter(sl => kb && ['g1', 'g2', 'g3', 'contract'].some(f => (kb[f] || []).some(c => _itkSleutel(c.naam || '') === sl)));
+  if (inProc.length) { const ok = await btBevestig(inProc.map(sl => K.gekozen.get(sl)).join(', ') + (inProc.length === 1 ? ' zit' : ' zitten') + ' al in een procedure. Toch selecteren voor deze vacature?', { knop: 'Toch selecteren' }); if (!ok) return; }
+  const rijen = Array.from(K.gekozen.entries()).map(([sl, naam]) => { const k = kand.find(x => x.sleutel === sl); return { vacature_id: v.id, kandidaat_sleutel: sl, kandidaat_naam: naam, bm_naam: _vacSelEigenaar(k, v), status: 'geselecteerd', geselecteerd_door: door, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null }; });
+  _echoVanZelf('vacature_selecties');
+  const { data, error } = await supa.from('vacature_selecties').upsert(rijen, { onConflict: 'vacature_id,kandidaat_sleutel', ignoreDuplicates: true }).select();
+  if (error) { btMeld('Niet opgeslagen: ' + error.message, 'rood'); return; }
+  (data || []).forEach(r => { if (!VAC_SEL.some(x => String(x.id) === String(r.id))) VAC_SEL.push(r); });
+  _TODO_CACHE = null;
+  btMeld((data || []).length + ' kandidat' + ((data || []).length === 1 ? '' : 'en') + ' geselecteerd voor ' + (v.titel || 'de vacature') + '.', 'groen');
+  VAC_KIEZER = null; crmKaartSluit(); vacOpen(v.id);
+}
 // ── Hulpjes ─────────────────────────────────────────────────────────────────
 function _vacMij() { return (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''; }
 // Wie mag deze vacature bewerken: de eigenaar, manager/backoffice, de volledig bevoegden, de beheerder.
@@ -44000,7 +44266,8 @@ function _vacKaartHtml(f) {
     veld('Adres op de site', '<div class="vs-vast">' + slug + '</div>', false, g.online_vanaf ? 'vast — wijzigt niet mee met de titel' : 'wordt vastgezet zodra de vacature online gaat') +
     '<div class="crm-kop">Koppelingen in de Cockpit</div>' +
     '<div class="kk-lijst"><div class="kk-rij"><span>Klant</span><div>' + (g.klant_sleutel ? '<span class="crm-klik" onclick="crmKaartSluit();crmBedrijfOpen(\'' + escApos(g.klant_sleutel) + '\')">' + escHtml(klantNaam) + ' → bedrijfskaart</span>' : '<span class="stil">nog niet gekozen</span>') + '</div></div>' +
-    '<div class="kk-rij"><span>Sollicitaties</span><div><span class="stil">komt in deel C (website → Cockpit)</span></div></div></div>';
+    '<div class="kk-rij"><span>Sollicitaties</span><div><span class="stil">komt in deel C (website → Cockpit)</span></div></div></div>' +
+    _vacSelBlokHtml(f.id ? g : null);   // 10-10: omgekeerd RLDV
   const knoppen = '<div class="crm-knoppen vs-voet"><span class="vs-noot">' + (mag ? (f.id ? 'Wijzigingen gaan bij de volgende sync naar de site.' : 'Nieuwe vacatures beginnen als concept; zet op online als de tekst klaar is.') : 'Alleen de eigenaar (' + escHtml(g.bm_naam || '?') + '), manager of backoffice kan deze vacature wijzigen.') + '</span><span>' +
     (mag && f.id && status !== 'gesloten' ? '<button type="button" class="crm-knop" onclick="vacSluitVraag(\'' + escApos(String(f.id)) + '\')">Sluiten…</button> ' : '') +
     (mag && f.id ? '<button type="button" class="crm-knop" onclick="vacDupliceer(\'' + escApos(String(f.id)) + '\')">Dupliceren</button> ' : '') +
@@ -44391,7 +44658,7 @@ function kandRldvKaartHtml(sleutel) {
   }
   const knoppen = _kandBladenRij(k, 'rldv', { extra: rechts });
   return kop + '<div class="crm-sub">' + escHtml(sub) + '</div>' +
-    '<div class="crm-body bd-body">' + _kdActiesHtml(k) + body + '</div>' + knoppen;
+    '<div class="crm-body bd-body">' + _kdActiesHtml(k) + body + _kandVacaturesBlokHtml(k.sleutel, k.naam) + '</div>' + knoppen;   // 10-10: vacatures (omgekeerd RLDV)
 }
 function kandRldvKaartOpen(sleutel) {
   crmKaartToon(kandRldvKaartHtml(sleutel), 'kand-kaart kand-rldv bd-dossier');
