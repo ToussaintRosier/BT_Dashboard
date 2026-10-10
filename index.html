@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261009-2154 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261010-1025 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11715,7 +11715,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261009-2154';
+const APP_VERSIE = '20261010-1025';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15551,7 +15551,7 @@ function _crmZoekSneltoets(e) {
   const el = document.activeElement;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
   if (document.getElementById('crm-laag') || document.getElementById('bt-bevestig-laag')) return;
-  const veld = document.getElementById('crm-zoek-veld'); if (!veld) return;
+  const veld = document.getElementById('crm-zoek-veld') || document.getElementById('crm-kand-q') || document.getElementById('crm-bedr-q'); if (!veld) return;   // 10-10: ook CRM · Kandidaten / Bedrijven
   e.preventDefault(); veld.focus(); veld.select();
 }
 document.addEventListener('keydown', _crmZoekSneltoets);
@@ -33404,11 +33404,23 @@ function _zoekBalkHtml(o) {
     (o.sugg ? ' autocomplete="off" data-sugg="' + escHtml(o.sugg) + '" onkeydown="return _zoekSuggToets(event, this)" onblur="_zoekSuggWeg(this)"' : '') +
     (input ? ' ' + input : '') + '>' +
     (o.sugg && ZOEK_SUGG && ZOEK_SUGG.open && ZOEK_SUGG.id === o.id ? _zoekSuggHtml(o.id, o.waarde || '', o.sugg) : '') + '</div>';
+  if (o.alleenTabs) return '<div class="crm-balk"><div class="crm-tabs">' + tabs + (o.links || '') + '</div></div>';   // 10-10: het zoekveld staat in de kop
   return '<div class="crm-balk"><div class="crm-tabs">' + tabs + (o.links || '') + '</div>' +
     (o.rechts ? '<div class="crm-zoekgroep">' + zoek + o.rechts + '</div>' : zoek) + '</div>';
 }
+// 10-10 (V1): het zoekveld van de collega-pagina, in de kop van CRM · Kandidaten / Bedrijven. Zelfde klasse, zelfde
+// sneltoets, zelfde plusje — maar typen filtert de tabel (met de bestaande suggesties) en het plusje opent de wizard.
+function _crmZoekKopHtml(o) {
+  const input = 'oninput="' + (o.sugg ? '_zoekSuggToon(this);' : '') + o.zoek + '(this.value)"';
+  return '<div class="crm-zoek" id="crm-zoek"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span>' +
+    '<input type="text" id="' + o.id + '" value="' + escHtml(o.waarde || '') + '" placeholder="' + escHtml(o.placeholder || 'Zoeken…') + '" autocomplete="off"' + (o.hint ? ' title="Zoekt op ' + escHtml(o.hint) + '"' : '') +
+    (o.sugg ? ' data-sugg="' + escHtml(o.sugg) + '" onkeydown="return _zoekSuggToets(event, this)" onblur="_zoekSuggWeg(this)"' : '') + ' ' + input + '>' +
+    '<kbd class="crm-zoek-k" title="Sneltoets: /">/</kbd>' +
+    (o.plus ? '<button type="button" class="crm-zoek-plus" onclick="' + o.plus + '" title="' + escHtml(o.plusTitel || 'Toevoegen') + '" aria-label="' + escHtml(o.plusTitel || 'Toevoegen') + '">+</button>' : '') +
+    (o.sugg && typeof ZOEK_SUGG !== 'undefined' && ZOEK_SUGG && ZOEK_SUGG.open && ZOEK_SUGG.id === o.id ? _zoekSuggHtml(o.id, o.waarde || '', o.sugg) : '') + '</div>';
+}
 function _crmZoekBalkHtml(st, tabs, o) {
-  return _zoekBalkHtml({ id: o.id, waarde: st.zoek || '', tabs, actief: st.filter || '', zet: o.zet, hint: o.hint, sugg: o.sugg, input: 'oninput="' + o.zoek + '(this.value)"' });
+  return _zoekBalkHtml({ id: o.id, waarde: st.zoek || '', tabs, actief: st.filter || '', zet: o.zet, hint: o.hint, sugg: o.sugg, alleenTabs: !!o.alleenTabs, input: 'oninput="' + o.zoek + '(this.value)"' });
 }
 function _crmVoet(gevonden, totaal, beperkt, alles, wat) {
   return '<div class="kand-archief-voet"><span>' +
@@ -33626,10 +33638,12 @@ function renderCrmKandidatenHtml() {
   const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['met', 'Met intake', lijst.filter(k => k.intake).length], ['zonder', 'Zonder intake', lijst.filter(k => !k.intake).length],
       ['gg', '⚑ GG-lijst', lijst.filter(k => _crmKandGg(k)).length], ['procedure', 'In procedure', lijst.filter(k => _crmKandProcedure(k)).length],
       ['kanban', 'In Kanban', lijst.filter(k => _crmKandKanban(k)).length], ['nieuw', 'Nieuw', lijst.filter(k => _crmKandNieuw(k)).length]],
-    { id: 'crm-kand-q', sugg: 'crmKandSugg', zet: 'crmKandFilter', zoek: 'crmKandZoek', hint: 'naam, e-mail, telefoon, woonplaats, functie, collega en notities — de tekst van CV\'s en CR\'s doorzoek je op CRM-Search' });
+    { id: 'crm-kand-q', sugg: 'crmKandSugg', zet: 'crmKandFilter', zoek: 'crmKandZoek', alleenTabs: true, hint: 'naam, e-mail, telefoon, woonplaats, functie, collega en notities — de tekst van CV\'s en CR\'s doorzoek je op CRM-Search' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
+  const kandHint = 'naam, e-mail, telefoon, woonplaats, functie, collega en notities — de tekst van CV\'s en CR\'s doorzoek je op CRM-Search';
   return '<div><div class="person-header"><div class="person-name">CRM · Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
-    '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmKandWizard()">+ Kandidaat</button>' : '') + '</div></div>' +
+    _crmZoekKopHtml({ id: 'crm-kand-q', waarde: st.zoek || '', placeholder: 'zoek kandidaat (naam, e-mail, telefoon, plaats, functie)…', sugg: 'crmKandSugg', zoek: 'crmKandZoek', hint: kandHint, plus: mag ? 'crmKandWizard()' : '', plusTitel: 'Nieuwe kandidaat' }) +   // 10-10 (V1)
+    '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span></div></div>' +
     _crmSqlHint() +
     (mag && proj.length ? '<div class="acc-arch-nieuw"><span><strong>' + proj.length + (proj.length === 1 ? ' naam' : ' namen') + ' uit de projectenlijst</strong> ' + (proj.length === 1 ? 'staat' : 'staan') + ' nog niet in het CRM (geen intake-tegeltje, wel een project).</span>' +
       '<button type="button" class="crm-knop goed" onclick="crmProjectKandidatenVenster()">Bekijken en opvoeren…</button></div>' : '') +
@@ -35200,10 +35214,11 @@ function renderCrmBedrijvenHtml() {
       '<td class="d">' + _crmContactKort(k.laatsteMs) + '</td></tr>';
   }).join('');
   const balk = _crmZoekBalkHtml(st, [['', 'Alle', lijst.length], ['kam', 'KAM-klanten', lijst.filter(k => k.account).length], ['rldv', 'RLDV', lijst.filter(k => k.lead).length], ['bezoeken', 'Met bezoeken', lijst.filter(k => k.bezoeken).length], ['projecten', 'Met projecten', lijst.filter(k => k.projecten).length], ['plan', 'Met accountplan', lijst.filter(k => k.plan).length]],
-    { id: 'crm-bedr-q', sugg: 'crmBedrijfSugg', zet: 'crmBedrijfFilter', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, telefoon, e-mail, sector, team (initialen), contactpersoon en notities' });
+    { id: 'crm-bedr-q', sugg: 'crmBedrijfSugg', zet: 'crmBedrijfFilter', zoek: 'crmBedrijfZoek', alleenTabs: true, hint: 'bedrijf, plaats, telefoon, e-mail, sector, team (initialen), contactpersoon en notities' });
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Bedrijven' + btUitlegKnop('accounts') + '</div>' +
-    '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' bedrijven</span>' + (mag ? '<button type="button" class="crm-knop goed crm-nieuw" onclick="crmBedrijfWizard()">+ Bedrijf</button>' : '') + '</div></div>' +
+    _crmZoekKopHtml({ id: 'crm-bedr-q', waarde: st.zoek || '', placeholder: 'zoek bedrijf (naam, plaats, contactpersoon)…', sugg: 'crmBedrijfSugg', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, telefoon, e-mail, sector, team (initialen), contactpersoon en notities', plus: mag ? 'crmBedrijfWizard()' : '', plusTitel: 'Nieuw bedrijf' }) +   // 10-10 (V1)
+    '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' bedrijven</span></div></div>' +
     _crmSqlHint() +
     (mag && medew.length ? '<div class="acc-arch-nieuw"><span><strong>' + medew.length + (medew.length === 1 ? ' regel lijkt een medewerker' : ' regels lijken medewerkers') + '</strong>, geen bedrijf: alleen evaluatiebezoeken, geen collega toegewezen, niet in KAM of RLDV.</span>' +
       '<button type="button" class="crm-knop goed" onclick="crmMedewerkersOmzetten()">Omzetten naar kandidaten…</button></div>' : '') +
