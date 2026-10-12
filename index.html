@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261012-0816 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261012-0844 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2121,6 +2121,7 @@
   .vac-naar-opt { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:.86rem; } .vac-naar-opt:hover { background:rgba(255,255,255,.09); } .vac-naar-opt small { margin-left:auto; color:var(--tekst-gedempt); white-space:nowrap; }
   .vkz-rang { color:#F4CB3C; letter-spacing:1px; font-size:.7rem; }
   /* Matchscore (12-10) */
+  .kb-vac { display:inline-flex; align-items:center; gap:5px; margin-top:5px; margin-right:6px; border-radius:6px; padding:1px 7px; font-size:.68rem; font-weight:700; cursor:pointer; background:rgba(125,211,252,.18); color:#7dd3fc; max-width:100%; } .kb-vac span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .kb-vac.leeg { background:rgba(255,255,255,.06); color:var(--tekst-gedempt); font-weight:600; border:1px dashed rgba(255,255,255,.28); }
   .kb-ms { display:inline-flex; align-items:center; gap:5px; margin-top:5px; border-radius:6px; padding:1px 7px; font-size:.68rem; font-weight:700; cursor:pointer; background:rgba(37,211,102,.18); color:#6ee7b7; } .kb-ms.midden { background:rgba(244,203,60,.18); color:#F4CB3C; } .kb-ms.laag { background:rgba(232,116,0,.18); color:#ffb37a; } .kb-ms.leeg { background:rgba(255,255,255,.08); color:var(--tekst-gedempt); font-weight:600; } .kb-ms.bezig { background:rgba(255,255,255,.08); color:#F4CB3C; }
   .ms-kop { display:flex; align-items:center; gap:18px; margin:4px 0 12px; } .ms-ring { width:88px; height:88px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none; } .ms-ring > div { width:68px; height:68px; border-radius:50%; background:var(--l1); display:flex; flex-direction:column; align-items:center; justify-content:center; } .ms-ring b { font-size:1.5rem; line-height:1; } .ms-ring small { color:var(--tekst-gedempt); font-size:.62rem; }
   .ms-kop .t b { font-size:1rem; display:block; margin-bottom:3px; } .ms-kop .t span { color:#dfe5f3; font-size:.84rem; line-height:1.45; } .ms-vertrouwen { display:inline-block; margin-top:6px; background:var(--l2); border-radius:999px; padding:2px 9px; font-size:.7rem; color:#dfe5f3; }
@@ -11742,7 +11743,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261012-0816';
+const APP_VERSIE = '20261012-0844';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -11801,18 +11802,19 @@ function _veiligOmTeHerladen() {
   return true;
 }
 
+const VERSIE_GEDULD_MS = 30 * 60 * 1000;   // 12-10: zichtbaar tabblad pas na een halfuur vanzelf herladen
+let _versieGezienOp = 0;
 function _versieAutoBijwerken() {
-  if (_veiligOmTeHerladen()) {
-    // Even een teken van leven, anders lijkt het scherm zomaar te verspringen.
-    if (!document.hidden) _toonVersieToast();
-    setTimeout(versieBijwerken, document.hidden ? 0 : 1200);
-    return;
+  // 12-10: alleen een tabblad op de achtergrond herlaadt vanzelf; in beeld eerst de balk met Bijwerken / Later.
+  if (document.hidden && _veiligOmTeHerladen()) { setTimeout(versieBijwerken, 0); return; }
+  if (!document.hidden) {
+    if (!_versieGezienOp) _versieGezienOp = Date.now();
+    toonVersieBalk();
+    if (Date.now() - _versieGezienOp >= VERSIE_GEDULD_MS && _veiligOmTeHerladen()) { _toonVersieToast(); setTimeout(versieBijwerken, 1200); return; }
   }
   _versiePogingen++;
-  // Na tien mislukte pogingen (dus tien minuten bezig) alsnog de keuze geven.
-  if (_versiePogingen >= 10) { toonVersieBalk(); return; }
   clearTimeout(_versieWachtTimer);
-  _versieWachtTimer = setTimeout(_versieAutoBijwerken, 60 * 1000);
+  _versieWachtTimer = setTimeout(_versieAutoBijwerken, 60 * 1000);   // elke minuut opnieuw kijken (achtergrond → stil; in beeld → na het geduld)
 }
 
 function _toonVersieToast() {
@@ -11850,7 +11852,7 @@ function toonVersieBalk(hardnekkig) {
         'Probeer het nog eens, of ververs hard met Cmd+Shift+R.</span>'
       : '<span>Er is een nieuwe versie van het dashboard.</span>') +
     '<button onclick="versieBijwerken()">Bijwerken</button>' +
-    '<button class="later" onclick="document.getElementById(\'versie-balk\').remove()">Later</button>';
+    '<button class="later" onclick="document.getElementById(\'versie-balk\').remove()" title="De balk komt na een halfuur terug; een tabblad op de achtergrond werkt zichzelf stil bij">Later</button>';
   document.body.appendChild(balk);
 }
 
@@ -21739,7 +21741,7 @@ function _rtRijMatchScore(p) {
   const i = MATCH_SCORES.findIndex(x => String(x.id) === String(id));
   if (p.eventType === 'DELETE') { if (i >= 0) MATCH_SCORES.splice(i, 1); return true; }
   if (!rij || !rij.kandidaat_sleutel) return false;
-  if (i >= 0) MATCH_SCORES[i] = rij; else MATCH_SCORES.unshift(rij);
+  if (i >= 0) MATCH_SCORES[i] = Object.assign({}, MATCH_SCORES[i], rij); else MATCH_SCORES.unshift(rij);   // samenvoegen: grote kolommen ontbreken in een UPDATE-melding
   return true;
 }
 function _rtRijVacSel(p) {
@@ -21749,7 +21751,7 @@ function _rtRijVacSel(p) {
   const i = VAC_SEL.findIndex(x => String(x.id) === String(id));
   if (p.eventType === 'DELETE') { if (i >= 0) VAC_SEL.splice(i, 1); return true; }
   if (!rij || !rij.vacature_id) return false;
-  if (i >= 0) VAC_SEL[i] = rij; else VAC_SEL.push(rij);
+  if (i >= 0) VAC_SEL[i] = Object.assign({}, VAC_SEL[i], rij); else VAC_SEL.push(rij);   // samenvoegen
   return true;
 }
 // Documenten (09-10): de gemelde rij de cache in, zonder tekst. Vóór de eerste volledige lading: gewoon laden.
@@ -21781,15 +21783,16 @@ function _rtRijPipeline(p) {
   if (soort !== 'DELETE' && (!rij || !rij.bm_naam)) return false;
   // Weg uit elke lijst (de bm_naam kan veranderd zijn); onthoud de plek zodat een
   // bijgewerkte kaart niet verspringt.
-  let plek = null;
+  let plek = null, oudeKaart = null;
   for (const bm of Object.keys(PIPE_CACHE)) {
     const lijst = PIPE_CACHE[bm]; if (!Array.isArray(lijst)) continue;
     const i = lijst.findIndex(c => String(c.id) === String(id));
-    if (i >= 0) { plek = { bm, i }; lijst.splice(i, 1); }
+    if (i >= 0) { plek = { bm, i }; oudeKaart = lijst[i]; lijst.splice(i, 1); }
   }
   // Zelfde regel als pipeFetchAll: afgewezen kaarten horen niet in de pipeline.
   if (soort === 'DELETE' || rij.goedkeuring === 'niet_akkoord') return true;
   const kaart = _pipeCardFromRow(rij);
+  if (oudeKaart && soort === 'UPDATE') Object.keys(oudeKaart).forEach(k => { if (kaart[k] === undefined) kaart[k] = oudeKaart[k]; });   // 12-10: grote kolommen ontbreken in een UPDATE-melding
   const lijst = PIPE_CACHE[rij.bm_naam] || (PIPE_CACHE[rij.bm_naam] = []);
   if (plek && plek.bm === rij.bm_naam) lijst.splice(Math.min(plek.i, lijst.length), 0, kaart);
   else lijst.push(kaart);
@@ -21803,7 +21806,7 @@ function _rtRijCrm(p) {
   if (soort !== 'DELETE' && (!rij || !rij.naam)) return false;
   const i = CRM_KANDIDATEN.findIndex(k => String(k.id) === String(id));
   if (soort === 'DELETE') { if (i >= 0) CRM_KANDIDATEN.splice(i, 1); return true; }
-  if (i >= 0) CRM_KANDIDATEN[i] = rij; else CRM_KANDIDATEN.push(rij);
+  if (i >= 0) CRM_KANDIDATEN[i] = Object.assign({}, CRM_KANDIDATEN[i], rij); else CRM_KANDIDATEN.push(rij);   // samenvoegen (12-10): grote tekstkolommen ontbreken in een UPDATE-melding
   return true;
 }
 // Het bijgewerkt-stipje in de kopbalk (06-10): licht even groen op als er iets van een
@@ -30035,6 +30038,7 @@ function _pipeCardFromRow(c) {
     onbeschikbaar_op: c.onbeschikbaar_op || null, onbeschikbaar_reden: c.onbeschikbaar_reden || null,   // niet meer beschikbaar (16-09)
     // Kanban (16-09): klant, functie, datum gesprek/voorstel, vorige stap, ster, van het bord.
     kanban_klant: c.kanban_klant || null, kanban_functie: c.kanban_functie || null, gesprek_op: c.gesprek_op || null,
+    vacature_id: c.vacature_id || null,   // 12-10: gekoppelde vacature (supabase/kanban_vacature.sql)
     kanban_vorige: c.kanban_vorige || null, starboy: !!c.starboy, kanban_af: c.kanban_af || null,
     updated_at: c.updated_at || null,   // 25-09: voor het inhaalfeestje bij inloggen (vers = < 7 dagen)
     intake_op: c.intake_op || null,
@@ -36151,7 +36155,7 @@ function kanbanKaartHtml(c) {
       (c.gedeeld ? '<span class="kb-half" title="Twee collega\'s: telt bij elk voor 0,5">0,5</span>' : '') +
       bms.map(bm => '<span class="one-ber-av klein" style="background:' + _oneAvatarKleur(bm) + ';" title="' + escHtml(bm) + '">' + escHtml(_oneInitialen(bm)) + '</span>').join('') + '</div>' +
     '<div class="kb-regel">' + regel + '</div>' +
-    (typeof _msKaartHtml === 'function' ? _msKaartHtml(c) : '') +   // 12-10: matchscore vanaf Matchgesprek
+    _kanbanVacaturePilHtml(c, fase, mag) + (typeof _msKaartHtml === 'function' ? _msKaartHtml(c) : '') +   // 12-10: vacature + matchscore vanaf Matchgesprek
     (fase === 'starboy' ? '<div class="kb-rldv-rij">' + _kanbanRldvHtml(c) + '</div>' : '') +
     (pil || knoppen ? '<div class="kb-voet">' + pil + knoppen + '</div>' : '') +
     '</div>';
@@ -36265,8 +36269,9 @@ function _kanbanStandaardBm(voorkeur) {
 function _kanbanVeldenHtml(o) {
   const klanten = _kanbanKlantKeuzes().map(n => '<option value="' + escHtml(n) + '">').join('');
   return (o.metNaam ? '<div class="crm-kop">Kandidaat</div><input type="text" id="kb-naam" class="kand-vervolg-veld" list="kb-kandidaten" maxlength="80" placeholder="naam van de kandidaat" value="' + escHtml(o.naam || '') + '"><datalist id="kb-kandidaten">' + _kanbanKandKeuzes().map(n => '<option value="' + escHtml(n) + '">').join('') + '</datalist>' : '') +
-    '<div class="kk-2k"><div><div class="crm-kop">Klant</div><input type="text" id="kb-klant" class="kand-vervolg-veld" list="kb-klanten" maxlength="120" placeholder="opdrachtgever" value="' + escHtml(o.klant || '') + '"><datalist id="kb-klanten">' + klanten + '</datalist></div>' +
+    '<div class="kk-2k"><div><div class="crm-kop">Klant</div><input type="text" id="kb-klant" class="kand-vervolg-veld" list="kb-klanten" maxlength="120" placeholder="opdrachtgever" value="' + escHtml(o.klant || '') + '" oninput="_kanbanVacatureVul()"><datalist id="kb-klanten">' + klanten + '</datalist></div>' +
     '<div><div class="crm-kop">Functie</div><input type="text" id="kb-functie" class="kand-vervolg-veld" maxlength="120" placeholder="functie waarvoor het gesprek is" value="' + escHtml(o.functie || '') + '"></div></div>' +
+    (o.metVacature === false ? '' : '<div class="crm-kop">Vacature <small class="crm-kop-klein">optioneel · open vacatures van de klant</small></div>' + _kanbanVacatureSelectHtml(o.klant || '', o.vacatureId || '')) +   // 12-10
     '<div class="crm-kop">' + escHtml(o.datumLabel || 'Datum en tijd') + '</div><input type="datetime-local" id="kb-op" class="kand-vervolg-veld" value="' + escHtml(o.op || '') + '">' +
     (o.metSalaris ? '<div class="crm-kop">Salaris (verplicht bij Contractvoorstel)</div><input type="text" id="kb-salaris" class="kand-vervolg-veld" maxlength="40" placeholder="bijv. 3.800" value="' + escHtml(o.salaris || '') + '">' : '') +
     (o.zonderCollegas ? '' : _kanbanCollegasHtml(o.bm1 || '', o.bm2 || '')) +
@@ -36274,7 +36279,36 @@ function _kanbanVeldenHtml(o) {
 }
 function _kanbanLees() {
   const v = (id) => { const el = document.getElementById(id); return String((el && el.value) || '').trim(); };
-  return { naam: v('kb-naam'), klant: v('kb-klant'), functie: v('kb-functie'), op: _uitVeldTijd(v('kb-op')), opVeld: v('kb-op'), salaris: v('kb-salaris'), bm1: v('kb-bm1'), bm2: v('kb-bm2') };
+  return { naam: v('kb-naam'), klant: v('kb-klant'), functie: v('kb-functie'), op: _uitVeldTijd(v('kb-op')), opVeld: v('kb-op'), salaris: v('kb-salaris'), bm1: v('kb-bm1'), bm2: v('kb-bm2'), vacatureId: document.getElementById('kb-vacature') ? v('kb-vacature') : undefined };
+}
+// ── Vacature op het kaartje (12-10, ontwerp_kanban_vacature.html) ───────────────────────────────────────────
+function _vacOpenVan(klant) {
+  const sl = _itkSleutel(klant || ''); if (!sl || typeof VACATURES === 'undefined') return [];
+  return (VACATURES || []).filter(v => v.status !== 'gesloten' && (v.klant_sleutel === sl || (typeof _aanbBedrijfPast === 'function' && _aanbBedrijfPast(_vacKlantNaam(v), klant))))
+    .sort((a, b) => (a.status === 'online' ? 0 : 1) - (b.status === 'online' ? 0 : 1) || String(a.titel || '').localeCompare(String(b.titel || ''), 'nl'));
+}
+function _kanbanVacatureSelectHtml(klant, vacatureId) {
+  const lijst = _vacOpenVan(klant);
+  const huidig = vacatureId ? _vacVind(vacatureId) : null;
+  if (huidig && !lijst.some(v => String(v.id) === String(huidig.id))) lijst.unshift(huidig);   // gekoppeld aan een (inmiddels gesloten of andere) vacature: laten zien
+  const gekozen = vacatureId || (lijst.length === 1 ? String(lijst[0].id) : '');   // precies één open vacature → vooraf gekozen
+  const opties = '<option value="">' + (klant ? (lijst.length ? 'geen vacature (los gesprek)' : 'geen open vacature bij ' + escHtml(klant)) : 'kies eerst de klant') + '</option>' +
+    lijst.map(v => '<option value="' + escHtml(String(v.id)) + '"' + (String(v.id) === String(gekozen) ? ' selected' : '') + ' data-sub="' + escHtml((v.status || '') + ' · ' + vacSelVoorVacature(v.id).length + ' geselecteerd') + '">' + escHtml((v.titel || 'vacature') + (v.regio ? ' — ' + v.regio : '')) + '</option>').join('');
+  return '<select id="kb-vacature" class="kand-vervolg-veld" data-kz="uit">' + opties + '</select>';
+}
+function _kanbanVacatureVul() {
+  const sel = document.getElementById('kb-vacature'), klant = document.getElementById('kb-klant'); if (!sel || !klant) return;
+  const wrap = document.createElement('div'); wrap.innerHTML = _kanbanVacatureSelectHtml(klant.value, sel.value);
+  sel.innerHTML = wrap.firstChild.innerHTML;
+}
+function _kanbanVacaturePilHtml(c, fase, mag) {
+  if (!['g1', 'g2', 'g3', 'contract'].includes(fase)) return '';
+  const bmE = escApos(c.bmNaam), idE = escApos(c.id);
+  if (c.vacature_id) { const v = typeof _vacVind === 'function' ? _vacVind(c.vacature_id) : null; if (!v) return '';
+    return '<span class="kb-vac" role="button" tabindex="0" title="Vacature: ' + escHtml(v.titel || '') + ' · klik om te openen" onclick="event.stopPropagation();crmKaartSluit();vacOpen(\'' + escApos(String(v.id)) + '\')">⌘ <span>' + escHtml(v.titel || 'vacature') + '</span></span>'; }
+  const n = _vacOpenVan(_kanbanKlantVan(c)).length;
+  if (!n || !mag) return '';
+  return '<span class="kb-vac leeg" role="button" tabindex="0" title="Deze klant heeft ' + n + ' open vacature' + (n === 1 ? '' : 's') + ' — koppel er een voor een scherpere matchscore" onclick="event.stopPropagation();kanbanBewerkVenster(\'' + bmE + '\',\'' + idE + '\')">+ vacature koppelen (' + n + ' open)</span>';
 }
 function _kanbanStatus(t) { const el = document.getElementById('kb-status'); if (el) el.textContent = t; }
 // Het tegeltje schrijven: in de pipeline van de planner (of, voor wie alles
@@ -36337,6 +36371,7 @@ function _kanbanPayload(fase, o, vorige, gedeeld) {
   if (fase === 'contract') rij.salaris = o.salaris;
   if (fase === 'starter') rij.start_datum = String(o.opVeld || '').slice(0, 10);
   if (vorige) rij.kanban_vorige = vorige;
+  if (o.vacatureId !== undefined) rij.vacature_id = o.vacatureId || null;   // 12-10
   return rij;
 }
 function _kanbanControle(fase, o, metNaam) {
@@ -36423,7 +36458,7 @@ function kanbanDoorVenster(bmNaam, id, keuze) {
   crmKaartToon('<h4 class="wit">' + titel + '</h4>' +
     '<div class="crm-sub">' + (gekozen === 'starter' ? 'Het contractvoorstel is akkoord: ' + escHtml(c.naam || '') + ' start bij ' + escHtml(_kanbanKlantVan(c) || 'de klant') + '.' : 'Nu in ' + escHtml(_kanbanFase(fase).label) + '. Vul de datum van de volgende stap in.') + '</div>' +
     _kanbanStapKeuzeHtml(bmNaam, c.id, fase, gekozen) +
-    _kanbanVeldenHtml({ klant: open ? open.klant : _kanbanKlantVan(c), functie: open ? open.functie : (c.kanban_functie || (fase === 'starboy' ? c.functie : '') || ''), op: open ? open.opVeld : '', datumLabel: f.datum, metSalaris: gekozen === 'contract', salaris: open && open.salaris ? open.salaris : (c.salaris || ''), bm1: open && open.bm1 ? open.bm1 : _kanbanStandaardBm(bms[0]), bm2: open ? open.bm2 : (bms[1] || '') }) +
+    _kanbanVeldenHtml({ vacatureId: open && open.vacatureId !== undefined ? open.vacatureId : (c.vacature_id || ''), metVacature: ['g1', 'g2', 'g3', 'contract'].includes(gekozen), klant: open ? open.klant : _kanbanKlantVan(c), functie: open ? open.functie : (c.kanban_functie || (fase === 'starboy' ? c.functie : '') || ''), op: open ? open.opVeld : '', datumLabel: f.datum, metSalaris: gekozen === 'contract', salaris: open && open.salaris ? open.salaris : (c.salaris || ''), bm1: open && open.bm1 ? open.bm1 : _kanbanStandaardBm(bms[0]), bm2: open ? open.bm2 : (bms[1] || '') }) +
     _kanbanUitleg(null, gekozen, c.id) +
     (overgeslagen.length ? '<div class="vv-tegel" style="margin-top:6px;">Overgeslagen: ' + escHtml(overgeslagen.join(' en ')) + ' — daarvoor komt geen tegeltje, dus dat telt niet mee in de KPI\'s.</div>' : '') +
     '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kanbanDoorOpslaan(\'' + escApos(bmNaam) + '\',\'' + escApos(c.id) + '\')">' + (gekozen === 'starter' ? 'Starter melden' : 'Doorzetten naar ' + escHtml(f.label)) + '</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'kand-kaart', () => { KANBAN_DOOR = null; });
@@ -36459,7 +36494,7 @@ function kanbanBewerkVenster(bmNaam, id) {
   const c = v.kaart, f = _kanbanFase(kanbanFaseVan(c)) || KANBAN_FASES[1];
   crmKaartToon('<h4 class="wit">' + escHtml(c.naam || '') + ' <span class="kk-fase">' + escHtml(f.label) + '</span></h4>' +
     '<div class="crm-sub">Klant, functie en datum van deze stap. Het tegeltje zelf blijft in zijn week staan.</div>' +
-    _kanbanVeldenHtml({ klant: _kanbanKlantVan(c), functie: c.kanban_functie || '', op: _naarVeldTijd(_kanbanDatumVan(c)), datumLabel: f.datum, zonderCollegas: true }) +
+    _kanbanVeldenHtml({ klant: _kanbanKlantVan(c), functie: c.kanban_functie || '', op: _naarVeldTijd(_kanbanDatumVan(c)), datumLabel: f.datum, zonderCollegas: true, vacatureId: c.vacature_id || '', metVacature: ['g1', 'g2', 'g3', 'contract'].includes(kanbanFaseVan(c)) }) +
     '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kanbanBewerkOpslaan(\'' + escApos(bmNaam) + '\',\'' + escApos(c.id) + '\')">Opslaan</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'kand-kaart');
 }
 async function kanbanBewerkOpslaan(bmNaam, id) {
@@ -36470,6 +36505,7 @@ async function kanbanBewerkOpslaan(bmNaam, id) {
   if (!o.klant) { _kanbanStatus('Vul de klant in.'); return; }
   if (!o.op) { _kanbanStatus('Vul de datum (en tijd) in.'); return; }
   const payload = { kanban_klant: o.klant, kanban_functie: o.functie || null, gesprek_op: o.op };
+  if (o.vacatureId !== undefined) payload.vacature_id = o.vacatureId || null;   // 12-10
   if (c.stage === 'Contractvoorstel' || c.stage === 'Starter') payload.opdrachtgever = o.klant;
   if (c.stage === 'Starter' && o.opVeld) payload.start_datum = String(o.opVeld).slice(0, 10);
   const ok = await _kanbanUpdateGroep(id, payload);
@@ -43967,10 +44003,17 @@ function _vacSelBlokHtml(v) {
     const ms = (st === 'gesprek' || st === 'aangenomen' || x.status === 'voorgesteld') && typeof _msKnopHtml === 'function' ? '<br>' + _msKnopHtml(x.kandidaat_naam, _vacKlantNaam(v), v.id) : '';   // 12-10
     return '<tr><td>' + naam + ms + '</td><td>' + docs + '</td><td>' + escHtml(String(x.bm_naam || '').split(' ')[0]) + '</td><td><span class="vsel-pil ' + st + '">' + escHtml(VAC_SEL_LABELS[st] || st) + '</span></td><td>' + voorg + '</td><td>' + uitkomst + '</td><td>' + weg + '</td></tr>';
   }).join('');
+  // 12-10: gesprekken en contractvoorstellen van het bord met deze vacature die niet via de selectie liepen
+  const kb = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null;
+  const inSel = new Set(lijst.map(x => x.kandidaat_sleutel));
+  const viaBord = kb ? ['g1', 'g2', 'g3', 'contract', 'starter'].reduce((acc, f) => acc.concat((kb[f] || []).filter(c => String(c.vacature_id || '') === String(v.id) && !inSel.has(_itkSleutel(c.naam || ''))).map(c => ({ c, f }))), []) : [];
+  const bordRijen = viaBord.map(({ c, f }) => { const st = f === 'starter' ? 'aangenomen' : 'gesprek'; const k = kand.find(y => y.sleutel === _itkSleutel(c.naam || '')); const r = (k && k.crm) || {};
+    return '<tr><td><span class="crm-klik" onclick="crmKaartSluit();kandKaartOpen(\'' + escApos(String(c.bmNaam)) + '\',\'' + escApos(String(c.id)) + '\')"><b>' + escHtml(c.naam || '') + '</b></span><br><small class="stil">via het bord · ' + escHtml((_kanbanFase(f) || {}).label || f) + '</small>' + (typeof _msKnopHtml === 'function' ? '<br>' + _msKnopHtml(c.naam, _vacKlantNaam(v), v.id) : '') + '</td><td>' + ['cv', 'cr'].map(srt => _crmDocIcoon(_kandDocLinkVan(r, srt), srt === 'cv' ? 'CV' : 'Commercieel CV', srt)).join('') + '</td><td>' + escHtml(String(c.bmNaam || '').split(' ')[0]) + '</td><td><span class="vsel-pil ' + st + '">' + escHtml(f === 'contract' ? 'contractvoorstel' : VAC_SEL_LABELS[st] || st) + '</span></td><td>—</td><td></td><td></td></tr>'; }).join('');
+  const rijenAlle = rijen + bordRijen;
   return '<div class="crm-kop">Kandidaten <small class="crm-kop-klein">omgekeerd RLDV: wie stellen we voor?</small>' +
     (mag ? '<button type="button" class="crm-knop goed" style="margin-left:auto;" onclick="vacKiezerOpen(\'' + escApos(String(v.id)) + '\')">+ Kandidaten selecteren</button>' : '') + '</div>' +
     trechter +
-    (lijst.length ? '<table class="vsel-tabel"><thead><tr><th>Kandidaat</th><th>Docs</th><th>Collega</th><th>Status</th><th>Voorgesteld</th><th>Uitkomst</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table>'
+    (lijst.length || viaBord.length ? '<table class="vsel-tabel"><thead><tr><th>Kandidaat</th><th>Docs</th><th>Collega</th><th>Status</th><th>Voorgesteld</th><th>Uitkomst</th><th></th></tr></thead><tbody>' + rijenAlle + '</tbody></table>'
                   : '<div class="kk-lijst"><div class="kk-rij"><span class="stil">Nog geen kandidaten geselecteerd.</span></div></div>') +
     '<small class="vs-noot">Voorgesteld ✓ = CR naar de klant; dat zet ook de aanbieding op het bord van de collega. Afgewezen en teruggetrokken vragen een reden (gaat naar het gesprekslog).</small>';
 }
@@ -44008,7 +44051,7 @@ async function vacSelVoorstellen(id) {
   let kaartId = x.kaart_id || null;
   // Het Aanbieden-tegeltje op het bord van de eigenaar (zoals een RLDV-aanbieding), één per selectie.
   if (!kaartId && typeof _kanbanSchrijf === 'function' && magWijzigen('medewerkers')) {
-    try { const w = isoWeek(new Date()); const kaart = await _kanbanSchrijf(bm, { naam: x.kandidaat_naam, stage: 'Aanbieden', week: w.week, jaar: w.year, aanb: 1, vervolg_van: 'vac:' + x.id, opdrachtgever: klant || null }); kaartId = kaart && kaart.id ? String(kaart.id) : null; }
+    try { const w = isoWeek(new Date()); const kaart = await _kanbanSchrijf(bm, { naam: x.kandidaat_naam, stage: 'Aanbieden', week: w.week, jaar: w.year, aanb: 1, vervolg_van: 'vac:' + x.id, opdrachtgever: klant || null, vacature_id: x.vacature_id }); kaartId = kaart && kaart.id ? String(kaart.id) : null; }
     catch (e) { _meldStil('aanbieding uit vacature op het bord', e); }
   }
   const velden = { status: 'voorgesteld', voorgesteld_op: nu, voorgesteld_door: door, status_op: nu, status_door: door, kaart_id: kaartId, updated_at: nu };
@@ -44226,7 +44269,7 @@ function _msKaartHtml(c) {
   const fase = typeof kanbanFaseVan === 'function' ? kanbanFaseVan(c) : '';
   if (!['g1', 'g2', 'g3', 'contract'].includes(fase)) return '';
   const klant = _kanbanKlantVan(c); if (!klant || !c.naam) return '';
-  return _msKnopHtml(c.naam, klant, '');
+  return _msKnopHtml(c.naam, klant, c.vacature_id || '');
 }
 // ── Bronnen verzamelen ──
 function _msObjTekst(o, diepte) {
@@ -44333,7 +44376,7 @@ function _msVensterHtml(m, tab) {
     body = (m.dimensies || []).map(d => { const c = d.cijfer; const pct = c == null ? 0 : c * 20; const kl = c == null ? '' : c >= 4 ? '' : c >= 3 ? 'o' : 'r';
       return '<div class="ms-dim"><div class="n">' + escHtml(d.naam || d.sleutel) + '<small>' + escHtml(MS_DIM_UITLEG[d.sleutel] || '') + '</small></div><div>' + (c == null ? '<span class="stil">onbekend</span>' : c + ' / 5') + '<div class="ms-balk"><i class="' + kl + '" style="width:' + pct + '%"></i></div></div>' +
         '<div class="ms-bew">' + escHtml(d.onderbouwing || '') + (d.citaten || []).map(q => '<span class="q">"' + escHtml(q.tekst) + '"<span class="ms-bron">' + escHtml(q.bron || '') + '</span></span>').join('') + '</div></div>'; }).join('') +
-      ((m.risicos || []).length || (m.ontbreekt || []).length ? '<div class="ms-risico">' + ((m.risicos || []).length ? '<b>Risico\'s en open punten</b> · ' + (m.risicos || []).map(escHtml).join(' · ') : '') + ((m.ontbreekt || []).length ? '<br><b>Ontbreekt</b> · ' + (m.ontbreekt || []).map(escHtml).join(' · ') : '') + '</div>' : '') +
+      ((m.risicos || []).length || (m.ontbreekt || []).length || !m.vacature_id ? '<div class="ms-risico">' + ((m.risicos || []).length ? '<b>Risico\'s en open punten</b> · ' + (m.risicos || []).map(escHtml).join(' · ') : '') + ((m.ontbreekt || []).length || !m.vacature_id ? '<br><b>Ontbreekt</b> · ' + (m.ontbreekt || []).map(escHtml).concat(m.vacature_id ? [] : ['Geen vacature gekoppeld aan dit gesprek — koppel er een op het kaartje (klant, functie, datum) en druk op Vernieuwen voor een scherpere score op vakinhoud en arbeidsvoorwaarden.']).join(' · ') : '') + '</div>' : '') +
       '<div class="ms-bronnen">Bronnen: ' + (m.bronnen || []).map(x => escHtml(x.titel) + ' (' + Math.round((x.tekens || 0) / 1000) + 'k)').join(' · ') + '</div>';
   } else if (tab === 'klant') {
     const kt = m.klant_tekst || {};
