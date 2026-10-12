@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261012-0849 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261012-0906 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3540,6 +3540,11 @@
   /* 08-10: het plusje staat rechts ín het zoekveld */
   .crm-zoek-plus { width:26px; height:26px; flex:none; margin:-2px -2px -2px 2px; border-radius:50%; border:1px solid rgba(244,203,60,.6); color:#F4CB3C; background:none; font-size:1.1rem; font-weight:700; line-height:1; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; }
   .crm-zoek-plus:hover, .crm-zoek-plus.aan { background:#F4CB3C; color:#1b2238; }
+  /* 12-10 (ontwerp B): in een filterbalk is het zoekveld compact en rechts — vast 300 px, groeit nooit mee */
+  .crm-balk .crm-zoek, .crm-zoekgroep .crm-zoek, .rec-balk .crm-zoek, .ev-balk .crm-zoek { flex:0 0 300px; width:300px; max-width:300px; margin:0 0 0 auto; padding:5px 10px; }
+  .crm-zoekgroep { display:flex; align-items:center; gap:10px; margin-left:auto; }
+  .crm-zoekgroep .crm-zoek { margin-left:0; }
+  @media (max-width:640px) { .crm-balk .crm-zoek, .rec-balk .crm-zoek, .ev-balk .crm-zoek { flex:1 1 100%; width:100%; max-width:none; margin:4px 0 0; } }
   .crm-plus-paneel { position:absolute; top:calc(100% + 6px); right:0; background:var(--l1); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:10px; box-shadow:0 14px 36px rgba(0,0,0,.45); width:270px; font-size:.86rem; z-index:8000; text-align:left; }
   .crm-plus-paneel .vraag { color:var(--tekst-gedempt); font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; padding:2px 6px 8px; }
   .crm-plus-paneel .it { display:flex; align-items:center; gap:10px; padding:9px 8px; border-radius:7px; cursor:pointer; color:#fff; }
@@ -11744,7 +11749,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261012-0849';
+const APP_VERSIE = '20261012-0906';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15581,7 +15586,7 @@ function _crmZoekSneltoets(e) {
   const el = document.activeElement;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
   if (document.getElementById('crm-laag') || document.getElementById('bt-bevestig-laag')) return;
-  const veld = document.getElementById('crm-zoek-veld') || document.getElementById('crm-kand-q') || document.getElementById('crm-bedr-q'); if (!veld) return;   // 10-10: ook CRM · Kandidaten / Bedrijven
+  const veld = document.getElementById('crm-zoek-veld') || document.getElementById('crm-kand-q') || document.getElementById('crm-bedr-q') || document.querySelector('.crm-balk .crm-zoek input, .rec-balk .crm-zoek input, .ev-balk .crm-zoek input'); if (!veld) return;   // 10-10: ook CRM; 12-10: elke filterbalk
   e.preventDefault(); veld.focus(); veld.select();
 }
 document.addEventListener('keydown', _crmZoekSneltoets);
@@ -33507,6 +33512,7 @@ function _zoekBalkHtml(o) {
     (o.hint ? ' title="Zoekt op ' + escHtml(o.hint) + '"' : '') +
     (o.sugg ? ' autocomplete="off" data-sugg="' + escHtml(o.sugg) + '" onkeydown="return _zoekSuggToets(event, this)" onblur="_zoekSuggWeg(this)"' : '') +
     (input ? ' ' + input : '') + '>' +
+    '<kbd class="crm-zoek-k" title="Sneltoets: /">/</kbd>' +   // 12-10
     (o.sugg && ZOEK_SUGG && ZOEK_SUGG.open && ZOEK_SUGG.id === o.id ? _zoekSuggHtml(o.id, o.waarde || '', o.sugg) : '') + '</div>';
   if (o.alleenTabs) return '<div class="crm-balk"><div class="crm-tabs">' + tabs + (o.links || '') + '</div></div>';   // 10-10: het zoekveld staat in de kop
   return '<div class="crm-balk"><div class="crm-tabs">' + tabs + (o.links || '') + '</div>' +
