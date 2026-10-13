@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261012-1204 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261013-1326 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11768,7 +11768,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261012-1204';
+const APP_VERSIE = '20261013-1326';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -44505,12 +44505,11 @@ function msPrint(id, welke) {
 }
 // ── Hulpjes ─────────────────────────────────────────────────────────────────
 function _vacMij() { return (CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''; }
-// Wie mag deze vacature bewerken: de eigenaar, manager/backoffice, de volledig bevoegden, de beheerder.
+// Wie mag deze vacature bewerken: iedereen met wijzigrecht op CRM (13-10, Toussaint: "collega's willen
+// vacatures kunnen bewerken"). Tot 13-10 alleen de eigenaar, manager/backoffice en de volledig bevoegden;
+// de database-regel is meegegaan (supabase/vacatures_iedereen.sql).
 function _vacMag(v) {
-  if (!CURRENT_USER || !magWijzigen('crm') || VAC_ONTBREEKT) return false;
-  if (isManagerLevel() || CURRENT_USER.rol === 'backoffice' || isBeheerder()) return true;
-  if ((typeof VOLLEDIG_BEVOEGD !== 'undefined' ? VOLLEDIG_BEVOEGD : []).includes(CURRENT_USER.naam)) return true;
-  return !v || !v.bm_naam || _itkSleutel(v.bm_naam) === _itkSleutel(_vacMij()) || _itkSleutel(v.bm_naam) === _itkSleutel(CURRENT_USER.naam || '');
+  return !!CURRENT_USER && magWijzigen('crm') && !VAC_ONTBREEKT;
 }
 function _vacMagSync() { return !!CURRENT_USER && (isManagerLevel() || CURRENT_USER.rol === 'backoffice' || isBeheerder()); }
 function _vacVind(id) { return VACATURES.find(v => String(v.id) === String(id)) || null; }
@@ -44711,7 +44710,7 @@ function _vacKaartHtml(f) {
     veld('Status', pillen + (status === 'gesloten' && g.gesloten_op ? '<small class="vs-noot">gesloten ' + escHtml(_vacDatum(g.gesloten_op)) + (g.gesloten_reden ? ' · ' + escHtml(g.gesloten_reden) : '') + '</small>' : '')) +
     '<div class="vs-2k">' + veld('Online vanaf', '<input id="vac-online-vanaf" type="date" value="' + escHtml(String(g.online_vanaf || '').slice(0, 10)) + '" ' + inp + '>') + veld('Automatisch sluiten op', '<input id="vac-sluit-op" type="date" value="' + escHtml(String(g.sluit_op || '').slice(0, 10)) + '" ' + inp + '>') + '</div>' +
     veld('Recruiter op de site ("Kan ik helpen?")', sel('vac-recruiter', g.recruiter || _vacMij(), collegas)) +
-    veld('Eigenaar in de Cockpit (BM)', sel('vac-bm', g.bm_naam || _vacMij(), collegas, !(isManagerLevel() || isBeheerder() || (CURRENT_USER && CURRENT_USER.rol === 'backoffice')))) +
+    veld('Eigenaar in de Cockpit (BM)', sel('vac-bm', g.bm_naam || _vacMij(), collegas)) +   // 13-10: iedereen mag de eigenaar wijzigen
     veld('Adres op de site', '<div class="vs-vast">' + slug + '</div>', false, g.online_vanaf ? 'vast — wijzigt niet mee met de titel' : 'wordt vastgezet zodra de vacature online gaat') +
     '<div class="crm-kop">Koppelingen in de Cockpit</div>' +
     '<div class="kk-lijst"><div class="kk-rij"><span>Klant</span><div>' + (g.klant_sleutel ? '<span class="crm-klik" onclick="crmKaartSluit();crmBedrijfOpen(\'' + escApos(g.klant_sleutel) + '\')">' + escHtml(klantNaam) + ' → bedrijfskaart</span>' : '<span class="stil">nog niet gekozen</span>') + '</div></div>' +
@@ -44733,7 +44732,7 @@ async function vacOpslaan(knop) {
   const f = VAC_FORM; if (!f || !eisWijzig('crm')) return;
   const bron = f.id ? _vacVind(f.id) : null;
   if (f.id && !bron) { btMeld('Deze vacature bestaat niet (meer).', 'geel'); return; }
-  if (!_vacMag(bron)) { btMeld('Alleen de eigenaar, manager of backoffice kan deze vacature wijzigen.', 'geel'); return; }
+  if (!_vacMag(bron)) { btMeld('Je hebt geen wijzigrecht op CRM; vraag ' + BEHEERDER_NAAM.split(' ')[0] + ' om het aan te zetten.', 'geel'); return; }
   const w = _vacLees();
   const fout = (t, id) => { btMeld(t, 'geel'); const el = id && document.getElementById(id); if (el && el.focus) el.focus(); };
   const leeg = (k) => !String(w[k] || '').trim();
