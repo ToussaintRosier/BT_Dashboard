@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261014-1005 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261014-1207 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11854,7 +11854,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261014-1005';
+const APP_VERSIE = '20261014-1207';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -32866,6 +32866,7 @@ async function loadCrm() {
   await loadGeenDubbel();   // 14-10
   CRM_KANDIDATEN = k || CRM_KANDIDATEN || [];
   CRM_BEDRIJVEN = b || CRM_BEDRIJVEN || [];
+  _crmLijstCacheWeg();   // 14-10
 }
 // De kandidaten in het CRM, op naam (voor het pipeline-venster: een intake
 // komt sinds 17-09 alleen nog uit deze lijst).
@@ -33880,7 +33881,23 @@ function _crmVoet(gevonden, totaal, beperkt, alles, wat) {
 // ── Kandidaten: de lijst ───────────────────────────────────────────────────
 // Eén regel per naam: de pipeline (kandArchiefLijst) plus de CRM-rijen; wie
 // alleen in het CRM staat komt er ook bij.
+// Eén keer per tik (14-10): de lijsten worden door veel schermen vele malen per tekening opgevraagd (het
+// Kanban-bord: per kaartje × per vacature). Zelfde tik + zelfde bronlijsten = dezelfde uitkomst; een kopie,
+// zodat een aanroeper die sorteert niemand anders stoort.
+let _CRM_LIJST_CACHE = { kand: null, bedrijf: null };
+function _crmLijstCacheWeg() { _CRM_LIJST_CACHE.kand = null; _CRM_LIJST_CACHE.bedrijf = null; }
+function _crmLijstUitCache(soort, sig, bouw) {
+  const c = _CRM_LIJST_CACHE[soort];
+  if (c && c.sig.length === sig.length && c.sig.every((x, i) => x === sig[i])) return c.lijst.slice();
+  const lijst = bouw();
+  _CRM_LIJST_CACHE[soort] = { sig, lijst };
+  setTimeout(() => { _CRM_LIJST_CACHE[soort] = null; }, 0);
+  return lijst.slice();
+}
 function crmKandLijst() {
+  return _crmLijstUitCache('kand', [CRM_KANDIDATEN, (CRM_KANDIDATEN || []).length, typeof PIPE_CACHE !== 'undefined' ? PIPE_CACHE : null, typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : null, typeof KAND_NOTITIES !== 'undefined' ? KAND_NOTITIES : null], _crmKandLijstBouw);
+}
+function _crmKandLijstBouw() {
   const per = {};
   kandArchiefLijst().forEach(k => { per[k.sleutel] = { ...k, naam: _crmNaamNet(k.naam), crm: null, rec: null }; });
   (CRM_KANDIDATEN || []).forEach(r => {
@@ -35449,6 +35466,9 @@ function crmSearchNaarOneKies(gid) {
 // Eén regel per naam: CRM-rijen, KAM-klanten, RLDV-prospects en bezochte
 // bedrijven samen. De KAM-naam wint als spelling (RLDV schrijft soms 'neways').
 function crmBedrijfLijst() {
+  return _crmLijstUitCache('bedrijf', [CRM_BEDRIJVEN, (CRM_BEDRIJVEN || []).length, typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : null, typeof SALES_LEADS_CACHE !== 'undefined' ? SALES_LEADS_CACHE : null, typeof PIPE_CACHE !== 'undefined' ? PIPE_CACHE : null], _crmBedrijfLijstBouw);
+}
+function _crmBedrijfLijstBouw() {
   const per = {};
   const maak = (sl, naam) => per[sl] = per[sl] || { sleutel: sl, naam, crm: null, account: null, lead: null, klant: null, bezoeken: 0, laatste: null, laatsteMs: -1, plan: null, contacten: [], notitie: null };
   (CRM_BEDRIJVEN || []).forEach(r => { const sl = r.sleutel || _itkSleutel(r.naam); if (!sl) return; maak(sl, r.naam).crm = r; });
