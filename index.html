@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261014-0957 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261014-1005 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11854,7 +11854,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261014-0957';
+const APP_VERSIE = '20261014-1005';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -33163,11 +33163,42 @@ async function loadGeenDubbel() {
   if (error) { if (!/does not exist|42P01|schema cache|PGRST205/i.test(String(error.message || error.code || ''))) _meldStil('geen-dubbel laden', error); return; }
   CRM_GEEN_DUBBEL = data || [];
 }
-function _dubPaar(a, b) { return a < b ? [a, b] : [b, a]; }
-function _dubTel(s) { const c = String(s || '').replace(/\D/g, '').replace(/^0031/, '0').replace(/^31(?=\d{9}$)/, '0'); return c.length >= 8 ? c : ''; }
-function _dubMail(s) { const m = String(s || '').trim().toLowerCase(); return /@/.test(m) ? m : ''; }
-function _dubWeb(s) { const w = String(s || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[\/?#].*$/, ''); return /\./.test(w) ? w : ''; }
-function _dubKvk(s) { const c = String(s || '').replace(/\D/g, ''); return c.length >= 8 ? c : ''; }
+function _dubPaar(a, b) {
+  return a < b ? [a, b] : [b, a];
+}
+function _dubTel(s) {
+  const c = String(s || '').replace(/\D/g, '').replace(/^0031/, '0').replace(/^31(?=\d{9}$)/, '0');
+  return c.length >= 8 ? c : '';
+}
+function _dubMail(s) {
+  const m = String(s || '').trim().toLowerCase();
+  return /@/.test(m) ? m : '';
+}
+function _dubWeb(s) {
+  const w = String(s || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[\/?#].*$/, '');
+  return /\./.test(w) ? w : '';
+}
+function _dubKvk(s) {
+  const c = String(s || '').replace(/\D/g, '');
+  return c.length >= 8 ? c : '';
+}
+// Bedrijfsnamen (14-10): de woorden zonder rechtsvorm en leestekens — "Neways Advanced Applications B.V." → ["neways","advanced","applications"].
+const DUB_RECHTSVORM = ['bv', 'nv', 'vof', 'cv', 'bvba', 'gmbh', 'ltd', 'inc', 'llc', 'sa', 'ag', 'plc', 'co', 'bedrijf', 'company'];
+function _dubBedrijfWoorden(naam) {
+  return String(naam || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\./g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ')   // B.V. → bv
+    .filter(w => w && !DUB_RECHTSVORM.includes(w));
+}
+// Zijn twee bedrijfsnamen varianten van elkaar? Geeft { reden, detail } of null.
+function _dubBedrijfVariant(naamA, naamB) {
+  const a = _dubBedrijfWoorden(naamA), b = _dubBedrijfWoorden(naamB);
+  if (!a.length || !b.length || a[0] !== b[0]) return null;
+  if (a.join(' ') === b.join(' ')) return { reden: 'Zelfde naam zonder rechtsvorm', detail: a.join(' ') };
+  const [kort, lang] = a.length <= b.length ? [a, b] : [b, a];
+  const afk = lang.map(w => w[0]).join('');
+  if (kort.length === 2 && lang.length >= 3 && (kort[1] === afk || kort[1] === afk.slice(1))) return { reden: 'Afkorting van de naam', detail: kort[1].toUpperCase() + ' = ' + lang.join(' ') };
+  if (kort.length >= 2 && lang.length > kort.length && kort.every((w, i) => lang[i] === w)) return { reden: 'Begint met dezelfde naam', detail: kort.join(' ') + ' …' };
+  return null;
+}
 // De suggesties: [{ a, b, reden, detail }], sterkste reden eerst. a en b zijn items uit crmKandLijst/crmBedrijfLijst.
 function _crmDubbelParen(soort) {
   const lijst = soort === 'kand' ? crmKandLijst() : crmBedrijfLijst();
@@ -33189,6 +33220,10 @@ function _crmDubbelParen(soort) {
   if (soort === 'bedrijf') {
     groep('Zelfde KvK-nummer', k => _dubKvk(k.crm && k.crm.kvk));
     groep('Zelfde website', k => _dubWeb(k.crm && k.crm.website));
+    // 14-10: naamvarianten (rechtsvorm, afkorting, begin) — alleen vergelijken binnen hetzelfde eerste woord.
+    const perEerste = new Map();
+    lijst.forEach(k => { const w = _dubBedrijfWoorden(k.naam)[0]; if (w && w.length >= 3) { const l = perEerste.get(w); if (l) l.push(k); else perEerste.set(w, [k]); } });
+    perEerste.forEach(l => { if (l.length < 2 || l.length > 40) return; for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) { const v = _dubBedrijfVariant(l[i].naam, l[j].naam); if (v) zet(l[i], l[j], v.reden, v.detail); } });
     lijst.forEach(k => { k.dubbelSleutel = _crmDubbelSleutel(k.naam); k.dubbel = []; });
     _crmDubbelen(lijst);
   }
@@ -33262,7 +33297,7 @@ function _crmDubbelKeuze() {
 }
 function _crmDubbelPlan() {
   const D = CRM_DUB, k = _crmDubbelKeuze(), el = document.getElementById('dub-plan'); if (!D || !k || !el) return;
-  const let_ = D.soort === 'kand' && _crmDubbelSleutel(k.doel.naam).length < _crmDubbelSleutel(k.bron.naam).length && D.paren[D.i].reden === 'Naam lijkt erop';
+  const let_ = _crmDubbelSleutel(k.doel.naam).length < _crmDubbelSleutel(k.bron.naam).length && /^(Naam lijkt erop|Afkorting van de naam|Begint met dezelfde naam)$/.test(D.paren[D.i].reden);
   el.innerHTML = 'Alles van <b>' + escHtml(k.bron.naam) + '</b> komt onder <b>' + escHtml(k.doel.naam) + '</b>: ' + (D.soort === 'kand' ? 'tegeltjes, verslagen, notities, documenten, vacature-selecties en matchscores' : 'bezoeken, kaartjes, verslagen, accountplan, RLDV, documenten, vacatures en matchscores') + '. Lege velden worden aangevuld. Terugdraaien kan niet.' +
     (let_ ? '<br><span style="color:#ffb37a">Let op: de kortste naam blijft — wissel het rondje als de andere spelling de juiste is.</span>' : '');
 }
