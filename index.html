@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261013-2011 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261014-0957 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1708,6 +1708,12 @@
   .ch-baan-knop.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; }
   .ch-baan-knop:hover { border-color:#F4CB3C; }
   .ch-baan-auto { display:block; margin-top:8px; font-size:.66rem; color:rgba(255,255,255,.35); }
+  /* Challenge-punten (14-10): "+n" bij de stand, oplichten bij een nieuw punt, regel "Laatste" onder de baan. */
+  .ch-loper .sc em { font-style:normal; color:#F4CB3C; margin-left:3px; }
+  .ch-loper.nieuw .one-ber-av { box-shadow:0 0 0 4px rgba(244,203,60,.45), 0 0 18px rgba(244,203,60,.6); animation:chPuls 1.2s ease-in-out 3; }
+  @keyframes chPuls { 0%,100% { transform:scale(1); } 50% { transform:scale(1.25); } }
+  .ch-laatst { grid-column:1 / -1; font-size:.72rem; color:rgba(255,255,255,.55); border-top:1px solid rgba(255,255,255,.06); padding-top:6px; margin-top:-4px; }
+  .ch-laatst b { color:#F4CB3C; } .ch-laatst .nw { background:rgba(244,203,60,.18); color:#F4CB3C; border-radius:4px; padding:0 5px; font-size:.62rem; font-weight:var(--w-nadruk); margin-left:6px; }
   .ch-cor-grp { font-size:.7rem; color:#F4CB3C; letter-spacing:.08em; text-transform:uppercase; margin:12px 0 4px; }
   .ch-cor-rij { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:0.5px solid rgba(255,255,255,.07); font-size:.84rem; color:#fff; }
   .ch-cor-rij small { color:rgba(255,255,255,.5); font-size:.72rem; } .ch-cor-rij.leeg { color:rgba(255,255,255,.4); }
@@ -2261,6 +2267,20 @@
   @media (max-width:640px) { .crm-s-velden { grid-template-columns:1fr; } .crm-s-schak { margin-left:0; } }
   .crm-knop.let { border-color:#E87400; color:#ffc08a; }
   .crm-kaart.crm-samenvoeg { max-width:640px; }
+  /* Dubbelen-pop-up (14-10) */
+  .meta-pill.dub { background:rgba(232,116,0,.22); color:#ffb37a; border:1px solid rgba(232,116,0,.5); cursor:pointer; font-weight:var(--w-nadruk); }
+  .meta-pill.dub:hover { background:rgba(232,116,0,.35); color:#fff; }
+  .dub-kop { display:flex; align-items:center; gap:10px; } .dub-kop .tel { margin-left:auto; font-size:.74rem; color:rgba(255,255,255,.55); }
+  .dub-reden { font-size:.66rem; color:var(--accent-gold); text-transform:uppercase; letter-spacing:.06em; margin:10px 0 6px; } .dub-reden em { font-style:normal; color:rgba(255,255,255,.55); text-transform:none; letter-spacing:0; margin-left:8px; }
+  .dub-twee { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .dub-kaart { display:block; background:var(--l1); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:10px 12px; font-size:.8rem; cursor:pointer; color:#fff; }
+  .dub-kaart:has(input:checked) { border-color:var(--accent-gold); }
+  .dub-kaart .n { font-weight:var(--w-nadruk); font-size:.88rem; display:flex; align-items:center; gap:8px; } .dub-kaart .n input { margin:0; accent-color:#F4CB3C; }
+  .dub-kaart .n .blijft { margin-left:auto; font-size:.62rem; color:var(--accent-gold); font-weight:var(--w-normaal); display:none; } .dub-kaart:has(input:checked) .n .blijft { display:inline; }
+  .dub-kaart .r { color:rgba(255,255,255,.6); font-size:.74rem; margin-top:4px; line-height:1.5; } .dub-kaart .r b { color:#fff; font-weight:600; }
+  .dub-plan { color:rgba(255,255,255,.6); font-size:.76rem; line-height:1.5; margin-top:8px; } .dub-plan b { color:#fff; }
+  .dub-klaar { text-align:center; padding:10px 0 4px; } .dub-klaar b { display:block; font-size:1rem; margin-bottom:6px; } .dub-klaar span { color:rgba(255,255,255,.6); font-size:.8rem; line-height:1.5; }
+  @media (max-width: 700px) { .dub-twee { grid-template-columns:1fr; } }
   /* Medewerkers omzetten (18-09): lijst met vinkjes in het venster. */
   .crm-kaart.crm-omzet { width:900px; max-width:96vw; }
   .crm-omzet-tabel { width:100%; border-collapse:collapse; font-size:.8rem; margin:6px 0 4px; }
@@ -9426,7 +9446,35 @@ function _chTelt(ch, naam) {
     if (regio && !String(c.regio || '').toLowerCase().includes(regio)) return;
     n += ml.s === 'aanbiedingen' ? (+c.aanb || 1) : 1;
   });
-  return n;
+  return n + _chPunten(ch, naam);   // 14-10: handmatige punten tellen mee
+}
+// Handmatige punten (14-10): rijen in challenge_voordrachten met soort 'punt'.
+function _chPunten(ch, naam) {
+  return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam && v.soort === 'punt').length;
+}
+function _chPuntRijen(ch) {
+  return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.soort === 'punt').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+}
+// "Nieuw" = een punt van een ander dat je nog niet in beeld had (het hoogste id dat je zag staat in localStorage).
+function _chPuntGezien() { try { return +(localStorage.getItem('bt_ch_punt_gezien') || 0); } catch (_) { return 0; } }
+function _chPuntIsNieuw(v) {
+  const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
+  return v.soort === 'punt' && v.naam !== ik && +v.id > _chPuntGezien();
+}
+function _chPuntGezienZet() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  const top = Math.max(0, ...(CH_VOORDRACHTEN || []).filter(v => v.soort === 'punt').map(v => +v.id || 0));
+  if (top > _chPuntGezien()) { try { localStorage.setItem('bt_ch_punt_gezien', String(top)); } catch (_) { /* geen opslag */ } }
+}
+function _chGeleden(iso) {
+  const ms = Date.now() - Date.parse(iso); if (!(ms >= 0)) return '';
+  const m = Math.floor(ms / 60000), u = Math.floor(m / 60), d = Math.floor(u / 24);
+  return m < 1 ? 'zojuist' : m < 60 ? m + ' min geleden' : u < 24 ? u + ' uur geleden' : d === 1 ? 'gisteren' : d + ' dagen geleden';
+}
+function _chLaatsteHtml(ch) {
+  const rijen = _chPuntRijen(ch).slice(0, 2);
+  if (!rijen.length) return '';
+  return '<div class="ch-laatst">Laatste: ' + rijen.map(v => '<b>' + escHtml(String(v.naam).split(' ')[0]) + '</b> +1' + (v.kand_naam ? ' · ' + escHtml(v.kand_naam) : '') + ' · ' + escHtml(_chGeleden(v.created_at)) + (_chPuntIsNieuw(v) ? '<span class="nw">nieuw</span>' : '')).join(' &nbsp;·&nbsp; ') + '</div>';
 }
 // Alle deelnemers met status: de uitdager (als hij meedoet) + de uitgedaagden.
 // Wie kun je uitdagen: collega's met cijfers, zonder jezelf en zonder wie uit dienst is (23-09).
@@ -9633,6 +9681,7 @@ function chRacebaanHtml(nu) {
     (lopend.length ? '<span class="ch-baan-tel">' + lopend.length + ' lopend</span>' : '') +
     '<a href="#" class="ch-baan-link" onclick="chNaarOne();return false;">Alle challenges →</a></div>';
   if (!lopend.length) return '<div style="margin-top:26px;">' + kop + '<div class="bt-venster ch-baan-leeg">🏆 Geen lopende challenge op dit moment. <a href="#" onclick="chNaarOne();return false;">Daag een collega uit →</a></div></div>';
+  setTimeout(_chPuntGezienZet, 8000);   // 14-10: na 8 s in beeld zijn nieuwe punten "gezien"
   return '<div style="margin-top:26px;">' + kop + '<div class="bt-venster ch-baan-bord">' + lopend.map(c => _chBaanRegel(c, nu)).join('') + '</div></div>';
 }
 // Positie op de baan in procenten (4 = start, 96 = finish); gelijke standen schuiven iets uit elkaar.
@@ -9665,8 +9714,8 @@ function _chBaanRegel(ch, nu) {
   const doelN = _chSchaal(ch, st);
   const top = st.length ? st[0].stand : 0;
   const leiders = top > 0 ? st.filter(x => x.stand === top).map(x => x.naam.split(' ')[0]) : [];
-  const lopers = _chBaanPosities(st, doelN).map(x => '<div class="ch-loper' + (top > 0 && x.stand === top ? ' leid' : '') + '" style="left:' + x.p.toFixed(1) + '%" title="' + escHtml(x.naam) + '">' +
-    '<span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span class="sc">' + x.stand + '</span></div>').join('');
+  const lopers = _chBaanPosities(st, doelN).map(x => { const pt = _chPunten(ch, x.naam); return '<div class="ch-loper' + (top > 0 && x.stand === top ? ' leid' : '') + '" data-ch="' + ch.id + '" data-naam="' + escHtml(x.naam) + '" style="left:' + x.p.toFixed(1) + '%" title="' + escHtml(x.naam) + (pt ? ' · waarvan ' + pt + ' handmatig' : '') + '">' +
+    '<span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span class="sc">' + x.stand + (pt ? '<em>+' + pt + '</em>' : '') + '</span></div>'; }).join('');
   const sub = ch.winvorm === 'doel'
     ? 'Eerste bij ' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + ' · t/m ' + escHtml(_crmDatum(Date.parse(ch.eind_op)))
     : 'Meeste ' + escHtml(ml.mv) + ' op ' + escHtml(_crmDatum(Date.parse(ch.eind_op))) + (+ch.streef > 0 ? ' · streefgetal ' + escHtml(String(ch.streef)) : '');
@@ -9680,15 +9729,51 @@ function _chBaanRegel(ch, nu) {
   const mag = typeof magWijzigen === 'function' ? magWijzigen('one') : true;
   const status = _chStatus(ch, nu);
   let knoppen = '';
-  if (ch.meetlat === 'voordrachten') {
-    if (status === 'lopend' && mag && mijn && mijn.status === 'accepteert') knoppen += '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chVoordragenVenster(' + ch.id + ')">+ Voordragen</button>';
-    if (mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>';
-  } else knoppen = '<span class="ch-baan-auto">telt uit de pipeline</span>';
+  // 14-10: "+ Punt" bij elke meetlat (bij voordrachten heet hij "+ Voordragen"); Corrigeren voor de uitdager of een manager.
+  if (status === 'lopend' && mag && mijn && mijn.status === 'accepteert') knoppen += ch.meetlat === 'voordrachten'
+    ? '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chVoordragenVenster(' + ch.id + ')">+ Voordragen</button>'
+    : '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chPuntVenster(' + ch.id + ')">+ Punt</button>';
+  if (mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>';
+  if (ch.meetlat !== 'voordrachten') knoppen += '<span class="ch-baan-auto">telt uit de pipeline + punten</span>';
   return '<div class="ch-baan-regel" onclick="chNaarOne()">' +
     '<div><div class="ti">' + escHtml(ch.titel) + '</div><div class="sub">' + sub + (ch.bedrijf ? ' · ' + escHtml(ch.bedrijf) : '') + '</div></div>' +
     '<div class="ch-baan"><div class="lijn"></div>' + _chBaanTikken(doelN) + '<div class="finish"></div>' + lopers + '</div>' +
     '<div class="rechts"><div class="leider">' + leider + '</div><div class="dagen' + (rest <= 3 ? ' urgent' : '') + '">' + escHtml(_chDagenTekst(ch, nu)) + '</div>' +
-    (knoppen ? '<div class="ch-baan-knoppen">' + knoppen + '</div>' : '') + '</div></div>';
+    (knoppen ? '<div class="ch-baan-knoppen">' + knoppen + '</div>' : '') + '</div>' + _chLaatsteHtml(ch) + '</div>';
+}
+// ── + Punt (14-10): een handmatig punt bij een pipeline-meetlat ──────────────
+function chPuntVenster(chId) {
+  const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId)); if (!ch) return;
+  crmKaartToon('<h4 class="wit">+ Punt — ' + escHtml(ch.titel) + '</h4><div class="ch-vorm"><label>Kandidaat (uit CRM)</label>' +
+    _kiezerHtml({ id: 'ch-punt-kand', klasse: 'donker', lijst: () => (typeof crmKandLijst === 'function' ? crmKandLijst() : []).map(k => ({ naam: k.naam, sub: k.functie || k.woonplaats || '' })), waarde: '', placeholder: 'kies of typ een naam uit CRM…', nieuw: false }) +
+    '<label>Reden (optioneel)</label><input id="ch-punt-reden" placeholder="bijv. intake gepland, stond niet in de pipeline">' +
+    '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop goed" onclick="chPuntToevoegen(' + ch.id + ')">Punt toevoegen</button><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div></div>', 'crm-kaart-smal');
+  const inp = document.getElementById('ch-punt-kand'); if (inp && inp.focus) inp.focus();
+}
+async function chPuntToevoegen(chId) {
+  if (!eisWijzig('one') || !supa || !CURRENT_USER) return;
+  const naam = String((document.getElementById('ch-punt-kand') || {}).value || '').trim();
+  const reden = String((document.getElementById('ch-punt-reden') || {}).value || '').trim();
+  const k = (typeof crmKandLijst === 'function' ? crmKandLijst() : []).find(x => _itkSleutel(x.naam) === _itkSleutel(naam));
+  if (!k) { btMeld('Kies een kandidaat uit de lijst (CRM · Kandidaten).', 'geel'); return; }
+  const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
+  _echoVanZelf('challenge_voordrachten');
+  const { error } = await supa.from('challenge_voordrachten').insert({ challenge_id: chId, naam: ik, kand_sleutel: k.sleutel, kand_naam: k.naam, soort: 'punt', reden: reden || null });
+  if (error) {
+    btMeld(/duplicate|unique/i.test(error.message) ? 'Voor ' + k.naam + ' had je al een punt.' : /column|soort/i.test(error.message) ? 'Draai eerst supabase/challenge_punten.sql in de SQL-editor.' : 'Niet gelukt: ' + error.message, 'geel');
+    return;
+  }
+  crmKaartSluit(); await loadChallenges(); _chPuntGezienZet();
+  if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht();
+  btMeld('Punt toegevoegd: ' + k.naam + '.', 'groen');
+}
+// Bij iedereen live (14-10): nieuwe punten van een ander → melding en de loper licht op.
+function _chPuntLive(nieuwe) {
+  nieuwe.forEach(v => {
+    const ch = (CHALLENGES || []).find(c => String(c.id) === String(v.challenge_id));
+    btMeld('🏁 ' + String(v.naam).split(' ')[0] + ' heeft een punt toegevoegd bij "' + (ch ? ch.titel : 'een challenge') + '"' + (v.kand_naam ? ' · ' + v.kand_naam : ''), 'geel');
+    document.querySelectorAll('.ch-loper[data-ch="' + v.challenge_id + '"][data-naam="' + String(v.naam).replace(/"/g, '') + '"]').forEach(el => el.classList.add('nieuw'));
+  });
 }
 // ── Corrigeren (9A, 23-09): alle voordrachten per deelnemer, weghalen door de uitdager of een manager ──
 function chCorrigeerVenster(chId) {
@@ -9698,13 +9783,13 @@ function chCorrigeerVenster(chId) {
   const mag = (typeof magWijzigen === 'function' ? magWijzigen('one') : true) && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()));
   const deel = _chDeelnemers(ch).filter(x => x.status === 'accepteert');
   const vds = (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(chId));
-  const html = '<h4 class="wit">Voordrachten corrigeren — ' + escHtml(ch.titel) + '</h4>' +
+  const html = '<h4 class="wit">' + (ch.meetlat === 'voordrachten' ? 'Voordrachten' : 'Punten') + ' corrigeren — ' + escHtml(ch.titel) + '</h4>' +
     deel.map(d => {
       const eigen = vds.filter(v => v.naam === d.naam);
       return '<div class="ch-cor-grp">' + escHtml(d.naam) + ' · ' + eigen.length + '</div>' +
-        (eigen.length ? eigen.map(v => '<div class="ch-cor-rij"><span>' + escHtml(v.kand_naam || v.kand_sleutel) + '</span><small>' + escHtml(_crmDatum(Date.parse(v.created_at))) + '</small>' +
+        (eigen.length ? eigen.map(v => '<div class="ch-cor-rij"><span>' + escHtml(v.kand_naam || v.kand_sleutel) + (v.soort === 'punt' ? ' <small>· punt' + (v.reden ? ': ' + escHtml(v.reden) : '') + '</small>' : '') + '</span><small>' + escHtml(_crmDatum(Date.parse(v.created_at))) + '</small>' +
           (mag ? '<button type="button" class="ch-cor-x" title="Weghalen" onclick="chVoordrachtWeg(' + v.id + ')">✕</button>' : '') + '</div>').join('')
-        : '<div class="ch-cor-rij leeg">nog niets voorgedragen</div>');
+        : '<div class="ch-cor-rij leeg">' + (ch.meetlat === 'voordrachten' ? 'nog niets voorgedragen' : 'nog geen handmatige punten') + '</div>');
     }).join('') +
     (mag ? '' : '<div class="ch-cor-rij leeg">Alleen de uitdager of een manager kan hier iets weghalen.</div>') +
     '<div style="margin-top:14px;text-align:right"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>';
@@ -9740,13 +9825,14 @@ function _chKaartHtml(ch, nu) {
     ? 'Wie haalt als eerste <b>' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + '</b>' + (ch.filter_functie ? ' (functie bevat "' + escHtml(ch.filter_functie) + '")' : '') + ' vóór ' + escHtml(_crmDatum(Date.parse(ch.eind_op))) + '?'
     : 'Wie heeft op ' + escHtml(_crmDatum(Date.parse(ch.eind_op))) + ' de meeste <b>' + escHtml(ml.mv) + '</b>' + (ch.filter_functie ? ' (functie bevat "' + escHtml(ch.filter_functie) + '")' : '') + '?';
   const rijen = st.map(x => '<div class="ch-rij"><span class="n"><span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span>' + escHtml(x.naam.split(' ')[0]) + (status === 'gewonnen' && String(ch.winnaar_naam).includes(x.naam) ? ' 🏆' : '') + '</span></span>' +
-      '<span class="ch-balk"><i' + (x.stand >= doelN && ch.winvorm === 'doel' ? ' class="g"' : '') + ' style="width:' + Math.min(100, Math.round(100 * x.stand / doelN)) + '%"></i></span><span class="s">' + x.stand + (ch.winvorm === 'doel' ? '/' + ch.doel : '') + '</span></div>').join('') +
+      '<span class="ch-balk"><i' + (x.stand >= doelN && ch.winvorm === 'doel' ? ' class="g"' : '') + ' style="width:' + Math.min(100, Math.round(100 * x.stand / doelN)) + '%"></i></span><span class="s">' + x.stand + (ch.winvorm === 'doel' ? '/' + ch.doel : '') + (_chPunten(ch, x.naam) ? ' <em style="font-style:normal;color:#F4CB3C">+' + _chPunten(ch, x.naam) + '</em>' : '') + '</span></div>').join('') +
     deel.filter(x => x.status !== 'accepteert').map(x => '<div class="ch-rij wacht"><span class="n"><span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span>' + escHtml(x.naam.split(' ')[0]) + '</span></span><span style="font-size:.72rem;color:rgba(255,255,255,.5)">' + (x.status === 'slaat_over' ? 'slaat over' : 'nog geen antwoord') + '</span><span></span></div>').join('');
   const mag = typeof magWijzigen === 'function' ? magWijzigen('one') : true;
   let knoppen = '';
   if (status === 'lopend' && mijn && mijn.status === 'uitgedaagd' && mag) knoppen += '<button type="button" class="crm-knop goed" onclick="chAccepteer(' + ch.id + ')">✓ Accepteer de challenge</button><button type="button" class="crm-knop" onclick="chSlaOver(' + ch.id + ')">Sla over</button>';
   if (status === 'lopend' && ch.iedereen && !mijn && mag) knoppen += '<button type="button" class="crm-knop goed" onclick="chAccepteer(' + ch.id + ')">✓ Ik doe mee</button>';
   if (status === 'lopend' && ch.meetlat === 'voordrachten' && mijn && mijn.status === 'accepteert' && mag) knoppen += '<button type="button" class="crm-knop" onclick="chVoordragenVenster(' + ch.id + ')">+ kandidaat voordragen</button>';
+  if (status === 'lopend' && ch.meetlat !== 'voordrachten' && mijn && mijn.status === 'accepteert' && mag) knoppen += '<button type="button" class="crm-knop" onclick="chPuntVenster(' + ch.id + ')">+ Punt</button>';   // 14-10
   if (status === 'lopend' && mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="crm-knop" onclick="chStop(' + ch.id + ')">Stop challenge</button>';
   return '<div id="ch-' + ch.id + '" class="ch' + klasse + '">' + pil +
     '<div class="lbl">' + escHtml(ml.l) + (ch.bedrijf ? ' · ' + escHtml(ch.bedrijf) : '') + '</div><div class="ti">' + escHtml(ch.titel) + '</div>' +
@@ -11768,7 +11854,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261013-2011';
+const APP_VERSIE = '20261014-0957';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12045,6 +12131,29 @@ function jaarVoetHtml() {
     APP_VERSIE + '</div>';
 }
 
+// Het venster van een mededeling volgt het formaat van het filmpje (13-10, Toussaint). Een staand filmpje
+// krijgt een staand, smal venster: het filmpje zo hoog als er naast kop, tekst, afzender en knoppen in
+// beeld past (84vh min ~280px, hoogstens 720px), het venster precies zo breed als het filmpje plus de
+// marges. Een liggend filmpje houdt het brede venster; dan geeft dit null.
+function _memoVensterMaat(vw, vh, schermB, schermH) {
+  if (!(vw > 0 && vh > 0) || vh <= vw) return null;
+  let hoogte = Math.min(schermH * 0.84 - 280, 720);
+  let breedte = hoogte * vw / vh;
+  const maxB = Math.min(schermB - 96, 420);   // nooit breder dan het scherm (min de rand) of 420px
+  if (breedte > maxB) { breedte = maxB; hoogte = breedte * vh / vw; }
+  if (hoogte < 200) { hoogte = 200; breedte = hoogte * vw / vh; }
+  return { venster: Math.round(breedte + 48), video: Math.round(breedte), hoogte: Math.round(hoogte) };
+}
+function _memoVensterPasAan(venster, speler) {
+  if (!venster || !speler) return;
+  const mt = _memoVensterMaat(speler.videoWidth, speler.videoHeight, window.innerWidth, window.innerHeight);
+  if (!mt) return;
+  venster.classList.add('staand');
+  venster.style.maxWidth = mt.venster + 'px';
+  speler.style.width = mt.video + 'px';
+  speler.style.height = mt.hoogte + 'px';
+  speler.style.maxHeight = 'none';
+}
 function zetJaar(jaar) {
   const el = document.getElementById('yearSelect');
   if (!el) return;
@@ -12191,14 +12300,14 @@ function magZien(sleutel)    { return rechtVoor(CURRENT_USER, _rechtSleutel(sleu
 // Alles wat een gebruiker kan aanklikken en wat daarna iets verandert. Wordt
 // gebruikt om die knoppen en velden uit te zetten wanneer je alleen mag kijken.
 const SCHRIJFACTIES = ['gvOpslaan', 'gvVerwijder', 'kamNieuwVerslag', 'evalVerslagKoppel', 'evalVerslagenKoppelAlle', 'rldvAanbStatusZet',
-  'oneBerichtVerstuur', 'oneBerichtVerwijder', 'oneGesprekMaak', 'oneGesprekOpen', 'oneGesprekVerlaten', 'chNieuwOpslaan', 'chAccepteer', 'chSlaOver', 'chStop', 'chVoordragen', 'chVoordrachtWeg', 'oneGesprekHernoemOpslaan',
+  'oneBerichtVerstuur', 'oneBerichtVerwijder', 'oneGesprekMaak', 'oneGesprekOpen', 'oneGesprekVerlaten', 'chNieuwOpslaan', 'chAccepteer', 'chSlaOver', 'chStop', 'chVoordragen', 'chVoordrachtWeg', 'chPuntToevoegen', 'oneGesprekHernoemOpslaan',
   'oneDeelnemerToevoegen', 'oneDeelnemerWeghalen',
   'onePollStem', 'oneTaakVink', 'onePlaats', 'oneDuim', 'oneVerstuurReactie', 'oneVerwijderPost', 'oneVerwijderReactie', 'oneVastzetten', 'oneToggleInvoer', 'memoVerstuur', 'memoIntrekken', 'memoToggleForm', 'beheerSaveProfiel', 'saveWeeklyEntryDirect', 'saveWeeklyEntry', 'savePlanVanAanpak', 'bumOpnameVerwerk', 'pipeSetGoedkeuring', 'pipeVerwijderHalve',
   'mtActieToevoegen', 'mtActieZet', 'mtActieVink', 'mtActieWeg',
   'mtActieIniToggle', 'mtActieBevries', 'mtActieOngoing', 'mtActieDeadline', 'mtNotuleOudeOpslaan',
   'mtNotuleOudeWijzig', 'mtNotuleOudeOpslaanKnop', 'mtNotuleVerwijder',
   'mtNotuleOpslaanKnop', 'mtNotuleWijzig', 'mtCoachOpslaan', 'mtCoachWijzig',
-  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'kandVervolgOpslaan', 'bezoekVervolgOpslaan', 'bezoekAfgerondToggle', 'bedrijfHernoemOpslaan', 'crmKandOpslaan', 'crmBedrijfOpslaan', 'crmKandBewerkOpslaan', 'crmBedrijfBewerkOpslaan', 'crmKandSamenvoegen', 'crmBedrijfContactToevoegen', 'crmBedrijfContactWeghalen', 'crmBedrijfContactWijzig', 'crmBedrijfAfspraakPlaats', 'crmBedrijfVerwijderen', 'crmMedewerkersOmzettenDoe', 'crmProjectKandidatenOpvoeren', 'crmKandStarboy', 'crmKandGgToggle', 'accountKaartBewerkOpslaan', 'crmBedrijfSamenvoegen', 'kandKaartBewerkOpslaan', 'crmKandVerwijderen', 'beheerEvalAfvinken', 'accNotitiePlaats', 'accNotitieVerwijder', 'kandNotitiePlaats', 'kandNotitieVerwijder', 'accContactToevoegen', 'accContactWeghalen', 'apNieuwVoor', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projVensterWijzig', 'projVensterOpslaan', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'kandidaatFaseZet', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'rldvSelectieVerwijder', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apAnalyseStart', 'apSgOvernemen', 'apSgToevoegen', 'apSgNegeren', 'apSgTerug', 'apSgActieMaak', 'apSgAlleNegeren', 'apMaakVoor', 'apNieuwKies', 'apKamScoreZet', 'apKamVlagZet', 'apActieToevoegen', 'apActieWeg', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordNaamZet', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
+  'mtCoachToggle', 'pipeSetGedeeldNietAkkoord', 'pipeDrop', 'pipeConfirmAdd', 'pipeUpdateAanb', 'kandVervolgOpslaan', 'bezoekVervolgOpslaan', 'bezoekAfgerondToggle', 'bedrijfHernoemOpslaan', 'crmKandOpslaan', 'crmBedrijfOpslaan', 'crmKandBewerkOpslaan', 'crmBedrijfBewerkOpslaan', 'crmKandSamenvoegen', 'crmDubbelSamenvoegen', 'crmDubbelGeen', 'crmBedrijfContactToevoegen', 'crmBedrijfContactWeghalen', 'crmBedrijfContactWijzig', 'crmBedrijfAfspraakPlaats', 'crmBedrijfVerwijderen', 'crmMedewerkersOmzettenDoe', 'crmProjectKandidatenOpvoeren', 'crmKandStarboy', 'crmKandGgToggle', 'accountKaartBewerkOpslaan', 'crmBedrijfSamenvoegen', 'kandKaartBewerkOpslaan', 'crmKandVerwijderen', 'beheerEvalAfvinken', 'accNotitiePlaats', 'accNotitieVerwijder', 'kandNotitiePlaats', 'kandNotitieVerwijder', 'accContactToevoegen', 'accContactWeghalen', 'apNieuwVoor', 'pipeUpdateGesprek', 'pipeDelete', 'saveManagerNotitie', 'saveBumGesprek', 'ecDocumentenUpload', 'ecDocumentenVerwijder', 'ecDocumentenOnFiles', 'standaardSupabaseSave', 'standaardSupabaseDelete', 'aanmeldSaveForm', 'aanmeldDeleteSaved', 'comrapSlaOp', 'comrapVerwijder', 'projCollegaSave', 'projCollegaToggleEdit', 'projDefEindSave', 'projPrognoseSave', 'projEvalSave', 'importProjectenExcel', 'deleteProjectRange', 'saveProjectRangeDates', 'projVensterWijzig', 'projVensterOpslaan', 'projContractRecalcAll', 'projContractSave', 'importBegrotingExcel', 'onUrenFileSelected', 'kandidaatExcludeToggle', 'kandidaatSetStatus', 'kandidaatFaseZet', 'rldvSelectieOpslaan', 'rldvCheckOpslaan', 'rldvSelectieVerwijder', 'accountsSaveRow', 'accountsAddRow', 'accountsConfirmNew', 'accountsDeleteRow', 'accountsStartEdit', 'apSaveToSupa', 'apAnalyseStart', 'apSgOvernemen', 'apSgToevoegen', 'apSgNegeren', 'apSgTerug', 'apSgActieMaak', 'apSgAlleNegeren', 'apMaakVoor', 'apNieuwKies', 'apKamScoreZet', 'apKamVlagZet', 'apActieToevoegen', 'apActieWeg', 'apDelete', 'apToggle', 'kamMaakAccountplan', 'slSaveRow', 'slConfirmNew', 'slDeleteRow', 'slStartEdit', 'gesprekRecordVerwijder', 'gesprekRecordNaamZet', 'gesprekRecordWisAlles', 'gesprekSamenvoegGroep', 'gesprekRecordHeranalyse', 'bezoekRecordVerwijder', 'bezoekRecordWisAlles', 'bezoekRecordHeranalyse', 'afsprakenPubliceer', 'afsprakenIntrekken', 'unlockPlanVanAanpak', 'unlockBumGesprek'];
 
 // Welk onderdeel hoort bij het scherm waar je nu naar kijkt.
 function _huidigOnderdeel() {
@@ -12807,6 +12916,8 @@ async function toonMemos() {
       })();
 
       speler.onerror = () => noodklep('afspelen mislukt');
+      // 13-10: het venster volgt het formaat van het filmpje (staand → staand venster).
+      speler.onloadedmetadata = () => _memoVensterPasAan(laag.querySelector('.memo-venster'), speler);
 
       // Vooruitspoelen blokkeren: terug mag, verder dan je gekeken hebt niet.
       // Zonder dit is de kijkplicht één sleepbeweging waard.
@@ -21722,7 +21833,11 @@ const _RT_TAKEN = {
   one_berichten:     async () => { await loadOneBerichten(); _oneBerichtenCheck(); _oneBerHerteken(); },
   challenges:            async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); chFeestScan(); },
   challenge_deelnemers:  async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); },
-  challenge_voordrachten: async () => { await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); chWinnaarScan(); },
+  challenge_voordrachten: async () => {
+    const was = new Set((CH_VOORDRACHTEN || []).map(v => String(v.id)));
+    await loadChallenges(); if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht(); chWinnaarScan();
+    _chPuntLive((CH_VOORDRACHTEN || []).filter(v => !was.has(String(v.id)) && _chPuntIsNieuw(v)));   // 14-10
+  },
   one_gesprek_leden: async () => { await loadOneBerichten(); _oneBerHerteken(); },
   one_gesprekken:    async () => { await loadOneBerichten(); _oneBerHerteken(); },
   // Het MT-scherm is het enige dat tijdens een overleg door meerdere mensen
@@ -32748,6 +32863,7 @@ async function loadCrm() {
   };
   const k = await haal('crm_kandidaten'), b = await haal('crm_bedrijven');
   if (k && b) CRM_ONTBREEKT = false;
+  await loadGeenDubbel();   // 14-10
   CRM_KANDIDATEN = k || CRM_KANDIDATEN || [];
   CRM_BEDRIJVEN = b || CRM_BEDRIJVEN || [];
 }
@@ -32865,13 +32981,8 @@ async function _crmNaamWijzigen(k, nieuweNaam) {
     if (!ok) { crmKandOpen(k.sleutel, true); return; }
   }
   if (!supa) { crmKandOpen(k.sleutel, true); return; }
-  ['pipeline_cards', 'verslagen', 'kandidaat_notities', 'rldv_selecties', 'crm_kandidaten'].forEach(_echoVanZelf);
-  const { error } = await supa.rpc('bt_kandidaat_samenvoeg', { p_bron: k.naam, p_doel: nieuweNaam });
-  if (error) {
-    meldFout('naam wijzigen mislukt: ' + error.message, '_crmNaamWijzigen');
-    alert('Naam niet gewijzigd: ' + (/function|does not exist|PGRST202|schema cache/i.test(error.message || '') ? 'draai supabase/kandidaat_samenvoegen.sql in de SQL-editor — de functie ontbreekt nog.' : error.message));
-    crmKandOpen(k.sleutel, true); return;
-  }
+  const t = await _crmKandSamenvoegDoe({ naam: nieuweNaam, sleutel: _itkSleutel(nieuweNaam) }, k);   // 14-10: dezelfde weg als Samenvoegen
+  if (!t) { crmKandOpen(k.sleutel, true); return; }
   // Voor- en achternaam apart in de CRM-rij (de functie zet alleen naam en sleutel).
   const sp = _crmNaamSplits(nieuweNaam);
   if (k.crm && !String(k.crm.id).startsWith('local-')) { _echoVanZelf('crm_kandidaten'); await supa.from('crm_kandidaten').update({ voornaam: sp.voornaam || null, achternaam: sp.achternaam || null }).eq('sleutel', _itkSleutel(nieuweNaam)); }
@@ -32930,7 +33041,7 @@ function crmBedrijfBewerk(sleutel) {
   if (!magWijzigen('crm')) { alert('Je hebt geen recht om bedrijven te wijzigen.'); return; }
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
   const r = k.crm || {}, a = k.account, g = (v) => v == null ? '' : String(v);
-  CRM_BEWERK = { soort: 'bedrijf', sleutel: k.sleutel, w: { adres: g(r.adres), postcode: g(r.postcode), plaats: g(r.plaats), website: g(r.website), telefoon: g(r.telefoon), email: g(r.email), kvk: g(r.kvk), opmerking: g(r.opmerking),
+  CRM_BEWERK = { soort: 'bedrijf', sleutel: k.sleutel, w: { naam: g(k.naam), adres: g(r.adres), postcode: g(r.postcode), plaats: g(r.plaats), website: g(r.website), telefoon: g(r.telefoon), email: g(r.email), kvk: g(r.kvk), opmerking: g(r.opmerking),   // 14-10: naam erbij
     branche: g(r.branche), fte: g(r.fte), factor: g(r.factor), inleentermijn: g(r.inleentermijn), cao: g(r.cao), fase: g(r.fase),   // Voorwaarden & profiel (24-09)
     strat_cp: g(a ? a.strat_cp : ''), op_cp: g(a ? a.op_cp : '') } };
   crmBedrijfOpen(k.sleutel, true);
@@ -32973,7 +33084,11 @@ async function crmBedrijfBewerkOpslaan() {
     if (Object.keys(team).length) await _crmTeamOpslaan(k.account, team);
   }
   CRM_BEWERK = null;
-  crmBedrijfOpen(B.sleutel, true);
+  // 14-10: een andere naam → overal hernoemen (of samenvoegen als die naam al bestaat).
+  let open = B.sleutel;
+  const nieuweNaam = val('naam');
+  if (nieuweNaam && _itkSleutel(nieuweNaam) !== k.sleutel) { const sl = await _crmBedrijfNaamWijzigen(k, nieuweNaam); if (sl) open = sl; }
+  crmBedrijfOpen(open, true);
   if (currentTab === 'crmbedrijf') renderCrmBedrijven();
 }
 // Namen netjes (akkoord 17-09): elk woord een hoofdletter, tussenvoegsels
@@ -33035,6 +33150,146 @@ function _crmDubbelen(alle) {
       if (_crmLijktOp(alle[i].dubbelSleutel, alle[j].dubbelSleutel)) { alle[i].dubbel.push(alle[j].sleutel); alle[j].dubbel.push(alle[i].sleutel); }
     }
   });
+}
+// ── Dubbelen beoordelen (14-10) ──────────────────────────────────────────────
+// Geen pagina: een pil in de kop zolang er suggesties zijn, en een pop-up die de paren één voor één
+// laat zien. Vier zoekregels: zelfde e-mail, zelfde telefoon, (bedrijven) zelfde website of KvK, en naam
+// op één letter na. "Geen dubbel" wordt onthouden in crm_geen_dubbel en komt nooit meer terug.
+let CRM_GEEN_DUBBEL = [];
+let CRM_DUB = null;   // de pop-up: { soort, paren, i, gedaan }
+async function loadGeenDubbel() {
+  if (!supa) return;
+  const { data, error } = await supa.from('crm_geen_dubbel').select('soort,sleutel_a,sleutel_b');
+  if (error) { if (!/does not exist|42P01|schema cache|PGRST205/i.test(String(error.message || error.code || ''))) _meldStil('geen-dubbel laden', error); return; }
+  CRM_GEEN_DUBBEL = data || [];
+}
+function _dubPaar(a, b) { return a < b ? [a, b] : [b, a]; }
+function _dubTel(s) { const c = String(s || '').replace(/\D/g, '').replace(/^0031/, '0').replace(/^31(?=\d{9}$)/, '0'); return c.length >= 8 ? c : ''; }
+function _dubMail(s) { const m = String(s || '').trim().toLowerCase(); return /@/.test(m) ? m : ''; }
+function _dubWeb(s) { const w = String(s || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[\/?#].*$/, ''); return /\./.test(w) ? w : ''; }
+function _dubKvk(s) { const c = String(s || '').replace(/\D/g, ''); return c.length >= 8 ? c : ''; }
+// De suggesties: [{ a, b, reden, detail }], sterkste reden eerst. a en b zijn items uit crmKandLijst/crmBedrijfLijst.
+function _crmDubbelParen(soort) {
+  const lijst = soort === 'kand' ? crmKandLijst() : crmBedrijfLijst();
+  const geen = new Set((CRM_GEEN_DUBBEL || []).filter(g => g.soort === soort).map(g => _dubPaar(g.sleutel_a, g.sleutel_b).join('|')));
+  const paren = new Map();
+  const zet = (a, b, reden, detail) => {
+    if (!a || !b || a.sleutel === b.sleutel) return;
+    const ps = _dubPaar(a.sleutel, b.sleutel).join('|');
+    if (geen.has(ps) || paren.has(ps)) return;
+    paren.set(ps, { a, b, reden, detail });
+  };
+  const groep = (reden, pak) => {
+    const per = new Map();
+    lijst.forEach(k => { const v = pak(k); if (v) { const l = per.get(v); if (l) l.push(k); else per.set(v, [k]); } });
+    per.forEach((l, v) => { if (l.length < 2 || l.length > 6) return; for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) zet(l[i], l[j], reden, v); });
+  };
+  groep('Zelfde e-mail', k => _dubMail(k.crm && k.crm.email));
+  groep('Zelfde telefoonnummer', k => _dubTel(k.crm && k.crm.telefoon));
+  if (soort === 'bedrijf') {
+    groep('Zelfde KvK-nummer', k => _dubKvk(k.crm && k.crm.kvk));
+    groep('Zelfde website', k => _dubWeb(k.crm && k.crm.website));
+    lijst.forEach(k => { k.dubbelSleutel = _crmDubbelSleutel(k.naam); k.dubbel = []; });
+    _crmDubbelen(lijst);
+  }
+  const perSl = new Map(lijst.map(k => [k.sleutel, k]));
+  lijst.forEach(k => (k.dubbel || []).forEach(sl => { if (k.sleutel < sl) zet(k, perSl.get(sl), 'Naam lijkt erop', 'één letter verschil'); }));
+  return Array.from(paren.values());
+}
+function _crmDubbelPilHtml(soort) {
+  if (!magWijzigen('crm') || CRM_ONTBREEKT) return '';
+  const n = _crmDubbelParen(soort).length;
+  if (!n) return '';
+  return '<span class="meta-pill dub" onclick="crmDubbelVenster(\'' + soort + '\')" title="Mogelijke dubbelen één voor één beoordelen">⚠ ' + n + ' mogelijke dubbel' + (n === 1 ? '' : 'en') + '</span>';
+}
+// Wat er aan een dossier hangt — de regel onder de naam in de pop-up; ook de maat voor "deze naam blijft".
+function _dubInhoud(soort, k) {
+  if (soort === 'kand') {
+    const r = k.crm || {}, i = _crmKandIntake(k);
+    const tegels = (k.kaarten || []).length;
+    const verslagen = (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : []).filter(x => _itkSleutel(x.naam || '') === k.sleutel).length;
+    const notities = ((KAND_NOTITIES && KAND_NOTITIES[k.sleutel]) || []).length;
+    const docs = [_kandDocLinkVan(r, 'cv') ? 'CV' : '', _kandDocLinkVan(r, 'cr') ? 'CR' : ''].filter(Boolean);
+    const gewicht = tegels * 3 + verslagen * 3 + notities + docs.length + (k.intake ? 2 : 0) + (r.email ? 1 : 0) + (r.telefoon ? 1 : 0);
+    const html = (i.ms > 0 ? 'intake <b>' + escHtml(_crmDatum(i.ms)) + '</b>' : 'geen intake') + ' · <b>' + tegels + '</b> tegeltje' + (tegels === 1 ? '' : 's') + ' · <b>' + verslagen + '</b> ITK-verslag' + (verslagen === 1 ? '' : 'en') + ' · <b>' + notities + '</b> notitie' + (notities === 1 ? '' : 's') + (docs.length ? ' · ' + docs.join(' + ') : '') +
+      '<br>' + [k.woonplaats, k.functie, k.laatsteMs > 0 ? 'laatste contact ' + _crmDatum(k.laatsteMs) : '', r.bron ? 'bron: ' + (CRM_BRON_TEKST[r.bron] || r.bron) : ''].filter(Boolean).map(escHtml).join(' · ');
+    return { html, gewicht };
+  }
+  const r = k.crm || {};
+  const contacten = ((k.account && Array.isArray(k.account.contacten)) ? k.account.contacten : (Array.isArray(r.contacten) ? r.contacten : [])).length;
+  const gewicht = (k.bezoeken || 0) * 3 + (k.account ? 4 : 0) + (k.plan ? 3 : 0) + contacten + (r.adres ? 1 : 0) + (r.telefoon ? 1 : 0) + (r.email ? 1 : 0);
+  const html = '<b>' + (k.bezoeken || 0) + '</b> bezoek' + (k.bezoeken === 1 ? '' : 'en') + (k.account ? ' · in KAM' : '') + (k.plan ? ' · accountplan' : '') + ' · <b>' + contacten + '</b> contactperso' + (contacten === 1 ? 'on' : 'nen') +
+    '<br>' + [r.plaats, k.laatste && k.laatste.datumMs ? 'laatste bezoek ' + _crmDatum(k.laatste.datumMs) : '', r.bron ? 'bron: ' + (CRM_BRON_TEKST[r.bron] || r.bron) : ''].filter(Boolean).map(escHtml).join(' · ');
+  return { html, gewicht };
+}
+function crmDubbelVenster(soort) {
+  if (!magWijzigen('crm')) { alert('Je hebt geen recht om het CRM te wijzigen.'); return; }
+  CRM_DUB = { soort, paren: _crmDubbelParen(soort), i: 0, gedaan: { samen: 0, geen: 0, later: 0 } };
+  _crmDubbelToon();
+}
+function _crmDubbelToon() {
+  const D = CRM_DUB; if (!D) return;
+  const titel = 'Mogelijke dubbelen · ' + (D.soort === 'kand' ? 'Kandidaten' : 'Bedrijven');
+  if (D.i >= D.paren.length) {
+    const g = D.gedaan, n = g.samen + g.geen + g.later;
+    crmKaartToon('<h4 class="wit">' + titel + '</h4><div class="dub-klaar"><b>✓ Alles beoordeeld</b><span>' + (n ? n + ' pa' + (n === 1 ? 'ar' : 'ren') + ': ' + g.samen + ' samengevoegd, ' + g.geen + ' geen dubbel, ' + g.later + ' later.' : 'Er is niets te beoordelen.') +
+      (g.later ? ' De pil blijft staan voor wat je op "later" zette.' : ' De pil in de kop is weg tot er iets nieuws binnenkomt.') + '</span></div>' +
+      '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>', 'crm-samenvoeg');
+    if (D.soort === 'kand' && currentTab === 'crmkand') renderCrmKandidaten();
+    if (D.soort === 'bedrijf' && currentTab === 'crmbedrijf') renderCrmBedrijven();
+    return;
+  }
+  const p = D.paren[D.i];
+  const ia = _dubInhoud(D.soort, p.a), ib = _dubInhoud(D.soort, p.b);
+  const blijfA = ia.gewicht >= ib.gewicht;
+  const kaart = (k, inhoud, aan) => '<label class="dub-kaart"><span class="n"><input type="radio" name="dub-blijf" value="' + escHtml(k.sleutel) + '"' + (aan ? ' checked' : '') + ' onchange="_crmDubbelPlan()">' + escHtml(k.naam) + '<span class="blijft">deze naam blijft</span></span><span class="r">' + inhoud.html + '</span></label>';
+  crmKaartToon('<div class="dub-kop"><h4 class="wit" style="margin:0">' + titel + '</h4><span class="tel">' + (D.i + 1) + ' van ' + D.paren.length + '</span></div>' +
+    '<div class="dub-reden">' + escHtml(p.reden) + (p.detail ? '<em>' + escHtml(p.detail) + '</em>' : '') + '</div>' +
+    '<div class="dub-twee">' + kaart(p.a, ia, blijfA) + kaart(p.b, ib, !blijfA) + '</div>' +
+    '<div id="dub-plan" class="dub-plan"></div>' +
+    '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop goed crm-knop-vast" id="dub-knop" onclick="crmDubbelSamenvoegen()">Samenvoegen →</button>' +
+    '<button type="button" class="crm-knop crm-knop-vast" onclick="crmDubbelGeen()">Geen dubbel</button>' +
+    '<button type="button" class="crm-knop" onclick="crmDubbelLater()">Later</button>' +
+    '<button type="button" class="crm-knop" style="margin-left:auto" onclick="crmKaartSluit()">Sluiten</button></div>', 'crm-samenvoeg');
+  _crmDubbelPlan();
+}
+function _crmDubbelKeuze() {
+  const D = CRM_DUB; if (!D || D.i >= D.paren.length) return null;
+  const p = D.paren[D.i];
+  const el = document.querySelector('input[name="dub-blijf"]:checked');
+  const doelSl = el ? el.value : p.a.sleutel;
+  return doelSl === p.b.sleutel ? { doel: p.b, bron: p.a } : { doel: p.a, bron: p.b };
+}
+function _crmDubbelPlan() {
+  const D = CRM_DUB, k = _crmDubbelKeuze(), el = document.getElementById('dub-plan'); if (!D || !k || !el) return;
+  const let_ = D.soort === 'kand' && _crmDubbelSleutel(k.doel.naam).length < _crmDubbelSleutel(k.bron.naam).length && D.paren[D.i].reden === 'Naam lijkt erop';
+  el.innerHTML = 'Alles van <b>' + escHtml(k.bron.naam) + '</b> komt onder <b>' + escHtml(k.doel.naam) + '</b>: ' + (D.soort === 'kand' ? 'tegeltjes, verslagen, notities, documenten, vacature-selecties en matchscores' : 'bezoeken, kaartjes, verslagen, accountplan, RLDV, documenten, vacatures en matchscores') + '. Lege velden worden aangevuld. Terugdraaien kan niet.' +
+    (let_ ? '<br><span style="color:#ffb37a">Let op: de kortste naam blijft — wissel het rondje als de andere spelling de juiste is.</span>' : '');
+}
+function crmDubbelLater() { const D = CRM_DUB; if (!D) return; D.gedaan.later++; D.i++; _crmDubbelToon(); }
+async function crmDubbelGeen() {
+  const D = CRM_DUB; if (!D || !eisWijzig('crm')) return;
+  const p = D.paren[D.i]; if (!p) return;
+  const [a, b] = _dubPaar(p.a.sleutel, p.b.sleutel);
+  const rij = { soort: D.soort, sleutel_a: a, sleutel_b: b, door: (CURRENT_USER && CURRENT_USER.naam) || null };
+  if (supa) {
+    const { error } = await supa.from('crm_geen_dubbel').upsert(rij, { onConflict: 'soort,sleutel_a,sleutel_b' });
+    if (error) { btMeld(/does not exist|42P01|schema cache|PGRST205/i.test(String(error.message || error.code || '')) ? 'Draai eerst supabase/samenvoegen_v2.sql in de SQL-editor (tabel crm_geen_dubbel ontbreekt).' : 'Niet opgeslagen: ' + error.message, 'rood'); return; }
+  }
+  CRM_GEEN_DUBBEL.push(rij);
+  D.gedaan.geen++; D.i++; _crmDubbelToon();
+}
+async function crmDubbelSamenvoegen() {
+  const D = CRM_DUB, k = _crmDubbelKeuze(); if (!D || !k || !eisWijzig('crm')) return;
+  if (!(await btBevestig('Alles van ' + k.bron.naam + ' komt onder ' + k.doel.naam + '. ' + k.bron.naam + ' verdwijnt. Dit kan niet worden teruggedraaid. Doorgaan?', { knop: 'Samenvoegen', soort: 'weg' }))) return;
+  const knop = document.getElementById('dub-knop'); if (knop) knop.disabled = true;
+  const t = D.soort === 'kand' ? await _crmKandSamenvoegDoe(k.doel, k.bron) : await _crmBedrijfSamenvoegDoe(k.doel, k.bron);
+  if (!t) { if (knop) knop.disabled = false; return; }
+  btMeld('Samengevoegd: ' + k.bron.naam + ' staat nu onder ' + k.doel.naam + '.', 'groen');
+  D.gedaan.samen++;
+  // De bron bestaat niet meer: elk ander paar met die naam vervalt; de rest houdt zijn plek.
+  D.paren = D.paren.filter((p, i) => i <= D.i || (p.a.sleutel !== k.bron.sleutel && p.b.sleutel !== k.bron.sleutel));
+  D.i++; _crmDubbelToon();
 }
 function _crmNaamSplits(naam) {
   const delen = String(naam || '').trim().replace(/\s+/g, ' ').split(' ');
@@ -33817,7 +34072,7 @@ function renderCrmKandidatenHtml() {
   const kandHint = 'naam, e-mail, telefoon, woonplaats, functie, collega en notities — de tekst van CV\'s en CR\'s doorzoek je op CRM-Search';
   return '<div><div class="person-header"><div class="person-name">CRM · Kandidaten' + btUitlegKnop('kandidaten') + '</div>' +
     _crmZoekKopHtml({ id: 'crm-kand-q', waarde: st.zoek || '', placeholder: 'zoek kandidaat (naam, e-mail, telefoon, plaats, functie)…', sugg: 'crmKandSugg', zoek: 'crmKandZoek', hint: kandHint, plus: mag ? 'crmKandWizard()' : '', plusTitel: 'Nieuwe kandidaat' }) +   // 10-10 (V1)
-    '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' kandidaten</span></div></div>' +
+    '<div class="person-meta">' + _crmDubbelPilHtml('kand') + '<span class="meta-pill">' + lijst.length + ' kandidaten</span></div></div>' +   // 14-10: dubbelen-pil
     _crmSqlHint() +
     (mag && proj.length ? '<div class="acc-arch-nieuw"><span><strong>' + proj.length + (proj.length === 1 ? ' naam' : ' namen') + ' uit de projectenlijst</strong> ' + (proj.length === 1 ? 'staat' : 'staan') + ' nog niet in het CRM (geen intake-tegeltje, wel een project).</span>' +
       '<button type="button" class="crm-knop goed" onclick="crmProjectKandidatenVenster()">Bekijken en opvoeren…</button></div>' : '') +
@@ -34303,7 +34558,7 @@ function crmKandDossierHtml(sleutel) {
     '<label>Achternaam' + _crmBewerkVeld('achternaam', { ph: 'achternaam' }) + '</label>' +
     '<span class="pillen"><span class="crm-pil' + (f.klasse ? ' ' + f.klasse : '') + '">' + escHtml(f.tekst) + '</span>' +
     (k.invoerder ? '<span class="crm-pil" title="Collega van de intake">' + escHtml(k.invoerder) + '</span>' : '') + '</span></div>' +
-    '<div class="crm-naam-hint">Naam wijzigen werkt overal door: <b>pipeline-tegeltjes, ITK-verslagen, gesprekslog en RLDV-selecties</b> komen onder de nieuwe naam.</div>';
+    '<div class="crm-naam-hint">Naam wijzigen werkt overal door: <b>pipeline-tegeltjes, ITK-verslagen, gesprekslog, RLDV-selecties, documenten, vacature-selecties en matchscores</b> komen onder de nieuwe naam.</div>';
   // NAW-blad (17-09): wie is het, hoe bereik ik hem, welke documenten. Functie,
   // regio, salaris, intake en verloop staan op de kandidaatkaart (het zoekblad).
   const bronTekst = r.bron ? (CRM_BRON_TEKST[r.bron] || r.bron) : '';
@@ -34483,19 +34738,27 @@ async function crmKandSamenvoegen(doelSleutel) {
   if (!(await btBevestig('Alles van ' + bron.naam + ' komt onder ' + doel.naam + '. Het dossier van ' + bron.naam + ' verdwijnt. Dit kan niet worden teruggedraaid. Doorgaan?', { knop: 'Samenvoegen', soort: 'weg' }))) return;
   if (!supa) return;
   const knop = document.getElementById('crm-sv-knop'); if (knop) knop.disabled = true;
-  ['pipeline_cards', 'verslagen', 'kandidaat_notities', 'rldv_selecties', 'crm_kandidaten'].forEach(_echoVanZelf);
-  const { data, error } = await supa.rpc('bt_kandidaat_samenvoeg', { p_bron: bron.naam, p_doel: doel.naam });
-  if (error) {
-    if (knop) knop.disabled = false;
-    meldFout('kandidaten samenvoegen mislukt: ' + error.message, 'crmKandSamenvoegen');
-    alert('Niet samengevoegd: ' + (/function|does not exist|PGRST202|schema cache/i.test(error.message || '') ? 'draai supabase/kandidaat_samenvoegen.sql in de SQL-editor — de functie ontbreekt nog. (' + error.message + ')' : error.message));
-    return;
-  }
-  const t = data && typeof data === 'object' ? data : {};
-  await Promise.all([pipeFetchAll(), loadCrm(), loadKandNotities(), loadGesprekRecordsFromDb(), loadRldvSelecties()]);
+  const t = await _crmKandSamenvoegDoe(doel, bron);
+  if (!t) { if (knop) knop.disabled = false; return; }
   if (currentTab === 'crmkand') renderCrmKandidaten(); else render();
   crmKandOpen(doel.sleutel);
   btMeld('Samengevoegd: ' + (t.tegels || 0) + ' tegeltjes, ' + (t.verslagen || 0) + ' verslagen en ' + (t.notities || 0) + ' notities van ' + bron.naam + ' staan nu onder ' + doel.naam + '.', 'groen');
+}
+// Het samenvoegen zelf (14-10): één weg voor de knop op de kaart, de dubbelen-pop-up en naam wijzigen.
+// Geeft de tellingen terug, of null als het misging (de melding is dan al gegeven).
+async function _crmKandSamenvoegDoe(doel, bron) {
+  if (!eisWijzig('crm') || !supa) return null;
+  ['pipeline_cards', 'verslagen', 'kandidaat_notities', 'rldv_selecties', 'crm_kandidaten', 'documenten', 'vacature_selecties', 'match_scores'].forEach(_echoVanZelf);
+  const { data, error } = await supa.rpc('bt_kandidaat_samenvoeg', { p_bron: bron.naam, p_doel: doel.naam });
+  if (error) {
+    meldFout('kandidaten samenvoegen mislukt: ' + error.message, '_crmKandSamenvoegDoe');
+    alert('Niet samengevoegd: ' + (/function|does not exist|PGRST202|schema cache/i.test(error.message || '') ? 'draai supabase/samenvoegen_v2.sql in de SQL-editor — de functie ontbreekt nog. (' + error.message + ')' : error.message));
+    return null;
+  }
+  await Promise.allSettled([pipeFetchAll(), loadCrm(), loadKandNotities(), loadGesprekRecordsFromDb(), loadRldvSelecties(),
+    typeof loadDocumenten === 'function' ? loadDocumenten() : null, typeof loadVacatureSelecties === 'function' ? loadVacatureSelecties() : null, typeof loadMatchScores === 'function' ? loadMatchScores() : null]);
+  if (typeof _kandRecCacheWeg === 'function') _kandRecCacheWeg();
+  return data && typeof data === 'object' ? data : {};
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // BEHEERKAART (akkoord 18-09) — het derde venster van de kandidaat
@@ -35393,7 +35656,7 @@ function renderCrmBedrijvenHtml() {
   const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
   return '<div><div class="person-header"><div class="person-name">CRM · Bedrijven' + btUitlegKnop('accounts') + '</div>' +
     _crmZoekKopHtml({ id: 'crm-bedr-q', waarde: st.zoek || '', placeholder: 'zoek bedrijf (naam, plaats, contactpersoon)…', sugg: 'crmBedrijfSugg', zoek: 'crmBedrijfZoek', hint: 'bedrijf, plaats, telefoon, e-mail, sector, team (initialen), contactpersoon en notities', plus: mag ? 'crmBedrijfWizard()' : '', plusTitel: 'Nieuw bedrijf' }) +   // 10-10 (V1)
-    '<div class="person-meta"><span class="meta-pill">' + lijst.length + ' bedrijven</span></div></div>' +
+    '<div class="person-meta">' + _crmDubbelPilHtml('bedrijf') + '<span class="meta-pill">' + lijst.length + ' bedrijven</span></div></div>' +   // 14-10: dubbelen-pil
     _crmSqlHint() +
     (mag && medew.length ? '<div class="acc-arch-nieuw"><span><strong>' + medew.length + (medew.length === 1 ? ' regel lijkt een medewerker' : ' regels lijken medewerkers') + '</strong>, geen bedrijf: alleen evaluatiebezoeken, geen collega toegewezen, niet in KAM of RLDV.</span>' +
       '<button type="button" class="crm-knop goed" onclick="crmMedewerkersOmzetten()">Omzetten naar kandidaten…</button></div>' : '') +
@@ -35611,7 +35874,8 @@ function crmBedrijfDossierHtml(sleutel) {
   const rijB = (label, velden) => '<div class="kk-rij bewerk"><span>' + escHtml(label) + '</span>' + velden + '</div>';
   const blok = (kop, inhoud, klein, knop) => '<div class="crm-kop' + (knop ? ' met-knop' : '') + '">' + kop + (klein ? '<small class="crm-kop-klein">' + klein + '</small>' : '') + (knop || '') + '</div>' + inhoud;
   const gegevens = blok('Bedrijfsgegevens', '<div class="kk-lijst">' + (bewerk
-    ? rijB('Adres', _crmBewerkVeld('adres', { ph: 'straat en huisnummer' })) +
+    ? rijB('Naam', _crmBewerkVeld('naam', { ph: 'bedrijfsnaam' }) + '<span class="stil" style="font-size:.72rem;">een andere naam werkt overal door (bezoeken, kaartjes, accountplan, vacatures)</span>') +   // 14-10
+      rijB('Adres', _crmBewerkVeld('adres', { ph: 'straat en huisnummer' })) +
       rijB('Postcode · plaats', _crmBewerkVeld('postcode', { kort: true, ph: '1234 AB' }) + _crmBewerkVeld('plaats', { ph: 'plaats' })) +
       rijB('Website', _crmBewerkVeld('website', { type: 'url', ph: 'https://…' })) +
       rijB('Telefoon', _crmBewerkVeld('telefoon', { type: 'tel' })) +
@@ -36948,19 +37212,42 @@ async function crmBedrijfSamenvoegen(doelSleutel) {
   if (!(await btBevestig('Alles van ' + bron.naam + ' komt onder ' + doel.naam + '. ' + bron.naam + ' verdwijnt uit CRM · Bedrijven. Dit kan niet worden teruggedraaid. Doorgaan?', { knop: 'Samenvoegen', soort: 'weg' }))) return;
   if (!supa) return;
   const knop = document.getElementById('crm-bsv-knop'); if (knop) knop.disabled = true;
-  ['pipeline_cards', 'verslagen', 'accounts', 'sales_leads', 'rldv_selecties', 'crm_bedrijven', 'account_notities', 'accountplannen'].forEach(_echoVanZelf);
-  const { data, error } = await supa.rpc('bt_bedrijf_samenvoeg', { p_bron: bron.naam, p_doel: doel.naam });
-  if (error) {
-    if (knop) knop.disabled = false;
-    meldFout('bedrijven samenvoegen mislukt: ' + error.message, 'crmBedrijfSamenvoegen');
-    alert('Niet samengevoegd: ' + (/function|does not exist|PGRST202|schema cache/i.test(error.message || '') ? 'draai supabase/bedrijf_kaarten.sql in de SQL-editor — de functie ontbreekt nog. (' + error.message + ')' : error.message));
-    return;
-  }
-  const t = data && typeof data === 'object' ? data : {};
-  await Promise.allSettled([accountsFetchAll(), pipeFetchAll(), loadBezoekRecordsFromDb(), apLoadAll(), salesLeadsFetchAll(), loadRldvSelecties(), loadCrm(), loadAccNotitiesAlles()]);
+  const t = await _crmBedrijfSamenvoegDoe(doel, bron);
+  if (!t) { if (knop) knop.disabled = false; return; }
   if (currentTab === 'crmbedrijf') renderCrmBedrijven(); else render();
   crmBedrijfOpen(doel.sleutel);
   btMeld('Samengevoegd: ' + (t.bezoeken || 0) + ' bezoeken, ' + (t.verslagen || 0) + ' verslagen en ' + (t.notities || 0) + ' notities van ' + bron.naam + ' staan nu onder ' + doel.naam + '.', 'groen');
+}
+// Het samenvoegen zelf (14-10): één weg voor de knop op de kaart, de dubbelen-pop-up en naam wijzigen.
+async function _crmBedrijfSamenvoegDoe(doel, bron) {
+  if (!eisWijzig('crm') || !supa) return null;
+  ['pipeline_cards', 'verslagen', 'accounts', 'sales_leads', 'rldv_selecties', 'crm_bedrijven', 'account_notities', 'accountplannen', 'documenten', 'match_scores', 'vacatures'].forEach(_echoVanZelf);
+  const { data, error } = await supa.rpc('bt_bedrijf_samenvoeg', { p_bron: bron.naam, p_doel: doel.naam });
+  if (error) {
+    meldFout('bedrijven samenvoegen mislukt: ' + error.message, '_crmBedrijfSamenvoegDoe');
+    alert('Niet samengevoegd: ' + (/function|does not exist|PGRST202|schema cache/i.test(error.message || '') ? 'draai supabase/samenvoegen_v2.sql in de SQL-editor — de functie ontbreekt nog. (' + error.message + ')' : error.message));
+    return null;
+  }
+  await Promise.allSettled([accountsFetchAll(), pipeFetchAll(), loadBezoekRecordsFromDb(), apLoadAll(), salesLeadsFetchAll(), loadRldvSelecties(), loadCrm(), loadAccNotitiesAlles(),
+    typeof loadDocumenten === 'function' ? loadDocumenten() : null, typeof loadMatchScores === 'function' ? loadMatchScores() : null, typeof loadVacatures === 'function' ? loadVacatures() : null]);
+  return data && typeof data === 'object' ? data : {};
+}
+// Naam wijzigen van een bedrijf (14-10) = de oude naam samenvoegen in de nieuwe: dezelfde SQL-functie
+// hernoemt bezoeken, kaartjes, verslagen, accounts, accountplan, RLDV, documenten, vacatures en matchscores.
+// Bestaat de nieuwe naam al, dan gaat dit bedrijf daarin op — dat wordt eerst gevraagd.
+async function _crmBedrijfNaamWijzigen(k, nieuweNaam) {
+  if (!magWijzigen('crm')) return false;
+  const nieuw = String(nieuweNaam || '').trim().replace(/\s+/g, ' ');
+  if (!nieuw || _itkSleutel(nieuw) === k.sleutel) return false;
+  const bestaat = crmBedrijfLijst().find(x => x.sleutel === _itkSleutel(nieuw));
+  if (bestaat) {
+    const ok = await btBevestig('De naam "' + nieuw + '" bestaat al. Samenvoegen?\n\nAlles van ' + k.naam + ' komt dan onder ' + nieuw + ' en dit bedrijf verdwijnt uit de lijst. Dit kan niet worden teruggedraaid.', { knop: 'Samenvoegen', soort: 'weg' });
+    if (!ok) return false;
+  }
+  const t = await _crmBedrijfSamenvoegDoe({ naam: nieuw, sleutel: _itkSleutel(nieuw) }, k);
+  if (!t) return false;
+  btMeld(bestaat ? k.naam + ' is samengevoegd met ' + nieuw + '.' : k.naam + ' heet nu ' + nieuw + ' — ' + (t.bezoeken || 0) + ' bezoeken, ' + (t.kandidaten || 0) + ' kandidaatkaartjes en ' + (t.vacatures || 0) + ' vacatures gaan mee.', 'groen');
+  return _itkSleutel(nieuw);
 }
 function _accLeadVan(a) {
   const sl = _itkSleutel((a && a.naam) || '');
