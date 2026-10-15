@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261015-1137 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261015-1409 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2595,6 +2595,7 @@
   .kand-stand { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; } .ks { font-size:.62rem; padding:1px 7px; border-radius:99px; background:rgba(255,255,255,.1); color:rgba(255,255,255,.8); } .ks.ok { background:rgba(37,211,102,.18); color:var(--groen, #25D366); } .ks.wacht { background:rgba(232,116,0,.2); color:#ffb067; }
   .bd-tegels { display:grid; gap:8px; margin:0 0 12px; } .bd-tegel { background:var(--l1); border-radius:10px; padding:10px 12px; }
   /* Personeelsdossier (15-10): compacte vakken die in het blok passen */
+  .bd-aanmeldingen { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0 0 10px; font-size:.76rem; } .bd-aanmeldingen .stil { margin-right:4px; } .bd-aanmeldingen .kz-pil { background:transparent; border:1px solid rgba(255,255,255,.25); color:#fff; } .bd-aanmeldingen .kz-pil.aan { background:rgba(244,203,60,.18); border-color:#F4CB3C; color:#F4CB3C; }
   .ai-drop { border:1px dashed rgba(255,255,255,.3); border-radius:10px; padding:18px; text-align:center; color:rgba(255,255,255,.6); font-size:.82rem; cursor:pointer; } .ai-drop b { display:block; color:#fff; font-size:.9rem; margin-bottom:3px; } .ai-drop.sleep { border-color:#F4CB3C; background:rgba(244,203,60,.1); color:#fff; }
   .ai-tabel { width:100%; border-collapse:collapse; font-size:.78rem; margin-top:10px; } .ai-tabel th { text-align:left; color:rgba(255,255,255,.55); font-size:.62rem; text-transform:uppercase; letter-spacing:.06em; padding:4px 6px; border-bottom:1px solid rgba(255,255,255,.12); } .ai-tabel td { padding:6px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:middle; color:#fff; }
   .ai-balk { display:inline-block; width:60px; height:5px; background:rgba(255,255,255,.12); border-radius:3px; vertical-align:middle; margin-right:6px; } .ai-balk i { display:block; height:100%; border-radius:3px; background:#25D366; }
@@ -11917,7 +11918,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261015-1137';
+const APP_VERSIE = '20261015-1409';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25587,13 +25588,15 @@ function projLijnYMin(counts, begroot) {
 
 // Gemiddelde stand per maand, met twee decimalen. nuWeek = de ISO-week van
 // vandaag; de maand daarvan is "nu", alles erna is toekomst (prognose).
-function projMaandGemiddelden(year, counts, begroot, nuWeek) {
+// 15-10: prognose = de gele lijn per week; weken ná vandaag nemen die (zelfde getal als de grafiek), niet de blauwe.
+function projMaandGemiddelden(year, counts, begroot, nuWeek, prognose) {
   const nuMaand = nuWeek ? _projWeekMaand(year, nuWeek) : -1;
   const per = Array.from({ length: 12 }, (_, m) => ({ maand: m, naam: PROJ_MAANDEN[m], weken: [], tel: [], beg: [] }));
   for (let w = 1; w <= 52; w++) {
     const m = _projWeekMaand(year, w);
     per[m].weken.push(w);
-    const c = counts && counts[w - 1];
+    const p = prognose && nuWeek && w > nuWeek ? prognose[w - 1] : null;
+    const c = p != null && isFinite(p) ? p : (counts && counts[w - 1]);
     if (c != null && isFinite(c)) per[m].tel.push(+c);
     const b = begroot && begroot[w - 1];
     if (b != null && isFinite(b)) per[m].beg.push(+b);
@@ -28777,7 +28780,7 @@ function renderPrognose() {
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chartProjLine"></canvas></div>
-      ${projMaandTegelsHtml(projMaandGemiddelden(year, projLineCounts, begroteLijn, year === isoWeek(TODAY).year ? isoWeek(TODAY).week : (year < isoWeek(TODAY).year ? 53 : 0)))}
+      ${projMaandTegelsHtml(projMaandGemiddelden(year, projLineCounts, begroteLijn, year === isoWeek(TODAY).year ? isoWeek(TODAY).week : (year < isoWeek(TODAY).year ? 53 : 0), getPrognoseLijnPerWeek(year)))}
     </div>
 
     <!-- Starters goedkeuring (S1, 15-09) -->
@@ -46303,12 +46306,23 @@ const MW_DOC_SOORTEN = [['contract', 'contract'], ['certificaat', 'certificaat']
 function _hrmZiet() { return typeof rechtVoor === 'function' ? rechtVoor(CURRENT_USER, 'hrm') !== 'geen' : false; }
 function _hrmMag() { return magWijzigen('hrm'); }
 // Het nieuwste opgeslagen aanmeldformulier van deze kandidaat: op CRM-sleutel, anders op naam.
-function _hrmAanmeldVan(k) {
+// Alle aanmeldingen van deze medewerker, nieuwste eerst (15-10: meerdere per medewerker — tweede project = nieuwe aanmelding).
+function _hrmAanmeldingenVan(k) {
   const sl = String(k.sleutel || '');
-  const lijst = (typeof AANMELD_SAVED !== 'undefined' && Array.isArray(AANMELD_SAVED) ? AANMELD_SAVED : [])
+  return (typeof AANMELD_SAVED !== 'undefined' && Array.isArray(AANMELD_SAVED) ? AANMELD_SAVED : [])
     .filter(e => e && e.data && (String(e.data.crm_sleutel || '') === sl || _itkSleutel(e.data.naam_achternaam || '') === sl))
     .sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')));
-  return lijst[0] || null;
+}
+let HRM_AANMELD_KEUZE = {};   // sleutel → id van de aanmelding die op het HRM-blad open staat
+function _hrmAanmeldVan(k) {
+  const lijst = _hrmAanmeldingenVan(k), wil = String(HRM_AANMELD_KEUZE[String(k.sleutel || '')] || '');
+  return (wil && lijst.find(e => String(e.id) === wil)) || lijst[0] || null;
+}
+function kandHrmAanmeldKies(sleutel, id) { HRM_AANMELD_KEUZE[String(sleutel)] = String(id); kandHrmKaartOpen(sleutel); }
+// Korte naam van een aanmelding voor de keuzerij: opdrachtgever · in dienst dd-mm-jjjj (anders de opslagdatum).
+function _hrmAanmeldKort(e) {
+  const d = (e && e.data) || {};
+  return (d.opdrachtgever_naam ? String(d.opdrachtgever_naam) : 'zonder opdrachtgever') + ' · ' + (_hrmDatum(d.datum_dienst) || 'opgeslagen ' + _crmDatum(Date.parse(e.ts || '') || Date.now()));
 }
 function _hrmDatum(s) { const t = Date.parse(String(s || '').slice(0, 10) + 'T12:00:00'); return t > 0 ? _crmDatum(t) : ''; }
 function _hrmDagen(s) { const t = Date.parse(String(s || '').slice(0, 10) + 'T12:00:00'); if (!(t > 0)) return null; const nu = new Date(); nu.setHours(12, 0, 0, 0); return Math.round((t - nu) / 86400000); }
@@ -46328,11 +46342,13 @@ function _hrmChecklist(d) {
   const per = {}; open.forEach(([, , wie]) => String(wie).split('/').forEach(w => { per[w] = (per[w] || 0) + 1; }));
   return { af: af.length, totaal: AANMELD_CHECKLIST.length, open: open.length, perWie: Object.entries(per).map(([w, n]) => n + ' bij ' + w).join(', ') };
 }
-function _hrmStarterVan(k) {
+function _hrmStarterVan(k, e) {
   const vandaag = new Date(); vandaag.setHours(0, 0, 0, 0);
   const lijst = typeof _evalStarters === 'function' ? _evalStarters(vandaag) : [];
   const mijn = lijst.filter(st => _itkSleutel(st.r.naam || '') === k.sleutel).sort((a, b) => String(b.startStr).localeCompare(String(a.startStr)));
-  return { st: mijn[0] || null, vandaag };
+  const opdr = e && e.data && e.data.opdrachtgever_naam ? String(e.data.opdrachtgever_naam) : '';   // 15-10: project van deze aanmelding
+  const past = opdr ? mijn.find(st => typeof _aanbBedrijfPast === 'function' ? _aanbBedrijfPast(st.r.opdrachtgever || '', opdr) : _itkSleutel(st.r.opdrachtgever || '') === _itkSleutel(opdr)) : null;
+  return { st: past || mijn[0] || null, vandaag };
 }
 
 // ── Het blad ────────────────────────────────────────────────────────────────
@@ -46349,7 +46365,7 @@ function kandHrmKaartHtml(sleutel) {
   }
   const e = _hrmAanmeldVan(k);
   if (!e) {
-    const knop = mag ? '<div><button type="button" class="crm-kop-knop goud kd-groot" onclick="kandHrmAanmeldStart(\'' + sE + '\')">+ Aanmeldformulier starten voor ' + escHtml(k.naam) + '</button></div>' : '<div class="stil" style="margin-top:8px">Een aanmelding maakt HRM of de backoffice aan.</div>';
+    const knop = mag ? '<div><button type="button" class="crm-kop-knop goud kd-groot" onclick="kandHrmAanmeldStart(\'' + sE + '\')">+ Aanmeldformulier starten voor ' + escHtml(k.naam) + '</button> <button type="button" class="kk-knop" style="margin-left:8px" onclick="aanmeldImportVenster(\'' + sE + '\')">Bestaand formulier importeren… <span class="stil">Word · Excel · PDF</span></button></div>' : '<div class="stil" style="margin-top:8px">Een aanmelding maakt HRM of de backoffice aan.</div>';   // 15-10 importeren
     return kop + '<div class="crm-sub">HRM · nog geen aanmelding</div>' +
       '<div class="crm-body bd-body">' + _kdActiesHtml(k) +
       '<div class="kd-leeg"><b>Nog geen aanmelding</b>Het blad HRM vult zich zodra deze kandidaat als medewerker wordt aangemeld: dienstverband, arbeidsvoorwaarden, backoffice-checklist, evaluatiecyclus en documenten.' + knop + '</div>' +
@@ -46361,15 +46377,17 @@ function kandHrmKaartHtml(sleutel) {
   const ja = (key) => d[key] === true || /^(ja|true|1)$/i.test(String(d[key] || '')) ? 'ja' : d[key] === false || /^(nee|false|0)$/i.test(String(d[key] || '')) ? 'nee' : (d[key] ? escHtml(String(d[key])) : '');
   const rij = (label, waarde) => '<div class="kk-rij"><span>' + escHtml(label) + '</span>' + (waarde || '<span class="stil">—</span>') + '</div>';
   const ch = _hrmChecklist(d);
-  const { st, vandaag } = _hrmStarterVan(k);
+  const { st, vandaag } = _hrmStarterVan(k, e);
   const uit = _hrmDagen(d.datum_uitdienst);
+  const alle = _hrmAanmeldingenVan(k);   // 15-10: meerdere aanmeldingen → keuzerij
+  const keuzeRij = alle.length > 1 ? '<div class="bd-aanmeldingen"><span class="stil">Aanmeldingen (' + alle.length + ')</span>' + alle.map(a => '<button type="button" class="kz-knop kz-pil' + (String(a.id) === String(e.id) ? ' aan' : '') + '" onclick="kandHrmAanmeldKies(\'' + sE + '\',\'' + escApos(String(a.id)) + '\')">' + escHtml(_hrmAanmeldKort(a)) + '</button>').join('') + '</div>' : '';
   const inD = _hrmDatum(d.datum_dienst);
   const sub = ['HRM', inD ? 'in dienst sinds ' + inD : '', d.opdrachtgever_naam || '', 'checklist ' + ch.af + ' van ' + ch.totaal,
     st && st.volgende ? 'volgende evaluatie ' + st.volgende.label + ' · ' + _crmDatum(+st.volgende.date) : ''].filter(Boolean).join(' · ');
   // Tegels
   const tegels = _bdTegels([
     { waarde: inD ? escHtml(inD.slice(0, 5)) : '—', label: 'in dienst', sub: inD ? inD.slice(6) + (d.cao_opdrachtgever ? ' · ' + d.cao_opdrachtgever : '') : 'geen datum' },
-    { waarde: '<span class="kd-ok">✓</span>', label: 'aanmelding', sub: 'opgeslagen ' + _crmDatum(Date.parse(e.ts || '') || Date.now()) + (e.created_by_naam ? ' · ' + _recInitials(e.created_by_naam) : '') },
+    { waarde: alle.length > 1 ? '<span class="kd-ok">' + alle.length + '</span>' : '<span class="kd-ok">✓</span>', label: alle.length > 1 ? 'aanmeldingen' : 'aanmelding', sub: 'opgeslagen ' + _crmDatum(Date.parse(e.ts || '') || Date.now()) + (e.created_by_naam ? ' · ' + _recInitials(e.created_by_naam) : '') },
     { waarde: ch.af + ' / ' + ch.totaal, label: 'checklist', sub: ch.open ? ch.open + ' open · ' + ch.perWie : 'alles gedaan' },
     { waarde: st ? st.ms.filter(m => m.done).length + ' / ' + st.ms.length : '—', label: 'evaluaties af', sub: st ? (st.volgende ? 'volgende: ' + st.volgende.label + ' · ' + _crmDatum(+st.volgende.date) : 'alle momenten gedaan') : 'nog geen project met startdatum' },
     { waarde: d.datum_uitdienst ? escHtml(_hrmDatum(d.datum_uitdienst).slice(0, 5)) : '—', label: 'uit dienst (verwacht)', sub: uit == null ? 'geen datum' : uit < 0 ? 'verstreken' : uit <= 60 ? 'over ' + uit + ' dagen — contract bespreken' : 'over ' + Math.round(uit / 30.44) + ' mnd', klasse: uit != null && uit >= 0 && uit <= 60 ? 'kd-let' : '' }
@@ -46434,10 +46452,11 @@ function kandHrmKaartHtml(sleutel) {
   const docsHtml = _pdBlokHtml(k, mag, pd) + (docs && docs.length ? '<div class="crm-kop" style="margin-top:10px">Oude documenten <small class="crm-kop-klein">nog in de oude tabel · ' + docs.length + '</small>' + (mag ? '<button type="button" class="kk-knop" onclick="pdOverzetten(\'' + sE + '\')">Overzetten naar het dossier</button>' : '') + '</div>' + _hrmDocsHtml(k, docs, mag) : '');
   const docKnop = mag ? '<label class="crm-kop-knop goud" title="Document toevoegen (max 15 MB)">+ Document<input type="file" hidden multiple onchange="pdKies(\'' + sE + '\',\'\',this)"></label>' : '';
   const extra = (mag ? '<button type="button" class="crm-knop" onclick="kandHrmAanmeldOpen(\'' + idE + '\')">Aanmeldformulier openen</button>' : '') +
-    '<button type="button" class="crm-knop" onclick="kandHrmWord(\'' + idE + '\')">Word exporteren</button>';
+    '<button type="button" class="crm-knop" onclick="kandHrmWord(\'' + idE + '\')">Word exporteren</button>' +
+    (mag ? '<button type="button" class="crm-knop" onclick="aanmeldImportVenster(\'' + sE + '\')" title="Een bestaand aanmeldformulier (Word, Excel of PDF) inlezen; dat wordt dan het nieuwste">Importeren…</button>' : '');   // 15-10
   const knoppen = _kandBladenRij(k, 'hrm', { extra });
   return kop + '<div class="crm-sub">' + escHtml(sub) + '</div>' +
-    '<div class="crm-body bd-body">' + _kdActiesHtml(k) + tegels +
+    '<div class="crm-body bd-body">' + _kdActiesHtml(k) + keuzeRij + tegels +
       '<div class="bd-g2"><div class="bd-vak">' + links + '</div><div class="bd-vak">' + rechts + '</div></div>' +
       _bdVak('Backoffice-checklist', checkHtml, ch.af + ' van ' + ch.totaal + ' · zelfde vinkjes als op het aanmeldformulier') +
       '<div class="bd-g2">' + _bdVak('Evaluatiecyclus', evalHtml, st ? 'dezelfde tijdlijn als Evaluatiebeheer · vanaf ' + escHtml(_crmDatum(Date.parse(st.startStr + 'T12:00:00'))) : '') +
@@ -49954,27 +49973,33 @@ function _aimKoppel(d) {
   return { k, hoe, p };
 }
 let AANMELD_IMPORT = null;   // [{ file, d, gelezen, totaal, k, hoe, p, fout, aan, open }]
-function aanmeldImportVenster() {
+let AANMELD_IMPORT_VAST = null;   // 15-10: geopend vanaf de Beheerkaart → deze medewerker ligt vast
+function aanmeldImportVenster(sleutel) {
   if (!magWijzigen('hrm')) { alert('Je hebt geen recht om HRM te wijzigen.'); return; }
   AANMELD_IMPORT = AANMELD_IMPORT || [];
+  AANMELD_IMPORT_VAST = sleutel ? (crmKandLijst().find(x => x.sleutel === String(sleutel)) || null) : null;
   _aanmeldImportToon();
 }
 function _aanmeldImportToon() {
-  const L = AANMELD_IMPORT || [];
+  const L = AANMELD_IMPORT || [], vast = AANMELD_IMPORT_VAST;
   const rij = (x, i) => {
     const pct = x.totaal ? Math.round(100 * x.gelezen / x.totaal) : 0;
-    const mw = x.fout ? '<span class="stil">—</span>' : x.k ? '<span style="color:#7fe0a0">' + escHtml(x.k.naam) + (x.hoe === 'lijkt op' ? ' <small style="color:#ffb37a">lijkt op · controleer</small>' : '') + '</span>' : (x.d.naam_achternaam ? '<span style="color:#ffb37a">' + escHtml(x.d.naam_achternaam) + ' · niet in CRM</span>' : '<span class="stil">geen naam gevonden</span>');
+    const mw = x.fout ? '<span class="stil">—</span>' : x.k ? '<span style="color:#7fe0a0">' + escHtml(x.k.naam) + (x.hoe === 'lijkt op' ? ' <small style="color:#ffb37a">lijkt op · controleer</small>' : x.hoe === 'vast' && x.andereNaam ? ' <small style="color:#ffb37a">in het bestand staat: ' + escHtml(x.andereNaam) + ' · controleer</small>' : '') + '</span>' : (x.d.naam_achternaam ? '<span style="color:#ffb37a">' + escHtml(x.d.naam_achternaam) + ' · niet in CRM</span>' : '<span class="stil">geen naam gevonden</span>');
     const pr = x.fout ? '<span class="stil">—</span>' : x.p ? '<span style="color:#7fe0a0">' + escHtml(x.p.opdrachtgever || '') + (x.p.begin ? ' · ' + escHtml(_crmDatum(+x.p.begin)) : '') + '</span>' + (!x.d.datum_dienst && x.p.begin ? ' <small style="color:#ffb37a">startdatum uit de projectenlijst</small>' : '') : '<span class="stil">geen project gevonden' + (x.d.opdrachtgever_naam ? ' (' + escHtml(x.d.opdrachtgever_naam) + ')' : '') + '</span>';
-    const al = !x.fout && x.k && typeof _hrmAanmeldVan === 'function' ? _hrmAanmeldVan(x.k) : null;
-    const stand = x.fout ? '<span class="crm-pil uit">' + escHtml(x.fout) + '</span>' : x.gelezen < 3 ? '<span class="crm-pil uit">onleesbaar (' + x.gelezen + ' velden)</span>' : al ? '<span class="crm-pil wacht">al een formulier (' + escHtml(_crmDatum(Date.parse(al.ts))) + ') — wordt nieuwste</span>' : (x.k && x.hoe !== 'lijkt op' && x.gelezen >= 10 ? '<span class="crm-pil ok">klaar</span>' : '<span class="crm-pil wacht">controleer</span>');
+    const eerder = !x.fout && x.k && typeof _hrmAanmeldingenVan === 'function' ? _hrmAanmeldingenVan(x.k) : [], al = eerder[0] || null;
+    const stand = x.fout ? '<span class="crm-pil uit">' + escHtml(x.fout) + '</span>' : x.gelezen < 3 ? '<span class="crm-pil uit">onleesbaar (' + x.gelezen + ' velden)</span>' : al ? '<span class="crm-pil wacht">wordt de ' + (eerder.length + 1) + 'e aanmelding · eerder: ' + escHtml(_hrmAanmeldKort(al)) + '</span>' : (x.k && x.hoe !== 'lijkt op' && !x.andereNaam && x.gelezen >= 10 ? '<span class="crm-pil ok">klaar</span>' : '<span class="crm-pil wacht">controleer</span>');
     const det = x.open ? '<tr><td colspan="7"><div class="ai-det">' + Object.keys(AIM_LABELS).map(k => '<div class="r"><span>' + escHtml(AANMELD_REQUIRED[k] || k) + '</span><span' + (x.d[k] ? '' : ' style="color:#ffb37a"') + '>' + (x.d[k] ? escHtml(['bsn', 'bankrekening', 'nr_id'].includes(k) ? '•••' + String(x.d[k]).slice(-2) : String(x.d[k])) : 'niet gevonden') + '</span><span>' + (x.d[k] ? '✓' : '–') + '</span></div>').join('') + '</div></td></tr>' : '';
     return '<tr><td><input type="checkbox"' + (x.aan ? ' checked' : '') + (x.fout || x.gelezen < 3 ? ' disabled' : '') + ' onchange="AANMELD_IMPORT[' + i + '].aan = this.checked; _aanmeldImportTel()"></td><td title="' + escHtml(x.file.name) + '">' + escHtml(x.file.name) + '</td><td>' + mw + '</td><td>' + pr + '</td><td><span class="ai-balk"><i style="width:' + pct + '%"></i></span>' + x.gelezen + ' / ' + x.totaal + '</td><td>' + stand + '</td><td><button type="button" class="kk-knop" onclick="AANMELD_IMPORT[' + i + '].open = !AANMELD_IMPORT[' + i + '].open; _aanmeldImportToon()">' + (x.open ? 'sluit' : 'bekijk') + '</button></td></tr>' + det;
   };
-  crmKaartToon('<h4 class="wit">Aanmeldformulieren importeren</h4>' +
-    '<div class="crm-sub">Word (.doc/.docx), Excel (.xlsx) of PDF — meerdere tegelijk. De Cockpit leest de velden, koppelt medewerker en project, en slaat pas op na "Importeren". Een scan zonder tekstlaag kan hij niet lezen.</div>' +
+  crmKaartToon('<h4 class="wit">' + (vast ? 'Aanmeldformulier importeren voor ' + escHtml(vast.naam) : 'Aanmeldformulieren importeren') + '</h4>' +
+    '<div class="crm-sub">Word (.doc/.docx), Excel (.xlsx) of PDF — meerdere tegelijk. De Cockpit leest de velden, ' + (vast ? 'zet het formulier bij ' + escHtml(vast.naam) + ', zoekt het project' : 'koppelt medewerker en project') + ', en slaat pas op na "Importeren". Het komt ook bij HRM/Backoffice › Opgeslagen formulieren te staan. Een scan zonder tekstlaag kan hij niet lezen.</div>' +
     '<div class="ai-drop" ondragover="event.preventDefault();this.classList.add(\'sleep\')" ondragleave="this.classList.remove(\'sleep\')" ondrop="aanmeldImportDrop(event,this)" onclick="document.getElementById(\'ai-bestand\').click()"><b>Sleep hier de aanmeldformulieren</b>of klik om te kiezen</div><input type="file" id="ai-bestand" hidden multiple accept=".doc,.docx,.xlsx,.xls,.pdf,.html,.htm" onchange="aanmeldImportKies(this)">' +
     (L.length ? '<table class="ai-tabel"><thead><tr><th></th><th>Bestand</th><th>Medewerker (CRM)</th><th>Project</th><th>Velden gelezen</th><th>Stand</th><th></th></tr></thead><tbody>' + L.map(rij).join('') + '</tbody></table>' : '') +
-    '<div class="crm-knoppen" style="margin-top:14px"><span class="stil" style="font-size:.76rem;margin-right:auto" id="ai-tel">' + L.filter(x => x.aan).length + ' aangevinkt</span><button type="button" class="crm-knop goed crm-knop-vast" id="ai-knop" onclick="aanmeldImportDoe()"' + (L.some(x => x.aan) ? '' : ' disabled') + '>' + L.filter(x => x.aan).length + ' importeren</button><button type="button" class="crm-knop" onclick="AANMELD_IMPORT = null; crmKaartSluit()">Sluiten</button></div>', 'crm-samenvoeg');
+    '<div class="crm-knoppen" style="margin-top:14px"><span class="stil" style="font-size:.76rem;margin-right:auto" id="ai-tel">' + L.filter(x => x.aan).length + ' aangevinkt</span><button type="button" class="crm-knop goed crm-knop-vast" id="ai-knop" onclick="aanmeldImportDoe()"' + (L.some(x => x.aan) ? '' : ' disabled') + '>' + L.filter(x => x.aan).length + ' importeren</button><button type="button" class="crm-knop" onclick="aanmeldImportSluit()">Sluiten</button></div>', 'crm-samenvoeg');
+}
+function aanmeldImportSluit() {
+  const vast = AANMELD_IMPORT_VAST; AANMELD_IMPORT = null; AANMELD_IMPORT_VAST = null;
+  if (vast) kandHrmKaartOpen(vast.sleutel); else crmKaartSluit();
 }
 function _aanmeldImportTel() { const n = (AANMELD_IMPORT || []).filter(x => x.aan).length; const t = document.getElementById('ai-tel'), k = document.getElementById('ai-knop'); if (t) t.textContent = n + ' aangevinkt'; if (k) { k.textContent = n + ' importeren'; k.disabled = !n; } }
 function aanmeldImportDrop(ev, el) { ev.preventDefault(); if (el) el.classList.remove('sleep'); _aanmeldImportLees(Array.from((ev.dataTransfer && ev.dataTransfer.files) || [])); }
@@ -49987,7 +50012,12 @@ async function _aanmeldImportLees(files) {
     try {
       const paren = await _aimLees(file);
       const uit = _aimNaarFormulier(paren); x.d = uit.d; x.gelezen = uit.gelezen;
-      const kp = _aimKoppel(x.d); x.k = kp.k; x.hoe = kp.hoe; x.p = kp.p;
+      if (AANMELD_IMPORT_VAST) {   // vanaf de Beheerkaart: medewerker ligt vast, alleen het project zoeken
+        const vast = AANMELD_IMPORT_VAST, inBestand = String(x.d.naam_achternaam || '').trim();
+        x.andereNaam = inBestand && _itkSleutel(inBestand) !== vast.sleutel && !(typeof _kandNaamVind === 'function' && _kandNaamVind(inBestand, [vast.naam])) ? inBestand : '';
+        x.d.naam_achternaam = vast.naam;
+        const kp = _aimKoppel(x.d); x.k = vast; x.hoe = 'vast'; x.p = kp.p;
+      } else { const kp = _aimKoppel(x.d); x.k = kp.k; x.hoe = kp.hoe; x.p = kp.p; }
       if (!x.d.datum_dienst && x.p && x.p.begin) x.d.datum_dienst = _aimDatum(new Date(+x.p.begin));
       if (!x.d.opdrachtgever_naam && x.p && x.p.opdrachtgever) x.d.opdrachtgever_naam = x.p.opdrachtgever;
       x.aan = x.gelezen >= 3;
@@ -50011,10 +50041,10 @@ async function aanmeldImportDoe() {
     if (error) { fouten.push(x.file.name + ': ' + error.message); continue; }
     n++;
   }
-  AANMELD_IMPORT = null; crmKaartSluit();
+  const vast = AANMELD_IMPORT_VAST; AANMELD_IMPORT = null; AANMELD_IMPORT_VAST = null;
   await loadAanmeldSaved();
   if (typeof _kandRecCacheWeg === 'function') _kandRecCacheWeg();
-  if (currentTab === 'hrm') render();
+  if (vast) kandHrmKaartOpen(vast.sleutel); else { crmKaartSluit(); if (currentTab === 'hrm') render(); }
   btMeld(n + ' formulier' + (n === 1 ? '' : 'en') + ' geïmporteerd' + (fouten.length ? ' · niet gelukt: ' + fouten.join('; ') : '.'), fouten.length ? 'geel' : 'groen');
 }
 function aanmeldEditSaved(id) {
