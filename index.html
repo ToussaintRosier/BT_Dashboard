@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261016-1044 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261016-1059 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2492,9 +2492,14 @@
     .kz-paneel.lade .kz-it { padding:11px 9px; font-size:.9rem; }
   }
   /* ── Kandidaatdossier v2 (02-10, ontwerp_kandidaatdossier.html) ── */
-  .kd-acties { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-top:10px !important; padding-bottom:10px !important; }
-  .kd-acties .crm-acties { margin:0; flex:1; min-height:0; }
-  .kd-wie { margin-left:auto; display:inline-flex; align-items:center; gap:8px; font-size:.78rem; white-space:nowrap; } .kd-wie .kz-ini { width:26px; height:26px; font-size:.66rem; }
+  .kd-acties { display:flex; flex-direction:column; align-items:stretch; gap:10px; padding-top:10px !important; padding-bottom:10px !important; }   /* 16-10 (A): status boven, acties onder */
+  .kd-acties .crm-acties { margin:0; min-height:0; }
+  .kd-status { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .kd-st { display:inline-flex; align-items:center; gap:8px; background:var(--l1); border-radius:10px; padding:5px 10px; font-size:.78rem; white-space:nowrap; } .kd-st .lab { color:rgba(255,255,255,.5); font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; } .kd-st b { font-weight:var(--w-nadruk); } .kd-st .kz-ini { width:22px; height:22px; font-size:.58rem; } .kd-st.leeg { opacity:.65; }
+  .kd-wie { display:inline-flex; align-items:center; gap:8px; font-size:.78rem; white-space:nowrap; } .kd-wie .kz-ini { width:26px; height:26px; font-size:.66rem; }
+  .crm-actie-sep { width:1px; height:22px; background:rgba(255,255,255,.14); margin:0 2px; }
+  .crm-actie-kies { display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:0 6px 0 4px; height:30px; } .crm-actie-kies .kz-ini { width:22px; height:22px; font-size:.58rem; }
+  .crm-actie-kies select { background:transparent; border:0; color:#fff; font-family:inherit; font-size:.76rem; cursor:pointer; outline:0; max-width:160px; } .crm-actie-kies select option { background:var(--l1); color:#fff; }
   .kd-samen { font-size:.8rem; line-height:1.5; color:rgba(255,255,255,.88); }
   .kd-kop2 { margin-top:12px !important; }
   .kd-bul { margin:4px 0 0; padding-left:18px; font-size:.79rem; line-height:1.5; } .kd-bul li::marker { color:var(--accent-gold); } .kd-bul b { color:rgba(255,255,255,.6); font-weight:var(--w-nadruk); }
@@ -11990,7 +11995,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261016-1044';
+const APP_VERSIE = '20261016-1059';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -34963,7 +34968,7 @@ function _crmKandActiesHtml(k) {
   // GG-lijst (28-09): geen gehoor — gebeld, nog niet gesproken. Aan/uit; met datum en wie.
   const gg = _crmKandGg(k);
   const ggKnop = !magWijzigen('crm') || CRM_ONTBREEKT ? '' : gg
-    ? '<button type="button" class="crm-actie aan" onclick="crmKandGgToggle(\'' + sE + '\')" title="Geen gehoor — gebeld, nog niet gesproken. Klik om van de GG-lijst te halen' + (gg.door ? ' (gezet door ' + escHtml(gg.door) + ')' : '') + '">⚑ GG-lijst ✓ · sinds ' + escHtml(_crmDatum(gg.ms)) + '</button>'
+    ? '<button type="button" class="crm-actie aan" onclick="crmKandGgToggle(\'' + sE + '\')" title="Geen gehoor — gebeld, nog niet gesproken. Klik om van de GG-lijst te halen' + (gg.door ? ' (gezet door ' + escHtml(gg.door) + ')' : '') + '">⚑ Van GG-lijst halen' + '</button>'
     : '<button type="button" class="crm-actie" onclick="crmKandGgToggle(\'' + sE + '\')" title="Geen gehoor: gebeld, nog niet gesproken. Zet hem op de GG-lijst (filter in de lijst)">⚑ Markeren GG-lijst</button>';
   // Sinds 22-09 chips met initialen (ontwerp_crm_kand_chips): alle collega's
   // zichtbaar, alleen die je mag wijzigen klikbaar, standaard jijzelf.
@@ -34972,10 +34977,11 @@ function _crmKandActiesHtml(k) {
   const std0 = _kanbanStandaardBm(null);
   const std = canEdit(std0) ? std0 : bms[0];
   const alIntake = intake ? _crmKandIntake(k) : null;
+  // 16-10 (A): één keuzeknop met de collega in plaats van elf chips; de bestaande intake staat in de statusregel.
+  const kies = '<span class="crm-actie-kies" title="In wiens pipeline komt het Intake-tegeltje"><span class="kz-ini" id="crm-intake-bm-ini">' + escHtml(_oneInitialen(std || '')) + '</span><select id="crm-intake-bm" onchange="crmIntakeBmKies(this)">' +
+    alle.map(n => '<option value="' + escHtml(n) + '"' + (n === std ? ' selected' : '') + (canEdit(n) ? '' : ' disabled') + '>' + escHtml(n) + '</option>').join('') + '</select></span>';
   const intakeKnop = !bms.length ? ''
-    : '<span class="crm-actie-groep"><button type="button" class="crm-actie goed" onclick="crmKandIntakeOpvoeren(\'' + sE + '\')" title="' + (alIntake ? escHtml(k.naam) + ' heeft al een intake (' + escHtml(_crmDatum(alIntake.ms)) + '); een nieuwe intake komt er als extra tegeltje bij' : 'Intake-tegeltje in de pipeline van de gekozen collega') + '">+ ' + (alIntake ? 'Nieuwe intake opvoeren' : 'Intake opvoeren') + '</button><span class="stil">in de pipeline van</span>' +
-      _collegaChipsHtml({ id: 'crm-intake-bm', namen: alle, aan: [std], max: 1, mag: (n) => canEdit(n) }) +
-      (alIntake ? '<span class="stil" title="De bestaande intake blijft staan">· al een intake ' + escHtml(_crmDatum(alIntake.ms)) + (intake.bmNaam ? ' · ' + escHtml(String(intake.bmNaam).split(' ')[0]) : '') + '</span>' : '') + '</span>';   // 16-10
+    : '<span class="crm-actie-sep"></span><span class="crm-actie-groep"><button type="button" class="crm-actie goed" onclick="crmKandIntakeOpvoeren(\'' + sE + '\')" title="' + (alIntake ? escHtml(k.naam) + ' heeft al een intake (' + escHtml(_crmDatum(alIntake.ms)) + '); een nieuwe intake komt er als extra tegeltje bij' : 'Intake-tegeltje in de pipeline van de gekozen collega') + '">+ ' + (alIntake ? 'Nieuwe intake' : 'Intake opvoeren') + '</button><span class="stil">bij</span>' + kies + '</span>';
   return '<div class="crm-acties">' + starKnop + ggKnop + intakeKnop + '</div>';   // 29-09: ggKnop stond er sinds 28-09 wel, maar werd hier nooit ingevoegd
 }
 async function crmKandGgToggle(sleutel) {
@@ -35005,9 +35011,15 @@ async function crmKandStarboy(sleutel) {
   const ok = await _kanbanUpdate(c.bmNaam, c.id, { starboy: !c.starboy });
   if (ok) { crmKandOpen(sleutel, true); if (currentTab === 'kanban') render(); }
 }
+function crmIntakeBmKies(sel) { const ini = document.getElementById('crm-intake-bm-ini'); if (ini && sel) ini.textContent = _oneInitialen(sel.value || ''); }
+function _crmIntakeBmGekozen() {
+  const el = document.getElementById('crm-intake-bm');
+  if (el && el.tagName === 'SELECT') return el.value || null;   // 16-10 (A): keuzeknop
+  return (typeof _collegaChipsAan === 'function' ? _collegaChipsAan('crm-intake-bm') : [])[0] || null;
+}
 function crmKandIntakeOpvoeren(sleutel) {
   const k = crmKandLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
-  const bm = _kanbanStandaardBm(_collegaChipsAan('crm-intake-bm')[0] || null);
+  const bm = _kanbanStandaardBm(_crmIntakeBmGekozen());
   if (!canEdit(bm)) { alert('Je mag de pipeline van ' + bm + ' niet wijzigen.'); return; }
   const nu = isoWeek(new Date());
   crmKaartSluit();
@@ -46203,12 +46215,24 @@ function _kdVerantwoordelijke(k) {
   const sub = k.intake ? 'intake ' + _crmDatum(f.ms) : (k.bmNaam ? 'laatste tegeltje' : 'ingevoerd');
   return '<span class="kd-wie"><span class="stil">Verantwoordelijk</span><span class="kz-ini">' + escHtml(_oneInitialen(naam)) + '</span><b>' + escHtml(naam) + '</b><span class="stil">· ' + escHtml(sub) + '</span></span>';
 }
-// De actierij bovenaan elk blad: dezelfde knoppen als voorheen (_crmKandActiesHtml), nu in één vak met de verantwoordelijke ernaast.
+// Statusregel (16-10, A): Intake · verantwoordelijke · datum | GG-lijst sinds · door | StarBoy ja/nee.
+function _kdStatusHtml(k) {
+  const naam = (k.intake && k.intake.bmNaam) || k.bmNaam || k.invoerder || '';
+  const f = _crmKandIntake(k), gg = typeof _crmKandGg === 'function' ? _crmKandGg(k) : null, star = !!(k.intake && k.intake.starboy);
+  const n = k.intake ? ((k.kaarten || []).filter(c => c.stage === 'Intake').length) : 0;
+  const intake = k.intake
+    ? '<span class="kd-st"><span class="lab">Intake' + (n > 1 ? ' · ' + n : '') + '</span>' + (naam ? '<span class="kz-ini">' + escHtml(_oneInitialen(naam)) + '</span><b>' + escHtml(naam) + '</b>' : '') + '<span class="stil">· ' + escHtml(_crmDatum(f.ms)) + '</span></span>'
+    : '<span class="kd-st leeg"><span class="lab">Intake</span><span class="stil">nog geen</span>' + (naam ? '<span class="stil">· ' + (k.bmNaam ? 'laatste tegeltje' : 'ingevoerd') + ' door ' + escHtml(naam) + '</span>' : '') + '</span>';
+  const ggSt = gg ? '<span class="kd-st"><span class="lab">GG-lijst</span>⚑ <b>sinds ' + escHtml(_crmDatum(gg.ms)) + '</b>' + (gg.door ? '<span class="stil">· door ' + escHtml(String(gg.door).split(' ')[0]) + '</span>' : '') + '</span>' : '';
+  const starSt = '<span class="kd-st' + (star ? '' : ' leeg') + '"><span class="lab">StarBoy</span>' + (star ? '★ <b>ja</b>' : '<span class="stil">nee</span>') + '</span>';
+  return '<div class="kd-status">' + intake + ggSt + starSt + '</div>';
+}
+// De actierij bovenaan elk blad (16-10, A): status boven, de knoppen eronder.
 function _kdActiesHtml(k) {
   const acties = _crmKandActiesHtml(k);
-  const wie = _kdVerantwoordelijke(k);
-  if (!/class="crm-actie[ "]/.test(acties) && !wie) return '';   // 'crm-acties' (de lege bak) telt niet
-  return '<div class="bd-vak kd-acties">' + acties + wie + '</div>';
+  const status = _kdStatusHtml(k);
+  if (!/class="crm-actie[ "]/.test(acties) && !status) return '';   // 'crm-acties' (de lege bak) telt niet
+  return '<div class="bd-vak kd-acties">' + status + acties + '</div>';
 }
 // Het korte tekstje onder de naam: ingevoerd · bron · laatste contact.
 function _kdKopSub(k) {
