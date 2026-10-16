@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261016-1059 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261016-1138 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2498,8 +2498,10 @@
   .kd-st { display:inline-flex; align-items:center; gap:8px; background:var(--l1); border-radius:10px; padding:5px 10px; font-size:.78rem; white-space:nowrap; } .kd-st .lab { color:rgba(255,255,255,.5); font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; } .kd-st b { font-weight:var(--w-nadruk); } .kd-st .kz-ini { width:22px; height:22px; font-size:.58rem; } .kd-st.leeg { opacity:.65; }
   .kd-wie { display:inline-flex; align-items:center; gap:8px; font-size:.78rem; white-space:nowrap; } .kd-wie .kz-ini { width:26px; height:26px; font-size:.66rem; }
   .crm-actie-sep { width:1px; height:22px; background:rgba(255,255,255,.14); margin:0 2px; }
-  .crm-actie-kies { display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:0 6px 0 4px; height:30px; } .crm-actie-kies .kz-ini { width:22px; height:22px; font-size:.58rem; }
-  .crm-actie-kies select { background:transparent; border:0; color:#fff; font-family:inherit; font-size:.76rem; cursor:pointer; outline:0; max-width:160px; } .crm-actie-kies select option { background:var(--l1); color:#fff; }
+  .crm-kies { position:relative; display:inline-block; }
+  .crm-kies-pil { display:inline-flex; align-items:center; gap:7px; border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:0 9px 0 4px; height:30px; background:transparent; color:#fff; font-family:inherit; font-size:.76rem; cursor:pointer; } .crm-kies-pil:hover { border-color:rgba(255,255,255,.55); } .crm-kies-pil .kz-ini { width:22px; height:22px; font-size:.58rem; } .crm-kies-pil .chev { color:rgba(255,255,255,.55); font-size:.55rem; margin-left:2px; }
+  .crm-kies-menu { position:absolute; left:0; top:calc(100% + 4px); z-index:6; background:var(--l2); border:1px solid rgba(255,255,255,.16); border-radius:10px; padding:6px; min-width:210px; box-shadow:0 12px 28px rgba(0,0,0,.45); max-height:320px; overflow:auto; }
+  .crm-kies-menu button { display:flex; align-items:center; gap:8px; width:100%; padding:5px 8px; border:0; border-radius:6px; background:transparent; color:#fff; font-family:inherit; font-size:.78rem; cursor:pointer; text-align:left; white-space:nowrap; } .crm-kies-menu button:hover { background:rgba(255,255,255,.07); } .crm-kies-menu button.aan { background:rgba(244,203,60,.14); color:#F4CB3C; } .crm-kies-menu button.uit { opacity:.4; cursor:default; } .crm-kies-menu button .kz-ini { width:22px; height:22px; font-size:.58rem; } .crm-kies-menu button small { color:rgba(255,255,255,.5); margin-left:auto; padding-left:10px; }
   .kd-samen { font-size:.8rem; line-height:1.5; color:rgba(255,255,255,.88); }
   .kd-kop2 { margin-top:12px !important; }
   .kd-bul { margin:4px 0 0; padding-left:18px; font-size:.79rem; line-height:1.5; } .kd-bul li::marker { color:var(--accent-gold); } .kd-bul b { color:rgba(255,255,255,.6); font-weight:var(--w-nadruk); }
@@ -11995,7 +11997,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261016-1059';
+const APP_VERSIE = '20261016-1138';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15852,6 +15854,10 @@ function crmZoekNieuw(soort) {
   if (q && CRM_WIZ && CRM_WIZ.soort === 'kand') { const sp = _crmNaamSplits(q); CRM_WIZ.w.voornaam = sp.voornaam || q; CRM_WIZ.w.achternaam = sp.achternaam || ''; _crmWizToon(); }
 }
 // Sneltoets / : cursor in het zoekveld (niet als je al ergens typt, en niet in een venster).
+// De zoekbalk in de kop (collega-pagina én het algemene Medewerkers-scherm, 16-10): één stuk HTML voor beide.
+function _crmKopZoekHtml() {
+  return `<div class="crm-zoek" id="crm-zoek"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input type="search" id="crm-zoek-veld" placeholder="zoek kandidaat of bedrijf in het CRM…" autocomplete="off" oninput="crmZoekTyp(this.value)" onkeydown="crmZoekToets(event)" onfocus="crmZoekTyp(this.value)" onblur="setTimeout(crmZoekSluit, 150)"><kbd class="crm-zoek-k" title="Sneltoets: /">/</kbd>${magWijzigen('crm') ? `<button type="button" class="crm-zoek-plus" onclick="crmZoekPlus(event)" title="Toevoegen: kandidaat of klant (ook: + in het zoekveld)" aria-label="Toevoegen">+</button><div class="crm-plus-paneel" id="crm-plus-paneel" hidden></div>` : ''}<div class="crm-zoek-lijst" id="crm-zoek-lijst" hidden></div></div>`;
+}
 function _crmZoekSneltoets(e) {
   if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
   const el = document.activeElement;
@@ -15914,7 +15920,7 @@ function renderBM(bm) {
   document.getElementById('main').innerHTML = `<div>
     <div class="person-header">
       <div class="person-name">${bm.naam}${btUitlegKnop('medewerker')}</div>
-      <div class="crm-zoek" id="crm-zoek"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input type="search" id="crm-zoek-veld" placeholder="zoek kandidaat of bedrijf in het CRM…" autocomplete="off" oninput="crmZoekTyp(this.value)" onkeydown="crmZoekToets(event)" onfocus="crmZoekTyp(this.value)" onblur="setTimeout(crmZoekSluit, 150)"><kbd class="crm-zoek-k" title="Sneltoets: /">/</kbd>${magWijzigen('crm') ? `<button type="button" class="crm-zoek-plus" onclick="crmZoekPlus(event)" title="Toevoegen: kandidaat of klant (ook: + in het zoekveld)" aria-label="Toevoegen">+</button><div class="crm-plus-paneel" id="crm-plus-paneel" hidden></div>` : ''}<div class="crm-zoek-lijst" id="crm-zoek-lijst" hidden></div></div>
+      ${_crmKopZoekHtml()}
       <div class="person-meta">
         <span class="meta-pill">Doel: ${bm.doel} starters/jaar</span>
         <span class="meta-pill">Norm per ${pLabel}: ${fmt(norm.starters,2)} starters</span>
@@ -16381,6 +16387,7 @@ function renderMedewerkersOverzicht() {
   document.getElementById('main').innerHTML = '<div>' +
     '<div class="person-header">' +
       '<div class="person-name">Medewerkers' + btUitlegKnop('medewerkers') + '</div>' +
+      _crmKopZoekHtml() +   // 16-10: zelfde zoekbalk als op de collega-pagina
       '<div class="person-meta">' +
         ladderKnoppenHtml() +
         '<span class="meta-pill">Teamdoel ' + TOTAAL_DOEL + ' starters</span>' +
@@ -34978,8 +34985,8 @@ function _crmKandActiesHtml(k) {
   const std = canEdit(std0) ? std0 : bms[0];
   const alIntake = intake ? _crmKandIntake(k) : null;
   // 16-10 (A): één keuzeknop met de collega in plaats van elf chips; de bestaande intake staat in de statusregel.
-  const kies = '<span class="crm-actie-kies" title="In wiens pipeline komt het Intake-tegeltje"><span class="kz-ini" id="crm-intake-bm-ini">' + escHtml(_oneInitialen(std || '')) + '</span><select id="crm-intake-bm" onchange="crmIntakeBmKies(this)">' +
-    alle.map(n => '<option value="' + escHtml(n) + '"' + (n === std ? ' selected' : '') + (canEdit(n) ? '' : ' disabled') + '>' + escHtml(n) + '</option>').join('') + '</select></span>';
+  const kies = '<span class="crm-kies" id="crm-intake-bm" data-naam="' + escHtml(std || '') + '"><button type="button" class="crm-kies-pil" title="In wiens pipeline komt het Intake-tegeltje" onclick="crmIntakeBmMenu(event)"><span class="kz-ini">' + escHtml(_oneInitialen(std || '')) + '</span><span class="naam">' + escHtml(std || '') + '</span><span class="chev">▼</span></button>' +
+    '<div class="crm-kies-menu" id="crm-intake-bm-menu" hidden>' + alle.map(n => '<button type="button" class="' + (n === std ? 'aan' : '') + (canEdit(n) ? '' : ' uit') + '"' + (canEdit(n) ? ' onclick="crmIntakeBmZet(\'' + escApos(n) + '\')"' : ' disabled') + '><span class="kz-ini">' + escHtml(_oneInitialen(n)) + '</span>' + escHtml(n) + (canEdit(n) ? '' : '<small>geen recht</small>') + '</button>').join('') + '</div></span>';   // 16-10: pil + eigen menu
   const intakeKnop = !bms.length ? ''
     : '<span class="crm-actie-sep"></span><span class="crm-actie-groep"><button type="button" class="crm-actie goed" onclick="crmKandIntakeOpvoeren(\'' + sE + '\')" title="' + (alIntake ? escHtml(k.naam) + ' heeft al een intake (' + escHtml(_crmDatum(alIntake.ms)) + '); een nieuwe intake komt er als extra tegeltje bij' : 'Intake-tegeltje in de pipeline van de gekozen collega') + '">+ ' + (alIntake ? 'Nieuwe intake' : 'Intake opvoeren') + '</button><span class="stil">bij</span>' + kies + '</span>';
   return '<div class="crm-acties">' + starKnop + ggKnop + intakeKnop + '</div>';   // 29-09: ggKnop stond er sinds 28-09 wel, maar werd hier nooit ingevoegd
@@ -35011,10 +35018,27 @@ async function crmKandStarboy(sleutel) {
   const ok = await _kanbanUpdate(c.bmNaam, c.id, { starboy: !c.starboy });
   if (ok) { crmKandOpen(sleutel, true); if (currentTab === 'kanban') render(); }
 }
-function crmIntakeBmKies(sel) { const ini = document.getElementById('crm-intake-bm-ini'); if (ini && sel) ini.textContent = _oneInitialen(sel.value || ''); }
+// De collega-kiezer (16-10): pil met avatar + naam, klik opent het menu; buiten klikken of Esc sluit het.
+function crmIntakeBmMenu(ev) {
+  if (ev) ev.stopPropagation();
+  const m = document.getElementById('crm-intake-bm-menu'); if (!m) return;
+  const open = !m.hidden;
+  m.hidden = open;
+  if (!open) setTimeout(() => document.addEventListener('click', _crmIntakeBmMenuDicht, { once: true }), 0);
+}
+function _crmIntakeBmMenuDicht() { const m = document.getElementById('crm-intake-bm-menu'); if (m) m.hidden = true; }
+function crmIntakeBmZet(naam) {
+  const el = document.getElementById('crm-intake-bm'); if (!el) return;
+  el.setAttribute('data-naam', naam);
+  const ini = el.querySelector('.crm-kies-pil .kz-ini'), nm = el.querySelector('.crm-kies-pil .naam');
+  if (ini) ini.textContent = _oneInitialen(naam); if (nm) nm.textContent = naam;
+  el.querySelectorAll('.crm-kies-menu button').forEach(b => b.classList.toggle('aan', b.textContent.replace(/geen recht$/, '').trim().endsWith(naam)));
+  _crmIntakeBmMenuDicht();
+}
 function _crmIntakeBmGekozen() {
   const el = document.getElementById('crm-intake-bm');
-  if (el && el.tagName === 'SELECT') return el.value || null;   // 16-10 (A): keuzeknop
+  if (el && el.tagName === 'SELECT') return el.value || null;
+  if (el && el.getAttribute) return el.getAttribute('data-naam') || null;   // 16-10: pil + menu
   return (typeof _collegaChipsAan === 'function' ? _collegaChipsAan('crm-intake-bm') : [])[0] || null;
 }
 function crmKandIntakeOpvoeren(sleutel) {
