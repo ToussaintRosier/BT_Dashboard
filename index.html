@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261015-1611 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261016-0844 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2881,6 +2881,9 @@
   .bt-melding.geel  { border-left-color:#F4CB3C; }
   .bt-melding.groen { border-left-color:#0e9f6e; }
   .bt-melding.weg   { opacity:0; transition:opacity .45s; }
+  .bt-melding.vast  { cursor:pointer; border-width:1px 1px 1px 5px; box-shadow:0 0 0 2px rgba(244,203,60,.25), 0 10px 28px rgba(0,0,0,.45); animation:bt-melding-in .18s ease-out, bt-melding-puls 1.6s ease-in-out 3; } .bt-melding.vast .bt-melding-tekst b { color:#F4CB3C; }
+  @keyframes bt-melding-puls { 0%,100% { box-shadow:0 0 0 2px rgba(244,203,60,.25), 0 10px 28px rgba(0,0,0,.45); } 50% { box-shadow:0 0 0 6px rgba(244,203,60,.45), 0 10px 28px rgba(0,0,0,.45); } }
+  .aanb-tel.zeven.puls { animation:bt-melding-puls 1.6s ease-in-out 3; }
   .bt-melding-tekst { flex:1; min-width:0; word-break:break-word; }
   .bt-melding-x { background:transparent; border:none; color:rgba(255,255,255,.6); cursor:pointer; font-size:.85rem; padding:0 2px; line-height:1; }
   .bt-melding-x:hover { color:#fff; }
@@ -6452,6 +6455,49 @@ function _btMeldSoort(tekst) {
   if (/^✅/.test(t)) return 'groen';
   if (/^⚠️|^Verplicht|^Kies |^Vul /i.test(t)) return 'geel';
   return 'info';
+}
+// Melding die blijft staan tot je hem wegklikt (16-10): voor dingen die je niet mag missen (nieuwe sollicitatie).
+// klik = functie die loopt als je op de melding klikt (de ✕ sluit alleen).
+function btMeldVast(tekst, opties) {
+  const o = opties || {}, s = o.soort || 'geel';
+  let bak = document.getElementById('bt-meldingen');
+  if (!bak) { bak = document.createElement('div'); bak.id = 'bt-meldingen'; document.body.appendChild(bak); }
+  const el = document.createElement('div');
+  el.className = 'bt-melding vast ' + s;
+  el.innerHTML = '<span class="bt-melding-tekst">' + (o.html ? String(tekst || '') : escHtml(String(tekst == null ? '' : tekst)).replace(/\n/g, '<br>')) + '</span>' +
+    '<button type="button" class="bt-melding-x" aria-label="Sluiten">✕</button>';
+  el.querySelector('.bt-melding-x').addEventListener('click', (ev) => { ev.stopPropagation(); el.remove(); });
+  if (typeof o.klik === 'function') el.addEventListener('click', () => { el.remove(); try { o.klik(); } catch (e) { _meldStil('melding klik', e); } });
+  bak.appendChild(el);
+  return el;
+}
+// Kort geluid (twee tonen). De browser laat geluid pas toe na een eerdere klik in de pagina; anders stil.
+function _btPing() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ctx = _btPing._ctx || (_btPing._ctx = new AC());
+    if (ctx.state === 'suspended') { ctx.resume().catch(() => {}); if (ctx.state === 'suspended') return; }
+    [[880, 0], [1175, 0.16]].forEach(([hz, t0]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = hz; g.gain.value = 0.0001;
+      o.connect(g); g.connect(ctx.destination);
+      const t = ctx.currentTime + t0;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.start(t); o.stop(t + 0.3);
+    });
+  } catch (e) { _meldStil('ping', e); }
+}
+// Bureaubladmelding als de Cockpit niet in beeld is (toestemming wordt gevraagd bij het openen van de lijst Sollicitaties).
+function _btBureaublad(titel, tekst, klik) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && document.hasFocus && document.hasFocus()) return;   // je ziet de melding al in de Cockpit
+    const n = new Notification(titel, { body: tekst, tag: 'bt-' + Date.now(), silent: true });
+    n.onclick = () => { try { window.focus(); n.close(); if (typeof klik === 'function') klik(); } catch (e) { _meldStil('bureaubladmelding klik', e); } };
+  } catch (e) { _meldStil('bureaubladmelding', e); }
+}
+function _btBureaubladVraag() {
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); } catch (e) { _meldStil('bureaubladmelding toestemming', e); }
 }
 function btMeld(tekst, soort) {
   const s = soort || _btMeldSoort(tekst);
@@ -11922,7 +11968,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261015-1611';
+const APP_VERSIE = '20261016-0844';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -44855,6 +44901,7 @@ function _solBadgeHtml() { const n = SOL_ONTBREEKT ? 0 : _solNieuw().length; ret
 // ── De lijst ──
 function solLijstVenster(tab) {
   if (tab) SOL_TAB = tab;
+  _btBureaubladVraag();   // 16-10: één keer toestemming voor bureaubladmeldingen (na deze klik, zoals de browser eist)
   const alle = SOLLICITATIES || [];
   const per = { nieuw: alle.filter(x => x.status === 'nieuw'), behandeling: alle.filter(x => x.status === 'behandeling'), verwerkt: alle.filter(x => x.status === 'afgewezen') };
   const lijst = per[SOL_TAB] || per.nieuw;
@@ -45028,10 +45075,15 @@ function _solHerteken() {
 }
 // Live (realtime): nieuwe sollicitaties → melding bij de eigenaar van de vacature en bij managers.
 function _solLive(nieuwe) {
+  let n = 0;
   nieuwe.forEach(x => {
-    if (!(_solVanMij(x) || (typeof isManagerLevel === 'function' && isManagerLevel()))) return;
-    btMeld('📩 Nieuwe sollicitatie op "' + (x.vacature_titel || 'een vacature') + '" — ' + x.naam + ' · zie het tegeltje Sollicitaties', 'geel');
+    if (!(_solVanMij(x) || (typeof isManagerLevel === 'function' && isManagerLevel()) || (CURRENT_USER && CURRENT_USER.rol === 'backoffice'))) return;
+    n++;
+    const titel = 'Nieuwe sollicitatie op ' + (x.vacature_titel || 'een vacature'), wie = x.naam + (x.cv_pad ? ' · met CV' : ' · zonder CV');
+    btMeldVast('📩 <b>' + escHtml(titel) + '</b><br>' + escHtml(wie) + ' <span class="stil">· klik om te openen</span>', { html: true, klik: () => solVenster(x.id) });   // 16-10: blijft staan tot je klikt
+    _btBureaublad(titel, wie, () => solVenster(x.id));
   });
+  if (n) { _btPing(); setTimeout(() => { const t = document.querySelector('.aanb-tel.zeven'); if (t) t.classList.add('puls'); }, 50); }
 }
 // Sollicitaties van een kandidaat (op dossier, of op e-mail/telefoon zolang hij nog niet gekoppeld is).
 function _solVanKand(k) {
