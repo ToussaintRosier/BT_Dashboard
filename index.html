@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261016-1004 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261016-1044 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -11990,7 +11990,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261016-1004';
+const APP_VERSIE = '20261016-1044';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -34952,8 +34952,8 @@ function crmKandDossierHtml(sleutel) {
 }
 // De acties bovenin het dossier (akkoord 17-09): StarBoy = de ster op zijn
 // Intake-tegeltje (Kanban); Intake opvoeren = het pipeline-venster voor Intake
-// bij de gekozen collega, met zijn naam al gekozen. Zonder intake geen StarBoy;
-// met intake geen tweede intake.
+// bij de gekozen collega, met zijn naam al gekozen. Zonder intake geen StarBoy.
+// 16-10: een tweede (nieuwe) intake mag altijd — een kandidaat komt terug, een ander project; de bestaande staat als hint.
 function _crmKandActiesHtml(k) {
   const sE = escApos(k.sleutel), intake = k.intake, star = !!(intake && intake.starboy);
   // StarBoy volgt het Kanban-recht (medewerkers), net als op het bord zelf.
@@ -34971,11 +34971,11 @@ function _crmKandActiesHtml(k) {
   const bms = alle.filter(n => canEdit(n));
   const std0 = _kanbanStandaardBm(null);
   const std = canEdit(std0) ? std0 : bms[0];
-  const intakeKnop = intake
-    ? '<span class="crm-actie uit" title="' + escHtml(k.naam) + ' heeft al een intake (' + escHtml(_crmDatum(_crmKandIntake(k).ms)) + ')">+ Intake opvoeren</span>'
-    : !bms.length ? ''
-    : '<span class="crm-actie-groep"><button type="button" class="crm-actie goed" onclick="crmKandIntakeOpvoeren(\'' + sE + '\')">+ Intake opvoeren</button><span class="stil">in de pipeline van</span>' +
-      _collegaChipsHtml({ id: 'crm-intake-bm', namen: alle, aan: [std], max: 1, mag: (n) => canEdit(n) }) + '</span>';
+  const alIntake = intake ? _crmKandIntake(k) : null;
+  const intakeKnop = !bms.length ? ''
+    : '<span class="crm-actie-groep"><button type="button" class="crm-actie goed" onclick="crmKandIntakeOpvoeren(\'' + sE + '\')" title="' + (alIntake ? escHtml(k.naam) + ' heeft al een intake (' + escHtml(_crmDatum(alIntake.ms)) + '); een nieuwe intake komt er als extra tegeltje bij' : 'Intake-tegeltje in de pipeline van de gekozen collega') + '">+ ' + (alIntake ? 'Nieuwe intake opvoeren' : 'Intake opvoeren') + '</button><span class="stil">in de pipeline van</span>' +
+      _collegaChipsHtml({ id: 'crm-intake-bm', namen: alle, aan: [std], max: 1, mag: (n) => canEdit(n) }) +
+      (alIntake ? '<span class="stil" title="De bestaande intake blijft staan">· al een intake ' + escHtml(_crmDatum(alIntake.ms)) + (intake.bmNaam ? ' · ' + escHtml(String(intake.bmNaam).split(' ')[0]) : '') + '</span>' : '') + '</span>';   // 16-10
   return '<div class="crm-acties">' + starKnop + ggKnop + intakeKnop + '</div>';   // 29-09: ggKnop stond er sinds 28-09 wel, maar werd hier nooit ingevoegd
 }
 async function crmKandGgToggle(sleutel) {
