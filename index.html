@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261016-1349 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261016-1513 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12019,7 +12019,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261016-1349';
+const APP_VERSIE = '20261016-1513';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -50261,7 +50261,7 @@ const AIM_LABELS = {
   naam_achternaam: ['voornaam en achternaam', 'naam', 'volledige naam', 'naam medewerker'], voorletters: ['voorletters'], geslacht: ['m/v', 'geslacht'], roepnaam: ['roepnaam/voornaam', 'roepnaam', 'voornaam'],
   telefoon: ['telefoon', 'telefoonnummer', 'mobiel'], email: ['e-mailadres', 'email', 'e-mail'], noodcontact: ['contact in noodgevallen', 'noodcontact', 'contact noodgevallen'], functie: ['functie omschrijving', 'functie'],
   cao_opdrachtgever: ['cao opdrachtgever', 'cao'], adres: ['adres', 'straat', 'straatnaam', 'straat + huisnummer', 'straat en huisnummer', 'straatnaam + huisnummer', 'straatnaam en huisnummer', 'woonadres', 'adres (straat + huisnummer)'], postcode_woonplaats: ['postcode / woonplaats', 'postcode/woonplaats', 'postcode en woonplaats', 'postcode woonplaats', 'postcode + woonplaats'], geb_datum: ['geboortedatum', 'geb. datum', 'geboren'],
-  nationaliteit: ['nationaliteit'], auto_zaak: ['auto van de zaak', 'auto v/d zaak'], bsn: ['bsn / sofi-nummer', 'bsn', 'sofinummer', 'sofi-nummer'], burg_staat: ['burgelijke staat', 'burgerlijke staat'], id_bewijs: ['soort id-bewijs', 'soort id', 'id-bewijs', 'legitimatie'],
+  nationaliteit: ['nationaliteit'], auto_zaak: ['auto van de zaak', 'auto v/d zaak'], bsn: ['bsn / sofi-nummer', 'bsn', 'bsn-nummer', 'bsn nummer', 'bsnnummer', 'bsn nr', 'bsn-nr', 'burgerservicenummer', 'burger service nummer', 'burgerservice nummer', 'sofinummer', 'sofi-nummer', 'sofi nummer', 'bsn/sofi-nummer', 'bsn / sofinummer', 'bsn/sofinummer', 'bsn / sofi nummer', 'bsn (sofi-nummer)'], burg_staat: ['burgelijke staat', 'burgerlijke staat'], id_bewijs: ['soort id-bewijs', 'soort id', 'id-bewijs', 'legitimatie'],
   nr_id: ['nr. id', 'nummer id', 'id nummer', 'documentnummer'], bankrekening: ['bankrekeningnummer', 'iban', 'bankrekening', 'rekeningnummer'], datum_dienst: ['datum in dienst', 'in dienst', 'startdatum', 'datum indiensttreding'], datum_uitdienst: ['vermoedelijke datum uit dienst', 'datum uit dienst', 'uit dienst', 'einddatum'],
   deeltijd_pct: ['deeltijd %', 'deeltijd', 'parttime %'], arb_uren_dag: ['arbeidspatroon uren per dag', 'uren per dag'], arb_patroon: ['arbeidspatroon'], bruto_maand: ['bruto per maand', 'bruto maandsalaris', 'brutoloon', 'salaris'], loonheffingskorting: ['loonheffingskorting'],
   opdrachtgever_naam: ['naam opdrachtgever', 'opdrachtgever', 'klant'], vca_plichtig: ['vca plichtig', 'vca'], firmapas_benodigd: ['firmapas benodigd', 'firmapas'], betalingstermijn: ['betalingstermijn'], tarief_100: ['tarief 100%', 'tarief 100 %', 'tarief (100%)', 'tarief 100', 'uurtarief 100%', 'uurtarief', 'tarief 100% (€)'],
@@ -50308,15 +50308,18 @@ function _aimDatum(w) {
 function _aimGetal(w) { const t = String(w == null ? '' : w).replace(/[€%\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'); const n = parseFloat(t); return isNaN(n) ? String(w || '').trim() : String(n); }
 // Paren [label, waarde] → het formulier (d). Datums en getallen naar het formaat van het formulier; ja/nee-velden netjes.
 function _aimNaarFormulier(paren) {
-  const d = {}; let gelezen = 0; const hulp = {}; const overwerk = [];
+  const d = {}; let gelezen = 0; const hulp = {}; const overwerk = []; const onbekend = [];
   paren.forEach(([label, waarde]) => {
     if (label === '_overwerk' && waarde && typeof waarde === 'object') { overwerk.push(waarde); return; }   // uit de overwerktabel
-    const k = _aimVeldVanLabel(label); if (!k || d[k] || hulp[k]) return;
+    const k = _aimVeldVanLabel(label);
+    if (!k) { const l = String(label || '').trim(); if (l && l.length <= 60 && waarde !== '' && waarde != null && !onbekend.includes(l)) onbekend.push(l); return; }   // 16-10: voor "bekijk"
+    if (d[k] || hulp[k]) return;
     let w = waarde instanceof Date ? waarde : String(waarde == null ? '' : waarde).trim();
     if (!w || w === '—' || w === '-') return;
     if (k === 'arb_even' || k === 'arb_oneven') { const dg = _aimDagen(w); if (dg.length) { d[k] = dg; gelezen++; } return; }
     if (k[0] === '_') { hulp[k] = String(w); return; }
     if (AIM_DATUMS.includes(k)) w = _aimDatum(w); else if (AIM_GETALLEN.includes(k)) w = _aimGetal(w); else w = String(w);
+    if (k === 'bsn') { const c = w.replace(/[\s.\-]/g, ''); if (!/^\d{8,9}$/.test(c)) return; w = c; }   // 16-10: alleen een echt BSN
     if (['auto_zaak', 'vca_plichtig', 'firmapas_benodigd', 'loonheffingskorting'].includes(k)) w = /^(ja|j|yes|true|x|✓)$/i.test(w) ? 'ja' : /^(nee|n|no|false|geen)$/i.test(w) ? 'nee' : w;
     if (k === 'naam_achternaam') w = typeof _crmNaamNet === 'function' ? _crmNaamNet(w) : w;
     d[k] = w; gelezen++;
@@ -50329,7 +50332,7 @@ function _aimNaarFormulier(paren) {
     overwerk.slice(0, 15).forEach((o, i) => { d['overw_omsch_' + (i + 1)] = o.omsch; d['overw_pct_' + (i + 1)] = o.pct; });
     d.overw_count = Math.min(overwerk.length, 15); gelezen++;
   }
-  return { d, gelezen, totaal: Object.keys(AIM_LABELS).length + 1 };   // +1: overwerk
+  return { d, gelezen, totaal: Object.keys(AIM_LABELS).length + 1, onbekend: onbekend.slice(0, 40) };   // +1: overwerk
 }
 // Een rij uit een overwerktabel: een omschrijving (overwerk/overuren/ploegen/verschoven/feestdag) + een percentage
 // (124,1 % of 124,1 in een cel met % ernaast). Het tarief in zo'n rij is afgeleid en wordt bewust genegeerd.
@@ -50426,7 +50429,8 @@ function _aanmeldImportToon() {
     const eerder = !x.fout && x.k && typeof _hrmAanmeldingenVan === 'function' ? _hrmAanmeldingenVan(x.k) : [], al = eerder[0] || null;
     const stand = x.fout ? '<span class="crm-pil uit">' + escHtml(x.fout) + '</span>' : x.gelezen < 3 ? '<span class="crm-pil uit">onleesbaar (' + x.gelezen + ' velden)</span>' : al ? '<span class="crm-pil wacht">wordt de ' + (eerder.length + 1) + 'e aanmelding · eerder: ' + escHtml(_hrmAanmeldKort(al)) + '</span>' : (x.k && x.hoe !== 'lijkt op' && !x.andereNaam && x.gelezen >= 10 ? '<span class="crm-pil ok">klaar</span>' : '<span class="crm-pil wacht">controleer</span>');
     const det = x.open ? '<tr><td colspan="7"><div class="ai-det">' + Object.keys(AIM_LABELS).map(k => '<div class="r"><span>' + escHtml(AANMELD_REQUIRED[k] || k) + '</span><span' + (x.d[k] ? '' : ' style="color:#ffb37a"') + '>' + (x.d[k] ? escHtml(['bsn', 'bankrekening', 'nr_id'].includes(k) ? '•••' + String(x.d[k]).slice(-2) : Array.isArray(x.d[k]) ? x.d[k].join(', ') : String(x.d[k])) : 'niet gevonden') + '</span><span>' + (x.d[k] ? '✓' : '–') + '</span></div>').join('') +
-      '<div class="r"><span>Overwerk</span><span' + (x.d.overw_count ? '' : ' style="color:#ffb37a"') + '>' + (x.d.overw_count ? Array.from({ length: x.d.overw_count }, (_, i) => escHtml(x.d['overw_omsch_' + (i + 1)] + ' ' + x.d['overw_pct_' + (i + 1)] + ' %')).join(' · ') : 'geen rijen gevonden') + '</span><span>' + (x.d.overw_count ? '✓' : '–') + '</span></div></div></td></tr>' : '';
+      '<div class="r"><span>Overwerk</span><span' + (x.d.overw_count ? '' : ' style="color:#ffb37a"') + '>' + (x.d.overw_count ? Array.from({ length: x.d.overw_count }, (_, i) => escHtml(x.d['overw_omsch_' + (i + 1)] + ' ' + x.d['overw_pct_' + (i + 1)] + ' %')).join(' · ') : 'geen rijen gevonden') + '</span><span>' + (x.d.overw_count ? '✓' : '–') + '</span></div>' +
+      ((x.onbekend || []).length ? '<div class="r" style="grid-template-columns:190px 1fr;border:0;margin-top:6px"><span>Niet herkende labels in het bestand</span><span class="stil">' + escHtml(x.onbekend.join(' · ')) + '<br><small>Staat hier een veld dat wél overgenomen had moeten worden? Geef de naam door, dan leert de lezer hem.</small></span></div>' : '') + '</div></td></tr>' : '';
     return '<tr><td><input type="checkbox"' + (x.aan ? ' checked' : '') + (x.fout || x.gelezen < 3 ? ' disabled' : '') + ' onchange="AANMELD_IMPORT[' + i + '].aan = this.checked; _aanmeldImportTel()"></td><td title="' + escHtml(x.file.name) + '">' + escHtml(x.file.name) + '</td><td>' + mw + '</td><td>' + pr + '</td><td><span class="ai-balk"><i style="width:' + pct + '%"></i></span>' + x.gelezen + ' / ' + x.totaal + '</td><td>' + stand + '</td><td><button type="button" class="kk-knop" onclick="AANMELD_IMPORT[' + i + '].open = !AANMELD_IMPORT[' + i + '].open; _aanmeldImportToon()">' + (x.open ? 'sluit' : 'bekijk') + '</button></td></tr>' + det;
   };
   crmKaartToon('<h4 class="wit">' + (vast ? 'Aanmeldformulier importeren voor ' + escHtml(vast.naam) : 'Aanmeldformulieren importeren') + '</h4>' +
@@ -50449,7 +50453,7 @@ async function _aanmeldImportLees(files) {
     const x = { file, d: {}, gelezen: 0, totaal: Object.keys(AIM_LABELS).length, k: null, hoe: '', p: null, fout: '', aan: false, open: false };
     try {
       const paren = await _aimLees(file);
-      const uit = _aimNaarFormulier(paren); x.d = uit.d; x.gelezen = uit.gelezen;
+      const uit = _aimNaarFormulier(paren); x.d = uit.d; x.gelezen = uit.gelezen; x.onbekend = uit.onbekend || [];
       if (AANMELD_IMPORT_VAST) {   // vanaf de Beheerkaart: medewerker ligt vast, alleen het project zoeken
         const vast = AANMELD_IMPORT_VAST, inBestand = String(x.d.naam_achternaam || '').trim();
         x.andereNaam = inBestand && _itkSleutel(inBestand) !== vast.sleutel && !(typeof _kandNaamVind === 'function' && _kandNaamVind(inBestand, [vast.naam])) ? inBestand : '';
@@ -51482,7 +51486,7 @@ function renderPipeline(bm) {
       const col       = PIPE_STAGE_COLORS[si];
       const isAanb    = stage === 'Aanbieden';
       const isMatch   = stage === 'Matchgesprekken';
-      const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year);
+      const cellCards = cards.filter(c => c.stage === stage && c.week === wk.week && c.jaar === wk.year && !c.verwijderd_op);   // 16-10: verwijderd telt nergens mee, dus ook niet op het bord
       // Via dé telregel — de kop en de weekcijfers mogen elkaar niet tegenspreken.
       const cellCount = telKaarten(cellCards, stage);
 
