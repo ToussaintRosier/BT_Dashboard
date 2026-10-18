@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261016-1513 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261018-1213 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12019,7 +12019,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261016-1513';
+const APP_VERSIE = '20261018-1213';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25283,7 +25283,8 @@ async function loadProjStatus() {
   PROJ_STATUS_CACHE = {};
   for (const r of (data || [])) {
     PROJ_STATUS_CACHE[`${r.src}_${r.project_id}`] = { bevroren: !!r.bevroren, bonus: r.bonus || '',
-      bevroren_op: r.bevroren_op || null, bijgewerkt_door: r.bijgewerkt_door || null };
+      bevroren_op: r.bevroren_op || null, bijgewerkt_door: r.bijgewerkt_door || null,
+      bonus_verdeling: r.bonus_verdeling && typeof r.bonus_verdeling === 'object' ? r.bonus_verdeling : null };   // 18-10
   }
   _projStatusGeladen = true;
 }
@@ -25298,6 +25299,7 @@ function _projStatusSchrijf(src, id, velden) {
   if (!supa) return;
   supa.from('project_contract_status').upsert({
     src, project_id: String(id), bevroren: nu.bevroren, bonus: nu.bonus || null,
+    ...(nu.bonus_verdeling !== undefined ? { bonus_verdeling: nu.bonus_verdeling || null } : {}),   // 18-10: alleen meesturen als bekend (kolom kan ontbreken)
     // Het stempel (CRM 28-08): wanneer werd dit contract vastgezet? Alleen
     // zetten op het moment van bevriezen zelf, niet bij elke andere wijziging.
     ...(velden.bevroren === true ? { bevroren_op: new Date().toISOString() } : {}),
@@ -25325,6 +25327,16 @@ function projStatusMigreer() {
           const st = _projStatus(m[1], m[2]);
           if (!st || !st.bonus) _projStatusSchrijf(m[1], m[2], { bonus: oud.bonus });
         }
+      }
+      // 18-10: bonusverdeling (vb, vp_*) en de Akkoord-snapshot van dit apparaat → database, alleen waar die nog leeg is.
+      if ((m = /^bt_bverd_(excel|pipeline)_(.+)_(vb|vp_.+)$/.exec(k)) && localStorage.getItem(k)) {
+        const st = _projStatus(m[1], m[2]), bv = (st && st.bonus_verdeling) || null;
+        const veld = m[3], waarde = localStorage.getItem(k);
+        if (veld === 'vb' ? !(bv && bv.vb) : !(bv && bv.vp && bv.vp[veld.slice(3)])) _bonusVerdelingZet(m[1], m[2], veld, waarde, true);
+      }
+      if ((m = /^bt_bslot_snap_(excel|pipeline)_(.+)$/.exec(k))) {
+        const st = _projStatus(m[1], m[2]), bv = (st && st.bonus_verdeling) || null;
+        if (!(bv && Array.isArray(bv.snap))) { try { const snap = JSON.parse(localStorage.getItem(k) || '[]'); if (Array.isArray(snap)) _bonusVerdelingZet(m[1], m[2], 'snap', snap, true); } catch (e) { _meldStil('bonus-snapshot overzetten', e); } }
       }
     }
   } catch (e) { _meldStil('contractstatus overzetten', e); }
@@ -26474,11 +26486,26 @@ function projFiltSort(col) {
 // ── Bonussen-tab live filter/total functie ────────────────────────────────────
 // ── Verdeling bonus / % opslaan per project ────────────────────────────────
 function bonusVerdelingKey(src, id, field) { return `bt_bverd_${src}_${id}_${field}`; }
+// 18-10: de verdeling staat in de database (project_contract_status.bonus_verdeling); localStorage is reserve.
+function _bonusVerdelingVan(src, id) { const st = _projStatus(src, id); return (st && st.bonus_verdeling) || null; }
 function bonusVerdelingLoad(src, id, field) {
+  const bv = _bonusVerdelingVan(src, id);
+  if (bv) { if (field === 'vb') return bv.vb != null ? String(bv.vb) : ''; const vp = bv.vp || {}; const w = vp[field.slice(3)]; if (w != null) return String(w); }
   return localStorage.getItem(bonusVerdelingKey(src, id, field)) || '';
 }
+// Eén veld van de verdeling schrijven (vb · vp_<INI> · snap) — alles in één jsonb, gemerged met wat er al stond.
+function _bonusVerdelingZet(src, id, field, val, stil) {
+  const oud = _bonusVerdelingVan(src, id) || {};
+  const nieuw = { vb: oud.vb != null ? oud.vb : '', vp: Object.assign({}, oud.vp || {}), snap: Array.isArray(oud.snap) ? oud.snap.slice() : undefined };
+  if (field === 'vb') nieuw.vb = String(val == null ? '' : val);
+  else if (field === 'snap') nieuw.snap = Array.isArray(val) ? val : [];
+  else if (field.startsWith('vp_')) nieuw.vp[field.slice(3)] = String(val == null ? '' : val);
+  if (nieuw.snap === undefined) delete nieuw.snap;
+  _projStatusSchrijf(src, id, { bonus_verdeling: nieuw });
+  if (!stil && field !== 'snap') _veiligLokaalOpslaan(bonusVerdelingKey(src, id, field), String(val == null ? '' : val), 'bonusverdeling');   // reserve
+}
 function bonusVerdelingSave(src, id, field, val) {
-  localStorage.setItem(bonusVerdelingKey(src, id, field), val);
+  _bonusVerdelingZet(src, id, field, val);
   // Cache in rowData direct updaten zodat re-render klopt
   const r = (window._bonussenRowData || []).find(x => x.src === src && String(x.id) === String(id));
   if (r) {
@@ -26499,12 +26526,14 @@ function bonusVerdelingSave(src, id, field, val) {
 // automatisch uit de snapshot (zodat re-add opnieuw rood wordt).
 function bonusSlotAck(src, id, label) {
   const snapKey = `bt_bslot_snap_${src}_${id}`;
-  let snap; try { snap = JSON.parse(localStorage.getItem(snapKey) || '[]'); } catch { snap = []; }
+  const bvSnap = (_bonusVerdelingVan(src, id) || {}).snap;   // 18-10: database eerst
+  let snap; try { snap = Array.isArray(bvSnap) ? bvSnap.slice() : JSON.parse(localStorage.getItem(snapKey) || '[]'); } catch { snap = []; }
   const r = (window._bonussenRowData || []).find(x => x.src === src && String(x.id) === String(id));
   const curLabels = r ? r.bonusSlots.map(s => s.label || 'default') : [];
   // Bewaar alleen labels die MOMENTEEL aanwezig zijn + voeg geakkordeerde toe
   const newSnap = [...new Set([...snap.filter(l => curLabels.includes(l)), label])];
   localStorage.setItem(snapKey, JSON.stringify(newSnap));
+  _bonusVerdelingZet(src, id, 'snap', newSnap, true);
   if (r) { const s = r.bonusSlots.find(s2 => (s2.label || 'default') === label); if (s) s.isNew = false; }
   bonusFiltApply();
 }
@@ -28837,19 +28866,22 @@ function renderPrognose() {
       // ── Wijziging-detectie via snapshot ───────────────────────────────────
       // snap = goedgekeurde set labels. Diff met huidig = rood.
       const snapKey = `bt_bslot_snap_${r.source}_${r.id}`;
-      const snapRaw = localStorage.getItem(snapKey);
+      const bvSnap = (_bonusVerdelingVan(r.source, r.id) || {}).snap;   // 18-10: database eerst
+      const snapRaw = Array.isArray(bvSnap) ? JSON.stringify(bvSnap) : localStorage.getItem(snapKey);
       const curLabels = bonusSlots.map(s => s.label || 'default');
       let snap;
       if (snapRaw === null) {
         // Eerste keer: auto-approve alles → geen rood
         snap = [...curLabels];
         localStorage.setItem(snapKey, JSON.stringify(snap));
+        if (_projStatusGeladen && (magWijzigen('projecten') || magWijzigen('hrm'))) _bonusVerdelingZet(r.source, r.id, 'snap', snap, true);
       } else {
         try { snap = JSON.parse(snapRaw); } catch { snap = []; }
         // Verwijderde labels uit snapshot verwijderen zodat re-add opnieuw rood wordt
         const cleanSnap = snap.filter(l => curLabels.includes(l));
         if (cleanSnap.length !== snap.length) {
           localStorage.setItem(snapKey, JSON.stringify(cleanSnap));
+          if (Array.isArray(bvSnap) && (magWijzigen('projecten') || magWijzigen('hrm'))) _bonusVerdelingZet(r.source, r.id, 'snap', cleanSnap, true);
           snap = cleanSnap;
         }
       }
