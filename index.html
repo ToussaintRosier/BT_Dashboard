@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261022-1750 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261022-1827 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12083,7 +12083,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261022-1750';
+const APP_VERSIE = '20261022-1827';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -45617,6 +45617,12 @@ function _solVanMij(x) {
   const bm = _itkSleutel(x.bm_naam || '');
   return !!bm && (bm === ik || bm === naam);
 }
+// 22-10: leads van de Meta-campagne (lead/index.html → Edge Function lead-in) hebben bron 'lead'.
+function _solIsLead(x) { return !!x && x.bron === 'lead'; }
+function _solHerkomstTekst(x) {
+  const d = _crmDatum(Date.parse(x.ontvangen_op));
+  return _solIsLead(x) ? 'Lead via de Meta-campagne "' + (x.vacature_titel || 'Wat is jouw volgende stap?') + '" (' + d + ')' : 'Sollicitatie via brightech.nl op "' + (x.vacature_titel || 'vacature') + '" (' + d + ')';
+}
 function _solStatusTekst(x) { return x.status === 'nieuw' ? 'nieuw' : x.status === 'afgewezen' ? 'afgewezen' : (x.kandidaat_sleutel ? 'in behandeling' : 'in behandeling'); }
 function _solWanneer(iso) {
   const ms = Date.parse(iso || ''); if (!(ms > 0)) return '';
@@ -45670,7 +45676,7 @@ function solVenster(id) {
   const bekend = _solBekend(x), mag = magWijzigen('crm') && !CRM_ONTBREEKT, v = x.vacature_id ? _vacVind(x.vacature_id) : null;
   const idE = escApos(String(x.id));
   const kop = '<h4 class="wit">' + escHtml(x.naam) + '<span class="sol-st ' + escHtml(x.status) + '" style="margin-left:10px">' + escHtml(_solStatusTekst(x)) + '</span></h4>' +
-    '<div class="crm-sub">solliciteerde ' + escHtml(_solWanneer(x.ontvangen_op)) + ' op <b>' + escHtml(x.vacature_titel || 'een vacature') + '</b>' + (x.bm_naam ? ' (eigenaar ' + escHtml(x.bm_naam) + ')' : '') + ' · via brightech.nl' + (x.behandeld_door ? ' · ' + escHtml(x.status === 'afgewezen' ? 'afgewezen' : 'in behandeling') + ' door ' + escHtml(x.behandeld_door) + (x.behandeld_op ? ' op ' + escHtml(_crmDatum(Date.parse(x.behandeld_op))) : '') : '') + '</div>';
+    '<div class="crm-sub">' + (_solIsLead(x) ? 'liet ' + escHtml(_solWanneer(x.ontvangen_op)) + ' een lead achter via de campagne <b>' + escHtml(x.vacature_titel || 'Wat is jouw volgende stap?') + '</b>' : 'solliciteerde ' + escHtml(_solWanneer(x.ontvangen_op)) + ' op <b>' + escHtml(x.vacature_titel || 'een vacature') + '</b>' + (x.bm_naam ? ' (eigenaar ' + escHtml(x.bm_naam) + ')' : '') + ' · via brightech.nl') + (x.behandeld_door ? ' · ' + escHtml(x.status === 'afgewezen' ? 'afgewezen' : 'in behandeling') + ' door ' + escHtml(x.behandeld_door) + (x.behandeld_op ? ' op ' + escHtml(_crmDatum(Date.parse(x.behandeld_op))) : '') : '') + '</div>';
   const match = x.kandidaat_sleutel
     ? '<div class="sol-match">✓ <b>Gekoppeld aan het dossier</b> <span class="crm-klik" onclick="crmKaartSluit();crmKandOpen(\'' + escApos(x.kandidaat_sleutel) + '\')">' + escHtml((bekend && bekend.naam) || x.kandidaat_sleutel) + ' → kandidaatkaart</span></div>'
     : bekend ? '<div class="sol-match">✓ <b>Staat al in CRM</b> als <span class="crm-klik" onclick="crmKaartSluit();crmKandOpen(\'' + escApos(bekend.sleutel) + '\')">' + escHtml(bekend.naam) + '</span>' + (bekend.woonplaats ? ' (' + escHtml(bekend.woonplaats) + ')' : '') + ' — zelfde e-mail of telefoon. <b>Koppelen</b> zet de sollicitatie, de motivatie (als notitie) en het CV bij dat dossier.</div>' : '';
@@ -45737,7 +45743,7 @@ async function solImporteren(id, sleutel) {
       const vak = v && CRM_VAKGEBIEDEN.includes(v.vakgebied) ? v.vakgebied : 'Onbekend';
       const rij = { sleutel: sl, naam, voornaam, achternaam, email: x.email || null, telefoon: x.telefoon || null, functie: (v && v.titel) || null,
         vakgebied: vak, woonregio: 'Onbekend', bron: 'site', bron_bm: x.bm_naam || door || null, created_by: mij,
-        opmerking: 'Sollicitatie via brightech.nl op "' + (x.vacature_titel || 'vacature') + '" (' + _crmDatum(Date.parse(x.ontvangen_op)) + ').' };
+        opmerking: _solHerkomstTekst(x) + '.' };
       _echoVanZelf('crm_kandidaten');
       const { data, error } = await supa.from('crm_kandidaten').upsert(rij, { onConflict: 'sleutel' }).select().single();
       if (error) { meldFout('sollicitatie importeren mislukt: ' + error.message, 'solImporteren'); btMeld('Niet geïmporteerd: ' + _crmSqlFout(error), 'rood'); knoppen.forEach(b => { b.disabled = false; }); return; }
@@ -45778,7 +45784,7 @@ async function solImporteren(id, sleutel) {
   }
   // 3. de motivatie in het gesprekslog
   try {
-    const tekst = 'Sollicitatie via brightech.nl op "' + (x.vacature_titel || 'vacature') + '" (' + _crmDatum(Date.parse(x.ontvangen_op)) + ')' + (x.motivatie ? ':\n' + x.motivatie : '.');
+    const tekst = _solHerkomstTekst(x) + (x.motivatie ? ':\n' + x.motivatie : '.');
     _echoVanZelf('kandidaat_notities');
     const { data, error } = await supa.from('kandidaat_notities').insert({ kand_sleutel: k.sleutel, kand_naam: k.naam, tekst, auteur: door, created_by: mij }).select().single();
     if (error) throw error;
@@ -45821,7 +45827,7 @@ function _solLive(nieuwe) {
   nieuwe.forEach(x => {
     if (!(_solVanMij(x) || (typeof isManagerLevel === 'function' && isManagerLevel()) || (CURRENT_USER && CURRENT_USER.rol === 'backoffice'))) return;
     n++;
-    const titel = 'Nieuwe sollicitatie op ' + (x.vacature_titel || 'een vacature'), wie = x.naam + (x.cv_pad ? ' · met CV' : ' · zonder CV');
+    const titel = _solIsLead(x) ? 'Nieuwe lead: ' + (x.vacature_titel || 'Wat is jouw volgende stap?') : 'Nieuwe sollicitatie op ' + (x.vacature_titel || 'een vacature'), wie = x.naam + (_solIsLead(x) ? ' · bellen binnen één werkdag' : x.cv_pad ? ' · met CV' : ' · zonder CV');
     btMeldVast('📩 <b>' + escHtml(titel) + '</b><br>' + escHtml(wie) + ' <span class="stil">· klik om te openen</span>', { html: true, klik: () => solVenster(x.id) });   // 16-10: blijft staan tot je klikt
     _btBureaublad(titel, wie, () => solVenster(x.id));
   });
