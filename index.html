@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261021-1502 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261022-1710 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2262,6 +2262,7 @@
   .crm-s-tz-veld:focus-within { border-color:#25D366; } .crm-s-tz-veld svg { width:18px; height:18px; fill:none; stroke:rgba(255,255,255,.7); stroke-width:2; flex:none; }
   .crm-s-tz-veld input { flex:1; min-width:0; background:none; border:0; color:#fff; font-size:1rem; font-family:inherit; outline:none; } .crm-s-tz-veld input::placeholder { color:rgba(255,255,255,.45); }
   .crm-s-tz-wis { background:none; border:0; color:rgba(255,255,255,.6); cursor:pointer; font-size:.9rem; } .crm-s-tz-wis:hover { color:#fff; }
+  .crm-s-tz-drop[hidden], .crm-s-tz-wis[hidden] { display:none; }   /* 22-10: uitklap en wis-knop blijven in de DOM */
   .crm-s-tz-hint { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; font-size:.76rem; color:var(--tekst-gedempt); align-items:center; }
   .crm-s-tz-recent { display:inline-flex; gap:4px; align-items:center; flex-wrap:wrap; } .crm-s-chip.klein { padding:2px 10px; font-size:.74rem; margin:0; }
   .crm-s-tz-soort { margin-left:auto; }
@@ -12060,7 +12061,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261021-1502';
+const APP_VERSIE = '20261022-1710';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -35974,8 +35975,13 @@ function _crmSearchMenuBuiten(ev) {
 }
 function crmSearchWisLijst(soort) { CRM_SEARCH[soort] = []; renderCrmSearch(); }
 function crmSearchWisVelden() { CRM_SEARCH.functie = ''; CRM_SEARCH.plaats = ''; renderCrmSearch(); }
-function crmSearchTzOpen(aan) { if (!!CRM_SEARCH.tzOpen === !!aan) return; CRM_SEARCH.tzOpen = !!aan; renderCrmSearch(); }
-function renderCrmSearchHtml() {
+// 22-10: géén hertekening bij focus/blur — dat zette de cursor in het zoekveld naar voren (Yoël). Alleen tonen/verbergen.
+function crmSearchTzOpen(aan) {
+  CRM_SEARCH.tzOpen = !!aan;
+  const d = document.getElementById('crm-s-tz-drop');
+  if (d) d.hidden = !CRM_SEARCH.tzOpen;
+}
+function renderCrmSearchHtml(delen) {   // 22-10: delen=true → { kop, tekstzoek, dropInhoud, rest } voor renderCrmSearch
   const S = CRM_SEARCH, alle = crmKandLijst(), T = _crmSearchTreffers(alle), nSel = T.filter(k => S.sel[k.sleutel]).length;
   const chip = (soort, w) => '<button type="button" class="crm-s-chip' + (S[soort].includes(w) ? ' aan' : '') + '" onclick="crmSearchChip(\'' + soort + '\',\'' + escApos(w) + '\')">' + escHtml(w) + '</button>';
   const vlag = (k, tekst) => '<button type="button" class="crm-s-chip' + (S[k] ? ' aan' : '') + '" onclick="crmSearchZet(\'' + k + '\', !CRM_SEARCH.' + k + ')">' + tekst + '</button>';
@@ -35984,18 +35990,21 @@ function renderCrmSearchHtml() {
   const soortKnop = (w, tekst) => '<button type="button" class="' + (S.tekstSoort === w ? 'aan' : '') + '" onmousedown="event.preventDefault()" onclick="crmSearchTekstSoort(\'' + w + '\')">' + tekst + '</button>';
   const TIPS = 'Woordstammen: lassen vindt ook lasser · meerdere woorden = alle woorden (EN) · OR ertussen voor óf: lasser OR monteur · -woord sluit uit: -venlo · aanhalingstekens voor een zin: "MIG/MAG"';
   const recent = _crmSearchRecent();
-  const drop = S.tzOpen ? '<div class="crm-s-tz-drop" onmousedown="event.preventDefault()">' +
-      (recent.length ? '<div class="kop">Recent</div>' + recent.map(w => '<button type="button" class="r" onclick="crmSearchTekst(\'' + escApos(w) + '\')"><span class="k">🕘</span>' + escHtml(w) + '</button>').join('') : '<div class="kop">Nog geen recente zoekopdrachten</div>') +
-      '<div class="tip">Tips: <i>lassen</i> vindt ook <i>lasser</i> · <i>lasser OR monteur</i> voor óf · <i>-venlo</i> sluit uit · <i>"MIG/MAG"</i> als zin · meerdere woorden = alle woorden</div></div>' : '';
+  const dropInhoud = (recent.length ? '<div class="kop">Recent</div>' + recent.map(w => '<button type="button" class="r" onclick="crmSearchTekst(\'' + escApos(w) + '\')"><span class="k">🕘</span>' + escHtml(w) + '</button>').join('') : '<div class="kop">Nog geen recente zoekopdrachten</div>') +
+      '<div class="tip">Tips: <i>lassen</i> vindt ook <i>lasser</i> · <i>lasser OR monteur</i> voor óf · <i>-venlo</i> sluit uit · <i>"MIG/MAG"</i> als zin · meerdere woorden = alle woorden</div>';
+  const drop = '<div class="crm-s-tz-drop" id="crm-s-tz-drop"' + (S.tzOpen ? '' : ' hidden') + ' onmousedown="event.preventDefault()">' + dropInhoud + '</div>';   // 22-10: altijd in de DOM
   const tekstzoek = '<div class="crm-s-tekstzoek compact">' +
     '<div class="crm-s-tz-veld"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
       '<input type="text" id="crm-s-tekst" value="' + escHtml(S.tekst) + '" placeholder="zoek in de tekst van CV\'s en CR\'s — bijv. vca lasser venlo" autocomplete="off" oninput="crmSearchZet(\'tekst\', this.value)" onfocus="crmSearchTzOpen(true)" onblur="setTimeout(function(){ crmSearchTzOpen(false); }, 150)">' +
-      (S.tekst ? '<button type="button" class="crm-s-tz-wis" onclick="crmSearchTekst(\'\')" title="Leegmaken">✕</button>' : '') +
+      '<button type="button" class="crm-s-tz-wis" id="crm-s-tz-wis"' + (S.tekst ? '' : ' hidden') + ' onclick="crmSearchTekst(\'\')" title="Leegmaken">✕</button>' +
       '<span class="crm-s-schak crm-s-tz-soort">' + soortKnop('beide', 'CV én CR') + soortKnop('cv', 'alleen CV') + soortKnop('cr', 'alleen CR') + '</span>' +
-      '<span class="crm-s-schak vm-stand" title="Tekst zoeken, of een vacature laten matchen met de kandidaten"><button type="button" class="aan" onmousedown="event.preventDefault()">Tekst</button><button type="button" onmousedown="event.preventDefault()" onclick="crmSearchStand(\'vac\')">✦ Vacature-match</button></span>' +
+      '<span class="crm-s-schak vm-stand" title="Tekst zoeken, of een vacature laten matchen met de kandidaten"><button type="button" class="' + (S.stand === 'vac' ? '' : 'aan') + '" onmousedown="event.preventDefault()" onclick="crmSearchStand(\'tekst\')">Tekst</button><button type="button" class="' + (S.stand === 'vac' ? 'aan' : '') + '" onmousedown="event.preventDefault()" onclick="crmSearchStand(\'vac\')">✦ Vacature-match</button></span>' +
       '<span class="crm-s-i" title="' + escHtml(TIPS) + '">i</span></div>' + drop + '</div>';
-  if (S.stand === 'vac') return _vmSchermHtml(alle);   // 19-10: vacature-match in plaats van het tekstzoeken
-  const paneel = tekstzoek + '<div class="crm-s-pillen">' + _crmSearchPillenHtml(alle) +
+  const kop = '<div><div class="person-header"><div class="person-name">CRM-Search' + btUitlegKnop('kandidaten') + '</div>' +
+    '<div class="person-meta"><span class="meta-pill">' + alle.length + ' kandidaten</span><button type="button" class="crm-knop" onclick="crmSearchWis()">wis alles</button></div></div>' + _crmSqlHint();
+  const klaar = (rest) => { if (delen) return { kop, tekstzoek, dropInhoud, rest }; return kop + tekstzoek + '<div id="crm-s-rest">' + rest + '</div></div>'; };
+  if (S.stand === 'vac') return klaar(_vmSchermHtml(alle));   // 19-10 vacature-match; 22-10 mét kop en zoekbalk
+  const paneel = '<div class="crm-s-pillen">' + _crmSearchPillenHtml(alle) +
     '<span class="crm-s-sep"></span><span class="crm-s-schak" title="Tussen de filters: alle voorwaarden (EN) of één volstaat (OF)"><button type="button" class="' + (S.modus === 'en' ? 'aan' : '') + '" onclick="crmSearchModus(\'en\')">EN</button><button type="button" class="' + (S.modus === 'of' ? 'aan' : '') + '" onclick="crmSearchModus(\'of\')">OF</button></span></div>';
   // Zonder voorwaarden alleen de eerste CRM_TOON regels (22-09): 5.761 rijen tekenen kost
   // de browser een seconde; de teller, "alles", kopiëren en Excel gaan wél over alles.
@@ -36017,9 +36026,7 @@ function renderCrmSearchHtml() {
       '<td class="d docs">' + _crmDocIcoon(_kandDocLinkVan(r, 'cv'), 'CV', 'cv') + _crmDocIcoon(_kandDocLinkVan(r, 'cr'), 'Commercieel CV', 'cr') + '</td></tr>';
   }).join('');
   const knop = (tekst, onclick, klasse) => '<button type="button" class="crm-knop ' + (klasse || '') + '" onclick="' + onclick + '">' + tekst + '</button>';
-  return '<div><div class="person-header"><div class="person-name">CRM-Search' + btUitlegKnop('kandidaten') + '</div>' +
-    '<div class="person-meta"><span class="meta-pill">' + alle.length + ' kandidaten</span><button type="button" class="crm-knop" onclick="crmSearchWis()">wis alles</button></div></div>' +
-    _crmSqlHint() + paneel +
+  return klaar(paneel +
     '<div class="crm-s-tel"><b>' + T.length + '</b> kandidaten voldoen · ' + escHtml(_crmSearchOmschrijving()) +
       (tekstAan ? '<span class="crm-s-sort">sortering: ' + ['treffer', 'naam', 'laatste'].map(c => '<button type="button" class="' + (S.sort === c ? 'aan' : '') + '" onclick="crmSearchSort(\'' + c + '\')">' + (c === 'treffer' ? 'beste treffer' : c === 'naam' ? 'naam' : 'laatste contact') + '</button>').join(' · ') + '</span>' : '') + '</div>' +
     '<div class="kand-archief open" style="margin-top:0;">' +
@@ -36032,12 +36039,22 @@ function renderCrmSearchHtml() {
         '<span class="rechts">' + knop('Mail (BCC)', 'crmSearchMail()') + knop('kopieer e-mailadressen', "crmSearchKopieer('email')") + knop('kopieer telefoonnummers', "crmSearchKopieer('telefoon')") +
         knop('Zet in ONE-bericht', 'crmSearchNaarOne()') + knop('Exporteer naar Excel', 'crmSearchExcel()', 'goed') +
         (magWijzigen('crm') ? knop('Toevoegen aan vacature (' + (nSel || T.length) + ')', 'crmSearchNaarVacature()', 'geel') : '') + '</span></div>' +   // 10-10: omgekeerd RLDV vanuit de zoekmachine
-    '</div></div>';
+    '</div></div>');
 }
 function renderCrmSearch() {
   if (currentTab !== 'crmsearch') return;
-  // Typen in een veld: alleen de teller en de lijst hertekenen, het veld houdt de cursor.
   const actief = document.activeElement, id = actief && actief.id && actief.id.startsWith('crm-s-') ? actief.id : null;
+  // 22-10 (Yoël): heeft het zoekveld focus, dan blijft het veld staan en wordt alleen de rest opnieuw gevuld.
+  // Het veld opnieuw opbouwen + focus() liet onfocus→crmSearchTzOpen nog eens hertekenen en zette de cursor vooraan.
+  const rest = id === 'crm-s-tekst' ? document.getElementById('crm-s-rest') : null;
+  if (rest) {
+    const D = renderCrmSearchHtml(true);
+    rest.innerHTML = D.rest;
+    const wis = document.getElementById('crm-s-tz-wis'); if (wis) wis.hidden = !CRM_SEARCH.tekst;
+    const drop = document.getElementById('crm-s-tz-drop'); if (drop) { drop.innerHTML = D.dropInhoud; drop.hidden = !CRM_SEARCH.tzOpen; }
+    return;
+  }
+  // Ander veld (functie/woonplaats in het menu Velden): volledig hertekenen, focus en cursor terugzetten.
   const pos = id && actief.selectionStart != null ? actief.selectionStart : null;
   document.getElementById('main').innerHTML = renderCrmSearchHtml();
   if (id) { const el = document.getElementById(id); if (el) { el.focus(); if (pos != null) { try { el.setSelectionRange(pos, pos); } catch (_) {} } } }
