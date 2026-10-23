@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261023-0052 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261023-1759 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12083,7 +12083,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261023-0052';
+const APP_VERSIE = '20261023-1759';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14060,6 +14060,7 @@ const VERWACHT_SCHEMA = [
   { bestand: 'wijzigingslogboek.sql',        soort: 'tabel',   naam: 'wijzigingen' },
   { bestand: 'bum_gesprek.sql',              soort: 'tabel',   naam: 'bum_gesprek' },
   { bestand: 'bum_transcript.sql',           soort: 'kolom',   naam: 'bum_gesprek.transcript' },
+  { bestand: 'kanban_duo_v2.sql',            soort: 'functie', naam: 'bt_kanban_duo_v2/0' },   // 23-10: duo-tegeltje: datum als timestamptz, vacature mee, soepelere duo-controle
 ];
 let SCHEMA_STAND = null;   // { tabellen:Set, kolommen:Set, functies:Set } of { fout }
 async function laadSchemaControle() {
@@ -31404,6 +31405,13 @@ function _apVeldLabel(veld) {
 }
 function _apVeldBlad(veld) { return /^score:/.test(veld) ? 'relatie' : (AP_VELD_BLAD[veld] || 'doelen'); }
 // Het pakket voor de functie: alles wat er over dit bedrijf ligt, compact.
+// 23-10: de twee nieuwste bezoekopnames van dit bedrijf — het pakket gebruikt hun transcript (als dat er is).
+async function _apTranscriptenVooraf(sl) {
+  if (typeof _transcriptOphalen !== 'function' || typeof accBezoekenLijst !== 'function') return;
+  const bez = accBezoekenLijst().filter(b => _itkSleutel(b.bedrijf) === sl && b.record && b.soortBezoek !== 'evaluatie').sort((p, q) => q.datumMs - p.datumMs)
+    .filter(b => !b.record.transcript && b.record.heeftTranscript !== false).slice(0, 2);
+  for (const b of bez) { try { await _transcriptOphalen(b.record); } catch (e) { _meldStil('transcript voor accountplan', e); } }
+}
 function _apAnalysePakket(x) {
   const k = x.k, rec = x.plan || {}, sl = x.sleutel, a = k && k.account, crm = (k && k.crm) || {};
   const iso = (ms) => ms ? new Date(ms).toISOString().slice(0, 10) : '';
@@ -31466,6 +31474,7 @@ async function apAnalyseStart(planId) {
   if (AP_AN_BEZIG) { btMeld('Er loopt al een analyse; even wachten.', 'let'); return; }
   AP_AN_BEZIG = String(planId); _apHerteken();
   try {
+    await _apTranscriptenVooraf(x.sleutel);   // 23-10: transcripten komen op aanvraag, niet meer bij het opstarten
     const pakket = _apAnalysePakket(x);
     // Twee delen (29-09): één antwoord voor alle velden duurde te lang (HTTP 504). Deel a = profiel, overzicht, SWOT;
     // deel b = relatie, scores, doelen, acties en vragen. De functie streamt tekst; hier wordt het JSON gemaakt.
@@ -37832,7 +37841,8 @@ async function _kanbanUpdateGroep(id, payload) {
     let fout = '';
     try {
       const { data, error } = await supa.rpc('bt_kanban_duo_update', { p_id: x, p_payload: payload });
-      if (error) fout = /does not exist|PGRST202|42883/i.test(String(error.message || error.code || '')) ? 'draai supabase/kanban_duo.sql — de functie voor het duo-tegeltje ontbreekt nog' : String(error.message || error);
+      if (error) fout = /does not exist|PGRST202|42883/i.test(String(error.message || error.code || '')) ? 'draai supabase/kanban_duo_v2.sql — de functie voor het duo-tegeltje ontbreekt nog'
+        : /CASE types/i.test(String(error.message || '')) ? 'draai supabase/kanban_duo_v2.sql (Beheer › Database) — de oude functie kan de datum niet opslaan' : String(error.message || error);   // 23-10
       else if (!data) fout = 'het tegeltje van ' + v.bmNaam + ' is niet bijgewerkt (geen gedeeld gesprek met jou)';
     } catch (e) { fout = String((e && e.message) || e); }
     if (fout) { meldFout('kanban duo bijwerken mislukt: ' + fout, 'pipeline', 'tegeltje van ' + v.bmNaam + ' · door ' + ((CURRENT_USER && CURRENT_USER.naam) || '?')); btMeld('Tegeltje van ' + v.bmNaam + ' niet bijgewerkt: ' + fout, 'rood'); ok = false; continue; }
@@ -43853,45 +43863,31 @@ async function _loadVerlagenFromSupa(type, metTranscript) {
   }
 }
 
-// Fase 2: transcripties ophalen en in de al getoonde records schuiven.
-// Draait op de achtergrond; de gebruiker ziet de lijst dan allang.
-let _transcriptsBezig = 0;
+// Fase 2 (23-10, licht): alleen nog nagaan WELKE opnames een transcript hebben — ids, geen tekst.
+// Tot vandaag haalde dit bij elke start alle transcripten binnen (honderden × ±40.000 tekens, tientallen MB per
+// gebruiker), wat de database belastte en "Opnames ophalen…" minutenlang liet staan. De tekst zelf komt per opname
+// zodra hij nodig is (_transcriptOphalen: Analyseer, heranalyse, matchscore, accountplan).
+let _transcriptsBezig = 0;   // blijft 0; verbergBezig (regel ±20149) kijkt er nog naar
 async function _laadTranscriptsAchtergrond(type) {
   if (!supa) return;
   const lijst = type === 'gesprek' ? GESPREK_RECORDS : BEZOEK_RECORDS;
   const ids = lijst.filter(r => typeof r.id === 'string' && r.id.includes('-') && !r.transcript)
                    .map(r => r.id);
   if (!ids.length) return;
-  _transcriptsBezig++;
-  toonBezig('Opnames ophalen…');
   try {
-    // In stukken van 100 (15-09): honderden ids in één .in() maken de vraag te
-    // lang, en die faalde stil — waarna alle intakes uit Coaching bleven.
-    const perId = {};
-    let mislukt = 0;
-    // 05-10: brokken van 20 (was 100). Een transcript is al gauw 40.000 tekens;
-    // 100 stuks in één vraag is 4 MB en liep tegen de statement timeout aan.
-    for (let i = 0; i < ids.length; i += 20) {
-      const deel = ids.slice(i, i + 20);
-      const { data, error } = await supa.from('verslagen').select('id, transcript').in('id', deel);
-      if (error) { mislukt++; _meldStil('transcripties ophalen (' + type + ', ' + deel.length + ' stuks)', error); continue; }
-      (data || []).forEach(r => { perId[String(r.id)] = r.transcript || ''; });
+    const met = new Set();
+    for (let i = 0; i < ids.length; i += 100) {
+      const deel = ids.slice(i, i + 100);
+      const { data, error } = await supa.from('verslagen').select('id').in('id', deel).not('transcript', 'is', null).neq('transcript', '');
+      if (error) { _meldStil('transcript-vlaggen ophalen (' + type + ', ' + deel.length + ' stuks)', error); return; }   // vlaggen blijven zoals ze waren
+      (data || []).forEach(r => met.add(String(r.id)));
     }
-    lijst.forEach(r => {
-      if (Object.prototype.hasOwnProperty.call(perId, String(r.id))) {
-        r.transcript = perId[String(r.id)];
-        r.heeftTranscript = !!(r.transcript && r.transcript.trim());
-      }
-    });
-    if (mislukt) btMeld('Niet alle opnames konden worden opgehaald (' + mislukt + ' deel' + (mislukt === 1 ? '' : 'en') + '). Analyseer haalt ze per stuk alsnog op.', 'geel');
+    const gevraagd = new Set(ids.map(String));
+    lijst.forEach(r => { if (gevraagd.has(String(r.id))) r.heeftTranscript = met.has(String(r.id)); });
     if (type === 'gesprek') { _saveGesprekRec(); if (currentTab === 'gesprek') renderGesprek(); }
     else                    { _saveBezoekRec();  if (currentTab === 'bezoek')  renderBezoekRecorder(); }
     if (bmSubTab === 'coaching') refreshCoachingTab();
-  } catch(_) {
-  } finally {
-    _transcriptsBezig--;
-    if (_transcriptsBezig <= 0) { _transcriptsBezig = 0; verbergBezig(); }
-  }
+  } catch (e) { _meldStil('transcript-vlaggen (' + type + ')', e); }
 }
 
 async function loadGesprekRecordsFromDb() {
@@ -44586,6 +44582,7 @@ async function gesprekRecordHeranalyse(id, silent) {
   if (!eisWijzig('gesprek', silent)) return;
   const rec = GESPREK_RECORDS.find(r => String(r.id) === String(id));
   if (!rec) return;
+  if (!rec.transcript && typeof _transcriptOphalen === 'function') await _transcriptOphalen(rec);   // 23-10: op aanvraag
   if (!rec.transcript || rec.transcript.trim().length < 20) {
     if (!silent) alert('Geen transcript beschikbaar voor heranalyse.');
     return;
