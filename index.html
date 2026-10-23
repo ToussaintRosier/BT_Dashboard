@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261022-1827 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261023-0052 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12083,7 +12083,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261022-1827';
+const APP_VERSIE = '20261023-0052';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -45619,6 +45619,7 @@ function _solVanMij(x) {
 }
 // 22-10: leads van de Meta-campagne (lead/index.html → Edge Function lead-in) hebben bron 'lead'.
 function _solIsLead(x) { return !!x && x.bron === 'lead'; }
+function _solLinkedin(x) { const m = /LinkedIn: (https?:\/\/\S+)/i.exec(String((x && x.motivatie) || '')); return m ? m[1] : ''; }   // 23-10
 function _solHerkomstTekst(x) {
   const d = _crmDatum(Date.parse(x.ontvangen_op));
   return _solIsLead(x) ? 'Lead via de Meta-campagne "' + (x.vacature_titel || 'Wat is jouw volgende stap?') + '" (' + d + ')' : 'Sollicitatie via brightech.nl op "' + (x.vacature_titel || 'vacature') + '" (' + d + ')';
@@ -45742,7 +45743,7 @@ async function solImporteren(id, sleutel) {
     else {
       const vak = v && CRM_VAKGEBIEDEN.includes(v.vakgebied) ? v.vakgebied : 'Onbekend';
       const rij = { sleutel: sl, naam, voornaam, achternaam, email: x.email || null, telefoon: x.telefoon || null, functie: (v && v.titel) || null,
-        vakgebied: vak, woonregio: 'Onbekend', bron: 'site', bron_bm: x.bm_naam || door || null, created_by: mij,
+        vakgebied: vak, woonregio: 'Onbekend', bron: 'site', bron_bm: x.bm_naam || door || null, created_by: mij, linkedin: _solLinkedin(x) || null,
         opmerking: _solHerkomstTekst(x) + '.' };
       _echoVanZelf('crm_kandidaten');
       const { data, error } = await supa.from('crm_kandidaten').upsert(rij, { onConflict: 'sleutel' }).select().single();
