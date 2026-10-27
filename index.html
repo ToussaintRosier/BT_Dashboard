@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261027-1805 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261027-1849 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2874,7 +2874,7 @@
   .kand-fase.bron:hover { outline:1px solid rgba(244,203,60,.6); }
   /* Vervolgafspraak → tegeltje in de pipeline (16-09). */
   .vv-tegel { display:flex; align-items:flex-start; gap:10px; margin-top:12px; padding:8px 10px; background:rgba(244,203,60,.12); border-left:3px solid #F4CB3C; color:#fff; font-size:.8rem; cursor:pointer; }
-  .namen-tabel td { vertical-align:middle; } .namen-doel { background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:7px; padding:5px 9px; font-family:inherit; font-size:.82rem; min-width:200px; } .namen-doel:focus { outline:none; border-color:#F4CB3C; } .namen-knoppen { white-space:nowrap; } .namen-knoppen .crm-knop { margin-right:4px; } .bm-subtab-badge { display:inline-block; min-width:16px; padding:0 5px; border-radius:999px; background:#E87400; color:#fff; font-size:.66rem; font-weight:700; text-align:center; margin-left:4px; }
+  .namen-tabel td { vertical-align:middle; } .namen-vink { accent-color:#F4CB3C; width:16px; height:16px; cursor:pointer; } .namen-vink:disabled { opacity:.3; cursor:default; } .namen-doel { background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:7px; padding:5px 9px; font-family:inherit; font-size:.82rem; min-width:200px; } .namen-doel:focus { outline:none; border-color:#F4CB3C; } .namen-knoppen { white-space:nowrap; } .namen-knoppen .crm-knop { margin-right:4px; } .bm-subtab-badge { display:inline-block; min-width:16px; padding:0 5px; border-radius:999px; background:#E87400; color:#fff; font-size:.66rem; font-weight:700; text-align:center; margin-left:4px; }
   .vv-tegel input { margin:3px 0 0; accent-color:#F4CB3C; flex-shrink:0; }
   .vv-tegel b { display:block; font-weight:var(--w-nadruk); }
   .vv-tegel small { display:block; color:rgba(255,255,255,.6); font-size:.72rem; margin-top:2px; }
@@ -12097,7 +12097,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261027-1805';
+const APP_VERSIE = '20261027-1849';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14270,7 +14270,7 @@ function _namenLos() {
   (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).forEach(a => { if (a && a.naam) zet(a.naam, 'KAM-lijst', 1); });
   (typeof SALES_LEADS_CACHE !== 'undefined' ? SALES_LEADS_CACHE : []).forEach(a => { if (a && a.naam) zet(a.naam, 'RLDV-lijst', 1); });
   (typeof VACATURES !== 'undefined' ? VACATURES : []).forEach(v => { if (v && v.klant_naam) zet(v.klant_naam, 'Vacatures', 1); });
-  tel((typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []), r => String(r && r.bedrijf || '').trim(), 'Bezoeken');
+  tel((typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).filter(r => r && _bezoekSoortNorm(r.soortBezoek) !== 'evaluatie'), r => String(r && r.bedrijf || '').trim(), 'Bezoeken');   // evaluaties: "bedrijf" is daar de medewerker
   if (typeof bmsMetCijfers === 'function' && typeof pipeLoad === 'function') {
     const kaarten = []; for (const bm of bmsMetCijfers()) for (const c of pipeLoad(bm.naam)) if (c && !c.verwijderd_op) kaarten.push(c);
     tel(kaarten, c => String(c.stage === 'Bezoeken' ? c.naam : (c.opdrachtgever || c.kanban_klant) || '').trim(), 'Pipeline');
@@ -14312,17 +14312,19 @@ function renderBeheerNamen() {
   const datalist = '<datalist id="namen-crm-lijst">' + crmLijst.map(n => '<option value="' + escHtml(n) + '">').join('') + '</datalist>';
   const zeker = los.filter(x => x.voorstel && x.voorstel.zeker);
   const rij = (x, i) => { const v = x.voorstel; const iE = String(i);
-    return '<tr id="namen-rij-' + iE + '"><td><b>' + escHtml(x.naam) + '</b></td><td>' + x.bronnen.map(b => escHtml(b.waar)).join(' · ') + '</td>' +
+    return '<tr id="namen-rij-' + iE + '"><td><input type="checkbox" class="namen-vink" data-i="' + iE + '"' + (v && v.zeker ? ' checked' : '') + (mag && v ? '' : ' disabled') + ' onchange="_namenTel()" title="' + (v ? 'aanvinken om in één keer te koppelen' : 'kies eerst een bedrijf') + '"></td><td><b>' + escHtml(x.naam) + '</b></td><td>' + x.bronnen.map(b => escHtml(b.waar)).join(' · ') + '</td>' +
       '<td class="stil">' + x.bronnen.map(b => escHtml(b.detail || (b.n + (b.waar === 'Projecten' ? ' project' + (b.n === 1 ? '' : 'en') : b.waar === 'Pipeline' ? ' kaartje' + (b.n === 1 ? '' : 's') : b.waar === 'Bezoeken' ? ' bezoek' + (b.n === 1 ? '' : 'en') : '')))).filter(Boolean).join(' · ') + '</td>' +
-      '<td><input type="text" class="namen-doel" id="namen-doel-' + iE + '" list="namen-crm-lijst" value="' + escHtml(v ? v.naam : '') + '" placeholder="kies bedrijf…" autocomplete="off">' +
+      '<td><input type="text" class="namen-doel" id="namen-doel-' + iE + '" list="namen-crm-lijst" value="' + escHtml(v ? v.naam : '') + '" placeholder="kies bedrijf…" autocomplete="off" oninput="_namenVinkAan(' + iE + ')">' +
       (v ? ' <span class="crm-pil' + (v.zeker ? ' ok' : '') + '">' + escHtml(v.reden) + '</span>' : ' <span class="crm-pil leeg">geen voorstel</span>') + '</td>' +
       '<td class="namen-knoppen"><button type="button" class="crm-knop' + (v && v.zeker ? ' goed' : '') + '"' + (mag ? '' : ' disabled') + ' onclick="namenKoppel(' + iE + ')">Koppel</button>' +
       '<button type="button" class="crm-knop stil"' + (mag ? '' : ' disabled') + ' onclick="namenNieuwBedrijf(' + iE + ')" title="Dit is echt een ander bedrijf: maak er een bedrijfskaart van">nieuw bedrijf</button></td></tr>'; };
   NAMEN_LIJST = los;
   main.innerHTML = `<div>${kop}<div style="padding:14px 20px 40px;">
     <div class="crm-sub" style="margin-bottom:10px;">Elke naam die ergens voorkomt maar niet gelijk is aan een bedrijf in CRM · Bedrijven (en geen alias is). <b>Koppel</b> zet alles van die spelling onder het gekozen CRM-bedrijf en onthoudt de spelling als alias — een volgende Moneybird-sync of Excel-import landt dan meteen goed. <b>Nieuw bedrijf</b> is voor een naam die echt een ander bedrijf is.</div>
-    ${los.length ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;"><button type="button" class="crm-knop goed"${mag && zeker.length ? '' : ' disabled'} onclick="namenKoppelZeker()">✓ De ${zeker.length} zekere ${zeker.length === 1 ? 'geval' : 'gevallen'} (zelfde naam zonder rechtsvorm) in één keer koppelen</button><span class="stil" style="font-size:.8rem;">${los.length} ${los.length === 1 ? 'naam' : 'namen'} nog niet gelijk · <span id="namen-status"></span></span></div>
-    <table class="bd-tabel namen-tabel"><thead><tr><th>Naam zoals hij ergens staat</th><th>Waar</th><th>Hoeveel</th><th>Koppel aan CRM-bedrijf</th><th></th></tr></thead><tbody>${los.map(rij).join('')}</tbody></table>${datalist}`
+    ${los.length ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="crm-knop goed" id="namen-bulk"${mag ? '' : ' disabled'} onclick="namenKoppelSelectie()">✓ Koppel aangevinkt (${zeker.length})</button>
+      <button type="button" class="crm-knop" onclick="_namenVinkAlle(true)" title="Alle regels met een voorstel aanvinken — ook de onzekere (begint met dezelfde naam, afkorting)">alles met voorstel aanvinken</button><button type="button" class="crm-knop stil" onclick="_namenVinkAlle(false)">niets</button>
+      <span class="stil" style="font-size:.8rem;">${los.length} ${los.length === 1 ? 'naam' : 'namen'} nog niet gelijk · zekere gevallen (zelfde naam zonder rechtsvorm) staan al aangevinkt · <span id="namen-status"></span></span></div>
+    <table class="bd-tabel namen-tabel"><thead><tr><th></th><th>Naam zoals hij ergens staat</th><th>Waar</th><th>Hoeveel</th><th>Koppel aan CRM-bedrijf</th><th></th></tr></thead><tbody>${los.map(rij).join('')}</tbody></table>${datalist}`
     : '<div class="vv-tegel klaar"><b>Alles klopt</b> — elke naam in projecten, financieel, KAM, pipeline, vacatures, bezoeken en accountplannen is een CRM-bedrijf of een alias daarvan.</div>'}
   </div></div>`;
 }
@@ -14333,33 +14335,47 @@ function _namenDoel(i) {
   const sl = crmSleutelVan(naam); const r = (CRM_BEDRIJVEN || []).find(x => x && (x.sleutel || _itkSleutel(x.naam)) === sl && x.bron !== 'verwijderd');
   return r ? { naam: r.naam, sleutel: sl } : { naam, sleutel: _itkSleutel(naam), nieuw: true };
 }
-async function namenKoppel(i, stil) {
+async function namenKoppel(i) {
   if (!eisWijzig('crm') || NAMEN_BEZIG) return false;
   const x = NAMEN_LIJST[i]; if (!x) return false;
   const doel = _namenDoel(i);
   if (!doel) { btMeld('Kies eerst het CRM-bedrijf waar "' + x.naam + '" bij hoort.', 'geel'); return false; }
   if (doel.sleutel === x.sleutel) { btMeld('Dat is dezelfde naam — kies het CRM-bedrijf, of klik "nieuw bedrijf".', 'geel'); return false; }
   const wat = x.bronnen.map(b => b.waar.toLowerCase() + (b.detail ? ' (' + b.detail + ')' : b.n > 1 ? ' (' + b.n + ')' : '')).join(', ');
-  if (!stil) {
+  {
     const ok = await btBevestig('"' + x.naam + '" koppelen aan ' + doel.naam + '?\n\nAlles onder die spelling (' + wat + ') komt onder ' + doel.naam + (doel.nieuw ? ' — dat bedrijf wordt nieuw aangemaakt in het CRM' : '') + '; "' + x.naam + '" wordt een alias op de bedrijfskaart, zodat een volgende import meteen goed landt. Dit kan niet worden teruggedraaid.', { knop: 'Koppel' });
     if (!ok) return false;
   }
   NAMEN_BEZIG = true; const st = document.getElementById('namen-status'); if (st) st.textContent = 'Bezig met ' + x.naam + '…';
   const t = await _crmBedrijfSamenvoegDoe({ naam: doel.naam, sleutel: doel.sleutel }, { naam: x.naam, sleutel: x.sleutel });
   NAMEN_BEZIG = false;
-  if (!t) { if (!stil) renderBeheerNamen(); return false; }
-  if (!stil) { btMeld('"' + x.naam + '" is gekoppeld aan ' + doel.naam + '.', 'groen'); renderBeheerNamen(); }
+  if (!t) { renderBeheerNamen(); return false; }
+  btMeld('"' + x.naam + '" is gekoppeld aan ' + doel.naam + '.', 'groen'); renderBeheerNamen();
   return true;
 }
-async function namenKoppelZeker() {
+function _namenVinken() { return Array.from(document.querySelectorAll('.namen-vink')).filter(el => el.checked && !el.disabled).map(el => +el.getAttribute('data-i')); }
+function _namenTel() { const k = document.getElementById('namen-bulk'); if (k) k.textContent = '✓ Koppel aangevinkt (' + _namenVinken().length + ')'; }
+function _namenVinkAan(i) { const v = document.querySelector('.namen-vink[data-i="' + i + '"]'), d = document.getElementById('namen-doel-' + i); if (v) { const vol = !!(d && String(d.value || '').trim()); v.disabled = !vol || NAMEN_BEZIG; if (!vol) v.checked = false; } _namenTel(); }
+function _namenVinkAlle(aan) { document.querySelectorAll('.namen-vink').forEach(el => { if (!el.disabled) el.checked = !!aan; }); _namenTel(); }
+// Alle aangevinkte regels achter elkaar koppelen; de database wordt pas aan het eind één keer opnieuw geladen (anders 11 ophaalrondes per regel).
+async function namenKoppelSelectie() {
   if (!eisWijzig('crm') || NAMEN_BEZIG) return;
-  const lijst = NAMEN_LIJST.map((x, i) => ({ x, i })).filter(y => y.x.voorstel && y.x.voorstel.zeker);
-  if (!lijst.length) return;
-  const ok = await btBevestig(lijst.length + ' namen koppelen?\n\n' + lijst.map(y => y.x.naam + ' → ' + y.x.voorstel.naam).join('\n') + '\n\nElke spelling wordt een alias op de bedrijfskaart. Dit kan niet worden teruggedraaid.', { knop: 'Koppel alle ' + lijst.length });
+  const ids = _namenVinken().filter(i => NAMEN_LIJST[i] && _namenDoel(i) && _namenDoel(i).sleutel !== NAMEN_LIJST[i].sleutel);
+  if (!ids.length) { btMeld('Vink eerst regels aan (met een gekozen bedrijf).', 'geel'); return; }
+  const regels = ids.map(i => NAMEN_LIJST[i].naam + ' → ' + _namenDoel(i).naam);
+  const ok = await btBevestig(ids.length + ' ' + (ids.length === 1 ? 'naam' : 'namen') + ' koppelen?\n\n' + regels.slice(0, 25).join('\n') + (regels.length > 25 ? '\n… en nog ' + (regels.length - 25) : '') + '\n\nElke spelling wordt een alias op de bedrijfskaart. Dit kan niet worden teruggedraaid.', { knop: 'Koppel alle ' + ids.length });
   if (!ok) return;
-  let n = 0;
-  for (const y of lijst) { if (await namenKoppel(y.i, true)) n++; }
-  btMeld(n + ' van ' + lijst.length + ' gekoppeld.', n === lijst.length ? 'groen' : 'geel');
+  NAMEN_BEZIG = true; let n = 0; const st = document.getElementById('namen-status');
+  for (const i of ids) {
+    const x = NAMEN_LIJST[i], doel = _namenDoel(i);
+    if (st) st.textContent = (n + 1) + ' van ' + ids.length + ' · ' + x.naam + '…';
+    const t = await _crmBedrijfSamenvoegDoe({ naam: doel.naam, sleutel: doel.sleutel }, { naam: x.naam, sleutel: x.sleutel }, { zonderHerladen: true });
+    if (t) { n++; const rij = document.getElementById('namen-rij-' + i); if (rij) rij.style.opacity = '.35'; }
+  }
+  if (st) st.textContent = 'Opnieuw laden…';
+  await _crmSamenvoegHerlaad();
+  NAMEN_BEZIG = false;
+  btMeld(n + ' van ' + ids.length + ' gekoppeld.', n === ids.length ? 'groen' : 'geel');
   renderBeheerNamen();
 }
 async function namenNieuwBedrijf(i) {
@@ -38636,8 +38652,9 @@ async function crmBedrijfSamenvoegen(doelSleutel) {
   btMeld('Samengevoegd: ' + (t.bezoeken || 0) + ' bezoeken, ' + (t.verslagen || 0) + ' verslagen en ' + (t.notities || 0) + ' notities van ' + bron.naam + ' staan nu onder ' + doel.naam + '.', 'groen');
 }
 // Het samenvoegen zelf (14-10): één weg voor de knop op de kaart, de dubbelen-pop-up en naam wijzigen.
-async function _crmBedrijfSamenvoegDoe(doel, bron) {
+async function _crmBedrijfSamenvoegDoe(doel, bron, o) {
   if (!eisWijzig('crm') || !supa) return null;
+  o = o || {};
   ['pipeline_cards', 'verslagen', 'accounts', 'sales_leads', 'rldv_selecties', 'crm_bedrijven', 'account_notities', 'accountplannen', 'documenten', 'match_scores', 'vacatures'].forEach(_echoVanZelf);
   const { data, error } = await supa.rpc('bt_bedrijf_samenvoeg', { p_bron: bron.naam, p_doel: doel.naam });
   if (error) {
@@ -38645,10 +38662,13 @@ async function _crmBedrijfSamenvoegDoe(doel, bron) {
     alert('Niet samengevoegd: ' + (/function|does not exist|PGRST202|schema cache/i.test(error.message || '') ? 'draai supabase/namen_een_waarheid.sql in de SQL-editor — de functie ontbreekt nog of is verouderd. (' + error.message + ')' : error.message));
     return null;
   }
+  if (!o.zonderHerladen) await _crmSamenvoegHerlaad();   // bij een reeks (Beheer › Namen) één keer aan het eind
+  return data && typeof data === 'object' ? data : {};
+}
+async function _crmSamenvoegHerlaad() {
   await Promise.allSettled([accountsFetchAll(), pipeFetchAll(), loadBezoekRecordsFromDb(), apLoadAll(), salesLeadsFetchAll(), loadRldvSelecties(), loadCrm(), loadAccNotitiesAlles(),
     typeof loadDocumenten === 'function' ? loadDocumenten() : null, typeof loadMatchScores === 'function' ? loadMatchScores() : null, typeof loadVacatures === 'function' ? loadVacatures() : null,
     typeof loadProjecten === 'function' ? loadProjecten() : null, typeof loadFinancieelOmzet === 'function' ? loadFinancieelOmzet() : null]);   // 27-10: projecten en financieel gaan nu ook mee
-  return data && typeof data === 'object' ? data : {};
 }
 // Naam wijzigen van een bedrijf (14-10) = de oude naam samenvoegen in de nieuwe: dezelfde SQL-functie
 // hernoemt bezoeken, kaartjes, verslagen, accounts, accountplan, RLDV, documenten, vacatures en matchscores.
