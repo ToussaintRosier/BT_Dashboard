@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261027-2130 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261028-1154 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5000,6 +5000,7 @@
   /* De weekknop: donker uitgevoerd, zoals de rest van de balk (aanwijzing
      20-08 met schermafbeelding). De witte knop van eerst sprong eruit als de
      enige lichte vlek op een donkere accordeon. */
+  .pipe-wkpil { font-size:.68rem; color:rgba(255,255,255,.55); margin-right:8px; white-space:nowrap; }
   .pipe-wkknop { flex-shrink:0; white-space:nowrap; cursor:pointer;
                  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.28);
                  color:rgba(255,255,255,.85); border-radius:6px;
@@ -7305,13 +7306,14 @@ function weekcijfersVoor(naam, jaar, week) {
   const vals    = {};
   const achter  = [];
   const aanvullen = _magPipeAanvullen(jaar, week);
+  const handmatig = !!(saved && saved.handmatig);   // 28-10: bewuste afwijking — de opgeslagen waarde telt, het bord niet
   for (const k of KPIS) {
     const s = parseFloat(saved && saved[k]) || 0;
     const p = (aanvullen ? pipe[k] : 0) || 0;
-    vals[k] = isSaved ? Math.max(s, p) : p;
-    if (isSaved && p > s) achter.push(k);
+    vals[k] = handmatig ? s : (isSaved ? Math.max(s, p) : p);
+    if (isSaved && !handmatig && p > s) achter.push(k);
   }
-  return { vals, isSaved, achter, pipe };
+  return { vals, isSaved, achter, pipe, handmatig };
 }
 
 // Alle weekrijen van een jaar met de aanvulling erin verwerkt — de bron voor
@@ -12102,7 +12104,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261027-2130';
+const APP_VERSIE = '20261028-1154';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -14026,6 +14028,7 @@ const VERWACHT_SCHEMA = [
   { bestand: 'onboarding_administratie.sql', soort: 'kolom',   naam: 'crm_bedrijven.firmapas_benodigd' },
   { bestand: 'onboarding_administratie.sql', soort: 'kolom',   naam: 'crm_bedrijven.berekening_reiskosten' },
   { bestand: 'onboarding_administratie.sql', soort: 'kolom',   naam: 'crm_bedrijven.cao_contact' },
+  { bestand: 'kpi_weekly_handmatig.sql',     soort: 'kolom',   naam: 'kpi_weekly.handmatig' },
   { bestand: 'vervolg_manier.sql',           soort: 'kolom',   naam: 'pipeline_cards.vervolg_manier' },
   { bestand: 'vervolg_manier.sql',           soort: 'kolom',   naam: 'bezoek_vervolg.vervolg_manier' },
   { bestand: 'vervolg_manier.sql',           soort: 'functie', naam: 'bt_kand_vervolg_zet/4' },
@@ -15818,7 +15821,7 @@ _versieWaakhond();
 // Een volgnummer is bovendien breekbaar: komt er een collega bij of gaat er
 // een weg, dan wijst hetzelfde nummer naar iemand anders.
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
-const TAB_SCHERMEN = ['one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',
+const TAB_SCHERMEN = ['beheer','one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',   // 28-10: + beheer (alleen beheerders, zie _tabHerstel)
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
                       'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf', 'vacatures'];   // gvpagina (Gespreksverslagen) is sinds 30-09 weg: verslagen maak je op de CRM-kaart, je leest ze in Records
 
@@ -15845,6 +15848,66 @@ function _tabVergeet() {
   const sleutel = _tabSleutel();
   if (!sleutel) return;
   try { localStorage.removeItem(sleutel); } catch (_) { /* stil: uitloggen gaat voor */ }
+  _plekVergeet();   // 28-10
+}
+// ── Waar was ik (28-10) ──────────────────────────────────────────────────────────────────────────────────────
+// Naast het hoofdtabblad ook: het subtabblad per tab, de collega-kaart, het accountplan + blad, en de open kaart.
+// Onthouden bij elke render en bij kaart openen/sluiten; hersteld bij de start, ná _kiesStartTab. Een pop-up middenin
+// een handeling (bevestiging, bewerkmodus) komt bewust niet terug.
+const PLEK_SUBS = {
+  accounts: ['sales', 'strategisch', 'accountplan', 'beweging', 'verslagen'],
+  beheer: ['collegas', 'rechten', 'onderdelen', 'mijlpalen', 'vacteksten', 'fouten', 'database', 'aikosten', 'docimport', 'namen'],
+  financieel: ['overzicht', 'actief', 'oud', 'begroting', 'declarabiliteit', 'marge', 'overuren', 'ranking', 'verzuim', 'ziekte'],
+  hrm: ['evaluatie', 'aanmeldformulier', 'opgeslagen', 'standaard', 'documentatie_ec', 'opnames_jr'],
+  medewerkers: ['overzicht', 'todo'],
+  bm: ['kpis', 'agenda', 'bum', 'coaching', 'mtcoaching', 'plan', 'todo'],
+};
+const PLEK_KAARTEN = {   // selector van de open kaart → functie die hem weer opent (alleen deze; nooit een willekeurige functie)
+  '.crm-dossier-kand .crm-dossier-sleutel': 'crmKandOpen', '.kand-rldv .crm-dossier-sleutel': 'kandRldvKaartOpen', '.kand-project .crm-dossier-sleutel': 'beheerKaartOpen',
+  '.kand-hrm .crm-dossier-sleutel': 'kandHrmKaartOpen', '.crm-dossier-bedrijf .crm-dossier-sleutel': 'crmBedrijfOpen', '.bedrijf-beheer .crm-dossier-sleutel': 'bedrijfBeheerKaartOpen',
+  '.bedrijf-vacatures .crm-dossier-sleutel': 'bedrijfVacaturesKaartOpen', '.klant-kaart-id[data-sleutel]': 'accountKaartOpen',
+};
+let _PLEK_TIMER = null;
+function _plekSleutel() { const uid = CURRENT_USER && CURRENT_USER.id; return uid ? 'bt_plek_' + uid : null; }
+function _plekKaart() {
+  for (const sel of Object.keys(PLEK_KAARTEN)) { const el = document.querySelector(sel); const arg = el && el.getAttribute('data-sleutel'); if (arg) return { fn: PLEK_KAARTEN[sel], arg }; }
+  return null;
+}
+// Let op: de standen zijn met let gedeclareerd (geen window-eigenschappen), dus rechtstreeks lezen en schrijven.
+function _plekSnapshot() {
+  return { tab: currentTab, sub: { accounts: ACCOUNT_SUBTAB, beheer: BEHEER_SUBVIEW, financieel: FINANCIEEL_SUBVIEW, hrm: HRM_SUBTAB, medewerkers: MEDEW_SUBTAB, bm: bmSubTab },
+    ap: { sleutel: AP_ACTIEF || '', blad: AP_BLAD || '' }, kaart: _plekKaart() };
+}
+function _plekOnthoud() {
+  if (_PLEK_TIMER) clearTimeout(_PLEK_TIMER);
+  _PLEK_TIMER = setTimeout(() => { _PLEK_TIMER = null; const sl = _plekSleutel(); if (!sl) return; try { _veiligLokaalOpslaan(sl, _plekSnapshot(), 'plek onthouden'); } catch (e) { _meldStil('plek onthouden', e); } }, 150);
+}
+function _plekLees() { const sl = _plekSleutel(); if (!sl) return null; try { const p = JSON.parse(localStorage.getItem(sl)); return p && typeof p === 'object' ? p : null; } catch (e) { _meldStil('plek lezen', e); return null; } }
+function _plekVergeet() { const sl = _plekSleutel(); if (!sl) return; try { localStorage.removeItem(sl); } catch (e) { _meldStil('plek vergeten', e); } }
+function _plekHerstel() {
+  const p = _plekLees(); if (!p) return;
+  const sub = p.sub && typeof p.sub === 'object' ? p.sub : {};
+  const mag = (naam, waarde) => !!(PLEK_SUBS[naam] && PLEK_SUBS[naam].includes(waarde));
+  if (mag('accounts', sub.accounts)) ACCOUNT_SUBTAB = sub.accounts;
+  if (mag('beheer', sub.beheer)) BEHEER_SUBVIEW = sub.beheer;
+  if (mag('financieel', sub.financieel)) FINANCIEEL_SUBVIEW = sub.financieel;
+  if (mag('hrm', sub.hrm)) HRM_SUBTAB = sub.hrm;
+  if (mag('medewerkers', sub.medewerkers)) MEDEW_SUBTAB = sub.medewerkers;
+  if (mag('bm', sub.bm)) bmSubTab = sub.bm;
+  const ap = p.ap && typeof p.ap === 'object' ? p.ap : {};
+  if (ap.sleutel && typeof ap.sleutel === 'string') AP_ACTIEF = ap.sleutel;
+  if (ap.blad && typeof AP_BLADEN !== 'undefined' && AP_BLADEN.some(([b]) => b === ap.blad)) AP_BLAD = ap.blad;
+}
+function _plekKaartHerstel() {
+  const p = _plekLees(); const k = p && p.kaart; if (!k || !k.fn || !k.arg) return;
+  const openers = { crmKandOpen: () => crmKandOpen, kandRldvKaartOpen: () => kandRldvKaartOpen, beheerKaartOpen: () => beheerKaartOpen, kandHrmKaartOpen: () => kandHrmKaartOpen, crmBedrijfOpen: () => crmBedrijfOpen, bedrijfBeheerKaartOpen: () => bedrijfBeheerKaartOpen, bedrijfVacaturesKaartOpen: () => bedrijfVacaturesKaartOpen, accountKaartOpen: () => accountKaartOpen };
+  let fn = null; try { fn = openers[k.fn] ? openers[k.fn]() : null; } catch (e) { _meldStil('plek kaart-opener', e); fn = null; }
+  if (typeof fn !== 'function') return;
+  if (document.getElementById('crm-laag') || document.getElementById('bt-bevestig-laag') || document.getElementById('dagstart-laag')) return;   // niet over een venster heen
+  const bedrijf = ['crmBedrijfOpen', 'bedrijfBeheerKaartOpen', 'bedrijfVacaturesKaartOpen', 'accountKaartOpen'].includes(k.fn);
+  const bestaat = bedrijf ? (typeof crmBedrijfLijst === 'function' && crmBedrijfLijst().some(x => x.sleutel === k.arg)) : (typeof crmKandLijst === 'function' && crmKandLijst().some(x => x.sleutel === k.arg));
+  if (!bestaat) return;   // samengevoegd of verwijderd: geen kaart
+  try { fn(k.arg); } catch (e) { _meldStil('plek kaart herstellen', e); }
 }
 
 // Geeft het tabblad terug waar DEZE gebruiker mag beginnen, of null voor
@@ -15861,6 +15924,7 @@ function _tabHerstel() {
   if (saved === 'team') return 'medewerkers';     // sinds 16-09 een deel van Medewerkers
   if (saved === 'kandarchief') return 'crmkand';   // Archief kandidaten → CRM · Kandidaten (17-09)
   if (saved === 'accarchief') return 'crmbedrijf'; // Archief bezoeken → CRM · Bedrijven (17-09)
+  if (saved === 'beheer' && !isBeheerder()) return null;   // 28-10
   if (typeof saved === 'string') return TAB_SCHERMEN.includes(saved) ? saved : null;
 
   if (saved && typeof saved === 'object' && saved.soort === 'bm') {
@@ -15879,6 +15943,7 @@ function _tabHerstel() {
 // je eigen kaart niet, dan kom je op Overzicht — nooit op de kaart van een
 // willekeurige collega.
 function _kiesStartTab() {
+  _plekHerstel();   // 28-10: subtabblad, plan + blad, collega-subpagina — onafhankelijk van het tabblad
   if (!CURRENT_USER) return;
   const ik = String(CURRENT_USER.bm_naam || CURRENT_USER.naam || '');
   const eigenIdx = ik ? BMS.findIndex(b => b.naam === ik) : -1;
@@ -16501,7 +16566,9 @@ function renderMedewerkersOverzicht() {
       // zie je nergens meer terug. Hij staat er dus altijd, wel gedempt.
       const hasAny = KPIS.some(k => (vals[k] || 0) > 0);
       const bmNorm = normPerPeriod(bm.doel, INDIVIDUAL_RATIOS[bm.naam] || TEAM_RATIOS, 'week', activeNormFix(bm), bm.doelStartFraction);
-      const status = isSaved
+      const status = wk.handmatig
+        ? '<span style="color:#fdba74;font-size:.72rem;" title="Handmatig vastgelegd — wijkt bewust af van het bord; terug naar bord kan in het weekschema">hand.</span>'
+        : isSaved
         ? (achter.length
             ? '<span style="color:#fbbf24;font-size:.75rem;" title="Invoer verouderd — de pipeline telt meer ' +
               achter.map(k => KPI_LABELS[k].toLowerCase()).join(', ') +
@@ -17087,6 +17154,7 @@ function paginaKopZorg() {
 // vroeg uit, op tientallen plekken.
 function render() {
   _renderKern();
+  _plekOnthoud();   // 28-10: waar was ik (uitgesteld, kan niets blokkeren)
   try { paginaKopZorg(); } catch (e) { console.error('Paginakop mislukt:', e); }
   try { _leesmodusToepassen(); } catch (e) { console.error('Leesmodus mislukt:', e); }
   try { snelchatZorg(); } catch (e) { console.error('Snelchat mislukt:', e); }
@@ -17274,10 +17342,13 @@ function renderWeeklyEntryFor(bm, week, year, titel, icoon) {
     ? `<button class="kn hoofd" onclick="saveWeeklyEntry('${escApos(bm.naam)}',${week},${year})">Opslaan</button>`
     : `<button class="kn" onclick="unlockWeeklyEntry('${escApos(bm.naam)}',${week},${year})">Wijzigen</button>`;
 
+  // 28-10: de week bevriest zichzelf uit de pipeline. Handmatig = bewuste afwijking, met de weg terug.
+  const handm = alreadySaved && existing.handmatig;
+  const afwijk = handm ? KPIS.filter(k => (+existing[k] || 0) !== (+pipeCounts[k] || 0)).map(k => KPI_LABELS[k].toLowerCase() + ' ' + telFmt(existing[k] || 0) + ' (bord ' + telFmt(pipeCounts[k] || 0) + ')') : [];
   const statusText = frozen
-    ? alreadySaved
-      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">Bevroren &amp; opgeslagen voor deze week</span>`
-      : `<span style="display:inline-flex;align-items:center;gap:4px;background:#f8f9fa;color:#6b7280;border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:.78rem;">Nog niet ingevoerd — klik Wijzigen</span>`
+    ? handm
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;" title="Handmatig vastgelegd${existing.handmatig_door ? ' door ' + escHtml(existing.handmatig_door) : ''}">Handmatig · bord zegt anders${afwijk.length ? ': ' + escHtml(afwijk.join(', ')) : ''}</span> <button type="button" class="kn" onclick="weekTerugNaarBord('${escApos(bm.naam)}',${week},${year})" title="De pipelinetelling wordt weer de waarheid van deze week">terug naar bord</button>`
+      : `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;" title="De weekcijfers volgen de pipeline vanzelf — omhoog en omlaag. Wijzigen is er alleen voor een bewuste afwijking.">Bevroren · telt live mee</span>`
     : '';
 
   return `<div class="week-actions" style="margin-bottom:16px;${frozen ? 'background:rgba(240,253,244,0.55);border-radius:10px;padding:6px 8px;' : ''}">
@@ -17303,6 +17374,10 @@ function renderNextWeekEntry(bm) {
 
 function unlockWeeklyEntry(bmNaam, week, year) {
   WEEKLY_EDIT_UNLOCKED.add(`${bmNaam}|${year}|${week}`);
+  render();
+}
+function lockWeeklyEntry(bmNaam, week, year) {   // 28-10: Klaar op het bord — alleen de vergrendeling, de cijfers volgen het bord al
+  WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${year}|${week}`);
   render();
 }
 
@@ -17354,20 +17429,15 @@ async function saveWeeklyEntry(bmNaam, week, year) {
   const vals = {};
   for (const k of KPIS) vals[k] = parseFloat(document.getElementById(`inv-${k}-${safeId}`)?.value) || 0;
 
-  // Verplichte controle: het geaccordeerde aantal moet exact overeenkomen met
-  // de telling van pipeline-kaarten voor deze week. Bij afwijking: opslaan blokkeren.
+  // 28-10: de week bevriest zichzelf uit de pipeline; Opslaan is er alleen nog voor een bewuste afwijking.
+  // Wijkt de invoer af van het bord, dan krijgt de rij het merkteken "handmatig" en laat het automatische bijtrekken hem met rust.
   const pipeCounts = getPipeCountsForWeek(bmNaam, week, year);
-  const mismatches = KPIS.filter(k => vals[k] !== pipeCounts[k]);
-  if (mismatches.length) {
-    const detail = mismatches.map(k => `${KPI_LABELS[k]} (ingevoerd ${vals[k]}, pipeline ${pipeCounts[k]})`).join(', ');
-    if (statusEl) statusEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700;">Komt niet overeen met pipeline: ${escHtml(detail)}</span>`;
-    return;
-  }
-
-  const payload = { bm_naam: bmNaam, jaar: year, week: week, ...vals, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
+  const anders = KPIS.some(k => (+vals[k] || 0) !== (+pipeCounts[k] || 0));
+  const nu = new Date().toISOString();
+  const payload = { bm_naam: bmNaam, jaar: year, week: week, ...vals, handmatig: anders, handmatig_door: anders ? (CURRENT_USER.naam || CURRENT_USER.bm_naam || null) : null, handmatig_op: anders ? nu : null, updated_by: CURRENT_USER.id, updated_at: nu };
   if (statusEl) statusEl.textContent = 'Opslaan…';
   const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
-  if (error) { if (statusEl) btZetStatus(statusEl, '❌ ' + error.message); return; }
+  if (error) { if (statusEl) btZetStatus(statusEl, '❌ ' + (/handmatig/i.test(error.message || '') && /column|schema cache|PGRST204/i.test(error.message || '') ? 'draai supabase/kpi_weekly_handmatig.sql — de kolom handmatig ontbreekt nog' : error.message)); return; }
   WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${year}|${week}`);
   await loadKpiWeekly();
   recomputeRatios();
@@ -19523,6 +19593,7 @@ async function loadKpiWeekly() {
       naam: r.bm_naam, jaar: r.jaar, week: r.week,
       intakes: r.intakes||0, bezoeken: r.bezoeken||0, aanbiedingen: r.aanbiedingen||0,
       matchgesprekken: r.matchgesprekken||0, contractvoorstellen: r.contractvoorstellen||0, starters: r.starters||0,
+      handmatig: !!r.handmatig, handmatig_door: r.handmatig_door || null, handmatig_op: r.handmatig_op || null,   // 28-10
     }));
 
     // ── Aanvullen met de ingebouwde historie, maar met verstand ─────────────
@@ -20465,6 +20536,7 @@ async function loadProfileAndStart() {
     try { render(); } catch (e) { console.error('Tekenen mislukt:', e); }
     verbergLaadscherm();
     toonLaadmelding();
+    setTimeout(() => { try { _plekKaartHerstel(); } catch (e) { _meldStil('plek kaart', e); } }, 400);   // 28-10: de open kaart, ná het tekenen
   }
   _startMobielTabelWaarnemer();
   toonDagstart().then(toonMemos).catch(() => toonMemos());
@@ -20479,6 +20551,7 @@ async function loadProfileAndStart() {
   _dagstartWaakhond();
   subscribeRealtime();
   _publiceerAchtergrond();
+  setTimeout(() => { _wekenSweep().catch(e => _meldStil('weken rechtzetten', e)); }, 3000);   // 28-10: weekcijfers gelijk aan de borden (ook de eenmalige reparatie)
   setTimeout(() => { loadDocumenten().catch(e => _meldStil('documenten vooraf laden', e)); }, 800);   // 08-10: documenten alvast in de cache
 }
 
@@ -22308,7 +22381,7 @@ let _REALTIME_WACHT_OP_TERUG = false;
 // Wat er per tabel opnieuw opgehaald moet worden als een collega iets wijzigt.
 const _RT_TAKEN = {
   kpi_weekly:       async () => { await loadKpiWeekly(); recomputeRatios(); },
-  pipeline_cards:   async () => { await pipeFetchAll(); },
+  pipeline_cards:   async () => { await pipeFetchAll(); _wekenSweepLater(); },   // 28-10: weken rechtzetten na andermans wijziging
   projecten:        async () => { await loadProjecten(); },
   accounts:         async () => { await accountsFetchAll(); _klantKaartHerteken(); },
   kandidaat_notities: async () => { const was = _taakIds('kand'); await loadKandNotities(); _TODO_CACHE = null; _taakLive('kand', was); _kandKaartHerteken(); if (currentTab === 'crmkand') renderCrmKandidaten(); },   // 16-10: taken
@@ -23590,6 +23663,7 @@ function crmKaartToon(html, klasse, bijSluiten) {
   // Een kaart vervangen is geen sluiten: de opruimtaak hoort dan niet af te
   // gaan, anders wist het bijwerken van het venster de check die je bekijkt.
   _CRM_BIJ_SLUITEN = null;
+  _plekOnthoud();   // 28-10
   // 15-10: dezelfde kaart opnieuw getekend (vinkje, notitie, ziekmelding …) → de scrollstand blijft staan.
   const scroll = _crmKaartScrollBewaar(klasse, html);
   const focus = scroll ? _crmKaartFocusBewaar() : null;   // 16-10: zelfde kaart → ook focus en cursor terug
@@ -23651,6 +23725,7 @@ function _crmKaartMobielTabs(laag) {
 function _crmEsc(e) { if (e.key === 'Escape' && !document.getElementById('vs-laag')) crmKaartSluit(); }   // 05-10: leesvenster bovenop vangt Esc zelf
 function crmKaartSluit() {
   document.getElementById('crm-laag')?.remove();
+  _plekOnthoud();   // 28-10
   document.removeEventListener('keydown', _crmEsc);
   const opruimen = _CRM_BIJ_SLUITEN;
   _CRM_BIJ_SLUITEN = null;
@@ -24005,20 +24080,17 @@ function weekafsluitingCheck() {
   const sleutel = _crmDagSleutel('weekafsluiting|' + ik);
   if (_crmGezien(sleutel)) return;
   const wk = weekcijfersVoor(ik, CUR.year, CUR.week);
-  // Al opgeslagen en niets loopt achter? Dan niets vragen.
-  if (wk.isSaved && !wk.achter.length) return;
+  // 28-10: de week bevriest zichzelf; dit venster is alleen nog de vraag "klopt dit?" — één keer per vrijdag.
   _crmOnthoud(sleutel);
   const waarschuwing = KPIS.filter(k => !(wk.vals[k] > 0) && k !== 'starters' && k !== 'contractvoorstellen');
   crmKaartToon(`
-    <h4>Week ${CUR.week} afsluiten?</h4>
-    <div class="crm-sub">Dit staat er nu in je pipeline</div>
+    <h4>Week ${CUR.week} — klopt dit?</h4>
+    <div class="crm-sub">Dit staat er in je pipeline en zo gaat de week de cijfers in (vanzelf, ook als je later nog iets aanpast)</div>
     ${KPIS.map(k => _crmRij(KPI_LABELS[k], telFmt(wk.vals[k]))).join('')}
     ${waarschuwing.length ? `<div class="crm-let-op">Let op: 0 ${waarschuwing.map(k => KPI_LABELS[k].toLowerCase()).join(', 0 ')} deze week. Klopt dat, of staat er iets nog niet in?</div>` : ''}
-    ${wk.isSaved && wk.achter.length ? `<div class="crm-let-op">Je opgeslagen week loopt achter op de pipeline (${wk.achter.map(k => KPI_LABELS[k].toLowerCase()).join(', ')}).</div>` : ''}
     <div class="crm-knoppen">
-      <button class="crm-knop goed" onclick="saveWeeklyEntryDirect('${escApos(ik)}',${CUR.week},${CUR.year},this);setTimeout(crmKaartSluit,600)">Opslaan</button>
+      <button class="crm-knop goed" onclick="crmKaartSluit()">Klopt</button>
       <button class="crm-knop" onclick="crmKaartSluit()">Eerst aanpassen</button>
-      <button class="crm-knop" onclick="crmKaartSluit()">Later</button>
     </div>`);
 }
 
@@ -30770,28 +30842,79 @@ function _pipeWekenBijtrekken(bmNaam, vorige, cards) {
     _BIJTREK_KLOK[sl] = setTimeout(() => { delete _BIJTREK_KLOK[sl]; _weekBijtrekken(bmNaam, week, jaar); }, 400);
   }
 }
+// 28-10: de week bevriest zichzelf. Ook een week die nooit is opgeslagen krijgt een rij zodra er een kaartje in staat;
+// alleen een rij met het merkteken "handmatig" (bewuste afwijking via Wijzigen + Opslaan) blijft met rust.
+function _weekPayloadUitPipeline(bmNaam, week, jaar) {
+  const saved = RAW.find(d => d.naam === bmNaam && d.jaar === jaar && d.week === week);
+  if (saved && saved.handmatig) return null;               // bewuste afwijking: niet overschrijven
+  const pipe = getPipeCountsForWeek(bmNaam, week, jaar);
+  const payload = { bm_naam: bmNaam, jaar, week };
+  let anders = false, iets = false;
+  for (const k of KPIS) {
+    payload[k] = +pipe[k] || 0;                             // de pipeline, omhoog én omlaag
+    if (payload[k]) iets = true;
+    if ((saved ? parseFloat(saved[k]) || 0 : 0) !== payload[k]) anders = true;
+  }
+  if (!saved && !iets) return null;                         // niets op het bord en geen rij: geen lege rij maken
+  if (!anders) return null;                                 // gelijk: niets schrijven
+  payload.updated_by = CURRENT_USER.id; payload.updated_at = new Date().toISOString();
+  return payload;
+}
 async function _weekBijtrekken(bmNaam, week, jaar) {
   if (!magWijzigen('medewerkers')) return;   // zelfde slot als Opslaan in het weekschema; stil, want dit loopt na een andere actie
   if (!supa || !CURRENT_USER || !bmNaam || !week || !jaar) return;
   try {
     if (!_magPipeAanvullen(jaar, week)) return;           // vóór de aanvulgrens is de pipeline geen bron
-    const saved = RAW.find(d => d.naam === bmNaam && d.jaar === jaar && d.week === week);
-    if (!saved) return;                                     // nog "live": niet stiekem bevriezen
-    const pipe = getPipeCountsForWeek(bmNaam, week, jaar);
-    const payload = { bm_naam: bmNaam, jaar, week };
-    let anders = false;
-    for (const k of KPIS) {
-      payload[k] = +pipe[k] || 0;                           // de pipeline, omhoog én omlaag
-      if ((parseFloat(saved[k]) || 0) !== payload[k]) anders = true;
-    }
-    if (!anders) return;                                    // gelijk: niets schrijven
-    payload.updated_by = CURRENT_USER.id; payload.updated_at = new Date().toISOString();
+    const payload = _weekPayloadUitPipeline(bmNaam, week, jaar);
+    if (!payload) return;
     const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
     if (error) { _meldStil('week bijtrekken', error); return; }
     await loadKpiWeekly();
     recomputeRatios();
     _RT_WACHTRIJ.delete('kpi_weekly');
   } catch (e) { _meldStil('week bijtrekken', e); }
+}
+// Veiligheidsnet (28-10): bij de start en na een live-bericht over de pipeline alle weken vanaf de aanvulgrens
+// vergelijken met de borden en verschillen rechtzetten — manager voor iedereen, een collega voor zichzelf (canEdit).
+// Dit is ook de eenmalige reparatie: weken die nooit zijn opgeslagen krijgen alsnog hun rij.
+let _SWEEP_BEZIG = false, _SWEEP_KLOK = null;
+async function _wekenSweep() {
+  if (_SWEEP_BEZIG || !supa || !CURRENT_USER || !magWijzigen('medewerkers')) return 0;
+  _SWEEP_BEZIG = true;
+  try {
+    const payloads = [];
+    for (const bm of bmsMetCijfers()) {
+      if (!bm || !bm.naam || !canEdit(bm.naam)) continue;
+      const weken = new Set();
+      for (const c of pipeLoad(bm.naam)) if (c && c.week && c.jaar && !c.verwijderd_op && _magPipeAanvullen(c.jaar, c.week)) weken.add(c.jaar + '-' + c.week);
+      for (const r of RAW) if (r.naam === bm.naam && r.week && r.jaar && !r.handmatig && _magPipeAanvullen(r.jaar, r.week)) weken.add(r.jaar + '-' + r.week);
+      for (const key of weken) { const [jaar, week] = key.split('-').map(Number); const p = _weekPayloadUitPipeline(bm.naam, week, jaar); if (p) payloads.push(p); }
+    }
+    if (!payloads.length) return 0;
+    const { error } = await supa.from('kpi_weekly').upsert(payloads, { onConflict: 'bm_naam,jaar,week' });
+    if (error) { _meldStil('weken rechtzetten', error); return 0; }
+    await loadKpiWeekly();
+    recomputeRatios();
+    _RT_WACHTRIJ.delete('kpi_weekly');
+    render();
+    return payloads.length;
+  } catch (e) { _meldStil('weken rechtzetten', e); return 0; }
+  finally { _SWEEP_BEZIG = false; }
+}
+function _wekenSweepLater() { if (_SWEEP_KLOK) clearTimeout(_SWEEP_KLOK); _SWEEP_KLOK = setTimeout(() => { _SWEEP_KLOK = null; _wekenSweep().catch(e => _meldStil('weken rechtzetten', e)); }, 2500); }
+// Terug naar bord: een handmatige afwijking opheffen — de pipelinetelling wordt weer de waarheid van die week.
+async function weekTerugNaarBord(bmNaam, week, jaar) {
+  if (!eisWijzig('medewerkers') || !supa || !CURRENT_USER) return;
+  const pipe = getPipeCountsForWeek(bmNaam, week, jaar);
+  const payload = { bm_naam: bmNaam, jaar, week, handmatig: false, handmatig_door: null, handmatig_op: null, updated_by: CURRENT_USER.id, updated_at: new Date().toISOString() };
+  for (const k of KPIS) payload[k] = +pipe[k] || 0;
+  const { error } = await supa.from('kpi_weekly').upsert(payload, { onConflict: 'bm_naam,jaar,week' });
+  if (error) { btMeld('Niet gelukt: ' + error.message, 'rood'); return; }
+  WEEKLY_EDIT_UNLOCKED.delete(`${bmNaam}|${jaar}|${week}`);
+  await loadKpiWeekly();
+  recomputeRatios();
+  _RT_WACHTRIJ.delete('kpi_weekly');
+  render();
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -52718,8 +52841,9 @@ function renderPipeline(bm) {
     let weekEditable = false;
     if (editable) {
       const lockKey     = `${bm.naam}|${wk.year}|${wk.week}`;
-      const existingRow = RAW.find(d => d.naam === bm.naam && d.jaar === wk.year && d.week === wk.week);
-      const frozen      = !!existingRow && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
+      // 28-10: de week bevriest zichzelf uit het bord, dus Opslaan bestaat niet meer. De vergrendeling is er nog wel —
+      // maar alleen voor weken in het verleden, tegen per ongeluk slepen; Wijzigen zet hem open, Klaar weer dicht.
+      const frozen      = isPast && !WEEKLY_EDIT_UNLOCKED.has(lockKey);
       weekFrozen   = frozen;
       weekEditable = !frozen;
       // Woord op de knop (keuze 20-08). Het slotje was een emoji: klein, op elk
@@ -52732,12 +52856,15 @@ function renderPipeline(bm) {
       // de knop zelf af — "Wijzigen" kan alleen bij een vergrendelde week,
       // "Opslaan" alleen bij een open week — en aan het groene streepje links.
       // De volledige zin staat in de tooltip.
+      const pil = `<span class="pipe-wkpil" title="De weekcijfers volgen dit bord vanzelf — omhoog en omlaag, ook in de historie en de grafieken">telt live mee</span>`;
       if (frozen) {
-        weekBtnHtml = `<button class="pipe-wkknop" title="Deze week is vergrendeld — klik om te wijzigen"
+        weekBtnHtml = pil + `<button class="pipe-wkknop" title="Deze week ligt in het verleden en is vergrendeld tegen per ongeluk slepen — klik om te wijzigen"
           onclick="event.stopPropagation();unlockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})">Wijzigen</button>`;
+      } else if (isPast) {
+        weekBtnHtml = pil + `<button class="pipe-wkknop" title="Klaar met wijzigen — vergrendel deze week weer"
+          onclick="event.stopPropagation();lockWeeklyEntry('${escApos(bm.naam)}',${wk.week},${wk.year})">Klaar</button>`;
       } else {
-        weekBtnHtml = `<button class="pipe-wkknop" title="Deze week staat open — klik om vast te leggen"
-          onclick="event.stopPropagation();saveWeeklyEntryDirect('${escApos(bm.naam)}',${wk.week},${wk.year},this)">Opslaan</button>`;
+        weekBtnHtml = pil;
       }
     }
 
