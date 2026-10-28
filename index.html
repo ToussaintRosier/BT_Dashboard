@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261028-1208 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261028-1829 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -8109,7 +8109,7 @@ const PAGINA_UITLEG = {
         stappen: [
           'Boven de lijst vier tellers (Achterstallig, Te doen, Komende 30 dagen, Starters gevolgd); klik erop om te filteren, zoek op naam, BM of opdrachtgever.',
           'Per starter een tijdlijn van Dag 1 tot 18 maanden: groen is gedaan, oranje is nu, rood is te laat. Rechts de knop voor het volgende moment.',
-          'Afvinken vraagt om bevestiging dat het ook in Salesforce staat; dat blijft de bron voor de klant.',
+          'Afvinken kijkt of het evaluatieverslag in de Cockpit staat (Bezoeken › evaluatie); ontbreekt het, dan vraagt het venster of je toch wilt afvinken.',
           'Een evaluatiegesprek plan je vanaf de Beheerkaart van de medewerker (+ plannen): het wordt een Bezoeken-tegeltje, gekoppeld aan medewerker, opdrachtgever en moment. Het verslag uit de BZK-recorder komt op dezelfde Beheerkaart.',
         ]},
       { kop: 'Aanmeldformulier',
@@ -12104,7 +12104,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261028-1208';
+const APP_VERSIE = '20261028-1829';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -25550,7 +25550,7 @@ function getEvalMilestones(startDate) {
 }
 
 // readonly=true → chips tonen maar niet klikbaar (Projecten-view)
-// hrmMode=true  → chips klikken via hrmEvalToggle (HRM/Backoffice view, met Salesforce popup)
+// hrmMode=true  → chips klikken via hrmEvalToggle (HRM/Backoffice view; kijkt of het verslag in de Cockpit staat)
 // `donker`: dezelfde chips, maar met kleuren die op het donkere paneel van
 // het projectvenster leesbaar zijn (09-09).
 function _evalChips(src, id, milestones, checked, safeId, readonly, hrmMode, donker) {
@@ -25576,7 +25576,25 @@ function _evalChips(src, id, milestones, checked, safeId, readonly, hrmMode, don
   }).join('');
 }
 
-// Salesforce-popup bij afvinken in HRM/Backoffice
+// ── Evaluatieverslag in de Cockpit (28-10, was: Salesforce-vraag) ──────────────────────────────────────────
+// Salesforce is er niet meer; het evaluatieverslag hoort in de Cockpit te staan (Bezoeken › evaluatie van de medewerker).
+// Afvinken kijkt daar: staat er een verslag binnen 60 dagen rond de mijlpaal, dan is het moment klaar. Anders vraagt het venster.
+function _evalMedewerkerVan(src, id) {
+  if (src === 'excel') { const p = (typeof PROJECTEN !== 'undefined' ? PROJECTEN : []).find(x => String(x.id) === String(id)); return p ? { naam: String(p.kandidaat || ''), start: String(p.begin_ovk || '').slice(0, 10) } : null; }
+  const hit = typeof _pipeCardById === 'function' ? _pipeCardById(id) : null;
+  return hit ? { naam: String(hit.card.naam || ''), start: String(hit.card.start_datum || '').slice(0, 10) } : null;
+}
+function _evalVerslagVoor(src, id, idx) {
+  const m = _evalMedewerkerVan(src, id); if (!m || !m.naam) return null;
+  const sl = _itkSleutel(m.naam);
+  const ms = m.start ? getEvalMilestones(new Date(m.start)) : [];
+  const moment = ms.find(x => (x.idx ?? 0) === +idx) || ms[+idx] || null;
+  const doelMs = moment ? +moment.date : 0;
+  const lijst = (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []).filter(r => r && _bezoekSoortNorm(r.soortBezoek) === 'evaluatie' && (_itkSleutel(r.bedrijf || '') === sl || (r.medewerkerSleutel && r.medewerkerSleutel === sl)));
+  const dicht = lijst.map(r => ({ r, ms: _recDatumSort(r.datum) })).filter(x => x.ms && (!doelMs || Math.abs(x.ms - doelMs) <= 60 * 864e5)).sort((a, b) => Math.abs(a.ms - doelMs) - Math.abs(b.ms - doelMs))[0];
+  if (!dicht) return null;
+  return { id: dicht.r.id, datumMs: dicht.ms, wie: String(dicht.r.recorder_naam || ''), moment: moment ? moment.label : '' };
+}
 function hrmEvalToggle(src, id, idx) {
   if (!isHrmEditor()) { alert('Alleen Annyck Nelissen, Toussaint Rosier of Jannik van Rijt mag evaluaties afvinken.'); return; }
   const cur   = projEvalLoad(src, id);
@@ -25588,13 +25606,24 @@ function hrmEvalToggle(src, id, idx) {
     renderHrmBackoffice();
     return;
   }
-  // Aanvinken: Salesforce-bevestiging vereist
-  const modal = document.getElementById('hrm-salesforce-modal');
-  if (modal) { modal.dataset.src = src; modal.dataset.id = id; modal.dataset.idx = idx; modal.style.display = 'flex'; }
+  // Aanvinken: staat het evaluatieverslag in de Cockpit? Dan meteen klaar.
+  const verslag = _evalVerslagVoor(src, id, idx);
+  if (verslag) {
+    cur.push(idx); projEvalSave(src, id, cur); renderHrmBackoffice();
+    btMeld('Afgevinkt · evaluatieverslag ' + _crmDatum(verslag.datumMs) + (verslag.wie ? ' door ' + verslag.wie.split(' ')[0] : '') + ' staat in de Cockpit.', 'groen');
+    return;
+  }
+  const m = _evalMedewerkerVan(src, id), ms = m && m.start ? getEvalMilestones(new Date(m.start)) : [], moment = ms.find(x => (x.idx ?? 0) === +idx) || ms[+idx];
+  const modal = document.getElementById('hrm-eval-modal');
+  if (modal) {
+    modal.dataset.src = src; modal.dataset.id = id; modal.dataset.idx = idx;
+    const p = modal.querySelector('p'); if (p) p.textContent = 'Van ' + ((m && m.naam) || 'deze medewerker') + ' staat geen evaluatieverslag' + (moment ? ' rond het moment ' + moment.label + ' (' + _crmDatum(+moment.date) + ')' : '') + ' in de Cockpit. Leg het vast via Bezoeken › Evaluatie (of + plannen op de Beheerkaart), of vink toch af.';
+    modal.style.display = 'flex';
+  }
 }
 function hrmEvalConfirm(yes) {
   if (!eisWijzig('hrm')) return;
-  const modal = document.getElementById('hrm-salesforce-modal');
+  const modal = document.getElementById('hrm-eval-modal');
   if (!modal) return;
   modal.style.display = 'none';
   if (!yes) return; // Nee → geen afvinken
@@ -28303,7 +28332,7 @@ async function comrapAnalyse() {
 // 23-09) — met per starter een tijdlijn: één stip per moment (groen = af,
 // oranje = te doen, rood = meer dan twee weken over datum, grijs = later),
 // tellers bovenaan, zoekbalk in CRM-stijl, filters en de kolom Volgende met
-// de afvinkknop. Afvinken loopt nog steeds via hrmEvalToggle (Salesforce-vraag).
+// de afvinkknop. Afvinken loopt nog steeds via hrmEvalToggle (verslag in de Cockpit?).
 let EVAL_FILTER = 'alles';   // alles | achterstallig | open | komend
 function evalZetFilter(f) { EVAL_FILTER = f; renderHrmBackoffice(); }
 function _evalStatus(m, checked, today) {
@@ -28516,8 +28545,8 @@ const AANMELD_CHECKLIST = [
   ['Eindejaarsuitkering of bonus? Lijst invullen','checklist_10', 'AN'],
   ['Telefoonnummer opgeslagen',                   'checklist_11', 'AN/JvR'],
   ['Excel bestand tarieven overwerk invullen',    'checklist_12', 'AN/JvR'],
-  ['Salesforce bijwerken indien nieuwe cao',      'checklist_13', 'JvR'],
-  ['Salesforce bijwerken 13de maand',             'checklist_14', 'JvR'],
+  ['Administratie bijwerken indien nieuwe cao',   'checklist_13', 'JvR'],   // 28-10: was Salesforce
+  ['Administratie bijwerken 13de maand',          'checklist_14', 'JvR'],   // 28-10: was Salesforce
   ['Toevoegen aan activiteitenoverzicht',         'checklist_15', 'AN/JvR'],
   ['Moneybird inrichten + koppeling e-UUR',       'checklist_16', 'AN'],
 ];
@@ -36318,12 +36347,17 @@ function beheerKaartOpen(sleutel) {
   crmKaartToon(beheerKaartHtml(sleutel), 'beheer-kaart kand-project bd-dossier');
 }
 // Afvinken vanaf de Beheerkaart: dezelfde spelregels als onder HRM (alleen de
-// HRM-bewerkers, eerst de Salesforce-vraag), dezelfde opslag (projEvalSave).
+// HRM-bewerkers, eerst kijken of het verslag in de Cockpit staat), dezelfde opslag (projEvalSave).
 async function beheerEvalAfvinken(src, id, idx) {
   if (!eisWijzig('hrm')) return;
   if (!isHrmEditor()) { alert('Alleen Annyck Nelissen, Toussaint Rosier of Jannik van Rijt mag evaluaties afvinken.'); return; }
-  const ok = await btBevestig('Is deze evaluatie in Salesforce vastgelegd?\n\nAlleen dan mag het moment worden afgevinkt.', { knop: 'Ja, afvinken', soort: 'goed' });
-  if (!ok) return;
+  // 28-10: het verslag hoort in de Cockpit (was: Salesforce-vraag). Staat het er, dan geen vraag.
+  const verslag = _evalVerslagVoor(src, id, idx);
+  if (!verslag) {
+    const m = _evalMedewerkerVan(src, id);
+    const ok = await btBevestig('Evaluatieverslag nog niet in de Cockpit?\n\nVan ' + ((m && m.naam) || 'deze medewerker') + ' staat geen evaluatieverslag rond dit moment in de Cockpit. Leg het vast via + plannen / Bezoeken › Evaluatie, of vink toch af.', { knop: 'Toch afvinken', soort: 'goed' });
+    if (!ok) return;
+  } else btMeld('Evaluatieverslag ' + _crmDatum(verslag.datumMs) + (verslag.wie ? ' door ' + verslag.wie.split(' ')[0] : '') + ' staat in de Cockpit.', 'groen');
   const cur = projEvalLoad(src, id);
   if (!cur.includes(+idx)) cur.push(+idx);
   projEvalSave(src, id, cur);
@@ -47927,8 +47961,11 @@ async function taakAfvinken(soort, id) {
   if (!_taakMagAfvinken(n.taak)) { btMeld('Alleen ' + (n.taak.voor || 'de ontvanger') + ' (of een manager) kan deze taak afvinken.', 'geel'); return; }
   const taak = Object.assign({}, n.taak, { gedaan_op: new Date().toISOString(), gedaan_door: String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '') });
   _echoVanZelf(tabel);
-  const { error } = await supa.from(tabel).update({ taak }).eq('id', n.id);
+  // 28-10: controleren of er écht een rij is gewijzigd. Zonder update-regel op de notitietabel wijzigt de database nul
+  // rijen zonder fout — het vinkje stond dan alleen in het geheugen en de taak kwam na verversen terug (melding Robin).
+  const { data, error } = await supa.from(tabel).update({ taak }).eq('id', n.id).select('id');
   if (error) { btMeld('Afvinken mislukt: ' + (error.message || error), 'rood'); meldFout('taak afvinken: ' + (error.message || error), 'taakAfvinken'); return; }
+  if (!data || !data.length) { btMeld('Afvinken niet opgeslagen: de database liet de wijziging niet toe. Draai supabase/gesprekslog_taak_afvinken.sql (Beheer › Database).', 'rood'); meldFout('taak afvinken: nul rijen gewijzigd (ontbrekende update-regel?)', 'taakAfvinken', tabel + ' ' + n.id); return; }
   n.taak = taak; _TODO_CACHE = null;
   if (typeof _crmTyptKlaar === 'function') _crmTyptKlaar();
   if (soort === 'acc') { if (typeof _accKaartHerteken === 'function') _accKaartHerteken(n.account_id); } else { if (typeof _kandKaartHerteken === 'function') _kandKaartHerteken(); }
@@ -53993,14 +54030,14 @@ function pipeDelete(bmNaam, cardId) {
     </div>
   </div>
 </div>
-<!-- ── HRM Salesforce-verificatie modal ───────────────────────────────────── -->
-<div id="hrm-salesforce-modal" class="pipe-modal-overlay" style="display:none;">
-  <div class="pipe-modal" style="max-width:380px;text-align:center;">
-    <h4 style="margin-bottom:8px;">Salesforce verificatie</h4>
-    <p style="font-size:.88rem;color:var(--text);margin-bottom:20px;">Is het evaluatieverslag ingevoerd in Salesforce?</p>
+<!-- ── HRM: evaluatieverslag in de Cockpit (28-10, was Salesforce-verificatie) ───────────────────────── -->
+<div id="hrm-eval-modal" class="pipe-modal-overlay" style="display:none;">
+  <div class="pipe-modal" style="max-width:420px;text-align:center;">
+    <h4 style="margin-bottom:8px;">Evaluatieverslag nog niet in de Cockpit</h4>
+    <p style="font-size:.88rem;color:var(--text);margin-bottom:20px;">Van deze medewerker staat geen evaluatieverslag rond dit moment in de Cockpit.</p>
     <div class="pipe-modal-btns" style="justify-content:center;">
-      <button class="pipe-modal-cancel" onclick="hrmEvalConfirm(false)">Nee</button>
-      <button class="pipe-modal-ok" onclick="hrmEvalConfirm(true)">Ja</button>
+      <button class="pipe-modal-cancel" onclick="hrmEvalConfirm(false)">Annuleren</button>
+      <button class="pipe-modal-ok" onclick="hrmEvalConfirm(true)">Toch afvinken</button>
     </div>
   </div>
 </div>
