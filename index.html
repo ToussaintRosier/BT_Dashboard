@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261028-1154 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261028-1208 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12104,7 +12104,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261028-1154';
+const APP_VERSIE = '20261028-1208';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -38417,7 +38417,9 @@ async function _kanbanUpdate(bmNaam, id, payload) {
 }
 function _kanbanPayload(fase, o, vorige, gedeeld) {
   const f = _kanbanFase(fase);
-  const w = isoWeek(new Date(o.op));
+  // 28-10: een starter telt in de week waarin de plaatsing rond is (het moment van melden), niet in de week van de
+  // startdatum — die kan weken later liggen. De startdatum blijft op het tegeltje (start_datum, gesprek_op).
+  const w = fase === 'starter' ? isoWeek(new Date()) : isoWeek(new Date(o.op));
   const rij = { naam: o.naam, stage: f.stage, week: w.week, jaar: w.year, kanban_klant: o.klant, kanban_functie: o.functie, gesprek_op: o.op, functie: o.functie || null };
   if (gedeeld !== undefined && f.stage !== 'Intake') rij.gedeeld = !!gedeeld;
   if (f.gesprek) rij.gesprek = f.gesprek;
@@ -38441,7 +38443,8 @@ function _kanbanControle(fase, o, metNaam) {
 function _kanbanBms(o) { return [o.bm1, o.bm2].filter(Boolean); }
 function _kanbanUitleg(bord, fase, vorige) {
   const f = _kanbanFase(fase);
-  return '<div class="vv-tegel klaar" style="margin-top:10px;">Nieuw tegeltje ' + escHtml(f.stage) + (f.gesprek ? ' · ' + f.gesprek + 'e gesprek' : '') + ' in de pipeline van collega 1, in de week van de datum. Kies je ook een collega 2, dan komt het in beide pipelines en telt het bij elk voor 0,5. ' +
+  const week = fase === 'starter' ? 'in de week van vandaag (de plaatsing is nu rond; de startdatum blijft op het tegeltje staan)' : 'in de week van de datum';   // 28-10
+  return '<div class="vv-tegel klaar" style="margin-top:10px;">Nieuw tegeltje ' + escHtml(f.stage) + (f.gesprek ? ' · ' + f.gesprek + 'e gesprek' : '') + ' in de pipeline van collega 1, ' + week + '. Kies je ook een collega 2, dan komt het in beide pipelines en telt het bij elk voor 0,5. ' +
     (vorige ? 'Het tegeltje van de vorige stap blijft staan en telt mee; op het bord schuift het kaartje door.' : 'Telt mee in de KPI\'s.') + '</div>';
 }
 // ── StarBoy kiezen ──────────────────────────────────────────────────────────
