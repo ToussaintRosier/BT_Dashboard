@@ -63,6 +63,18 @@
   .of { display:flex; align-items:center; gap:12px; color:var(--dim); font-size:.84rem; margin:10px 0; } .of::before, .of::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.14); }
   fieldset.fout .cvblok { border-color:var(--rood); }
   .stappen-tel { color:var(--dim); font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }
+  /* Carrière-check (29-10) */
+  .voortgang { display:flex; gap:4px; margin:0 0 14px; } .voortgang i { flex:1; height:5px; border-radius:3px; background:rgba(255,255,255,.12); } .voortgang i.aan { background:var(--geel); }
+  .check-vraag h2 { margin-bottom:14px; } .check-vraag .pillen label span { padding:11px 16px; font-size:1rem; }
+  .schaal { display:flex; justify-content:space-between; font-size:.78rem; color:var(--dim); margin-top:4px; }
+  .pillen.schaal-pillen span { min-width:54px; text-align:center; }
+  .meter { position:relative; width:170px; height:170px; margin:4px auto 10px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .meter::after { content:""; position:absolute; inset:14px; border-radius:50%; background:var(--navy2); } .meter > div { position:relative; text-align:center; } .meter b { font-size:2.7rem; line-height:1; display:block; } .meter small { color:var(--dim); font-size:.8rem; }
+  .band { display:inline-block; border-radius:999px; padding:5px 13px; font-size:.86rem; font-weight:700; margin:0 0 10px; } .band.hoog { background:rgba(37,211,102,.18); color:var(--groen); } .band.goed { background:rgba(244,203,60,.18); color:var(--geel); }
+  .inzicht { background:var(--navy3); border-radius:12px; padding:10px 12px; margin:0 0 8px; font-size:.93rem; display:flex; gap:10px; align-items:flex-start; text-align:left; } .inzicht span:first-child { font-size:1.15rem; line-height:1.3; }
+  .vooraf { background:rgba(37,211,102,.1); border:1px solid rgba(37,211,102,.3); border-radius:12px; padding:9px 12px; font-size:.86rem; margin:0 0 16px; } .vooraf b { color:var(--groen); }
+  .terugknop { background:none; border:0; color:var(--dim); font-family:inherit; font-size:.84rem; cursor:pointer; padding:0; margin:4px 0 0; text-decoration:underline; }
+  .link { background:none; border:0; color:var(--wit); font-family:inherit; font-size:.86rem; cursor:pointer; text-decoration:underline; padding:0; }
 </style>
 </head>
 <body>
@@ -70,11 +82,38 @@
 <main>
   <div class="kaart">
 
-    <!-- Stap 1: intro + vragen -->
-    <section class="stap aan" id="stap-vragen">
+    <!-- Stap 0: start van de carrière-check (29-10) -->
+    <section class="stap aan" id="stap-start">
       <h1 data-t="kop"></h1>
       <p class="intro" data-t="intro"></p>
       <div class="bewijs"><span data-t="bewijs1"></span><span data-t="bewijs2"></span><span data-t="bewijs3"></span></div>
+      <button type="button" class="knop" id="start-check" data-t="start"></button>
+      <p class="privacy midden" style="margin-top:12px"><span data-t="liever"></span> <button type="button" class="link" id="direct-vorm" data-t="liever_knop"></button></p>
+    </section>
+
+    <!-- Stap 0b: de zeven vragen -->
+    <section class="stap" id="stap-check">
+      <div class="voortgang" id="voortgang"></div>
+      <div class="stappen-tel" id="check-tel"></div>
+      <div id="check-vragen"></div>
+      <button type="button" class="terugknop" id="check-terug" data-t="terug_vraag"></button>
+    </section>
+
+    <!-- Stap 0c: uitslag -->
+    <section class="stap midden" id="stap-uitslag">
+      <div class="stappen-tel" data-t="u_tel"></div>
+      <div class="meter" id="meter"><div><b id="score">0</b><small data-t="u_van"></small></div></div>
+      <span class="band hoog" id="band"></span>
+      <p class="intro" id="band-tekst" style="text-align:left"></p>
+      <div id="inzichten"></div>
+      <button type="button" class="knop" id="naar-vorm" style="margin-top:12px" data-t="u_knop"></button>
+      <p class="privacy midden" data-t="u_sub"></p>
+    </section>
+
+    <!-- Stap 1: gegevens (verkort — de check vult ervaring, niveau, opleiding, richting en stap al in) -->
+    <section class="stap" id="stap-vragen">
+      <h2 data-t="kop2"></h2>
+      <div class="vooraf" id="vooraf" hidden><b data-t="vooraf"></b> <span id="vooraf-tekst"></span></div>
       <div class="melding" id="melding"></div>
       <form id="vorm" novalidate autocomplete="on">
         <div class="honing" aria-hidden="true"><label>Website <input type="text" name="website" id="website" tabindex="-1" autocomplete="off"></label></div>
@@ -84,10 +123,6 @@
           <div class="veld"><label for="telefoon" data-t="telefoon"></label><input type="tel" id="telefoon" name="telefoon" autocomplete="tel" inputmode="tel" placeholder="06 12 34 56 78" required></div>
           <div class="veld"><label for="email" data-t="email"></label><input type="email" id="email" name="email" autocomplete="email" inputmode="email" data-ph="email_ph" required></div>
         </fieldset>
-        <fieldset id="f-vakgebied"><legend data-t="v_vakgebied"></legend><div class="pillen" id="p-vakgebied"></div></fieldset>
-        <fieldset id="f-opleiding"><legend data-t="v_opleiding"></legend><div class="pillen" id="p-opleiding"></div></fieldset>
-        <fieldset id="f-ervaring"><legend data-t="v_ervaring"></legend><div class="pillen" id="p-ervaring"></div></fieldset>
-        <fieldset id="f-stap"><legend data-t="v_stap"></legend><div class="pillen" id="p-stap"></div></fieldset>
         <fieldset id="f-wanneer"><legend data-t="v_wanneer"></legend><div class="pillen" id="p-wanneer"></div></fieldset>
         <fieldset id="f-regio"><legend data-t="v_regio"></legend><div class="pillen" id="p-regio"></div></fieldset>
         <fieldset id="f-cv"><legend><span data-t="v_cv"></span><small data-t="v_cv_sub"></small></legend>
@@ -128,50 +163,91 @@
 (function () {
   var URL_IN = 'https://ucaclxgvwulfacplmdlf.supabase.co/functions/v1/lead-in';
   // De waarden die naar de Cockpit gaan zijn altijd Nederlands (de Edge Function controleert ze); EN is alleen de tekst op het scherm.
+  // Het formulier (verkort, 29-10): wanneer + regio; de rest komt uit de carrière-check.
   var KEUZES = {
-    vakgebied: ['Operations', 'Werkvoorbereiding', 'Engineering', 'Projectmanagement'],
-    opleiding: ['Mbo', 'Hbo', 'Wo'],
-    ervaring: ['0–2 jaar', '3–5 jaar', '6–10 jaar', 'Meer dan 10 jaar'],
-    stap: ['Specialist worden in mijn vak', 'Leidinggeven aan een team', 'Doorgroeien naar engineering', 'Werk dichter bij huis', 'Betere voorwaarden', 'Weet ik nog niet'],
     wanneer: ['Direct – ik oriënteer me nu', 'Komend jaar', 'Over twee jaar', 'Over vijf jaar'],
     regio: ['Zuid-Limburg', 'Midden-Limburg', 'Noord-Limburg', 'Eindhoven Area', 'Anders']
   };
+  // De carrière-check (29-10, akkoord Toussaint): zeven vragen, punten samen 100, laagst haalbaar 78 — iedereen in de
+  // techniek is schaars. Waarden Nederlands (de Edge Function telt ze na); EN is schermtekst.
+  var CHECK = [
+    { k: 'rol', opties: [['Korter dan 1 jaar', 10], ['1–2 jaar', 12], ['2–5 jaar', 15], ['Langer dan 5 jaar', 15]] },
+    { k: 'stap', opties: [['Betere voorwaarden', 10], ['Meer uitdaging', 10], ['Doorgroeien', 10], ['Dichter bij huis', 10], ['Weet ik nog niet', 8]] },
+    { k: 'niveau', opties: [['Junior / starter', 15], ['Medior', 15], ['Senior', 13]] },
+    { k: 'ervaring', opties: [['Monteur', 25], ['Werkvoorbereider', 25], ['Engineer', 25], ['Projectmanager', 17]] },
+    { k: 'groei', schaal: true, opties: [['1', 12], ['2', 11], ['3', 10], ['4', 9], ['5', 8]] },
+    { k: 'opleiding', opties: [['Mbo 3/4', 15], ['Hbo', 15], ['Wo', 15]] },
+    { k: 'richting', opties: [['Engineering E', 8], ['Engineering WTB', 8], ['Technische Bedrijfskunde', 8], ['Mechatronica', 8], ['Anders', 7]] }
+  ];
+  var ANT = {}, VRAAG = 0;   // antwoorden van de check (NL-waarden) en de vraag in beeld
   var T = {
     nl: {
-      titel: 'Wat is jouw volgende stap? · Brightech', kop: 'Wat is jouw volgende stap?',
-      intro: 'Vertel ons kort waar je nu staat. Een business manager van Brightech belt je binnen één werkdag met een persoonlijk advies over jouw volgende stap.',
+      titel: 'Hoe groot is de kans dat jouw volgende stap nú loont? · Brightech', kop: 'Hoe groot is de kans dat jouw volgende stap nú loont?',
+      intro: 'Zeven korte vragen, één minuut. Je ziet meteen je score en wat die betekent — zonder je gegevens achter te laten.',
+      start: 'Start de check →', liever: 'Liever direct een gesprek?', liever_knop: 'Laat je gegevens achter', terug_vraag: '← vorige vraag', tel: 'Vraag {n} van {t}',
+      v_rol: 'Hoe lang zit je in je huidige rol?', v_stapc: 'Wat zou een volgende stap jou vooral moeten brengen?', v_niveau: 'Hoe zou je je niveau omschrijven?', v_ervaringc: 'Ik heb met name ervaring als…', v_groei: 'Hoeveel heb je het afgelopen jaar geleerd of aan verantwoordelijkheid gekregen?', v_opleidingc: 'Wat is je opleidingsniveau?', v_richting: 'Wat is je opleidingsrichting?',
+      schaal_l: '1 · weinig', schaal_r: '5 · veel',
+      u_tel: 'Jouw carrière-check', u_van: 'van 100', u_knop: 'Welke stap past bij mij? Bel me →', u_sub: 'Een business manager belt je binnen één werkdag. Geen verplichtingen.',
+      band_hoog: 'Zeer hoge kans — nu is het moment', band_goed: 'Hoge kans — een gesprek waard',
+      bt_hoog: 'Jouw profiel is precies wat technische bedrijven in Limburg nu zoeken. De vraag is niet óf een stap loont, maar welke stap het meest oplevert.',
+      bt_goed: 'De techniek schreeuwt om mensen met jouw achtergrond. Een volgende stap kan nu meer opleveren dan je denkt — daar kijken we graag samen naar.',
+      i_schaars: '{rol} zijn op dit moment het meest gevraagde profiel in de techniek in Limburg. Bedrijven wachten op jou — niet andersom.', meervoud: { 'Monteur': 'Monteurs', 'Werkvoorbereider': 'Werkvoorbereiders', 'Engineer': 'Engineers' },
+      i_pm: 'Projectmanagers: minder vacatures, maar bij de bedrijven die er een zoeken ben je zeer gewild — en daar kennen wij er een aantal van.',
+      i_rol_lang: 'Je zit al meer dan 2 jaar bij je werkgever. Dan heb je een reële kans op betere voorwaarden of een grotere uitdaging — bij een ander, of soms juist bij je huidige werkgever als je weet wat je waard bent.',
+      i_rol_kort: 'Je zit nog niet zo lang in je rol. In deze markt is kijken altijd zinvol: je hoeft niet te wachten tot je "aan de beurt" bent.',
+      i_groei: 'Het afgelopen jaar weinig geleerd of gegroeid. Dat is precies het signaal dat je meer in je hebt dan je nu kwijt kunt.',
+      i_stap: 'Je weet wat de stap moet brengen ({stap}). Daar kunnen we direct mee aan de slag.',
+      i_opl: 'Met {opl} pas je bij de rollen waar nu het meeste tekort is.',
+      kop2: 'Nog een paar dingen, dan bellen we je', vooraf: '✓ Uit je check:', vooraf_na: '— hoef je niet opnieuw in te vullen.',
       bewijs1: '500+ technici geholpen', bewijs2: '170+ technische bedrijven in Limburg', bewijs3: 'Great Place to Work 2026',
       gegevens: 'Jouw gegevens', naam: 'Volledige naam', naam_ph: 'Voornaam Achternaam', telefoon: 'Telefoonnummer', email: 'E-mailadres', email_ph: 'naam@voorbeeld.nl',
-      v_vakgebied: 'In welk vakgebied werk je?', v_opleiding: 'Wat is je opleidingsniveau?', v_ervaring: 'Hoeveel jaar werkervaring heb je?', v_stap: 'Wat is jouw volgende stap?', v_wanneer: 'Wanneer wil je die stap het liefst zetten?', v_regio: 'In welke regio wil je werken?',
+      v_wanneer: 'Wanneer wil je die stap het liefst zetten?', v_regio: 'In welke regio wil je werken?',
       v_cv: 'Je cv of LinkedIn-pagina', v_cv_sub: 'Eén van de twee is genoeg — dan kunnen we ons voorbereiden op het gesprek.', cv_upload: 'Upload je cv', cv_sub: 'PDF of Word, maximaal 10 MB', of: 'of', linkedin: 'Link naar je LinkedIn-pagina', cv_ander: 'ander bestand',
       controleer: 'Controleer je gegevens →', privacy1: 'We gebruiken je gegevens alleen om contact met je op te nemen over jouw volgende stap. Lees onze', privacy2: 'Door te versturen geef je toestemming om je gegevens 2 jaar in ons kandidatenbestand te bewaren en ga je akkoord met onze', privacy_link: 'privacyverklaring',
       c_tel: 'Nog één keer kijken', c_kop: 'Klopt dit?', c_intro: 'Dit sturen we naar Brightech. Klik op <b style="color:#fff">wijzig</b> als er iets niet klopt.', wijzig: 'wijzig', verstuur: 'Ja, verstuur mijn gegevens', bezig: 'Versturen…', terug: '← Terug naar het formulier',
       b_kop: 'Bedankt, we bellen je snel', b_tekst: 'Een business manager neemt binnen één werkdag contact met je op. Alvast rondkijken?', b_knop: 'Bekijk onze projecten →', voet: 'technische & logistieke professionals',
-      lab: { naam: 'Naam', telefoon: 'Telefoon', email: 'E-mail', vakgebied: 'Vakgebied', opleiding: 'Opleiding', ervaring: 'Werkervaring', stap: 'Volgende stap', wanneer: 'Wanneer', regio: 'Regio', cv: 'Cv', linkedin: 'LinkedIn' },
+      lab: { naam: 'Naam', telefoon: 'Telefoon', email: 'E-mail', score: 'Carrière-check', ervaring: 'Ervaring als', niveau: 'Niveau', rol: 'In huidige rol', opleiding: 'Opleiding', richting: 'Richting', stap: 'Stap moet brengen', groei: 'Groei afgelopen jaar', wanneer: 'Wanneer', regio: 'Regio', cv: 'Cv', linkedin: 'LinkedIn' },
       f_vul: 'Vul nog in: ', f_naam: 'je naam', f_tel: 'een geldig telefoonnummer', f_email: 'een geldig e-mailadres', f_antwoord: 'een antwoord bij "', f_cv: 'je cv of je LinkedIn-pagina', f_linkedin: 'een geldige LinkedIn-link (https://www.linkedin.com/in/…)',
       f_cvtype: 'Je cv moet een PDF- of Word-bestand zijn.', f_cvgroot: 'Je cv is groter dan 10 MB. Sla hem kleiner op of gebruik je LinkedIn-pagina.', f_cvlees: 'Het bestand kon niet gelezen worden. Probeer het nog eens.',
       f_mislukt: 'Versturen is niet gelukt. Probeer het nog eens.', f_verbinding: 'Geen verbinding. Controleer je internet en probeer het nog eens.',
-      keuzes: { 'Operations': 'Operations (uitvoering)' }   // 23-10: schermtekst; de waarde naar de Cockpit blijft 'Operations'
+      keuzes: {}
     },
     en: {
-      titel: "What's your next step? · Brightech", kop: "What's your next step?",
-      intro: 'Tell us briefly where you are right now. A Brightech business manager will call you within one working day with personal advice on your next step.',
+      titel: 'How likely is it that your next step pays off right now? · Brightech', kop: 'How likely is it that your next step pays off right now?',
+      intro: 'Seven short questions, one minute. You see your score and what it means straight away — without leaving your details.',
+      start: 'Start the check →', liever: 'Prefer to talk right away?', liever_knop: 'Leave your details', terug_vraag: '← previous question', tel: 'Question {n} of {t}',
+      v_rol: 'How long have you been in your current role?', v_stapc: 'What should a next step mainly bring you?', v_niveau: 'How would you describe your level?', v_ervaringc: 'Most of my experience is as…', v_groei: 'How much did you learn or gain in responsibility over the past year?', v_opleidingc: 'What is your level of education?', v_richting: 'What is your field of study?',
+      schaal_l: '1 · little', schaal_r: '5 · a lot',
+      u_tel: 'Your career check', u_van: 'out of 100', u_knop: 'Which step suits me? Call me →', u_sub: 'A business manager will call you within one working day. No obligations.',
+      band_hoog: 'Very high chance — now is the moment', band_goed: 'High chance — worth a conversation',
+      bt_hoog: 'Your profile is exactly what technical companies in Limburg are looking for right now. The question is not whether a step pays off, but which step pays off most.',
+      bt_goed: 'Technical companies are crying out for people with your background. A next step could bring you more than you think — we would be happy to look at that together.',
+      i_schaars: '{rol} are the most sought-after profile in technology in Limburg right now. Companies are waiting for you — not the other way around.', meervoud: { 'Monteur': 'Technicians', 'Werkvoorbereider': 'Maintenance field planners', 'Engineer': 'Engineers' },
+      i_pm: 'Project managers: fewer vacancies, but highly wanted by the companies that are looking for one — and we know a number of them.',
+      i_rol_lang: "You have been with your employer for more than 2 years. That gives you a real chance of better terms or a bigger challenge — elsewhere, or sometimes with your current employer once you know what you're worth.",
+      i_rol_kort: "You haven't been in your role for long. In this market it always pays to look around: you don't have to wait your turn.",
+      i_groei: 'Little learned or grown over the past year. That is exactly the signal that you have more in you than you can use right now.',
+      i_stap: 'You know what the step should bring ({stap}). We can get started on that straight away.',
+      i_opl: 'With {opl} you fit the roles with the biggest shortage right now.',
+      kop2: "A few more things, then we'll call you", vooraf: '✓ From your check:', vooraf_na: '— no need to fill these in again.',
       bewijs1: '500+ technicians helped', bewijs2: '170+ technical companies in Limburg', bewijs3: 'Great Place to Work 2026',
       gegevens: 'Your details', naam: 'Full name', naam_ph: 'First name Last name', telefoon: 'Phone number', email: 'Email address', email_ph: 'name@example.com',
-      v_vakgebied: 'Which field do you work in?', v_opleiding: 'What is your level of education?', v_ervaring: 'How many years of work experience do you have?', v_stap: "What's your next step?", v_wanneer: 'When would you ideally like to take that step?', v_regio: 'Which region would you like to work in?',
+      v_wanneer: 'When would you ideally like to take that step?', v_regio: 'Which region would you like to work in?',
       v_cv: 'Your CV or LinkedIn profile', v_cv_sub: 'One of the two is enough — it helps us prepare for the call.', cv_upload: 'Upload your CV', cv_sub: 'PDF or Word, max. 10 MB', of: 'or', linkedin: 'Link to your LinkedIn profile', cv_ander: 'choose another file',
       controleer: 'Review your details →', privacy1: 'We only use your details to contact you about your next step. Read our', privacy2: 'By submitting you consent to us keeping your details in our candidate database for 2 years and you agree to our', privacy_link: 'privacy statement',
       c_tel: 'One last check', c_kop: 'Is this correct?', c_intro: 'This is what we will send to Brightech. Click <b style="color:#fff">edit</b> if something is wrong.', wijzig: 'edit', verstuur: 'Yes, send my details', bezig: 'Sending…', terug: '← Back to the form',
       b_kop: "Thank you, we'll call you soon", b_tekst: 'A business manager will contact you within one working day. Want to have a look around in the meantime?', b_knop: 'See our projects →', voet: 'technical & logistics professionals',
-      lab: { naam: 'Name', telefoon: 'Phone', email: 'Email', vakgebied: 'Field', opleiding: 'Education', ervaring: 'Experience', stap: 'Next step', wanneer: 'When', regio: 'Region', cv: 'CV', linkedin: 'LinkedIn' },
+      lab: { naam: 'Name', telefoon: 'Phone', email: 'Email', score: 'Career check', ervaring: 'Experience as', niveau: 'Level', rol: 'In current role', opleiding: 'Education', richting: 'Field of study', stap: 'Step should bring', groei: 'Growth past year', wanneer: 'When', regio: 'Region', cv: 'CV', linkedin: 'LinkedIn' },
       f_vul: 'Please fill in: ', f_naam: 'your name', f_tel: 'a valid phone number', f_email: 'a valid email address', f_antwoord: 'an answer to "', f_cv: 'your CV or LinkedIn profile', f_linkedin: 'a valid LinkedIn link (https://www.linkedin.com/in/…)',
       f_cvtype: 'Your CV must be a PDF or Word file.', f_cvgroot: 'Your CV is larger than 10 MB. Save a smaller version or use your LinkedIn profile.', f_cvlees: 'The file could not be read. Please try again.',
       f_mislukt: 'Sending failed. Please try again.', f_verbinding: 'No connection. Check your internet and try again.',
       keuzes: {
-        'Operations': 'Operations (execution)', 'Werkvoorbereiding': 'Work preparation', 'Engineering': 'Engineering', 'Projectmanagement': 'Project management',
-        'Mbo': 'Vocational (MBO)', 'Hbo': "Bachelor's (HBO)", 'Wo': "Master's (WO)",
-        '0–2 jaar': '0–2 years', '3–5 jaar': '3–5 years', '6–10 jaar': '6–10 years', 'Meer dan 10 jaar': 'More than 10 years',
-        'Specialist worden in mijn vak': 'Become a specialist in my field', 'Leidinggeven aan een team': 'Lead a team', 'Doorgroeien naar engineering': 'Move into engineering', 'Werk dichter bij huis': 'Work closer to home', 'Betere voorwaarden': 'Better terms and conditions', 'Weet ik nog niet': "I don't know yet",
+        'Korter dan 1 jaar': 'Less than 1 year', '1–2 jaar': '1–2 years', '2–5 jaar': '2–5 years', 'Langer dan 5 jaar': 'More than 5 years',
+        'Betere voorwaarden': 'Better terms and conditions', 'Meer uitdaging': 'More challenge', 'Doorgroeien': 'Career growth', 'Dichter bij huis': 'Closer to home', 'Weet ik nog niet': "I don't know yet",
+        'Junior / starter': 'Junior / starter', 'Medior': 'Medior', 'Senior': 'Senior',
+        'Monteur': 'Technician', 'Werkvoorbereider': 'Maintenance Field Planning', 'Engineer': 'Engineering', 'Projectmanager': 'Project management',
+        'Mbo 3/4': 'Vocational (MBO 3/4)', 'Hbo': "Bachelor's (HBO)", 'Wo': "Master's (WO)",
+        'Engineering E': 'Electrical engineering', 'Engineering WTB': 'Mechanical engineering', 'Technische Bedrijfskunde': 'Industrial engineering & management', 'Mechatronica': 'Mechatronics', 'Anders': 'Other',
         'Direct – ik oriënteer me nu': "Right away – I'm exploring now", 'Komend jaar': 'Within the next year', 'Over twee jaar': 'In two years', 'Over vijf jaar': 'In five years',
         'Zuid-Limburg': 'South Limburg', 'Midden-Limburg': 'Central Limburg', 'Noord-Limburg': 'North Limburg', 'Eindhoven Area': 'Eindhoven Area', 'Anders': 'Other'
       }
@@ -205,15 +281,63 @@
       }).join('');
     });
     if (CV) cvToon();
+    if ($('stap-check').classList.contains('aan')) vraagToon(VRAAG);
+    if ($('stap-uitslag').classList.contains('aan')) uitslagToon();
+    if ($('stap-vragen').classList.contains('aan')) voorafToon();
     if ($('stap-controle').classList.contains('aan')) controleVul(waarden());
   }
   window.zetTaal = zetTaal;
 
-  function toon(id) { ['stap-vragen', 'stap-controle', 'stap-bedankt'].forEach(function (s) { $(s).classList.toggle('aan', s === id); }); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  // ── De carrière-check ─────────────────────────────────────────────────────
+  var VRAAGTEKST = { rol: 'v_rol', stap: 'v_stapc', niveau: 'v_niveau', ervaring: 'v_ervaringc', groei: 'v_groei', opleiding: 'v_opleidingc', richting: 'v_richting' };
+  function vraagToon(i) {
+    VRAAG = Math.max(0, Math.min(CHECK.length - 1, i));
+    var v = CHECK[VRAAG];
+    $('voortgang').innerHTML = CHECK.map(function (x, j) { return '<i' + (j <= VRAAG ? ' class="aan"' : '') + '></i>'; }).join('');
+    $('check-tel').textContent = tt('tel').replace('{n}', VRAAG + 1).replace('{t}', CHECK.length);
+    $('check-vragen').innerHTML = '<div class="check-vraag"><h2>' + esc(tt(VRAAGTEKST[v.k])) + '</h2><div class="pillen' + (v.schaal ? ' schaal-pillen' : '') + '">' +
+      v.opties.map(function (o) { return '<label><input type="radio" name="c-' + v.k + '" value="' + esc(o[0]) + '"' + (ANT[v.k] === o[0] ? ' checked' : '') + ' onchange="checkKies(\'' + v.k + '\', this.value)"><span>' + esc(v.schaal ? o[0] : keuzeTekst(o[0])) + '</span></label>'; }).join('') + '</div>' +
+      (v.schaal ? '<div class="schaal"><span>' + esc(tt('schaal_l')) + '</span><span>' + esc(tt('schaal_r')) + '</span></div>' : '') + '</div>';
+    $('check-terug').style.visibility = VRAAG === 0 ? 'hidden' : 'visible';
+  }
+  window.checkKies = function (k, w) {
+    ANT[k] = w;
+    setTimeout(function () { if (VRAAG < CHECK.length - 1) vraagToon(VRAAG + 1); else { uitslagToon(); toon('stap-uitslag'); try { if (window.fbq) fbq('trackCustom', 'CarriereCheck'); } catch (e) {} } }, 220);
+  };
+  function punten(k) { var v = CHECK.filter(function (x) { return x.k === k; })[0]; var o = v && v.opties.filter(function (x) { return x[0] === ANT[k]; })[0]; return o ? o[1] : 0; }
+  function score() { return CHECK.reduce(function (s, v) { return s + punten(v.k); }, 0); }
+  function checkKlaar() { return CHECK.every(function (v) { return !!ANT[v.k]; }); }
+  function uitslagToon() {
+    var s = score(), hoog = s >= 90;
+    $('score').textContent = s;
+    $('meter').style.background = 'conic-gradient(' + (hoog ? '#25D366' : '#F4CB3C') + ' 0 ' + s + '%, rgba(255,255,255,.12) ' + s + '% 100%)';
+    $('band').className = 'band ' + (hoog ? 'hoog' : 'goed'); $('band').textContent = tt(hoog ? 'band_hoog' : 'band_goed');
+    $('band-tekst').textContent = tt(hoog ? 'bt_hoog' : 'bt_goed');
+    var inz = [];
+    if (punten('ervaring') === 25) inz.push(['🔧', tt('i_schaars').replace('{rol}', (T[taal].meervoud && T[taal].meervoud[ANT.ervaring]) || keuzeTekst(ANT.ervaring))]);
+    else if (ANT.ervaring) inz.push(['🔧', tt('i_pm')]);
+    inz.push(['⏱', tt(punten('rol') >= 15 ? 'i_rol_lang' : 'i_rol_kort')]);
+    if (punten('groei') >= 11) inz.push(['📈', tt('i_groei')]);
+    else if (punten('stap') === 10) inz.push(['💬', tt('i_stap').replace('{stap}', keuzeTekst(ANT.stap).toLowerCase())]);
+    if (inz.length < 3 && ANT.opleiding) inz.push(['🎓', tt('i_opl').replace('{opl}', keuzeTekst(ANT.opleiding).toLowerCase() + (ANT.richting && ANT.richting !== 'Anders' ? ' ' + keuzeTekst(ANT.richting).toLowerCase() : ''))]);
+    $('inzichten').innerHTML = inz.slice(0, 3).map(function (x) { return '<div class="inzicht"><span>' + x[0] + '</span><span>' + esc(x[1]) + '</span></div>'; }).join('');
+  }
+  function voorafToon() {
+    var delen = ['rol', 'stap', 'niveau', 'ervaring', 'opleiding', 'richting'].filter(function (k) { return ANT[k]; }).map(function (k) { return keuzeTekst(ANT[k]).toLowerCase(); });
+    $('vooraf').hidden = !delen.length;
+    $('vooraf-tekst').textContent = delen.join(' · ') + ' ' + tt('vooraf_na');
+  }
+  $('start-check').addEventListener('click', function () { vraagToon(0); toon('stap-check'); try { if (window.fbq) fbq('trackCustom', 'StartCheck'); } catch (e) {} });
+  $('check-terug').addEventListener('click', function () { if (VRAAG > 0) vraagToon(VRAAG - 1); });
+  $('naar-vorm').addEventListener('click', function () { voorafToon(); toon('stap-vragen'); setTimeout(function () { $('naam').focus(); }, 300); });
+  $('direct-vorm').addEventListener('click', function () { voorafToon(); toon('stap-vragen'); });
+
+  function toon(id) { ['stap-start', 'stap-check', 'stap-uitslag', 'stap-vragen', 'stap-controle', 'stap-bedankt'].forEach(function (s) { $(s).classList.toggle('aan', s === id); }); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function meld(id, tekst) { var m = $(id); m.textContent = tekst || ''; m.classList.toggle('aan', !!tekst); }
   function waarden() {
     return { naam: $('naam').value.trim().replace(/\s+/g, ' '), telefoon: $('telefoon').value.trim(), email: $('email').value.trim().toLowerCase(),
-      vakgebied: gekozen('vakgebied'), opleiding: gekozen('opleiding'), ervaring: gekozen('ervaring'), stap: gekozen('stap'), wanneer: gekozen('wanneer'), regio: gekozen('regio'), linkedin: $('linkedin').value.trim(), cv: CV ? CV.naam : '' };
+      score: checkKlaar() ? String(score()) : '', rol: ANT.rol || '', stap: ANT.stap || '', niveau: ANT.niveau || '', ervaring: ANT.ervaring || '', groei: ANT.groei || '', opleiding: ANT.opleiding || '', richting: ANT.richting || '',
+      wanneer: gekozen('wanneer'), regio: gekozen('regio'), linkedin: $('linkedin').value.trim(), cv: CV ? CV.naam : '' };
   }
   function telOk(t) { var c = t.replace(/\D/g, ''); return c.length >= 8 && c.length <= 15; }
   function emailOk(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
@@ -239,9 +363,11 @@
 
   function controleVul(w) {
     var L = tt('lab');
-    $('controle').innerHTML = Object.keys(L).filter(function (k) { return !((k === 'cv' || k === 'linkedin') && !w[k]); }).map(function (k) {
-      var tekst = KEUZES[k] ? keuzeTekst(w[k]) : w[k];
-      return '<div><span>' + esc(L[k]) + '</span><span>' + esc(tekst) + '<a class="wijzig" data-naar="' + (k === 'naam' || k === 'telefoon' || k === 'email' || k === 'linkedin' ? k : k === 'cv' ? 'f-cv' : 'f-' + k) + '">' + esc(tt('wijzig')) + '</a></span></div>';
+    var uitCheck = ['score', 'ervaring', 'niveau', 'rol', 'opleiding', 'richting', 'stap', 'groei'];
+    $('controle').innerHTML = Object.keys(L).filter(function (k) { return w[k] && !(uitCheck.indexOf(k) >= 0 && !checkKlaar()); }).map(function (k) {
+      var tekst = k === 'score' ? w.score + '/100' : k === 'groei' ? w.groei + '/5' : (KEUZES[k] || uitCheck.indexOf(k) >= 0) ? keuzeTekst(w[k]) : w[k];
+      var naar = uitCheck.indexOf(k) >= 0 ? 'check' : (k === 'naam' || k === 'telefoon' || k === 'email' || k === 'linkedin' ? k : k === 'cv' ? 'f-cv' : 'f-' + k);
+      return '<div><span>' + esc(L[k]) + '</span><span>' + esc(tekst) + '<a class="wijzig" data-naar="' + naar + '">' + esc(tt('wijzig')) + '</a></span></div>';
     }).join('');
   }
 
@@ -269,6 +395,7 @@
   });
   $('controle').addEventListener('click', function (ev) {
     var a = ev.target.closest('.wijzig'); if (!a) return;
+    if (a.getAttribute('data-naar') === 'check') { vraagToon(0); toon('stap-check'); return; }   // 29-10: terug naar de check
     toon('stap-vragen');
     var el = $(a.getAttribute('data-naar')); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (el.focus && el.tagName === 'INPUT') setTimeout(function () { el.focus(); }, 300); }
   });
@@ -278,7 +405,8 @@
   $('verstuur').addEventListener('click', function () {
     var knop = $('verstuur'), w = waarden();
     knop.disabled = true; knop.textContent = tt('bezig'); meld('melding2', '');
-    var body = { naam: w.naam, telefoon: w.telefoon, email: w.email, vakgebied: w.vakgebied, opleiding: w.opleiding, ervaring: w.ervaring, stap: w.stap, wanneer: w.wanneer, regio: w.regio, linkedin: w.linkedin, cv: CV ? { naam: CV.naam, type: CV.type, base64: CV.base64 } : null, website: $('website').value, t: Date.now() - start, herkomst: (herkomst ? herkomst + ' · ' : '') + 'taal=' + taal };
+    var body = { naam: w.naam, telefoon: w.telefoon, email: w.email, wanneer: w.wanneer, regio: w.regio, linkedin: w.linkedin, cv: CV ? { naam: CV.naam, type: CV.type, base64: CV.base64 } : null, website: $('website').value, t: Date.now() - start, herkomst: (herkomst ? herkomst + ' · ' : '') + 'taal=' + taal,
+      check: checkKlaar() ? { rol: ANT.rol, stap: ANT.stap, niveau: ANT.niveau, ervaring: ANT.ervaring, groei: ANT.groei, opleiding: ANT.opleiding, richting: ANT.richting, score: score() } : null };   // 29-10: de carrière-check gaat mee
     fetch(URL_IN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return { ok: false, fout: tt('f_mislukt') }; }); })
       .then(function (a) {
