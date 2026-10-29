@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261028-1829 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261029-1307 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2954,6 +2954,7 @@
   .sol-tabs { display:flex; gap:12px; font-size:.8rem; color:rgba(255,255,255,.55); margin:4px 0 8px; } .sol-tabs span { cursor:pointer; padding-bottom:3px; } .sol-tabs span.aan { color:#fff; border-bottom:2px solid #F4CB3C; }
   .sol-tabel tr.nw td { background:rgba(244,203,60,.06); }
   .sol-st { display:inline-block; border-radius:5px; padding:1px 7px; font-size:.62rem; font-weight:var(--w-nadruk); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  .sol-check { display:inline-block; border-radius:999px; padding:1px 8px; font-size:.64rem; font-weight:var(--w-nadruk); margin-left:8px; vertical-align:middle; }
   .sol-st.nieuw { background:#F4CB3C; color:#1b2238; } .sol-st.behandeling { background:rgba(255,255,255,.14); color:#fff; } .sol-st.afgewezen { background:rgba(255,255,255,.08); color:rgba(255,255,255,.55); }
   .sol-det { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px; } .sol-blok { background:var(--l1); border-radius:8px; padding:10px 12px; font-size:.82rem; line-height:1.5; color:#fff; } .sol-blok b { display:block; color:var(--accent-gold); font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
   .sol-blok.breed { grid-column:1 / -1; } .sol-match { grid-column:1 / -1; border:1px solid rgba(37,211,102,.5); background:rgba(37,211,102,.08); border-radius:8px; padding:8px 12px; font-size:.8rem; } .sol-match b { color:#7fe0a0; }
@@ -12104,7 +12105,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261028-1829';
+const APP_VERSIE = '20261029-1307';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -46397,6 +46398,11 @@ function _solVanMij(x) {
 // 22-10: leads van de Meta-campagne (lead/index.html → Edge Function lead-in) hebben bron 'lead'.
 function _solIsLead(x) { return !!x && x.bron === 'lead'; }
 function _solLinkedin(x) { const m = /LinkedIn: (https?:\/\/\S+)/i.exec(String((x && x.motivatie) || '')); return m ? m[1] : ''; }   // 23-10
+// Carrière-check (29-10): de score staat als eerste regel in de motivatie van de lead; het vakgebied komt uit "Ervaring als".
+function _solCheckScore(x) { const m = /Carri[eè]re-check: (\d{1,3})\/100/i.exec(String((x && x.motivatie) || '')); return m ? +m[1] : null; }
+function _solCheckPil(x) { const sc = _solCheckScore(x); return sc == null ? '' : '<span class="sol-check" style="background:' + (sc >= 90 ? 'rgba(37,211,102,.2);color:#25D366' : 'rgba(244,203,60,.2);color:#F4CB3C') + '" title="Carrière-check op de landingspagina: ' + sc + ' van 100">check ' + sc + '</span>'; }
+const _SOL_VAK = { 'Monteur': 'Uitvoering', 'Werkvoorbereider': 'Werkvoorbereiding', 'Engineer': 'Engineering', 'Projectmanager': 'Projectmanagement', 'Operations': 'Uitvoering', 'Werkvoorbereiding': 'Werkvoorbereiding', 'Engineering': 'Engineering', 'Projectmanagement': 'Projectmanagement' };
+function _solVakgebied(x) { const m = /(?:Ervaring als|Vakgebied): ([^\n]+)/i.exec(String((x && x.motivatie) || '')); const w = m ? m[1].trim() : ''; return (_SOL_VAK[w] && CRM_VAKGEBIEDEN.includes(_SOL_VAK[w])) ? _SOL_VAK[w] : ''; }
 function _solHerkomstTekst(x) {
   const d = _crmDatum(Date.parse(x.ontvangen_op));
   return _solIsLead(x) ? 'Lead via de Meta-campagne "' + (x.vacature_titel || 'Wat is jouw volgende stap?') + '" (' + d + ')' : 'Sollicitatie via brightech.nl op "' + (x.vacature_titel || 'vacature') + '" (' + d + ')';
@@ -46437,7 +46443,7 @@ function solLijstVenster(tab) {
     const knop = !mag ? '' : x.status === 'nieuw'
       ? (bekend && !x.kandidaat_sleutel ? '<button type="button" class="kk-knop" onclick="solVenster(\'' + escApos(String(x.id)) + '\')">Koppelen →</button>' : '<button type="button" class="kk-knop goed" onclick="solVenster(\'' + escApos(String(x.id)) + '\')">Importeren →</button>')
       : '<button type="button" class="kk-knop" onclick="solVenster(\'' + escApos(String(x.id)) + '\')">Open</button>';
-    return '<tr' + (x.status === 'nieuw' ? ' class="nw"' : '') + '><td><b>' + escHtml(x.naam) + '</b></td><td>' + escHtml(x.vacature_titel || '—') + '</td><td>' + escHtml(String(x.bm_naam || '').split(' ').map(w => w[0] || '').join('').toUpperCase() || '—') + '</td><td>' + escHtml(_solWanneer(x.ontvangen_op)) + '</td>' +
+    return '<tr' + (x.status === 'nieuw' ? ' class="nw"' : '') + '><td><b>' + escHtml(x.naam) + '</b>' + _solCheckPil(x) + '</td><td>' + escHtml(x.vacature_titel || '—') + '</td><td>' + escHtml(String(x.bm_naam || '').split(' ').map(w => w[0] || '').join('').toUpperCase() || '—') + '</td><td>' + escHtml(_solWanneer(x.ontvangen_op)) + '</td>' +
       '<td>' + (x.kandidaat_sleutel ? '<span style="color:#7fe0a0">kandidaat</span>' : bekend ? '<span style="color:#7fe0a0">ja · ' + escHtml(bekend.naam) + '</span>' : '<span class="stil">nee</span>') + '</td>' +
       '<td><span class="sol-st ' + escHtml(x.status) + '">' + escHtml(_solStatusTekst(x)) + '</span></td><td>' + knop + '</td></tr>';
   }).join('');
@@ -46453,7 +46459,7 @@ function solVenster(id) {
   const x = _solVind(id); if (!x) return;
   const bekend = _solBekend(x), mag = magWijzigen('crm') && !CRM_ONTBREEKT, v = x.vacature_id ? _vacVind(x.vacature_id) : null;
   const idE = escApos(String(x.id));
-  const kop = '<h4 class="wit">' + escHtml(x.naam) + '<span class="sol-st ' + escHtml(x.status) + '" style="margin-left:10px">' + escHtml(_solStatusTekst(x)) + '</span></h4>' +
+  const kop = '<h4 class="wit">' + escHtml(x.naam) + '<span class="sol-st ' + escHtml(x.status) + '" style="margin-left:10px">' + escHtml(_solStatusTekst(x)) + '</span>' + _solCheckPil(x) + '</h4>' +
     '<div class="crm-sub">' + (_solIsLead(x) ? 'liet ' + escHtml(_solWanneer(x.ontvangen_op)) + ' een lead achter via de campagne <b>' + escHtml(x.vacature_titel || 'Wat is jouw volgende stap?') + '</b>' : 'solliciteerde ' + escHtml(_solWanneer(x.ontvangen_op)) + ' op <b>' + escHtml(x.vacature_titel || 'een vacature') + '</b>' + (x.bm_naam ? ' (eigenaar ' + escHtml(x.bm_naam) + ')' : '') + ' · via brightech.nl') + (x.behandeld_door ? ' · ' + escHtml(x.status === 'afgewezen' ? 'afgewezen' : 'in behandeling') + ' door ' + escHtml(x.behandeld_door) + (x.behandeld_op ? ' op ' + escHtml(_crmDatum(Date.parse(x.behandeld_op))) : '') : '') + '</div>';
   const match = x.kandidaat_sleutel
     ? '<div class="sol-match">✓ <b>Gekoppeld aan het dossier</b> <span class="crm-klik" onclick="crmKaartSluit();crmKandOpen(\'' + escApos(x.kandidaat_sleutel) + '\')">' + escHtml((bekend && bekend.naam) || x.kandidaat_sleutel) + ' → kandidaatkaart</span></div>'
@@ -46518,7 +46524,7 @@ async function solImporteren(id, sleutel) {
     if (bestaat && !(await btBevestig('Er staat al een ' + bestaat.naam + ' in CRM (andere e-mail/telefoon). Deze sollicitatie aan dat dossier koppelen?', { knop: 'Koppelen' }))) { knoppen.forEach(b => { b.disabled = false; }); return; }
     if (bestaat) k = bestaat;
     else {
-      const vak = v && CRM_VAKGEBIEDEN.includes(v.vakgebied) ? v.vakgebied : 'Onbekend';
+      const vak = v && CRM_VAKGEBIEDEN.includes(v.vakgebied) ? v.vakgebied : (_solVakgebied(x) || 'Onbekend');   // 29-10: uit de carrière-check
       const rij = { sleutel: sl, naam, voornaam, achternaam, email: x.email || null, telefoon: x.telefoon || null, functie: (v && v.titel) || null,
         vakgebied: vak, woonregio: 'Onbekend', bron: 'site', bron_bm: x.bm_naam || door || null, created_by: mij, linkedin: _solLinkedin(x) || null,
         opmerking: _solHerkomstTekst(x) + '.' };
