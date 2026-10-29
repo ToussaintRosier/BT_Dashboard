@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261029-1726 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261029-1735 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -7625,6 +7625,9 @@ const BT_ICONEN = {
   // MT-acties: een lijstje met vinkjes. Leende eerst het pictogram van
   // Records, en dan staan er twee identieke regels in het menu.
   rldvcheck:   '<path d="M4 7h9M4 12h9M4 17h5"/><path d="M15.5 15.5l2 2 4-4"/>',
+  // 29-10: KAM-scores (scorekaart met balkjes) en RLDV-lijst (lijst met een gebouwtje).
+  kamscores:   '<path d="M4 4h16v16H4z"/><path d="M8 16V11M12 16V8M16 16v-3"/>',
+  rldvlijst:   '<path d="M4 7h8M4 12h8M4 17h8"/><path d="M15 21V9l3-2 3 2v12"/><path d="M17 13h2M17 17h2"/>',
   mtacties:    '<path d="M4 6.5l1.6 1.6L9 4.7"/><path d="M4 12.5l1.6 1.6L9 10.7"/><path d="M4 18.5l1.6 1.6L9 16.7"/><path d="M12 6.5h8M12 12.5h8M12 18.5h5"/>',
   management:  '<path d="M3 21h18M5 21V10M19 21V10M12 3l8 5H4z"/>',
   team:        '<path d="M3 20h18M6.5 20v-6M11 20V8M15.5 20v-4M20 20V5"/>',
@@ -8008,6 +8011,24 @@ const PAGINA_UITLEG = {
         ]},
     ]},
 
+  kamscores: { titel: 'KAM-scores', bijgewerkt: '29-10-2026',
+    intro: 'De KAM-scorekaart van alle klanten in één tabel: negen onderdelen (1–5), het totaal en wanneer hij voor het laatst is bijgewerkt. Alleen-lezen.',
+    secties: [
+      { kop: 'Waar wijzig je?',
+        waarom: 'Eén plek om in te voeren voorkomt twee waarheden: de bedrijfskaart is leidend, dit overzicht leest alleen mee en is dus altijd gelijk aan de kaart.',
+        stappen: ['Klik op de naam of op "kaart →".', 'Op de bedrijfskaart: blad Account › Wijzigen. Daar zet je "In KAM-lijst" aan of uit, kies je de markering (Top 11 / Gewenst 11), het team en de scores.', 'Kloppen de scores nog? Klik "✓ geen wijziging": de datum springt naar vandaag.'] },
+      { kop: 'Filters en Excel',
+        waarom: 'Snel zien welke klanten aandacht nodig hebben: een scorekaart die lang niet is bijgewerkt zegt meer over ons dan over de klant.',
+        stappen: ['Top 11 / Gewenst 11 toont alleen die markering.', '"! verouderd" toont scorekaarten die langer dan een maand niet zijn bijgewerkt.', '⬇ Excel exporteert de zichtbare selectie.'] } ] },
+  rldvlijst: { titel: 'RLDV-lijst', bijgewerkt: '29-10-2026',
+    intro: 'Alle bedrijven in de RLDV-lijst met status, sector, regio, de functies die ze afnemen en het laatste bezoek. Alleen-lezen; de RLDV-tool en RLDV-check lezen dezelfde lijst.',
+    secties: [
+      { kop: 'Waar wijzig je?',
+        waarom: 'De bedrijfskaart is leidend; hier kijk je alleen. Zo staan status en functies maar op één plek en lezen de RLDV-tool en RLDV-check altijd dezelfde lijst.',
+        stappen: ['Klik op de naam of op "kaart →".', 'Op de bedrijfskaart: blad Account › Wijzigen. Daar zet je "In RLDV-lijst" aan of uit en kies je status, sector · regio, functies en contactpersoon.'] },
+      { kop: 'Filters en Excel',
+        waarom: 'Per status zie je waar de lijst staat: hoeveel prospects er nog liggen, waar al een contactpersoon bekend is en wie klant is geworden.',
+        stappen: ['Prospect / Lead / CP-bekend / Klant filtert op status.', '⬇ Excel exporteert de zichtbare selectie.'] } ] },
   mtacties: { titel: 'MT-Overleg', bijgewerkt: '24-09-2026',
     intro: 'OM-Team: de afspraken van het OM-team, wie ze oppakt en wanneer, plus de notule per week. Strategie: de vastgestelde strategie om na te lezen.',
     secties: [
@@ -12116,7 +12137,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261029-1726';
+const APP_VERSIE = '20261029-1735';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12544,7 +12565,7 @@ function rechtVoor(gebruiker, sleutel) {
 // magWijzigen('accoverzicht'), kreeg 'geen' en zette de hele pagina op
 // alleen-lezen voor iedereen behalve de beheerder (melding 17-09).
 function _rechtSleutel(sleutel) {
-  return sleutel === 'accoverzicht' || sleutel === 'gvpagina' ? 'accounts'
+  return sleutel === 'accoverzicht' || sleutel === 'gvpagina' || sleutel === 'kamscores' || sleutel === 'rldvlijst' ? 'accounts'   // 29-10: KAM-scores en RLDV-lijst volgen Accountmanagement
        : sleutel === 'kanban' ? 'kandidaten'
        : sleutel === 'crmkand' || sleutel === 'crmbedrijf' || sleutel === 'crmsearch' || sleutel === 'vacatures' ? 'crm' : sleutel;   // vacatures (01-10) volgt ook 'crm'
 }
@@ -12806,16 +12827,18 @@ function renderTabs() {
         </div>
       </div>`)}
       <!-- Submenu's alfabetisch op naam (afspraak 19-08); hoofdthema's houden hun vaste volgorde. -->
-      ${miGroep(['projecten','financieel','comrap','records'], `<div class="sidebar-cat">
-        <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+      ${miGroep(['projecten','financieel','comrap','records','kamscores','rldvlijst'], `<div class="sidebar-cat">
+        <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='comrap'||currentTab==='records'||currentTab==='kamscores'||currentTab==='rldvlijst')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
           ${btCatLabel('management','Management')}
           <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
         </div>
         <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
           ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
+          ${mi('kamscores', `<button class="sidebar-item ${currentTab==='kamscores'?'active':''}" onclick="selectTab('kamscores')">${btIcon('kamscores')}KAM-scores</button>`)}
           ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-Overleg</button>`) : ''}
           ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
           ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
+          ${mi('rldvlijst', `<button class="sidebar-item ${currentTab==='rldvlijst'?'active':''}" onclick="selectTab('rldvlijst')">${btIcon('rldvlijst')}RLDV-lijst</button>`)}
           ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
                sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
           ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -12836,7 +12859,7 @@ function renderTabs() {
           ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
         </div>
       </div>`)}
-      ${(isBeheerder() || isManagerLevel()) ? `<div class="sidebar-cat">
+      ${isBeheerder() ? `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('beheer')}Beheer</span></button>
       </div>` : ''}`;
     return;
@@ -12864,16 +12887,18 @@ function renderTabs() {
         ${medewerkersItems}
         ${/* Team Resultaten staat sinds 16-09 onder aan het Overzicht; geen eigen menu-item meer. */''}</div>
     </div>`)}
-    ${miGroep(['projecten','financieel','comrap','records'], `<div class="sidebar-cat">
-      <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='comrap'||currentTab==='records')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
+    ${miGroep(['projecten','financieel','comrap','records','kamscores','rldvlijst'], `<div class="sidebar-cat">
+      <div class="sidebar-cat-btn ${(currentTab==='projecten'||currentTab==='financieel'||currentTab==='comrap'||currentTab==='records'||currentTab==='kamscores'||currentTab==='rldvlijst')?'active-cat':''}" style="cursor:pointer;" onclick="toggleManagement(event)">
         ${btCatLabel('management','Management')}
         <span class="sidebar-caret ${managementOpen?'open':''}" style="padding:2px 4px;">▶</span>
       </div>
       <div class="sidebar-sub" style="display:${managementOpen?'flex':'none'};">
         ${mi('financieel', `<button class="sidebar-item ${currentTab==='financieel'?'active':''}" onclick="selectTab('financieel')">${btIcon('financieel')}Financieel</button>`)}
+        ${mi('kamscores', `<button class="sidebar-item ${currentTab==='kamscores'?'active':''}" onclick="selectTab('kamscores')">${btIcon('kamscores')}KAM-scores</button>`)}
         ${magZien('mtacties') ? mi('mtacties', `<button class="sidebar-item ${currentTab==='mtacties'?'active':''}" onclick="selectTab('mtacties')">${btIcon('mtacties')}MT-Overleg</button>`) : ''}
         ${mi('projecten', `<button class="sidebar-item ${currentTab==='projecten'?'active':''}" onclick="selectTab('projecten')">${btIcon('projecten')}Projecten</button>`)}
         ${mi('records', `<button class="sidebar-item ${currentTab==='records'?'active':''}" onclick="selectTab('records')">${btIcon('records')}Records</button>`)}
+        ${mi('rldvlijst', `<button class="sidebar-item ${currentTab==='rldvlijst'?'active':''}" onclick="selectTab('rldvlijst')">${btIcon('rldvlijst')}RLDV-lijst</button>`)}
         ${/* Bewuste uitzondering op het alfabet (afspraak 20-08): de rapportage
              sluit de week af en hoort onderaan, niet tussen de dagelijkse pagina's. */''}
         ${mi('comrap', `<button class="sidebar-item ${currentTab==='comrap'?'active':''}" onclick="selectTab('comrap')">${btIcon('rapportage')}Commerciële Rapportage</button>`)}
@@ -12894,7 +12919,7 @@ function renderTabs() {
         ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
       </div>
     </div>`)}
-    ${(isBeheerder() || isManagerLevel()) ? `<div class="sidebar-cat">
+    ${isBeheerder() ? `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('beheer')}Beheer</span></button>
     </div>` : ''}`;
 }
@@ -13536,10 +13561,8 @@ function beheerSubview(welke) { BEHEER_SUBVIEW = welke; renderBeheer(); }
 function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
-  const overz = k('kam', 'KAM-scores') + k('rldv', 'RLDV-lijst');   // 29-10: alleen-lezen overzichten (ook voor managers)
-  if (!isBeheerder()) return `<div class="bm-subtabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 0;">${overz}</div>`;
   return `<div class="bm-subtabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}${k('docimport', 'Documenten')}${k('namen', 'Namen gelijktrekken' + _namenBadge())}${overz}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}${k('docimport', 'Documenten')}${k('namen', 'Namen gelijktrekken' + _namenBadge())}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -14280,20 +14303,21 @@ async function aiKostenAdminOphalen() {
   } catch (e) { AI_KOSTEN_ADMIN = { bezig: false, maand, fout: String(e && e.message || e) }; }
   renderBeheerAiKosten();
 }
-// ── Beheer › KAM-scores en RLDV-lijst (29-10): alleen-lezen overzichten ───────────────────────────────────────
+// ── Management › KAM-scores en RLDV-lijst (29-10): alleen-lezen overzichten ──────────────────────────────────
 // Invoeren gebeurt op de bedrijfskaart (blad Account); hier kijk je, filtert, sorteert en exporteert.
+// Eigen pagina's (tabs 'kamscores' en 'rldvlijst'); het recht volgt Accountmanagement, zoals Overzicht.
 let BEHEER_KAM_FILT = '', BEHEER_RLDV_FILT = '';
 function _beheerKamRijen() {
   const lijst = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).map(a => ({ a, sl: _itkSleutel(a.naam || ''), tot: accScore(a), oud: accIsStale(a.updated_at) }))
     .sort((p, q) => q.tot - p.tot || String(p.a.naam).localeCompare(String(q.a.naam), 'nl'));
   return BEHEER_KAM_FILT === 'top11' ? lijst.filter(x => x.a.notitie === 'top11') : BEHEER_KAM_FILT === 'gwnst11' ? lijst.filter(x => x.a.notitie === 'gwnst11') : BEHEER_KAM_FILT === 'oud' ? lijst.filter(x => x.oud) : lijst;
 }
-function renderBeheerKam() {
-  const kop = `<div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>${_rechtenSubtabs()}`;
+function renderKamScores() {
+  const kop = `<div class="person-header"><div class="person-name">KAM-scores${btUitlegKnop('kamscores')}</div></div>`;
   const main = document.getElementById('main');
   if (!magZien('accounts')) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">Geen recht om accountmanagement te zien.</div></div>`; return; }
   const alle = (ACCOUNTS_CACHE || []), rijen = _beheerKamRijen();
-  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_KAM_FILT === w ? ' aan' : '') + '" onclick="BEHEER_KAM_FILT=\'' + w + '\';renderBeheer()">' + l + '<small>' + n + '</small></button>';
+  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_KAM_FILT === w ? ' aan' : '') + '" onclick="BEHEER_KAM_FILT=\'' + w + '\';renderKamScores()">' + l + '<small>' + n + '</small></button>';
   const chips = chip('', 'Alle', alle.length) + chip('top11', 'Top 11', alle.filter(a => a.notitie === 'top11').length) + chip('gwnst11', 'Gewenst 11', alle.filter(a => a.notitie === 'gwnst11').length) + chip('oud', '! verouderd', alle.filter(a => accIsStale(a.updated_at)).length);
   const kopjes = ACC_SCORE_FIELDS.map(([f, l]) => '<th title="' + escHtml(l) + '">' + escHtml(l.slice(0, 2)) + '</th>').join('');
   const tr = rijen.map(x => { const a = x.a, mark = a.notitie === 'top11' ? ' <span class="ap-pil geel">Top 11</span>' : a.notitie === 'gwnst11' ? ' <span class="ap-pil blauw">Gwnst 11</span>' : '';
@@ -14302,7 +14326,7 @@ function renderBeheerKam() {
       '<td style="text-align:center"><b>' + x.tot + '</b></td><td>' + (a.updated_at ? escHtml(_kandDatumKort(String(a.updated_at).slice(0, 10))) : '—') + (x.oud ? ' <span style="color:#ff6b6b" title="ouder dan een maand">!</span>' : '') + '</td>' +
       '<td><button type="button" class="kk-knop" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">kaart →</button></td></tr>'; }).join('');
   main.innerHTML = `<div>${kop}<div style="padding:14px 20px 40px;">
-    <div class="crm-sub" style="margin-bottom:10px;">De KAM-scorekaart van alle klanten — alleen-lezen. Wijzigen doe je op de bedrijfskaart (blad Account › Wijzigen); daar staat ook "in KAM-lijst" aan of uit.</div>
+    <div class="crm-sub" style="margin-bottom:10px;">De KAM-scorekaart van alle klanten — alleen-lezen. Wijzigen doe je op de bedrijfskaart (blad Account › Wijzigen); daar staat ook "in KAM-lijst" aan of uit. Klik op een naam voor de kaart.</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><div class="ap-chips">${chips}</div><button type="button" class="crm-knop" style="margin-left:auto" onclick="beheerKamExcel()">⬇ Excel</button></div>
     ${rijen.length ? `<div class="bt-venster"><table class="bd-tabel namen-tabel"><thead><tr><th>Klant</th><th>Team</th>${kopjes}<th>Totaal</th><th>Bijgewerkt</th><th></th></tr></thead><tbody>${tr}</tbody></table></div>` : '<div class="kk-tekst stil">Geen klanten in deze selectie.</div>'}
   </div></div>`;
@@ -14318,12 +14342,12 @@ function _beheerRldvRijen() {
   const lijst = (typeof SALES_LEADS_CACHE !== 'undefined' ? SALES_LEADS_CACHE : []).map(l => ({ l, sl: _itkSleutel(l.naam || '') })).sort((p, q) => String(p.l.naam).localeCompare(String(q.l.naam), 'nl'));
   return BEHEER_RLDV_FILT ? lijst.filter(x => (x.l.status || '') === BEHEER_RLDV_FILT) : lijst;
 }
-function renderBeheerRldv() {
-  const kop = `<div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>${_rechtenSubtabs()}`;
+function renderRldvLijst() {
+  const kop = `<div class="person-header"><div class="person-name">RLDV-lijst${btUitlegKnop('rldvlijst')}</div></div>`;
   const main = document.getElementById('main');
   if (!magZien('accounts')) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">Geen recht om accountmanagement te zien.</div></div>`; return; }
   const alle = (SALES_LEADS_CACHE || []), rijen = _beheerRldvRijen(), bedrijven = typeof crmBedrijfLijst === 'function' ? crmBedrijfLijst() : [];
-  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_RLDV_FILT === w ? ' aan' : '') + '" onclick="BEHEER_RLDV_FILT=\'' + w + '\';renderBeheer()">' + l + '<small>' + n + '</small></button>';
+  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_RLDV_FILT === w ? ' aan' : '') + '" onclick="BEHEER_RLDV_FILT=\'' + w + '\';renderRldvLijst()">' + l + '<small>' + n + '</small></button>';
   const chips = chip('', 'Alle', alle.length) + ['Prospect', 'Lead', 'CP-bekend', 'Klant'].map(st => chip(st, st, alle.filter(l => (l.status || '') === st).length)).join('');
   const tr = rijen.map(x => { const l = x.l, k = bedrijven.find(b => b.sleutel === x.sl), laatste = k && k.laatste;
     return '<tr><td><b class="crm-klik" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">' + escHtml(l.naam || '') + '</b></td><td>' + escHtml(l.vakgebied || '—') + '</td><td>' + escHtml(l.regio || '—') + '</td><td>' + (l.status ? '<span class="crm-pil">' + escHtml(l.status) + '</span>' : '—') + '</td>' +
@@ -15133,11 +15157,7 @@ function renderBeheerDocImport() {
     </div></div>`;
 }
 
-const BEHEER_VOOR_MANAGERS = ['kam', 'rldv'];   // 29-10: de alleen-lezen overzichten, ook voor wie geen beheerder is
 function renderBeheer() {
-  if (!isBeheerder() && !BEHEER_VOOR_MANAGERS.includes(BEHEER_SUBVIEW)) BEHEER_SUBVIEW = 'kam';
-  if (BEHEER_SUBVIEW === 'kam')        { renderBeheerKam(); return; }         // 29-10
-  if (BEHEER_SUBVIEW === 'rldv')       { renderBeheerRldv(); return; }        // 29-10
   if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
   if (BEHEER_SUBVIEW === 'mijlpalen')  { renderBeheerMijlpalen(); return; }
   if (BEHEER_SUBVIEW === 'onderdelen') { renderBeheerOnderdelen(); return; }
@@ -15903,7 +15923,7 @@ _versieWaakhond();
 const TAB_SLEUTEL_OUD = 'bt_last_tab';
 const TAB_SCHERMEN = ['beheer','one','accounts','financieel','hrm','kandidaten','cvgen','plaatsing',   // 28-10: + beheer (alleen beheerders, zie _tabHerstel)
                       'gesprek','bezoek','records','medewerkers','projecten','comrap','team','mtacties',
-                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf', 'vacatures'];   // gvpagina (Gespreksverslagen) is sinds 30-09 weg: verslagen maak je op de CRM-kaart, je leest ze in Records
+                      'rldvtool', 'rldvcheck', 'accoverzicht', 'kanban', 'crmkand', 'crmsearch', 'crmbedrijf', 'vacatures', 'kamscores', 'rldvlijst'];   // gvpagina (Gespreksverslagen) is sinds 30-09 weg: verslagen maak je op de CRM-kaart, je leest ze in Records
 
 function _tabSleutel() {
   const uid = CURRENT_USER && CURRENT_USER.id;
@@ -15936,7 +15956,7 @@ function _tabVergeet() {
 // een handeling (bevestiging, bewerkmodus) komt bewust niet terug.
 const PLEK_SUBS = {
   accounts: ['sales', 'strategisch', 'accountplan', 'beweging', 'verslagen'],
-  beheer: ['collegas', 'rechten', 'onderdelen', 'mijlpalen', 'vacteksten', 'fouten', 'database', 'aikosten', 'docimport', 'namen', 'kam', 'rldv'],
+  beheer: ['collegas', 'rechten', 'onderdelen', 'mijlpalen', 'vacteksten', 'fouten', 'database', 'aikosten', 'docimport', 'namen'],
   financieel: ['overzicht', 'actief', 'oud', 'begroting', 'declarabiliteit', 'marge', 'overuren', 'ranking', 'verzuim', 'ziekte'],
   hrm: ['evaluatie', 'aanmeldformulier', 'opgeslagen', 'standaard', 'documentatie_ec', 'opnames_jr'],
   medewerkers: ['overzicht', 'todo'],
@@ -16004,7 +16024,7 @@ function _tabHerstel() {
   if (saved === 'team') return 'medewerkers';     // sinds 16-09 een deel van Medewerkers
   if (saved === 'kandarchief') return 'crmkand';   // Archief kandidaten → CRM · Kandidaten (17-09)
   if (saved === 'accarchief') return 'crmbedrijf'; // Archief bezoeken → CRM · Bedrijven (17-09)
-  if (saved === 'beheer' && !isBeheerder() && !isManagerLevel()) return null;   // 28-10 · 29-10: managers mogen de overzichten
+  if (saved === 'beheer' && !isBeheerder()) return null;   // 28-10
   if (typeof saved === 'string') return TAB_SCHERMEN.includes(saved) ? saved : null;
 
   if (saved && typeof saved === 'object' && saved.soort === 'bm') {
@@ -16046,7 +16066,7 @@ function _kiesStartTab() {
   }
   currentTab = hersteld;
   if (typeof hersteld === 'number' || hersteld === 'team' || hersteld === 'medewerkers') medewerkersOpen = true;
-  else if (['financieel','comrap','projecten','records','mtacties'].includes(hersteld)) managementOpen = true;
+  else if (['financieel','comrap','projecten','records','mtacties','kamscores','rldvlijst'].includes(hersteld)) managementOpen = true;
   else if (hersteld === 'hrm') kandidatenOpen = true;   // 08-10: HRM/Backoffice onder Kandidaten
   else if (['cvgen','plaatsing','gesprek','bezoek'].includes(hersteld)) toolsOpen = true;
   else if (hersteld === 'accounts' || hersteld === 'gvpagina') accountsOpen = true;
@@ -16071,12 +16091,12 @@ function selectTab(i) {
   if ((typeof i === 'number' && i < BMS.length) || i === 'team') medewerkersOpen = true;
   if (i === 'financieel' || i === 'comrap' || i === 'projecten' || (typeof i === 'number' && (i === BMS.length || i === BMS.length+1))) managementOpen = true;
   if (i === 'cvgen' || i === 'plaatsing' || i === 'gesprek' || i === 'bezoek') toolsOpen = true;
-  if (i === 'records') managementOpen = true;
+  if (i === 'records' || i === 'kamscores' || i === 'rldvlijst') managementOpen = true;   // 29-10
   if (i === 'crmkand' || i === 'crmsearch' || i === 'rldvtool' || i === 'rldvcheck' || i === 'hrm') kandidatenOpen = true;   // 08-10: + hrm
   if (i === 'kanban' || i === 'kandidaten' || i === 'accoverzicht') kanbanOpen = true;   // 08-10 (V1): de Kanban-groep
   if (i === 'accounts' || i === 'accoverzicht' || i === 'gvpagina') accountsOpen = true;
   if (i === 'crmbedrijf' || i === 'vacatures') accountsOpen = true;
-  if (i === 'beheer' && !isBeheerder()) { if (!isManagerLevel()) return; if (!BEHEER_VOOR_MANAGERS.includes(BEHEER_SUBVIEW)) BEHEER_SUBVIEW = 'kam'; }   // 29-10: managers zien alleen KAM-scores en RLDV-lijst
+  if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
   closeSidebar();
   renderTabs(); render();
 }
@@ -17288,7 +17308,9 @@ function _renderKern() {
   if (currentTab === 'rldvcheck') { renderRldvCheckScherm(); return; }
   if (currentTab === 'gesprek') { renderGesprek(); return; }
   if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
-  if (currentTab === 'beheer') { if (isBeheerder() || isManagerLevel()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }   // 29-10: managers zien de overzichten
+  if (currentTab === 'kamscores') { renderKamScores(); return; }   // 29-10: eigen pagina's onder Management
+  if (currentTab === 'rldvlijst') { renderRldvLijst(); return; }
+  if (currentTab === 'beheer') { if (isBeheerder()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
   if (currentTab === 'records') { renderRecords(); return; }
   if (currentTab === 'mtacties') { renderMtActies(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
@@ -22700,8 +22722,8 @@ const _RT_SCHERMEN = {
   kpi_weekly:           ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten'],
   pipeline_cards:       ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten', 'kandidaten', 'crmkand', 'kanban', 'plaatsing', 'rldvtool', 'rldvcheck', 'cvgen'],
   projecten:            ['bm', 'team', 'projecten', 'plaatsing', 'hrm', 'financieel'],
-  accounts:             ['accounts', 'accoverzicht', 'gvpagina', 'crmbedrijf', 'comrap', 'rldvtool', 'rldvcheck', 'bm'],
-  sales_leads:          ['accounts', 'comrap', 'rldvtool', 'rldvcheck', 'kandidaten', 'crmbedrijf'],
+  accounts:             ['accounts', 'accoverzicht', 'gvpagina', 'crmbedrijf', 'comrap', 'rldvtool', 'rldvcheck', 'bm', 'kamscores'],
+  sales_leads:          ['accounts', 'comrap', 'rldvtool', 'rldvcheck', 'kandidaten', 'crmbedrijf', 'rldvlijst'],
   financieel_omzet:     ['financieel', 'team'],
   plan_van_aanpak:      ['bm', 'medewerkers', 'comrap'],
   bum_gesprek:          ['bm', 'medewerkers', 'hrm'],
@@ -33203,7 +33225,7 @@ function _accBronnen(b) {
       svg: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>' },
     { sleutel: 'plan', titel: 'Accountplan', aan: !!b.plan, klik: b.plan ? "crmKaartSluit();apNaar('" + escApos(String(b.plan.id)) + "')" : (b.account ? "crmKaartSluit();apNieuwVoor('" + escApos(String(b.account.id)) + "')" : ''), uitleg: b.plan ? 'bijgewerkt ' + datumNL(String(b.plan.updated_at || '').slice(0, 10)) : (b.account ? 'nog geen — klik om te maken' : 'geen accountplan'),
       svg: '<path d="M9 3h6v3H9z"/><path d="M15 4.5h2A2 2 0 0 1 19 6.5V20a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/>' },
-    { sleutel: 'rldv', titel: 'RLDV', aan: b.rldvSelecties > 0, klik: b.rldvSelecties ? "crmKaartSluit();BEHEER_SUBVIEW='rldv';selectTab('beheer')" : '', uitleg: b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : 'in geen selectie',
+    { sleutel: 'rldv', titel: 'RLDV', aan: b.rldvSelecties > 0, klik: b.rldvSelecties ? "crmKaartSluit();selectTab('rldvlijst')" : '', uitleg: b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : 'in geen selectie',
       svg: '<path d="M4 6h9M4 11h6M4 16h5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="m19.2 18.2 2.3 2.3"/>' },
     { sleutel: 'vervolg', titel: 'Vervolgafspraak', aan: !!b.vervolg, klik: "bezoekVervolgVenster('" + escApos(b.id) + "')", uitleg: b.vervolg ? bezoekVervolgTekst(b.vervolg) : 'nog niet gepland — klik om te plannen',
       svg: '<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15.5" r="1.5"/>' },
@@ -33575,7 +33597,7 @@ function bezoekKaartHtml(id) {
                  : rij('Record', b.record ? escHtml(b.record.datum + ' · ' + _accCollegaKort(b)) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '')) +
       rij('Accountplan', b.plan ? 'bijgewerkt ' + escHtml(datumNL(String(b.plan.updated_at || '').slice(0, 10))) : '<span class="stil">nog geen</span>', b.plan ? kn("apNaar('" + escApos(String(b.plan.id)) + "')") : (b.account && magWijzigen('accounts') ? kn("apNieuwVoor('" + escApos(String(b.account.id)) + "')", 'nieuw') : '')) +
       rij('Scorekaart', b.account ? String(accScore(b.account)) : '<span class="stil">niet in KAM</span>', b.account ? kn("klantKaartOpen('" + escApos(String(b.account.id)) + "')") : '') +
-      rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("BEHEER_SUBVIEW='rldv';selectTab('beheer')") : '') +
+      rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("selectTab('rldvlijst')") : '') +
       rij('Lopende kandidaten', b.lopend.length
         ? '<ul class="kk-ul">' + b.lopend.map(c => { const bm = bmsMetCijfers().find(x => pipeLoad(x.naam).some(y => y.id === c.id)); return '<li><span class="crm-klik" onclick="crmKaartSluit();kandKaartOpen(\'' + escApos(bm ? bm.naam : '') + '\',\'' + escApos(String(c.id)) + '\')">' + escHtml(c.naam) + '</span> · ' + escHtml(c.stage) + '</li>'; }).join('') + '</ul>'
         : '<span class="stil">geen</span>') +
