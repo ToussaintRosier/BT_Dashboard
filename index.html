@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261029-1307 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261029-1726 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2691,6 +2691,17 @@
   .kand-filt { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:-4px 0 8px; }
   .kand-filt select.kz-sel + .kz-knop { max-width:260px; }
   .kand-stand-zin { display:flex; align-items:center; gap:10px; font-size:.76rem; color:rgba(255,255,255,.6); margin:0 0 10px; } .kand-stand-zin b { color:#fff; } .kand-stand-zin .wis { margin-left:auto; }
+  /* Kandidaat-tegeltje v2 (29-10) */
+  .kand-ring { width:30px; height:30px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex:none; margin-left:auto; } .kand-ring span { width:23px; height:23px; border-radius:50%; background:var(--l1); display:inline-flex; align-items:center; justify-content:center; font-size:.56rem; font-weight:var(--w-nadruk); color:#fff; }
+  .kand-av { width:20px; height:20px; border-radius:50%; color:#fff; font-size:.56rem; font-weight:var(--w-nadruk); display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .kand-regel { display:flex; align-items:center; gap:7px; margin-top:6px; font-size:.74rem; color:rgba(255,255,255,.7); } .kand-regel b { color:#fff; font-weight:600; } .kand-regel .laat { color:#ff9b9b; }
+  .kand-status { display:grid; grid-template-columns:auto 1fr; gap:3px 8px; margin-top:7px; font-size:.72rem; align-items:center; } .kand-status .k { color:rgba(255,255,255,.5); } .kand-status .v { color:#fff; } .kand-status .ok { color:#5fd6a8; } .kand-status .nog { color:#f8d47a; } .kand-status .uit { color:rgba(255,255,255,.45); }
+  .kand-volgende { margin-top:8px; background:rgba(255,255,255,.06); border-left:3px solid rgba(255,255,255,.3); border-radius:6px; padding:5px 8px; font-size:.72rem; color:#fff; } .kand-volgende b { color:#fff; }
+  .kand-volgende.geel { background:rgba(244,203,60,.12); border-color:#F4CB3C; } .kand-volgende.geel b { color:#F4CB3C; }
+  .kand-volgende.laat { background:rgba(255,107,107,.12); border-color:#ff6b6b; } .kand-volgende.laat b { color:#ff9b9b; } .kand-volgende .uit { color:rgba(255,255,255,.5); }
+  .kand-volgende.klaar { background:rgba(37,211,102,.1); border-color:#25D366; } .kand-volgende.klaar b { color:#25D366; }
+  .kand-fases.klein .kand-fase { width:22px; height:22px; border-radius:6px; } .kand-fases.klein .kand-fase svg { width:13px; height:13px; }
+  .kand-fases.klein .kand-fase.gedaan { opacity:.45; } .kand-fases.klein .kand-fase.open { box-shadow:0 0 0 1.5px rgba(244,203,60,.6); color:#F4CB3C; }
   .kand-stand { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; } .ks { font-size:.62rem; padding:1px 7px; border-radius:99px; background:rgba(255,255,255,.1); color:rgba(255,255,255,.8); } .ks.ok { background:rgba(37,211,102,.18); color:var(--groen, #25D366); } .ks.wacht { background:rgba(232,116,0,.2); color:#ffb067; }
   .bd-tegels { display:grid; gap:8px; margin:0 0 12px; } .bd-tegel { background:var(--l1); border-radius:10px; padding:10px 12px; }
   /* Personeelsdossier (15-10): compacte vakken die in het blok passen */
@@ -6486,7 +6497,7 @@ let RLDV_CHECK_FILTER = 'alle';   // tabblad Check: alle | open | gewijzigd | ak
 let RLDV_CHECK_TAB = { zoek: '', collega: '', sort: 'intake', richting: -1, extra: '' };   // overzicht B (28-09): zoek, collega-chip, sortering, extra = '' | 'dubbel' | 'nietrond'
 let RLDV_CHECK = null;   // { id, gekozen:Set, toevoegen:bool, bezig:bool }
 let RLDV_AANB = null;    // afvinkvenster: { id, week, jaar, nu:Set, was:Set, bezig } — vinkjes leven hier tot Opvoeren (17-09)
-let ACCOUNT_SUBTAB = 'sales'; // 'sales' | 'strategisch' | 'accountplan' | 'beweging' | 'verslagen' — Overzicht is sinds 16-09 een eigen pagina (tab 'accoverzicht')
+let ACCOUNT_SUBTAB = 'accountplan'; // 29-10: RLDV en KAM staan als overzicht onder Beheer, invoer op de bedrijfskaart — 'sales' | 'strategisch' | 'accountplan' | 'beweging' | 'verslagen' — Overzicht is sinds 16-09 een eigen pagina (tab 'accoverzicht')
 let ACC_OVERZICHT_ZOEK = '';       // zoekveld op het tabblad Overzicht (16-09)
 let ACC_OVERZICHT_SOORT = '';      // filter op type bezoek in Overzicht bezoeken ('' = alle, 17-09)
 let ACC_OVERZICHT_COLLEGA = '';    // C5 (25-09): filter op collega ('' = allen)
@@ -9996,7 +10007,7 @@ function _chBaanRegel(ch, nu) {
 function chPuntVenster(chId) {
   const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId)); if (!ch) return;
   crmKaartToon('<h4 class="wit">+ Punt — ' + escHtml(ch.titel) + '</h4><div class="ch-vorm"><label>Kandidaat (uit CRM)</label>' +
-    _kiezerHtml({ id: 'ch-punt-kand', klasse: 'donker', lijst: () => (typeof crmKandLijst === 'function' ? crmKandLijst() : []).map(k => ({ naam: k.naam, sub: k.functie || k.woonplaats || '' })), waarde: '', placeholder: 'kies of typ een naam uit CRM…', nieuw: false }) +
+    _kiezerHtml({ id: 'ch-punt-kand', klasse: 'donker', lijst: _kzKandidaten, waarde: '', placeholder: 'kies of typ een naam uit CRM…', nieuw: false }) +
     '<label>Reden (optioneel)</label><input id="ch-punt-reden" placeholder="bijv. intake gepland, stond niet in de pipeline">' +
     '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop goed" onclick="chPuntToevoegen(' + ch.id + ')">Punt toevoegen</button><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div></div>', 'crm-kaart-smal');
   const inp = document.getElementById('ch-punt-kand'); if (inp && inp.focus) inp.focus();
@@ -12105,7 +12116,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261029-1307';
+const APP_VERSIE = '20261029-1726';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12825,7 +12836,7 @@ function renderTabs() {
           ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
         </div>
       </div>`)}
-      ${isBeheerder() ? `<div class="sidebar-cat">
+      ${(isBeheerder() || isManagerLevel()) ? `<div class="sidebar-cat">
         <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('beheer')}Beheer</span></button>
       </div>` : ''}`;
     return;
@@ -12883,7 +12894,7 @@ function renderTabs() {
         ${mi('plaatsing', `<button class="sidebar-item ${currentTab==='plaatsing'?'active':''}" onclick="selectTab('plaatsing')">${btIcon('matchmaker')}Matchmaker</button>`)}
       </div>
     </div>`)}
-    ${isBeheerder() ? `<div class="sidebar-cat">
+    ${(isBeheerder() || isManagerLevel()) ? `<div class="sidebar-cat">
       <button class="sidebar-cat-btn ${currentTab==='beheer'?'active-cat':''}" onclick="selectTab('beheer')"><span style="display:flex;align-items:center;gap:8px;">${btIcon('beheer')}Beheer</span></button>
     </div>` : ''}`;
 }
@@ -12926,7 +12937,7 @@ function _sidebarAccountsHtml() {
     <div class="sidebar-sub" style="display:${accountsOpen ? 'flex' : 'none'};">
       ${mi('crmbedrijf', `<button class="sidebar-item ${currentTab === 'crmbedrijf' ? 'active' : ''}" onclick="selectTab('crmbedrijf')">${btIcon('crm')}CRM</button>`)}
       ${mi('vacatures', `<button class="sidebar-item ${currentTab === 'vacatures' ? 'active' : ''}" onclick="selectTab('vacatures')">${btIcon('overzicht')}Vacatures${typeof _solBadgeHtml === 'function' ? _solBadgeHtml() : ''}</button>`)}
-      ${mi('accounts', `<button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}KAM &amp; RLDV</button>`)}
+      ${mi('accounts', `<button class="sidebar-item ${currentTab === 'accounts' ? 'active' : ''}" onclick="selectTab('accounts')">${btIcon('accounts')}Accountplannen</button>`)}
     </div>
   </div>`);
 }
@@ -13525,8 +13536,10 @@ function beheerSubview(welke) { BEHEER_SUBVIEW = welke; renderBeheer(); }
 function _rechtenSubtabs() {
   const k = (w, t) => `<button class="bm-subtab-btn${BEHEER_SUBVIEW === w ? ' active' : ''}"
       onclick="beheerSubview('${w}')">${t}</button>`;
+  const overz = k('kam', 'KAM-scores') + k('rldv', 'RLDV-lijst');   // 29-10: alleen-lezen overzichten (ook voor managers)
+  if (!isBeheerder()) return `<div class="bm-subtabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 0;">${overz}</div>`;
   return `<div class="bm-subtabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 0;">
-    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}${k('docimport', 'Documenten')}${k('namen', 'Namen gelijktrekken' + _namenBadge())}</div>`;
+    ${k('collegas', "Collega's")}${k('rechten', 'Rechten')}${k('onderdelen', 'Onderdelen')}${k('mijlpalen', 'Mijlpalen')}${k('vacteksten', 'Vacatureteksten')}${k('fouten', 'Fouten')}${k('database', 'Database')}${k('aikosten', 'AI-kosten')}${k('docimport', 'Documenten')}${k('namen', 'Namen gelijktrekken' + _namenBadge())}${overz}</div>`;
 }
 
 // De rijen van de matrix: alle schakelbare onderdelen, plus één recht dat geen
@@ -14266,6 +14279,68 @@ async function aiKostenAdminOphalen() {
     else AI_KOSTEN_ADMIN = { bezig: false, maand, ...d };
   } catch (e) { AI_KOSTEN_ADMIN = { bezig: false, maand, fout: String(e && e.message || e) }; }
   renderBeheerAiKosten();
+}
+// ── Beheer › KAM-scores en RLDV-lijst (29-10): alleen-lezen overzichten ───────────────────────────────────────
+// Invoeren gebeurt op de bedrijfskaart (blad Account); hier kijk je, filtert, sorteert en exporteert.
+let BEHEER_KAM_FILT = '', BEHEER_RLDV_FILT = '';
+function _beheerKamRijen() {
+  const lijst = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).map(a => ({ a, sl: _itkSleutel(a.naam || ''), tot: accScore(a), oud: accIsStale(a.updated_at) }))
+    .sort((p, q) => q.tot - p.tot || String(p.a.naam).localeCompare(String(q.a.naam), 'nl'));
+  return BEHEER_KAM_FILT === 'top11' ? lijst.filter(x => x.a.notitie === 'top11') : BEHEER_KAM_FILT === 'gwnst11' ? lijst.filter(x => x.a.notitie === 'gwnst11') : BEHEER_KAM_FILT === 'oud' ? lijst.filter(x => x.oud) : lijst;
+}
+function renderBeheerKam() {
+  const kop = `<div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>${_rechtenSubtabs()}`;
+  const main = document.getElementById('main');
+  if (!magZien('accounts')) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">Geen recht om accountmanagement te zien.</div></div>`; return; }
+  const alle = (ACCOUNTS_CACHE || []), rijen = _beheerKamRijen();
+  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_KAM_FILT === w ? ' aan' : '') + '" onclick="BEHEER_KAM_FILT=\'' + w + '\';renderBeheer()">' + l + '<small>' + n + '</small></button>';
+  const chips = chip('', 'Alle', alle.length) + chip('top11', 'Top 11', alle.filter(a => a.notitie === 'top11').length) + chip('gwnst11', 'Gewenst 11', alle.filter(a => a.notitie === 'gwnst11').length) + chip('oud', '! verouderd', alle.filter(a => accIsStale(a.updated_at)).length);
+  const kopjes = ACC_SCORE_FIELDS.map(([f, l]) => '<th title="' + escHtml(l) + '">' + escHtml(l.slice(0, 2)) + '</th>').join('');
+  const tr = rijen.map(x => { const a = x.a, mark = a.notitie === 'top11' ? ' <span class="ap-pil geel">Top 11</span>' : a.notitie === 'gwnst11' ? ' <span class="ap-pil blauw">Gwnst 11</span>' : '';
+    return '<tr><td><b class="crm-klik" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">' + escHtml(a.naam || '') + '</b>' + mark + '</td><td>' + escHtml([a.strat_cp, a.op_cp].filter(Boolean).join(' · ') || '—') + '</td>' +
+      ACC_SCORE_FIELDS.map(([f]) => '<td style="text-align:center">' + (a[f] == null ? '<span class="stil">·</span>' : Number(a[f])) + '</td>').join('') +
+      '<td style="text-align:center"><b>' + x.tot + '</b></td><td>' + (a.updated_at ? escHtml(_kandDatumKort(String(a.updated_at).slice(0, 10))) : '—') + (x.oud ? ' <span style="color:#ff6b6b" title="ouder dan een maand">!</span>' : '') + '</td>' +
+      '<td><button type="button" class="kk-knop" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">kaart →</button></td></tr>'; }).join('');
+  main.innerHTML = `<div>${kop}<div style="padding:14px 20px 40px;">
+    <div class="crm-sub" style="margin-bottom:10px;">De KAM-scorekaart van alle klanten — alleen-lezen. Wijzigen doe je op de bedrijfskaart (blad Account › Wijzigen); daar staat ook "in KAM-lijst" aan of uit.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><div class="ap-chips">${chips}</div><button type="button" class="crm-knop" style="margin-left:auto" onclick="beheerKamExcel()">⬇ Excel</button></div>
+    ${rijen.length ? `<div class="bt-venster"><table class="bd-tabel namen-tabel"><thead><tr><th>Klant</th><th>Team</th>${kopjes}<th>Totaal</th><th>Bijgewerkt</th><th></th></tr></thead><tbody>${tr}</tbody></table></div>` : '<div class="kk-tekst stil">Geen klanten in deze selectie.</div>'}
+  </div></div>`;
+}
+function beheerKamExcel() {
+  if (typeof XLSX === 'undefined') { btMeld('Excel-bibliotheek niet geladen.', 'rood'); return; }
+  const rijen = _beheerKamRijen().map(x => { const a = x.a, o = { Klant: a.naam || '', Markering: a.notitie === 'top11' ? 'Top 11' : a.notitie === 'gwnst11' ? 'Gewenst 11' : '', Strategisch: a.strat_cp || '', Operationeel: a.op_cp || '', 'Voorwaarden bekend': a.voorwaarden_bekend || '', 'Actief aanbieden': a.actief_aanbieden || '' };
+    ACC_SCORE_FIELDS.forEach(([f, l]) => { o[l] = a[f] == null ? '' : Number(a[f]); }); o.Totaal = x.tot; o.Bijgewerkt = a.updated_at ? String(a.updated_at).slice(0, 10) : ''; return o; });
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rijen), 'KAM-scores');
+  XLSX.writeFile(wb, 'KAM-scores_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+}
+function _beheerRldvRijen() {
+  const lijst = (typeof SALES_LEADS_CACHE !== 'undefined' ? SALES_LEADS_CACHE : []).map(l => ({ l, sl: _itkSleutel(l.naam || '') })).sort((p, q) => String(p.l.naam).localeCompare(String(q.l.naam), 'nl'));
+  return BEHEER_RLDV_FILT ? lijst.filter(x => (x.l.status || '') === BEHEER_RLDV_FILT) : lijst;
+}
+function renderBeheerRldv() {
+  const kop = `<div class="person-header"><div class="person-name">Beheer${btUitlegKnop('beheer')}</div></div>${_rechtenSubtabs()}`;
+  const main = document.getElementById('main');
+  if (!magZien('accounts')) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">Geen recht om accountmanagement te zien.</div></div>`; return; }
+  const alle = (SALES_LEADS_CACHE || []), rijen = _beheerRldvRijen(), bedrijven = typeof crmBedrijfLijst === 'function' ? crmBedrijfLijst() : [];
+  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_RLDV_FILT === w ? ' aan' : '') + '" onclick="BEHEER_RLDV_FILT=\'' + w + '\';renderBeheer()">' + l + '<small>' + n + '</small></button>';
+  const chips = chip('', 'Alle', alle.length) + ['Prospect', 'Lead', 'CP-bekend', 'Klant'].map(st => chip(st, st, alle.filter(l => (l.status || '') === st).length)).join('');
+  const tr = rijen.map(x => { const l = x.l, k = bedrijven.find(b => b.sleutel === x.sl), laatste = k && k.laatste;
+    return '<tr><td><b class="crm-klik" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">' + escHtml(l.naam || '') + '</b></td><td>' + escHtml(l.vakgebied || '—') + '</td><td>' + escHtml(l.regio || '—') + '</td><td>' + (l.status ? '<span class="crm-pil">' + escHtml(l.status) + '</span>' : '—') + '</td>' +
+      SL_BOOL_FIELDS.map(([f]) => '<td style="text-align:center">' + (l[f] ? '<span style="color:#25D366">✓</span>' : '<span class="stil">·</span>') + '</td>').join('') +
+      '<td>' + escHtml(l.contactpersoon || '—') + '</td><td>' + (laatste ? escHtml(_crmDatum(laatste.datumMs) + ' · ' + (_accCollegaKort(laatste) || '')) : '—') + '</td>' +
+      '<td><button type="button" class="kk-knop" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">kaart →</button></td></tr>'; }).join('');
+  main.innerHTML = `<div>${kop}<div style="padding:14px 20px 40px;">
+    <div class="crm-sub" style="margin-bottom:10px;">De RLDV-lijst — alleen-lezen. Status, sector, regio en functies wijzig je op de bedrijfskaart (blad Account › Wijzigen); de RLDV-tool en RLDV-check onder Kandidaten lezen dezelfde lijst.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><div class="ap-chips">${chips}</div><button type="button" class="crm-knop" style="margin-left:auto" onclick="beheerRldvExcel()">⬇ Excel</button></div>
+    ${rijen.length ? `<div class="bt-venster"><table class="bd-tabel namen-tabel"><thead><tr><th>Bedrijf</th><th>Sector</th><th>Regio</th><th>Status</th>${SL_BOOL_FIELDS.map(([, l]) => '<th>' + escHtml(l) + '</th>').join('')}<th>Contact</th><th>Laatste bezoek</th><th></th></tr></thead><tbody>${tr}</tbody></table></div>` : '<div class="kk-tekst stil">Geen bedrijven in deze selectie.</div>'}
+  </div></div>`;
+}
+function beheerRldvExcel() {
+  if (typeof XLSX === 'undefined') { btMeld('Excel-bibliotheek niet geladen.', 'rood'); return; }
+  const rijen = _beheerRldvRijen().map(x => { const l = x.l, o = { Bedrijf: l.naam || '', Sector: l.vakgebied || '', Regio: l.regio || '', Status: l.status || '' }; SL_BOOL_FIELDS.forEach(([f, lab]) => { o[lab] = l[f] ? 'ja' : ''; }); o.Contactpersoon = l.contactpersoon || ''; o['Voorwaarden bekend'] = l.voorwaarden_bekend || ''; return o; });
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rijen), 'RLDV-lijst');
+  XLSX.writeFile(wb, 'RLDV-lijst_' + new Date().toISOString().slice(0, 10) + '.xlsx');
 }
 // ── Beheer › Namen gelijktrekken (27-10) ─────────────────────────────────────────────────────────────────────
 // Elke naam die ergens voorkomt (projecten, financieel, KAM, pipeline, vacatures, bezoeken, RLDV, accountplan-sleutel) maar
@@ -15058,7 +15133,11 @@ function renderBeheerDocImport() {
     </div></div>`;
 }
 
+const BEHEER_VOOR_MANAGERS = ['kam', 'rldv'];   // 29-10: de alleen-lezen overzichten, ook voor wie geen beheerder is
 function renderBeheer() {
+  if (!isBeheerder() && !BEHEER_VOOR_MANAGERS.includes(BEHEER_SUBVIEW)) BEHEER_SUBVIEW = 'kam';
+  if (BEHEER_SUBVIEW === 'kam')        { renderBeheerKam(); return; }         // 29-10
+  if (BEHEER_SUBVIEW === 'rldv')       { renderBeheerRldv(); return; }        // 29-10
   if (BEHEER_SUBVIEW === 'rechten')    { renderBeheerRechten(); return; }
   if (BEHEER_SUBVIEW === 'mijlpalen')  { renderBeheerMijlpalen(); return; }
   if (BEHEER_SUBVIEW === 'onderdelen') { renderBeheerOnderdelen(); return; }
@@ -15857,7 +15936,7 @@ function _tabVergeet() {
 // een handeling (bevestiging, bewerkmodus) komt bewust niet terug.
 const PLEK_SUBS = {
   accounts: ['sales', 'strategisch', 'accountplan', 'beweging', 'verslagen'],
-  beheer: ['collegas', 'rechten', 'onderdelen', 'mijlpalen', 'vacteksten', 'fouten', 'database', 'aikosten', 'docimport', 'namen'],
+  beheer: ['collegas', 'rechten', 'onderdelen', 'mijlpalen', 'vacteksten', 'fouten', 'database', 'aikosten', 'docimport', 'namen', 'kam', 'rldv'],
   financieel: ['overzicht', 'actief', 'oud', 'begroting', 'declarabiliteit', 'marge', 'overuren', 'ranking', 'verzuim', 'ziekte'],
   hrm: ['evaluatie', 'aanmeldformulier', 'opgeslagen', 'standaard', 'documentatie_ec', 'opnames_jr'],
   medewerkers: ['overzicht', 'todo'],
@@ -15925,7 +16004,7 @@ function _tabHerstel() {
   if (saved === 'team') return 'medewerkers';     // sinds 16-09 een deel van Medewerkers
   if (saved === 'kandarchief') return 'crmkand';   // Archief kandidaten → CRM · Kandidaten (17-09)
   if (saved === 'accarchief') return 'crmbedrijf'; // Archief bezoeken → CRM · Bedrijven (17-09)
-  if (saved === 'beheer' && !isBeheerder()) return null;   // 28-10
+  if (saved === 'beheer' && !isBeheerder() && !isManagerLevel()) return null;   // 28-10 · 29-10: managers mogen de overzichten
   if (typeof saved === 'string') return TAB_SCHERMEN.includes(saved) ? saved : null;
 
   if (saved && typeof saved === 'object' && saved.soort === 'bm') {
@@ -15997,7 +16076,7 @@ function selectTab(i) {
   if (i === 'kanban' || i === 'kandidaten' || i === 'accoverzicht') kanbanOpen = true;   // 08-10 (V1): de Kanban-groep
   if (i === 'accounts' || i === 'accoverzicht' || i === 'gvpagina') accountsOpen = true;
   if (i === 'crmbedrijf' || i === 'vacatures') accountsOpen = true;
-  if (i === 'beheer' && !isBeheerder()) return; // guard: alleen Toussaint
+  if (i === 'beheer' && !isBeheerder()) { if (!isManagerLevel()) return; if (!BEHEER_VOOR_MANAGERS.includes(BEHEER_SUBVIEW)) BEHEER_SUBVIEW = 'kam'; }   // 29-10: managers zien alleen KAM-scores en RLDV-lijst
   closeSidebar();
   renderTabs(); render();
 }
@@ -17209,7 +17288,7 @@ function _renderKern() {
   if (currentTab === 'rldvcheck') { renderRldvCheckScherm(); return; }
   if (currentTab === 'gesprek') { renderGesprek(); return; }
   if (currentTab === 'bezoek') { renderBezoekRecorder(); return; }
-  if (currentTab === 'beheer') { if (isBeheerder()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }
+  if (currentTab === 'beheer') { if (isBeheerder() || isManagerLevel()) { renderBeheer(); return; } currentTab = 'accounts'; renderTabs(); renderAccounts(); return; }   // 29-10: managers zien de overzichten
   if (currentTab === 'records') { renderRecords(); return; }
   if (currentTab === 'mtacties') { renderMtActies(); return; }
   if (currentTab === 'medewerkers') { renderMedewerkersOverzicht(); return; }
@@ -21646,6 +21725,19 @@ async function todoScoreOk(sleutel) {
   btMeld('Scorekaart bevestigd: laatste wijziging vandaag.', 'groen');
   _todoHerteken();
   if (currentTab === 'accounts' && typeof renderAccounts === 'function') renderAccounts();
+}
+// Scorekaart bevestigen vanaf de bedrijfskaart (29-10): zelfde als "✓ geen wijziging" in de To-do.
+async function kaartScoreOk(sleutel) {
+  if (!eisWijzig('accounts') || !supa) return;
+  const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); const a = k && k.account; if (!a) return;
+  const ja = await btBevestig('Scorekaart ongewijzigd?\n\nJe bevestigt dat de KAM-scores van ' + k.naam + ' nog kloppen. De scorekaart krijgt vandaag als "laatste wijziging"; er komt een regel in het gesprekslog.', { knop: 'Ja, scores kloppen nog' });
+  if (!ja) return;
+  const nuIso = new Date().toISOString();
+  if (!String(a.id).startsWith('local-')) { _echoVanZelf('accounts'); const { error } = await supa.from('accounts').update({ updated_at: nuIso }).eq('id', a.id); if (error) { btMeld('Niet opgeslagen: ' + error.message, 'rood'); return; } }
+  a.updated_at = nuIso;
+  await _crmBedrijfLogRegel(k, 'Scorekaart gecontroleerd — geen wijziging');
+  btMeld('Scorekaart bevestigd: laatste wijziging vandaag.', 'groen');
+  accountKaartOpen(k.sleutel, true);
 }
 async function todoGedaan(sleutel) {
   const m = /^taak:(kand|acc):(.+)$/.exec(String(sleutel || ''));
@@ -28597,9 +28689,7 @@ const AANMELD_REQUIRED = {
 // geboortedatum. Functie, salaris, regio zijn wensen uit het CRM, geen
 // afspraken — die blijven leeg. Wat al in die velden stond wordt overschreven
 // (je kiest bewust een kandidaat). Niets wordt naar het CRM teruggeschreven.
-function _aanmeldKandKeuzes() {
-  return crmKandLijst().map(k => ({ naam: k.naam, sub: [k.woonplaats, k.functie].filter(Boolean).join(' · ') }));
-}
+function _aanmeldKandKeuzes() { return _kzKandidaten(); }   // 29-10: zelfde tweede regel als elke kandidaat-kiezer
 const AANMELD_CRM_VELDEN = [
   ['naam_achternaam', 'naam',                 r => r.naam],
   ['roepnaam',        'roepnaam',             r => r.voornaam],
@@ -28638,7 +28728,7 @@ const AANMELD_OPDR_VELDEN = [
   ['email_facturatie', 'email_facturatie'], ['accordering_uren', 'accordering_uren'], ['vca_plichtig', 'vca_plichtig'], ['firmapas_benodigd', 'firmapas_benodigd'],
   ['berekening_reiskosten', 'berekening_reiskosten'], ['cao_contact', 'cao_contact'], ['betalingstermijn', 'betalingstermijn'],
 ];
-function _aanmeldOpdrKeuzes() { return (typeof crmBedrijfLijst === 'function' ? crmBedrijfLijst() : []).map(k => ({ naam: k.naam, sub: [k.crm && k.crm.plaats, k.crm && k.crm.branche].filter(Boolean).join(' · ') })); }
+function _aanmeldOpdrKeuzes() { return _kzKlanten(); }   // 29-10: zelfde tweede regel als elke klant-kiezer
 function _aanmeldUitBedrijf(naam) {
   naam = String(naam || '').trim();
   const d = aanmeldLoad();
@@ -29640,8 +29730,10 @@ function renderKandidaten() {
 
   // Kaart-render helper (gedeeld door weekweergave en zoekresultaten)
   const renderKandCard = (c) => {
-      const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : ''].filter(Boolean);
-      const metaHtml = metaBits.length ? `<div class="card-sub">${escHtml(metaBits.join(' · '))}</div>` : '';
+      // 29-10: korter op het kaartje, de volle tekst in de tooltip.
+      const metaVol = [c.functie, c.regio, c.salarisindicatie ? ('SI: ' + c.salarisindicatie) : '', c.reisbereidheid ? (c.reisbereidheid + ' min reizen') : ''].filter(Boolean).join(' · ');
+      const metaBits = [c.functie, c.regio, c.salarisindicatie ? ('SI ' + _kandSiKort(c.salarisindicatie)) : '', c.reisbereidheid ? (c.reisbereidheid + ' min') : ''].filter(Boolean);
+      const metaHtml = metaBits.length ? `<div class="card-sub" title="${escHtml(metaVol)}">${escHtml(metaBits.join(' · '))}</div>` : '';
       // Eén totaal aanbiedingen per kandidaatnaam — alle matchende
       // Aanbieden-kaartjes (van iedere BM, elke week) bij elkaar opgeteld en
       // hier eenmalig genoteerd, niet per match herhaald.
@@ -29653,16 +29745,14 @@ function renderKandidaten() {
       const cardStyle = 'cursor:default;position:relative;';
       return `<div class="pipe-card ${kleurKlasse}" style="${cardStyle}">
         ${canExclude ? `<button class="kand-excl-btn" title="Kandidaat verwijderen (ook het Intake-tegeltje)" onclick="kandidaatExcludeVraag('${escApos(c.bmNaam)}','${c.id}','${escApos(c.naam)}')">✕</button>` : ''}
-        <div class="card-naam kand-naam${canExclude ? ' met-x' : ''}"><span class="card-naam-btns links">${kandKaartKnopHtml(c.bmNaam, c.id)}</span><span class="naam" title="${escHtml(c.naam)}">${escHtml(c.naam)}</span>${_kandTellerHtml(c)}</div>
+        <div class="card-naam kand-naam${canExclude ? ' met-x' : ''}"><span class="card-naam-btns links">${kandKaartKnopHtml(c.bmNaam, c.id)}</span><span class="naam" title="${escHtml(c.naam)}">${escHtml(c.naam)}</span>${_kandRingHtml(c)}</div>
         ${_kandOnbeschikbaarHtml(c)}
         ${metaHtml}
         ${c.notitie ? `<div class="card-sub">${escHtml(c.notitie)}</div>` : ''}
-        <div class="card-sub" style="font-weight:700;color:#fff;">Aanbiedingen: ${aanbTotal}</div>
-        <div class="card-sub" style="color:var(--muted);font-style:italic;">Ingevoerd door ${escHtml(c.bmNaam)}</div>
-        ${_kandStandPillenHtml(_kandStand(c, ctx))}
-        ${_kandKlokHtml(c)}
-        ${_kandRldvHtml(c)}
-        ${_kandFasesHtml(c, magKandidatenWijzigen())}
+        ${_kandIntakeRegelHtml(c)}
+        ${_kandStatusHtml(c, _kandStand(c, ctx), aanbTotal)}
+        ${_kandVolgendeHtml(c, _kandStand(c, ctx))}
+        ${_kandFasesHtml(c, magKandidatenWijzigen(), true)}
       </div>`;
   };
 
@@ -30199,7 +30289,7 @@ function _kandKlokHtml(c) {
   return '<div class="kand-klok">' + escHtml(datum + (klok ? ' · ' + klok : '')) + '</div>';
 }
 
-function _kandFasesHtml(c, magWijzig) {
+function _kandFasesHtml(c, magWijzig, klein) {   // 29-10: klein = de compacte rij op het tegeltje
   const aan   = new Set(kandFasesEffectief(c));
   const vanzelf = kandAutoFases(c);   // deze staan vast en zijn niet klikbaar
   const kleur = kandKaartKleur(c);
@@ -30218,7 +30308,7 @@ function _kandFasesHtml(c, magWijzig) {
     const tekst = escHtml(f.label + (reden ? ' — vanzelf: ' + reden
                                            : (isAan ? ' — afgevinkt' : (f.sleutel === 'intake' ? ' — gaat vanzelf op het intaketijdstip' : f.sleutel === 'cv' ? ' — gaat vanzelf zodra CV én commercieel CV in het CRM staan' : '')))
                           + (bron ? ' · klik: ' + bron.doel : ''));
-    return '<button class="kand-fase' + (isAan ? ' aan' : '') + (bron ? ' bron' : '') + '"' +
+    return '<button class="kand-fase' + (isAan ? ' aan' : '') + (bron ? ' bron' : '') + (klein ? (isAan ? ' gedaan' : (onb || gestart ? '' : ' open')) : '') + '"' +
       (klik || bron ? '' : ' disabled') +
       ' title="' + tekst + '" aria-label="' + escHtml(f.label) + '"' +
       ' aria-pressed="' + (isAan ? 'true' : 'false') + '"' +
@@ -30246,7 +30336,7 @@ function _kandFasesHtml(c, magWijzig) {
   // De teller staat sinds 17-09 als pil in de kop van het kaartje
   // (_kandTellerHtml): acht iconen plus teller pasten niet op één regel.
   return '<div class="kand-fase-blok" title="' + escHtml(staat) + '">' +
-           '<div class="kand-fases' + (onb ? ' uit' : '') + '">' + knoppen + onbKnop + '</div>' +
+           '<div class="kand-fases' + (onb ? ' uit' : '') + (klein ? ' klein' : '') + '">' + knoppen + onbKnop + '</div>' +
          '</div>';
 }
 // De pil in de kop: "3/7", of "gestart" zodra er een Starter-tegeltje is.
@@ -30257,6 +30347,69 @@ function _kandTellerHtml(c) {
   }
   const n = kandFasesEffectief(c).length;
   return '<span class="kand-fase-teller kop" title="' + n + ' van ' + KAND_FASES.length + ' gedaan">' + n + '/' + KAND_FASES.length + '</span>';
+}
+// ── Kandidaat-tegeltje v2 (29-10): elke mededeling één keer ──────────────────────────────────────────────────
+// Ring met de voortgang (kleur = kaartkleur), de collega als avatar, de intake als "x dagen geleden", één statusblok
+// met drie vaste regels (Aangeboden · Verslag · CV) en een balk met de eerstvolgende stap. De fase-icoontjes blijven
+// (ze openen de bron) maar klein en gedempt als ze af zijn.
+function _kandSiKort(si) {
+  const t = String(si || '').trim();
+  const m = /^(\d{3,5})(?:[.,](\d{2}))?\b(.*)$/.exec(t);
+  if (!m) return t.replace(/incl\.? ploegentoeslag/i, '(incl. ploeg)');
+  const n = Number(m[1]).toLocaleString('nl-NL');
+  const rest = m[3].replace(/^\s*[·,-]?\s*/, '').replace(/incl\.? ploegentoeslag/i, '(incl. ploeg)').replace(/\bnetto\b/i, 'netto').trim();
+  return n + (rest ? ' ' + rest : '');
+}
+function _kandRingHtml(c) {
+  if (!c) return '';
+  const kleur = kandKaartKleur(c);
+  const gestart = !c.onbeschikbaar_op && kandStarterVan(c);
+  const n = kandFasesEffectief(c).length, tot = KAND_FASES.length, pct = gestart ? 100 : Math.round(n / tot * 100);
+  const kl = c.onbeschikbaar_op ? 'rgba(255,255,255,.3)' : /groen/.test(kleur.klasse) ? '#25D366' : /rood/.test(kleur.klasse) ? '#ff6b6b' : /geel/.test(kleur.klasse) ? '#F4CB3C' : 'rgba(255,255,255,.55)';
+  return '<span class="kand-ring" style="background:conic-gradient(' + kl + ' 0 ' + pct + '%, rgba(255,255,255,.12) ' + pct + '% 100%)" title="' + escHtml(gestart ? kleur.reden : n + ' van ' + tot + ' gedaan — ' + kleur.reden) + '"><span>' + (gestart ? '★' : n + '/' + tot) + '</span></span>';
+}
+function _kandIntakeRegelHtml(c) {
+  const av = c.bmNaam ? '<span class="kand-av" style="background:' + escHtml(_oneAvatarKleur(c.bmNaam)) + '" title="Ingevoerd door ' + escHtml(c.bmNaam) + '">' + escHtml(_oneInitialen(c.bmNaam)) + '</span>' : '';
+  const st = c && !c.onbeschikbaar_op ? kandStarterVan(c) : null;
+  if (st) return '<div class="kand-regel">' + av + '<b>' + escHtml(_kandGestartTekst(st)) + '</b></div>';
+  const datum = kandIntakeTekst(c);
+  if (!datum) return '<div class="kand-regel">' + av + '<span class="stil">geen intakedatum</span></div>';
+  const d = new Date(c.intake_op), dag = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'][d.getDay()];
+  const uren = kandUrenSindsIntake(c), af = kandFasesEffectief(c).length >= KAND_FASES.length;
+  let klok = '';
+  if (uren !== null && uren < 0) klok = 'over ' + Math.max(1, Math.round(-uren)) + ' u';
+  else if (uren !== null && uren < 48) klok = Math.round(uren) + ' uur geleden';
+  else if (uren !== null) klok = Math.floor(uren / 24) + ' dagen geleden';
+  const laat = !af && uren !== null && uren >= KAND_UREN_ROOD;
+  return '<div class="kand-regel">' + av + '<b>' + escHtml(datum.replace(/^Intake /, 'Intake ' + dag + ' ')) + '</b>' + (klok ? '<span class="' + (laat ? 'laat' : '') + '">· ' + escHtml(klok) + '</span>' : '') + '</div>';
+}
+function _kandStatusHtml(c, st, aanbTotaal) {
+  const sel = typeof rldvSelectieVoorKand === 'function' ? rldvSelectieVoorKand(c) : null;
+  const aantal = sel ? rldvBedrijvenVan(sel).length : 0;
+  const check = sel && typeof rldvCheckStand === 'function' ? rldvCheckStand(sel) : null;
+  const aanb = +aanbTotaal || st.aanb || 0;
+  let a;
+  if (aanb) a = aanb + '× · ' + (check ? (check.code === 'akkoord' ? '<span class="ok">✓ RLDV ' + escHtml(check.tekst) + '</span>' : '<span class="nog">RLDV-check ' + escHtml(check.tekst) + '</span>') : '') + (st.geenReactie > 14 ? ' · <span class="nog">geen reactie ' + st.geenReactie + ' d</span>' : '');
+  else if (aantal) a = '<span class="nog">nog niet</span> · RLDV-selectie ' + aantal + (aantal === 1 ? ' bedrijf' : ' bedrijven') + (check ? ', check ' + (check.code === 'akkoord' ? '<span class="ok">akkoord</span>' : '<span class="nog">open</span>') : '');
+  else a = '<span class="nog">nog niet</span> · <span class="uit">geen RLDV-selectie</span>';
+  const v = st.verslag ? '<span class="ok">✓</span> ' + (st.afspr && st.afspr.code !== 'niet-verzonden' ? escHtml(st.afspr.tekst) : 'nog niet gedeeld') : '<span class="uit">geen verslag</span>';
+  const d = typeof _kandDocLinks === 'function' ? _kandDocLinks(c.naam) : {};
+  const cv = d.cv && d.cr ? '<span class="ok">✓</span> cv + commercieel cv' : d.cv ? '<span class="nog">commercieel cv ontbreekt</span>' : d.cr ? '<span class="nog">cv ontbreekt</span>' : '<span class="nog">geen cv</span>';
+  return '<div class="kand-status"><span class="k">Aangeboden</span><span class="v">' + a + '</span><span class="k">Verslag</span><span class="v">' + v + '</span><span class="k">CV</span><span class="v">' + cv + (st.gg ? ' · ⚑ GG' : '') + '</span></div>';
+}
+const KAND_VOLGENDE = { intake: 'intake voeren', delen: 'afspraken delen met de kandidaat', cv: 'cv en commercieel cv in het CRM zetten', rldv_sel: 'RLDV-selectie maken', rldv_check: 'RLDV-check laten doen → dan aanbieden', vervolg: 'vervolgafspraak plannen', aanbieden: 'aanbieden bij de geselecteerde bedrijven' };
+function _kandVolgendeHtml(c, st) {
+  if (!c || c.onbeschikbaar_op) return '';
+  const gest = kandStarterVan(c);
+  if (gest) return '<div class="kand-volgende klaar"><b>Gestart</b> ' + escHtml(_kandGestartTekst(gest).replace(/^Gestart\s*/i, '')) + (gest.bmNaam ? ' · via ' + escHtml(gest.bmNaam.split(' ')[0]) : '') + '</div>';
+  const aan = new Set(kandFasesEffectief(c));
+  const uren = kandUrenSindsIntake(c);
+  if (uren !== null && uren < 0) return '<div class="kand-volgende"><b>Gepland:</b> intake ' + escHtml(kandKlokTekst(c)) + '</div>';
+  const open = KAND_FASES.map(f => f.sleutel).find(k => !aan.has(k));
+  if (!open) return '<div class="kand-volgende klaar"><b>Alles afgerond</b>' + (st && st.gesprek ? ' — ' + escHtml(st.gesprek) : ' — wacht op reactie van het bedrijf') + '</div>';
+  const laat = uren !== null && uren >= KAND_UREN_ROOD, geel = uren !== null && uren >= KAND_UREN_GEEL;
+  const tekst = KAND_VOLGENDE[open] || open;
+  return '<div class="kand-volgende' + (laat ? ' laat' : geel ? ' geel' : '') + '"><b>' + (laat ? 'Te laat:' : 'Nu:') + '</b> ' + escHtml(tekst) + (laat ? ' <span class="uit">(afspraak: binnen ' + KAND_UREN_ROOD + ' uur na intake)</span>' : '') + '</div>';
 }
 // De pil op het kaartje: sinds wanneer, en waarom.
 function _kandOnbeschikbaarHtml(c) {
@@ -30685,11 +30838,8 @@ function rldvNaarKaart(kaartId) {
   selectTab('rldvtool');
   rldvKiesKandidaat(kaartId);
 }
-function accountsNaarKlant(id) {
-  ACCOUNT_SUBTAB = 'strategisch';
-  ACC_SEARCH = ''; ACC_FILTER_STRAT = ''; ACC_FILTER_OP = '';
-  selectTab('accounts');
-  setTimeout(() => _naarElement('acc-' + String(id).replace(/[^a-zA-Z0-9_-]/g, '_')), 80);
+function accountsNaarKlant(id) {   // 29-10: de KAM-rij is de bedrijfskaart (blad Account)
+  klantKaartOpen(id);
 }
 function _naarElement(id) {
   const el = document.getElementById(id);
@@ -32896,7 +33046,7 @@ function _kiezerTreffers(id, q) {
   const n = _zoekNorm(q), alle = _kiezerLijst(id);
   if (!n) return alle.slice(0, 8);
   const begin = [], woord = [], midden = [];
-  alle.forEach(x => { const k = _zoekNorm(x.naam), i = k.indexOf(n); if (i < 0) return; (i === 0 ? begin : k[i - 1] === ' ' ? woord : midden).push(x); });
+  alle.forEach(x => { const k = _zoekNormOnthoud(x.naam), i = k.indexOf(n); if (i < 0) { if (x.sub && _zoekNormOnthoud(x.sub).includes(n)) midden.push(x); return; } (i === 0 ? begin : k[i - 1] === ' ' ? woord : midden).push(x); });   // 29-10: ook de tweede regel telt mee
   return begin.concat(woord, midden).slice(0, 8);
 }
 function _kiezerHtml(o) {
@@ -32931,11 +33081,11 @@ function _kiezerTeken(k) {
   const nieuw = o.nieuw !== false && n && !exact;
   const items = tref.map(x => x.naam); if (nieuw) items.push(q.trim());
   if (!KIEZER_OPEN || KIEZER_OPEN.id !== k.id) KIEZER_OPEN = { id: k.id, idx: -1 };
-  KIEZER_OPEN.items = items;
+  KIEZER_OPEN.items = items; KIEZER_OPEN.nieuw = !!nieuw;
   if (KIEZER_OPEN.idx >= items.length) KIEZER_OPEN.idx = -1;
   const idx = KIEZER_OPEN.idx;
   let h = tref.map((x, i) => '<div class="kz-it' + (i === idx ? ' aan' : '') + '" onmousedown="event.preventDefault()" onclick="_kiezerKies(this, ' + escHtml(JSON.stringify(x.naam)) + ')">' + _zoekMarkeer(x.naam, q) + (x.sub ? '<span class="sub">' + escHtml(x.sub) + '</span>' : '') + '</div>').join('');
-  if (nieuw) h += '<div class="kz-nieuw' + (idx === tref.length ? ' aan' : '') + '" onmousedown="event.preventDefault()" onclick="_kiezerKies(this, ' + escHtml(JSON.stringify(q.trim())) + ')"><span class="plus">+</span>' + escHtml(o.nieuw || 'Nieuwe naam') + ': “' + escHtml(q.trim()) + '”</div>';
+  if (nieuw) h += '<div class="kz-nieuw' + (idx === tref.length ? ' aan' : '') + '" onmousedown="event.preventDefault()" onclick="' + (o.nieuwDoe ? '_kiezerNieuwDoe(this)' : '_kiezerKies(this, ' + escHtml(JSON.stringify(q.trim())) + ')') + '"><span class="plus">+</span>' + escHtml(o.nieuw || 'Nieuwe naam') + ': “' + escHtml(q.trim()) + '”</div>';
   if (!items.length) h = '<div class="kz-leeg">' + escHtml(o.leeg || 'Geen namen gevonden') + '</div>';
   k.lijst.innerHTML = h + '<div class="kz-voet"><kbd>↑↓</kbd> kiezen <kbd>Enter</kbd> bevestigen <kbd>Esc</kbd> sluiten</div>';
   k.lijst.hidden = false;
@@ -32965,7 +33115,8 @@ function _kiezerToets(ev, inp) {
   if (ev.key === 'Enter') {
     if (!open) return true;
     const items = KIEZER_OPEN.items, i = KIEZER_OPEN.idx >= 0 ? KIEZER_OPEN.idx : items.length === 1 ? 0 : -1;
-    if (i >= 0) _kiezerKies(inp, items[i]); else _kiezerSluit(k);
+    const o = KIEZERS[k.id] || {};
+    if (i >= 0) { if (o.nieuwDoe && KIEZER_OPEN.nieuw && i === items.length - 1) _kiezerNieuwDoe(inp); else _kiezerKies(inp, items[i]); } else _kiezerSluit(k);
     return false;
   }
   return true;
@@ -32976,6 +33127,55 @@ function _kiezerSluit(k) {
 }
 function _kiezerWeg(inp) {
   setTimeout(() => { if (document.activeElement !== inp) { const k = _kiezerVan(inp); if (k) _kiezerSluit(k); } }, 150);
+}
+// "+ nieuw" als actie (29-10): de getypte naam gaat niet in het veld maar naar o.nieuwDoe (bijv. de CRM-wizard).
+function _kiezerNieuwDoe(el) {
+  const k = _kiezerVan(el); if (!k) return;
+  const o = KIEZERS[k.id] || {};
+  _kiezerSluit(k);
+  _kiezerCode(o.nieuwDoe, k.inp, 'nieuw');
+}
+// Waarde van buitenaf zetten (venster vullen): tekst, wis-knop en 'gevuld' in één keer.
+function _kiezerZet(id, waarde) {
+  const inp = document.getElementById(id); if (!inp) return;
+  inp.value = waarde == null ? '' : String(waarde);
+  const k = _kiezerVan(inp); if (!k) return;
+  if (k.wis) k.wis.hidden = !inp.value;
+  if (k.box && k.box.classList) k.box.classList.toggle('gevuld', !!inp.value);
+}
+// ── Eén kiezer voor klant, kandidaat, contactpersoon en vacature (29-10, ontwerp_kiezers) ────────────────────
+// Dezelfde bron en dezelfde tweede regel op elke plek: klant = plaats · fase, kandidaat = functie · woonplaats,
+// contactpersoon = functie · afdeling, vacature = klant · status · n geselecteerd.
+function _kzFase(k) { return k.account ? 'Klant' : k.lead ? (k.lead.status || 'Lead') : ''; }
+function _kzKlantSub(k) { return [k.plaats || (k.crm && k.crm.plaats) || '', _kzFase(k)].filter(Boolean).join(' · '); }
+function _kzKlanten() { return (typeof crmBedrijfLijst === 'function' ? crmBedrijfLijst() : []).map(k => ({ naam: k.naam, sub: _kzKlantSub(k) })); }
+function _kzKandSub(k) { return [k.functie, k.woonplaats].filter(Boolean).join(' · '); }
+function _kzKandidaten() { return (typeof crmKandLijst === 'function' ? crmKandLijst() : []).map(k => ({ naam: k.naam, sub: _kzKandSub(k) })); }
+function _kzContacten(k) { return (k ? _crmBedrijfContacten(k) : []).filter(c => c && c.naam).map(c => ({ naam: c.naam, sub: [c.functie, c.afdeling].filter(Boolean).join(' · ') })); }
+function _kzVacNaam(v) { return (v.titel || 'vacature') + (v.regio ? ' — ' + v.regio : ''); }
+function _kzVacSub(v) { return [typeof _vacKlantNaam === 'function' ? _vacKlantNaam(v) || '' : '', v.status || '', (typeof vacSelVoorVacature === 'function' ? vacSelVoorVacature(v.id).length : 0) + ' geselecteerd'].filter(Boolean).join(' · '); }
+function _kzVacatures(lijst) { return _kzUniek((lijst || []).map(v => ({ naam: _kzVacNaam(v), sub: _kzVacSub(v), id: String(v.id) }))); }
+// Gelijke namen krijgen (2), (3)…, anders kan de kiezer ze niet uit elkaar houden.
+function _kzUniek(items) {
+  const tel = {}; items.forEach(x => { tel[x.naam] = (tel[x.naam] || 0) + 1; });
+  const n = {};
+  return items.map(x => { if (tel[x.naam] < 2) return x; n[x.naam] = (n[x.naam] || 0) + 1; return { ...x, naam: x.naam + ' (' + n[x.naam] + ')' }; });
+}
+// Kiezer met een verborgen id-veld: <id> krijgt het id van de gekozen regel (leeg zolang de tekst niet precies een
+// regel is), het zichtbare veld heet <id>-naam. o.na draait na een keuze (en bij o.bijTyp ook bij elke letter).
+function _kzIdKiezerHtml(o) {
+  const items = typeof o.lijst === 'function' ? o.lijst() : (o.lijst || []);
+  const huidig = o.waardeId ? items.find(x => String(x.id) === String(o.waardeId)) : null;
+  const zet = "_kzIdZet('" + o.id + "', this.value);", na = o.na || '';
+  return _kiezerHtml({ id: o.id + '-naam', klasse: o.klasse, lijst: o.lijst, waarde: huidig ? huidig.naam : (o.waarde || ''), placeholder: o.placeholder, leeg: o.leeg, nieuw: false, uit: o.uit,
+      typ: zet + (o.bijTyp ? na : ''), kies: zet + na }) +
+    '<input type="hidden" id="' + escHtml(o.id) + '" value="' + escHtml(huidig ? String(huidig.id) : '') + '"' + (o.data || '') + '>';
+}
+function _kzIdZet(id, naam) {
+  const h = document.getElementById(id); if (!h) return '';
+  const n = _zoekNorm(naam), x = n ? _kiezerLijst(id + '-naam').find(r => _zoekNorm(r.naam) === n) : null;
+  h.value = x ? String(x.id) : '';
+  return h.value;
 }
 // De recorders: zet = pad van de variabele ('BEZOEK.bedrijf'), de naam is wat
 // er in het veld staat (ook halverwege het typen); herteken na een keuze.
@@ -33003,7 +33203,7 @@ function _accBronnen(b) {
       svg: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>' },
     { sleutel: 'plan', titel: 'Accountplan', aan: !!b.plan, klik: b.plan ? "crmKaartSluit();apNaar('" + escApos(String(b.plan.id)) + "')" : (b.account ? "crmKaartSluit();apNieuwVoor('" + escApos(String(b.account.id)) + "')" : ''), uitleg: b.plan ? 'bijgewerkt ' + datumNL(String(b.plan.updated_at || '').slice(0, 10)) : (b.account ? 'nog geen — klik om te maken' : 'geen accountplan'),
       svg: '<path d="M9 3h6v3H9z"/><path d="M15 4.5h2A2 2 0 0 1 19 6.5V20a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/>' },
-    { sleutel: 'rldv', titel: 'RLDV', aan: b.rldvSelecties > 0, klik: b.rldvSelecties ? "crmKaartSluit();ACCOUNT_SUBTAB='sales';selectTab('accounts')" : '', uitleg: b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : 'in geen selectie',
+    { sleutel: 'rldv', titel: 'RLDV', aan: b.rldvSelecties > 0, klik: b.rldvSelecties ? "crmKaartSluit();BEHEER_SUBVIEW='rldv';selectTab('beheer')" : '', uitleg: b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : 'in geen selectie',
       svg: '<path d="M4 6h9M4 11h6M4 16h5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="m19.2 18.2 2.3 2.3"/>' },
     { sleutel: 'vervolg', titel: 'Vervolgafspraak', aan: !!b.vervolg, klik: "bezoekVervolgVenster('" + escApos(b.id) + "')", uitleg: b.vervolg ? bezoekVervolgTekst(b.vervolg) : 'nog niet gepland — klik om te plannen',
       svg: '<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15.5" r="1.5"/>' },
@@ -33375,7 +33575,7 @@ function bezoekKaartHtml(id) {
                  : rij('Record', b.record ? escHtml(b.record.datum + ' · ' + _accCollegaKort(b)) : '<span class="stil">nog geen verslag</span>', b.record ? kn("recordsNaarRecord('bezoek','" + escApos(b.id) + "')") : '')) +
       rij('Accountplan', b.plan ? 'bijgewerkt ' + escHtml(datumNL(String(b.plan.updated_at || '').slice(0, 10))) : '<span class="stil">nog geen</span>', b.plan ? kn("apNaar('" + escApos(String(b.plan.id)) + "')") : (b.account && magWijzigen('accounts') ? kn("apNieuwVoor('" + escApos(String(b.account.id)) + "')", 'nieuw') : '')) +
       rij('Scorekaart', b.account ? String(accScore(b.account)) : '<span class="stil">niet in KAM</span>', b.account ? kn("klantKaartOpen('" + escApos(String(b.account.id)) + "')") : '') +
-      rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("ACCOUNT_SUBTAB='sales';selectTab('accounts')") : '') +
+      rij('RLDV', b.rldvSelecties ? 'in ' + b.rldvSelecties + ' selectie' + (b.rldvSelecties === 1 ? '' : 's') : '<span class="stil">in geen selectie</span>', b.rldvSelecties ? kn("BEHEER_SUBVIEW='rldv';selectTab('beheer')") : '') +
       rij('Lopende kandidaten', b.lopend.length
         ? '<ul class="kk-ul">' + b.lopend.map(c => { const bm = bmsMetCijfers().find(x => pipeLoad(x.naam).some(y => y.id === c.id)); return '<li><span class="crm-klik" onclick="crmKaartSluit();kandKaartOpen(\'' + escApos(bm ? bm.naam : '') + '\',\'' + escApos(String(c.id)) + '\')">' + escHtml(c.naam) + '</span> · ' + escHtml(c.stage) + '</li>'; }).join('') + '</ul>'
         : '<span class="stil">geen</span>') +
@@ -33610,8 +33810,7 @@ function bezoekVervolgVenster(id) {
         '<input type="datetime-local" id="bz-vervolg-op" class="kand-vervolg-veld" value="' + escHtml(_naarVeldTijd(v.vervolg_op)) + '" oninput="_vervolgTegelWeekBij(\'bz-vervolg-op\',\'bz-vervolg-tegel-week\',\'Bezoeken\')">' +
         _vervolgManierHtml('bz-vervolg', v.vervolg_manier || null) +
         '<div class="crm-kop">Met wie</div>' +
-        '<input type="text" id="bz-vervolg-met" class="kand-vervolg-veld" list="bz-contacten" maxlength="80" placeholder="naam van de contactpersoon" value="' + escHtml(v.vervolg_met || b.contactpersoon || '') + '">' +
-        '<datalist id="bz-contacten">' + contacten.map(c => '<option value="' + escHtml(c.naam) + '">' + escHtml([c.functie, c.afdeling].filter(Boolean).join(' · ')) + '</option>').join('') + '</datalist>' +
+        _kiezerHtml({ id: 'bz-vervolg-met', lijst: contacten.filter(c => c && c.naam).map(c => ({ naam: c.naam, sub: [c.functie, c.afdeling].filter(Boolean).join(' · ') })), waarde: v.vervolg_met || b.contactpersoon || '', placeholder: 'typ de naam van de contactpersoon…', nieuw: 'Nieuwe naam', leeg: 'Geen contactpersoon met die naam bij dit bedrijf' }) +   // 29-10: zoekkiezer
         '<div class="crm-kop">Afdeling</div>' +
         '<input type="text" id="bz-vervolg-afd" class="kand-vervolg-veld" maxlength="80" placeholder="wordt aangevuld uit de contactpersoon als je het leeg laat" value="' + escHtml(v.vervolg_afd || b.afdeling || '') + '">' +
         '<div class="crm-kop">Waar (niet verplicht)</div>' +
@@ -33943,8 +34142,10 @@ const CRM_BEDR_VELDEN = [
   { titel: 'Contactpersonen', soort: 'contacten', velden: [] },
   { titel: 'Documenten & opmerking', velden: [
     { k: 'swo_link', l: 'Samenwerkingsovereenkomst (OneDrive-link)', type: 'url', breed: true }, { k: 'offerte_link', l: 'Offerte (OneDrive-link)', type: 'url', breed: true },
-    { k: 'opmerking', l: 'Opmerking', type: 'textarea', breed: true } ] },
+    { k: 'opmerking', l: 'Opmerking', type: 'textarea', breed: true },
+    { k: 'kam_lijst', l: 'Ook in de KAM-lijst zetten? (scorekaart, team)', select: ['Ja', 'Nee'] }, { k: 'rldv_lijst', l: 'Ook in de RLDV-lijst zetten? (RLDV-tool en -check)', select: ['Ja', 'Nee'] } ] },   // 29-10
 ];
+const CRM_BEDR_LIJSTVELDEN = ['kam_lijst', 'rldv_lijst'];   // 29-10: geen kolommen op crm_bedrijven; na het opslaan apart afgehandeld
 // Keuzelijsten van het Intake-tegeltje (pipeline-venster); het dossier gebruikt dezelfde.
 const CRM_REGIO = ['Noord', 'NRD-WEERT', 'NRD-Venlo', 'Midden', 'Zuid'];
 const CRM_REIS = [['15', '15 minuten'], ['30', '30 minuten'], ['45', '45 minuten'], ['60', '60 minuten']];
@@ -35519,6 +35720,25 @@ function crmKandWizard(sleutel) {
   _crmWizToon();
   const el = document.getElementById('crm-w-voornaam'); if (el && el.focus) el.focus();
 }
+// 29-10: na de wizard het bedrijf ook in de KAM- en/of RLDV-lijst zetten (zelfde rijen als de kaart maakt).
+async function _crmBedrijfInLijsten(sleutel, keuze) {
+  if (!keuze || (!keuze.kam && !keuze.rldv) || !supa || !magWijzigen('accounts')) return;
+  _crmLijstCacheWeg();
+  const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
+  const nuIso = new Date().toISOString();
+  if (keuze.kam && !k.account) {
+    const rij = { naam: k.naam, contacten: k.crm && Array.isArray(k.crm.contacten) ? k.crm.contacten.filter(c => c && c.naam) : [], updated_at: nuIso };
+    _echoVanZelf('accounts'); const { data, error } = await supa.from('accounts').insert(rij).select().single();
+    if (error) meldFout('in KAM-lijst zetten mislukt: ' + error.message, '_crmBedrijfInLijsten'); else { ACCOUNTS_CACHE.push(data); k.account = data; }
+  }
+  if (keuze.rldv && !k.lead) {
+    const rij = { naam: k.naam, regio: (k.crm && k.crm.plaats) || null, status: 'Prospect', voorwaarden_bekend: null, updated_at: nuIso };
+    SL_BOOL_FIELDS.forEach(([f]) => { rij[f] = false; });
+    _echoVanZelf('sales_leads'); const { data, error } = await supa.from('sales_leads').insert(rij).select().single();
+    if (error) meldFout('in RLDV-lijst zetten mislukt: ' + error.message, '_crmBedrijfInLijsten'); else { SALES_LEADS_CACHE.push(data); k.lead = data; }
+  }
+  _crmLijstCacheWeg();
+}
 function _crmWizWaarden(velden, w) {
   const uit = {};
   velden.forEach(s => s.velden.forEach(f => { const v = String(w[f.k] == null ? '' : w[f.k]).trim(); uit[f.k] = v || null; }));
@@ -35902,11 +36122,11 @@ function crmKandSamenvoegVenster(sleutel) {
   const doel = lijst.find(x => x.sleutel === String(sleutel)); if (!doel) return;
   const gelijk = new Set(doel.dubbel || []);
   const keuzes = lijst.filter(x => x.sleutel !== doel.sleutel).sort((a, b) => (gelijk.has(b.sleutel) ? 1 : 0) - (gelijk.has(a.sleutel) ? 1 : 0) || a.naam.localeCompare(b.naam, 'nl'));
-  const opt = (x) => { const i = _crmKandIntake(x); const sub = [x.invoerder ? String(x.invoerder).split(' ')[0] : '', i.ms > 0 ? i.tekst : ''].filter(Boolean).join(' · '); return '<option value="' + escHtml(x.sleutel) + '"' + (gelijk.has(x.sleutel) ? ' class="let"' : '') + '>' + escHtml(x.naam) + (gelijk.has(x.sleutel) ? ' · lijkt erop' : '') + (sub ? ' · ' + escHtml(sub) : '') + '</option>'; };
+  const item = (x) => { const i = _crmKandIntake(x); const sub = [gelijk.has(x.sleutel) ? 'lijkt erop' : '', x.invoerder ? String(x.invoerder).split(' ')[0] : '', i.ms > 0 ? i.tekst : ''].filter(Boolean).join(' · '); return { naam: x.naam, sub, id: x.sleutel }; };   // 29-10: zoekkiezer
   crmKaartToon('<h4 class="wit">Samenvoegen met ' + escHtml(doel.naam) + '</h4>' +
     '<div class="crm-sub">Kies welke kandidaat hierin opgaat. De naam <b>' + escHtml(doel.naam) + '</b> blijft; alles van de ander komt eronder.</div>' +
     '<div class="crm-kop">Opgaan in dit dossier</div>' +
-    '<select id="crm-sv-bron" class="kand-vervolg-veld" data-doel="' + escHtml(doel.sleutel) + '" onchange="crmKandSamenvoegKeuze()"><option value="">— kies een kandidaat —</option>' + keuzes.map(opt).join('') + '</select>' +
+    _kzIdKiezerHtml({ id: 'crm-sv-bron', lijst: _kzUniek(keuzes.map(item)), placeholder: 'typ de naam van de andere kandidaat…', leeg: 'Geen andere kandidaat met die naam', na: 'crmKandSamenvoegKeuze()', bijTyp: true, data: ' data-doel="' + escHtml(doel.sleutel) + '"' }) +
     '<div class="crm-kop">Dit gebeurt er</div><div id="crm-sv-plan" class="kk-tekst stil">Kies eerst een kandidaat.</div>' +
     '<div class="crm-knoppen"><button id="crm-sv-knop" class="crm-knop goed crm-knop-vast" disabled onclick="crmKandSamenvoegen(\'' + escApos(doel.sleutel) + '\')">Samenvoegen</button>' +
     '<button class="crm-knop crm-knop-vast" onclick="crmKandOpen(\'' + escApos(doel.sleutel) + '\')">Annuleren</button></div>', 'crm-samenvoeg');
@@ -36228,7 +36448,7 @@ function evalVerslagenKoppelOpen() {
     // Bedrijf (30-09): gekoppeld → vinkje; anders voorstel + kiezer uit CRM · Bedrijven.
     const bsVast = _evalBedrijfSleutel(r), bsKeuze = EV_KOP.bedrijf[idS] || '', bv = bsVast ? null : _evalKopBedrijfVoorstel(r, gekozenSl || (v ? v.sleutel : ''));
     const bedrijfCel = bsVast ? '<span class="ev-kop-gekozen">✓ ' + escHtml(_evalBedrijfNaam(r)) + '</span>'
-      : _kiezerHtml({ id: 'ev-bedr-' + idS.replace(/[^a-z0-9]/gi, ''), lijst: () => crmBedrijfLijst().map(x => ({ naam: x.naam, sub: x.plaats || '' })), waarde: bsKeuze ? _evalBedrijfNaam({ bedrijfSleutel: bsKeuze }) : (bv ? bv.naam : ''),
+      : _kiezerHtml({ id: 'ev-bedr-' + idS.replace(/[^a-z0-9]/gi, ''), lijst: _kzKlanten, waarde: bsKeuze ? _evalBedrijfNaam({ bedrijfSleutel: bsKeuze }) : (bv ? bv.naam : ''),
                       placeholder: 'bedrijf uit CRM…', leeg: 'Geen bedrijven in het CRM', nieuw: false, uit: !mag, kies: 'evalKopBedrijfKies(\'' + idE + '\', this.value)', typ: '' }) +
         (bv && !bsKeuze ? '<small class="stil">voorstel uit het project</small>' : '');
     const ms = _recDatumSort(r.datum);
@@ -36725,7 +36945,7 @@ function _vmSchermHtml(alle) {
   const bronKnop = (b, tekst) => '<button type="button" class="' + (VM.bron === b ? 'aan' : '') + '" onclick="vmBron(\'' + b + '\')">' + tekst + '</button>';
   const vacs = (typeof VACATURES !== 'undefined' ? VACATURES : []).filter(x => x.status !== 'gesloten' && !x.verwijderd_op).slice().sort((a, b) => String(a.titel || '').localeCompare(String(b.titel || ''), 'nl'));
   const kiezer = VM.bron === 'vac'
-    ? '<select onchange="vmKies(this.value)"><option value="">— kies een vacature —</option>' + vacs.map(x => '<option value="' + escHtml(String(x.id)) + '"' + (String(x.id) === VM.vacId ? ' selected' : '') + '>' + escHtml((x.titel || 'zonder titel') + ' · ' + (_vacKlantNaam(x) || '—') + (x.regio ? ' · ' + x.regio : '') + (x.status === 'online' ? '' : ' · ' + x.status)) + '</option>').join('') + '</select>'
+    ? _kzIdKiezerHtml({ id: 'vm-vac', klasse: 'donker', lijst: _kzVacatures(vacs), waardeId: VM.vacId, placeholder: 'typ een functietitel of klant…', leeg: 'Geen open vacature gevonden', na: "var v = document.getElementById('vm-vac').value; if (v && v !== VM.vacId) vmKies(v);" })   // 29-10: zoekkiezer (zoekt ook in klant · status)
     : VM.bron === 'tekst'
       ? '<input type="text" id="vm-titel" placeholder="Functietitel" value="' + escHtml(VM.vacId ? '' : VM.titel) + '" style="margin-bottom:6px" oninput="vmTekstToets(document.getElementById(\'vm-tekst\'))"><textarea id="vm-tekst" placeholder="Plak hier de vacaturetekst…" oninput="vmTekstToets(this)">' + escHtml(VM.vacId ? '' : VM.tekst) + '</textarea>'
       : '<div class="vm-drop" ondragover="event.preventDefault();this.classList.add(\'sleep\')" ondragleave="this.classList.remove(\'sleep\')" ondrop="event.preventDefault();this.classList.remove(\'sleep\');vmBestand(event.dataTransfer.files)" onclick="document.getElementById(\'vm-bestand\').click()"><b>Sleep een PDF of Word hierheen</b><br>of klik om te kiezen</div><input type="file" id="vm-bestand" hidden accept=".pdf,.docx,.txt" onchange="vmBestand(this.files)">';
@@ -37477,6 +37697,7 @@ async function crmBedrijfOpslaan() {
   if (!velden.naam) { W.stap = 0; W.fout = 'De bedrijfsnaam is verplicht.'; _crmWizToon(); return; }
   velden.naam = velden.naam.replace(/\s+/g, ' ').trim();
   velden.sleutel = _itkSleutel(velden.naam);
+  const inLijsten = { kam: velden.kam_lijst === 'Ja', rldv: velden.rldv_lijst === 'Ja' }; CRM_BEDR_LIJSTVELDEN.forEach(f => { delete velden[f]; });   // 29-10
   const lijst = CRM_BEDRIJVEN || [];
   const dubbel = lijst.find(b => b.sleutel === velden.sleutel && String(b.id) !== String(W.id || '') && b.bron !== 'verwijderd');
   if (dubbel) { alert('Dit bedrijf bestaat al: ' + dubbel.naam + '. Het dossier staat nu open.'); CRM_WIZ = null; crmBedrijfOpen(velden.sleutel); return; }
@@ -37513,6 +37734,7 @@ async function crmBedrijfOpslaan() {
   // 02-10: gewijzigde contactpersonen van een bestaand bedrijf via de gewone weg (CRM-rij of KAM-tabel).
   if (W.id && W.contactenGewijzigd) { const kb = crmBedrijfLijst().find(x => x.sleutel === velden.sleutel); if (kb) await _crmBedrijfContactenOpslaan(kb, (W.contacten || []).filter(c => c && c.naam)); }
   CRM_WIZ = null;
+  await _crmBedrijfInLijsten(velden.sleutel, inLijsten);   // 29-10
   if (_CRM_WIZ_NA) { const na = _CRM_WIZ_NA; _CRM_WIZ_NA = null; na(rij); if (currentTab === 'crmbedrijf') renderCrmBedrijven(); return; }   // 28-09: bijv. terug naar het verslag-formulier
   crmBedrijfOpen(velden.sleutel);
   if (currentTab === 'crmbedrijf') renderCrmBedrijven();
@@ -37741,8 +37963,7 @@ function _crmAfspraakVormHtml(k) {
   return '<div class="crm-afspraak" id="crm-afspraak-vorm">' +
     '<div class="af2">' +
       '<label><span>Opdrachtgever</span><div class="vast">' + escHtml(k.naam) + '</div></label>' +
-      '<label><span>Contactpersoon <b>*</b></span><input type="text" id="crm-afspraak-cp" class="kand-vervolg-veld" list="crm-afspraak-cp-lijst" placeholder="kies uit de lijst of typ een nieuwe naam" maxlength="80" value="' + escHtml(contacten.length === 1 ? contacten[0].naam : '') + '">' +
-        '<datalist id="crm-afspraak-cp-lijst">' + contacten.map(c => '<option value="' + escHtml(c.naam) + '">' + escHtml(c.functie || '') + '</option>').join('') + '</datalist></label>' +
+      '<label><span>Contactpersoon <b>*</b></span>' + _kiezerHtml({ id: 'crm-afspraak-cp', lijst: _kzContacten(k), waarde: contacten.length === 1 ? contacten[0].naam : '', placeholder: 'kies een contactpersoon of typ een nieuwe naam…', nieuw: 'Nieuwe contactpersoon (komt bij het bedrijf)', leeg: 'Nog geen contactpersonen bij dit bedrijf' }) + '</label>' +   // 29-10: zoekkiezer
       '<label><span>Datum en tijd <b>*</b></span><input type="datetime-local" id="crm-afspraak-op" class="kand-vervolg-veld" oninput="_crmAfspraakHintBij()"></label>' +
       '<div class="veld"><span>Type bezoek <b>*</b></span><span class="col-pillen">' + Object.keys(BEZOEK_SOORTEN).map(x => '<button type="button" class="col-pil' + (x === soort ? ' aan' : '') + '" data-soort="' + x + '" onclick="crmBedrijfAfspraakSoort(\'' + x + '\')">' + BEZOEK_SOORTEN[x] + '</button>').join('') + '</span></div>' +
       '<div class="veld breed"><span>Collega\'s <b>*</b><small>twee collega\'s = samen op bezoek, in beide pipelines</small></span>' +
@@ -38355,12 +38576,23 @@ function _kanbanStandaardBm(voorkeur) {
   const eigen = CURRENT_USER && CURRENT_USER.bm_naam;
   return eigen && namen.includes(eigen) ? eigen : (namen[0] || '');
 }
+// Kiezerlijsten (29-10): CRM voorop met functie · woonplaats resp. plaats · fase; namen die alleen in de pipeline staan erachter.
+function _kanbanKandKiezerLijst() {
+  const uit = _kzKandidaten(), heeft = new Set(uit.map(x => _itkSleutel(x.naam)));
+  _kanbanKandKeuzes().forEach(n => { if (!heeft.has(_itkSleutel(n))) uit.push({ naam: n, sub: 'pipeline' }); });
+  return uit;
+}
+function _kanbanKlantKiezerLijst() {
+  const uit = _kzKlanten(), heeft = new Set(uit.map(x => _itkSleutel(x.naam)));
+  _kanbanKlantKeuzes().forEach(n => { if (!heeft.has(_itkSleutel(n))) uit.push({ naam: n, sub: 'pipeline' }); });
+  return uit;
+}
 function _kanbanVeldenHtml(o) {
-  const klanten = _kanbanKlantKeuzes().map(n => '<option value="' + escHtml(n) + '">').join('');
-  return (o.metNaam ? '<div class="crm-kop">Kandidaat</div><input type="text" id="kb-naam" class="kand-vervolg-veld" list="kb-kandidaten" maxlength="80" placeholder="naam van de kandidaat" value="' + escHtml(o.naam || '') + '"><datalist id="kb-kandidaten">' + _kanbanKandKeuzes().map(n => '<option value="' + escHtml(n) + '">').join('') + '</datalist>' : '') +
-    '<div class="kk-2k"><div><div class="crm-kop">Klant</div><input type="text" id="kb-klant" class="kand-vervolg-veld" list="kb-klanten" maxlength="120" placeholder="opdrachtgever" value="' + escHtml(o.klant || '') + '" oninput="_kanbanVacatureVul()"><datalist id="kb-klanten">' + klanten + '</datalist></div>' +
+  // 29-10: zoekkiezers (ontwerp_kiezers) — kandidaat uit het CRM + de pipeline, klant uit CRM · Bedrijven + de pipeline.
+  return (o.metNaam ? '<div class="crm-kop">Kandidaat</div>' + _kiezerHtml({ id: 'kb-naam', lijst: _kanbanKandKiezerLijst, waarde: o.naam || '', placeholder: 'typ de naam van de kandidaat…', nieuw: 'Nieuwe kandidaat', leeg: 'Geen kandidaat met die naam' }) : '') +
+    '<div class="kk-2k"><div><div class="crm-kop">Klant</div>' + _kiezerHtml({ id: 'kb-klant', lijst: _kanbanKlantKiezerLijst, waarde: o.klant || '', placeholder: 'typ de naam van de klant…', nieuw: 'Nieuw bedrijf', leeg: 'Geen bedrijf met die naam', typ: '_kanbanVacatureVul()', kies: '_kanbanVacatureVul()' }) + '</div>' +
     '<div><div class="crm-kop">Functie</div><input type="text" id="kb-functie" class="kand-vervolg-veld" maxlength="120" placeholder="functie waarvoor het gesprek is" value="' + escHtml(o.functie || '') + '"></div></div>' +
-    (o.metVacature === false ? '' : '<div class="crm-kop">Vacature <small class="crm-kop-klein">optioneel · open vacatures van de klant</small></div>' + _kanbanVacatureSelectHtml(o.klant || '', o.vacatureId || '')) +   // 12-10
+    (o.metVacature === false ? '' : '<div class="crm-kop">Vacature <small class="crm-kop-klein">optioneel · open vacatures van de klant</small></div><div id="kb-vac-wrap">' + _kanbanVacatureSelectHtml(o.klant || '', o.vacatureId || '') + '</div>') +   // 12-10 · 29-10 kiezer
     '<div class="crm-kop">' + escHtml(o.datumLabel || 'Datum en tijd') + '</div><input type="datetime-local" id="kb-op" class="kand-vervolg-veld" value="' + escHtml(o.op || '') + '">' +
     (o.metSalaris ? '<div class="crm-kop">Salaris (verplicht bij Contractvoorstel)</div><input type="text" id="kb-salaris" class="kand-vervolg-veld" maxlength="40" placeholder="bijv. 3.800" value="' + escHtml(o.salaris || '') + '">' : '') +
     (o.zonderCollegas ? '' : _kanbanCollegasHtml(o.bm1 || '', o.bm2 || '')) +
@@ -38381,14 +38613,15 @@ function _kanbanVacatureSelectHtml(klant, vacatureId) {
   const huidig = vacatureId ? _vacVind(vacatureId) : null;
   if (huidig && !lijst.some(v => String(v.id) === String(huidig.id))) lijst.unshift(huidig);   // gekoppeld aan een (inmiddels gesloten of andere) vacature: laten zien
   const gekozen = vacatureId || (lijst.length === 1 ? String(lijst[0].id) : '');   // precies één open vacature → vooraf gekozen
-  const opties = '<option value="">' + (klant ? (lijst.length ? 'geen vacature (los gesprek)' : 'geen open vacature bij ' + escHtml(klant)) : 'kies eerst de klant') + '</option>' +
-    lijst.map(v => '<option value="' + escHtml(String(v.id)) + '"' + (String(v.id) === String(gekozen) ? ' selected' : '') + ' data-sub="' + escHtml((v.status || '') + ' · ' + vacSelVoorVacature(v.id).length + ' geselecteerd') + '">' + escHtml((v.titel || 'vacature') + (v.regio ? ' — ' + v.regio : '')) + '</option>').join('');
-  return '<select id="kb-vacature" class="kand-vervolg-veld" data-kz="uit">' + opties + '</select>';
+  // 29-10: zoekkiezer met verborgen id-veld kb-vacature (ontwerp_kiezers); leeg = los gesprek.
+  const items = _kzVacatures(lijst);
+  return _kzIdKiezerHtml({ id: 'kb-vacature', lijst: items, waardeId: gekozen, uit: !lijst.length,
+    placeholder: klant ? (lijst.length ? 'geen vacature (los gesprek) — of kies er een' : 'geen open vacature bij ' + klant) : 'kies eerst de klant', leeg: 'Geen open vacature met die naam bij ' + (klant || 'deze klant') });
 }
 function _kanbanVacatureVul() {
-  const sel = document.getElementById('kb-vacature'), klant = document.getElementById('kb-klant'); if (!sel || !klant) return;
-  const wrap = document.createElement('div'); wrap.innerHTML = _kanbanVacatureSelectHtml(klant.value, sel.value);
-  sel.innerHTML = wrap.firstChild.innerHTML;
+  const wrap = document.getElementById('kb-vac-wrap'), klant = document.getElementById('kb-klant'); if (!wrap || !klant) return;
+  const h = document.getElementById('kb-vacature');
+  wrap.innerHTML = _kanbanVacatureSelectHtml(klant.value, h ? h.value : '');
 }
 function _kanbanVacaturePilHtml(c, fase, mag) {
   if (!['g1', 'g2', 'g3', 'contract'].includes(fase)) return '';
@@ -38492,8 +38725,8 @@ function kanbanStarboyVenster() {
   crmKaartToon('<h4 class="wit">StarBoy toevoegen</h4>' +
     '<div class="crm-sub">Kies een kandidaat uit de intakes. Het Intake-tegeltje krijgt een ster; er komt geen nieuw tegeltje bij.</div>' +
     '<div class="crm-kop">Kandidaat (uit de intakes)</div>' +
-    '<select id="kb-starboy" class="kand-vervolg-veld"><option value="">— kies —</option>' +
-      keuzes.map(c => '<option value="' + escHtml(c.bmNaam) + '|' + escHtml(c.id) + '">' + escHtml(c.naam) + ' · ' + escHtml([c.functie, String(c.bmNaam).split(' ')[0], c.intake_op ? 'intake ' + _accDagKort(Date.parse(c.intake_op)) : ''].filter(Boolean).join(' · ')) + '</option>').join('') + '</select>' +
+    _kzIdKiezerHtml({ id: 'kb-starboy', lijst: _kzUniek(keuzes.map(c => ({ naam: c.naam, sub: [c.functie, String(c.bmNaam).split(' ')[0], c.intake_op ? 'intake ' + _accDagKort(Date.parse(c.intake_op)) : ''].filter(Boolean).join(' · '), id: c.bmNaam + '|' + c.id }))),
+      placeholder: 'typ de naam van de kandidaat…', leeg: 'Geen recente intake met die naam' }) +   // 29-10: zoekkiezer
     '<div id="kb-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
     '<div class="crm-knoppen"><button class="crm-knop goed" onclick="kanbanStarboyZet()">Toevoegen</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>');
 }
@@ -38711,21 +38944,47 @@ function accountKaartHtml(sleutel) {
     return rij(label, w ? escHtml(String(w)) + (!r[f] && plan && plan[f] ? ' <span class="stil">(uit het accountplan)</span>' : '') : '');
   }).join('') + (bewerk ? rijB('Afspraken', _crmBewerkVeld('afspraken', { type: 'textarea' })) : rij('Afspraken', r.afspraken ? escHtml(r.afspraken) : '')) + '</div>' +
     (!bewerk && planHint.length ? '<div class="kk-afspraak-hint">Nog niet vastgelegd op deze kaart; voorzet uit het accountplan. Klik <b>Wijzigen</b> om het vast te zetten.</div>' : ''));
+  // 29-10: KAM en RLDV volledig op de kaart (CRM leidend). In bewerkmodus kun je het bedrijf in of uit beide lijsten zetten.
+  const W = bewerk && CRM_BEWERK ? CRM_BEWERK.w : {};
+  const rldvAan = bewerk ? W.rldv_aan === 'Ja' : !!lead;
+  const kamAan = bewerk ? W.kam_aan === 'Ja' : !!a;
   // RLDV: dezelfde vijf schuifjes als de RLDV-lijst; buiten bewerkmodus gedempt.
-  const functies = lead ? '<div class="kk-rldv">' + SL_BOOL_FIELDS.map(([f, label]) => '<label><input type="checkbox" class="bt-schuif bt-schuif-klein' + (bewerk && magAcc ? '' : ' bt-schuif-vast') + '" id="kk-rldv-' + f + '"' + (lead[f] ? ' checked' : '') + (bewerk && magAcc ? '' : ' disabled') + ' aria-label="' + escHtml(label) + '">' + escHtml(label) + '</label>').join('') + '</div>' : '';
+  const functies = (lead || bewerk) ? '<div class="kk-rldv">' + SL_BOOL_FIELDS.map(([f, label]) => '<label><input type="checkbox" class="bt-schuif bt-schuif-klein' + (bewerk && magAcc ? '' : ' bt-schuif-vast') + '" id="kk-rldv-' + f + '"' + (lead && lead[f] ? ' checked' : '') + (bewerk && magAcc ? '' : ' disabled') + ' aria-label="' + escHtml(label) + '">' + escHtml(label) + '</label>').join('') + '</div>' : '';
   const laatste = k.laatste;
-  const rldv = blok('RLDV', lead
-    ? '<div class="kk-lijst">' + rij('Sector · regio', escHtml([lead.vakgebied, lead.regio].filter(Boolean).join(' · '))) + rij('Status', lead.status ? '<span class="crm-pil">' + escHtml(lead.status) + '</span>' : '') +
-      '<div class="kk-rij"><span>Functies</span>' + functies + '</div>' +
+  const cpNamen = (k.contacten || []).map(c => c.naam).filter(Boolean);
+  const rldv = blok('RLDV', bewerk
+    ? '<div class="kk-lijst">' + rijB('In RLDV-lijst', _crmBewerkVeld('rldv_aan', { select: ['Ja', 'Nee'], kort: true, ph: 'kies' }) + '<span class="stil" style="font-size:.72rem;">Nee = van de RLDV-lijst (de RLDV-tool ziet hem dan niet meer)</span>') +
+      rijB('Status', _crmBewerkVeld('rldv_status', { select: ['Prospect', 'Lead', 'CP-bekend', 'Klant'], kort: true, ph: 'kies' })) +
+      rijB('Sector · regio', _crmBewerkVeld('rldv_vak', { ph: 'bijv. Metaal', kort: true }) + _crmBewerkVeld('rldv_regio', { ph: 'plaats of regio', kort: true })) +
+      '<div class="kk-rij bewerk"><span>Functies</span>' + functies + '</div>' +
+      rijB('Contactpersoon', cpNamen.length ? _crmBewerkVeld('rldv_cp', { select: cpNamen, ph: 'kies' }) : _crmBewerkVeld('rldv_cp', { ph: 'naam contactpersoon' })) + '</div>'
+    : lead
+    ? '<div class="kk-lijst">' + rij('In RLDV-lijst', '<span class="crm-pil ok">ja</span>' + (lead.status ? ' <span class="crm-pil">' + escHtml(lead.status) + '</span>' : '')) + rij('Sector · regio', escHtml([lead.vakgebied, lead.regio].filter(Boolean).join(' · '))) +
+      '<div class="kk-rij"><span>Functies</span>' + functies + '</div>' + rij('Contactpersoon', escHtml(lead.contactpersoon || '')) +
       rij('Laatste bezoek', laatste ? escHtml(_crmDatum(laatste.datumMs) + ' · ' + (_accCollegaKort(laatste) || 'onbekend') + ' · ' + (_ACC_SOORT[laatste.soortBezoek] || laatste.soortBezoek || '')) : '', laatste ? '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(laatste.id) + '\')">kaart</button>' : '') + '</div>'
-    : '<div class="kk-tekst stil kk-rldv-leeg">niet in de RLDV-lijst — sector, status en functies worden nog niet gevolgd' + (magAcc && supa && !bewerk ? '<button type="button" class="crm-kop-knop goud" onclick="crmNaarRldvVenster(\'' + sE + '\')">Zet in RLDV-lijst</button>' : '') + '</div>', lead ? 'gelijk aan de RLDV-lijst' : '');   // 15-10 knop
-  // KAM-scorekaart: negen tegels + totaal; in bewerkmodus een cijfer 1–5.
-  const scores = a
+    : '<div class="kk-tekst stil kk-rldv-leeg">niet in de RLDV-lijst — sector, status en functies worden nog niet gevolgd' + (magAcc && supa && !bewerk ? '<button type="button" class="crm-kop-knop goud" onclick="crmNaarRldvVenster(\'' + sE + '\')">Zet in RLDV-lijst</button>' : '') + '</div>', lead ? 'gelijk aan de RLDV-lijst' : '');
+  void rldvAan;   // 15-10 knop
+  // KAM: negen tegels + totaal; in bewerkmodus een cijfer 1–5, plus aan/uit, markering, team, voorwaarden en aanbieden (29-10).
+  const scoreTegels = (a || (bewerk && kamAan))
     ? '<div class="kk-scores">' + ACC_SCORE_FIELDS.map(([f, label]) => '<span>' + escHtml(label) +
-        (bewerk && magAcc ? '<input type="number" min="1" max="5" id="kk-score-' + f + '" value="' + escHtml(a[f] == null ? '' : String(a[f])) + '">' : '<b>' + (Number(a[f]) || 0) + '</b>') + '</span>').join('') + '</div>' +
-      '<div class="acc-arch-nieuw" style="margin:8px 0 0;"><span>Totaalscore</span><strong style="font-size:1.05rem;">' + score + '</strong></div>'
-    : '<div class="kk-tekst stil">niet in de KAM-lijst — zet ' + escHtml(k.naam) + ' in de KAM-tabel voor de scorekaart en het BrighTech-team</div>';
-  const scoreBlok = blok('KAM-scorekaart', scores, a ? 'gelijk aan de KAM-lijst · groen vanaf 28' : '');
+        (bewerk && magAcc ? '<input type="number" min="1" max="5" id="kk-score-' + f + '" value="' + escHtml(a && a[f] != null ? String(a[f]) : '') + '">' : '<b>' + (a ? (Number(a[f]) || 0) : 0) + '</b>') + '</span>').join('') + '</div>'
+    : '';
+  const markPil = a && a.notitie === 'top11' ? ' <span class="ap-pil geel">Top 11</span>' : a && a.notitie === 'gwnst11' ? ' <span class="ap-pil blauw">Gwnst 11</span>' : '';
+  const scores = bewerk
+    ? '<div class="kk-lijst">' + rijB('In KAM-lijst', _crmBewerkVeld('kam_aan', { select: ['Ja', 'Nee'], kort: true, ph: 'kies' }) + '<span class="stil" style="font-size:.72rem;">Nee = van de KAM-lijst; de contactpersonen gaan mee naar de bedrijfskaart</span>') +
+      rijB('Markering', _crmBewerkVeld('kam_markering', { select: [['top11', 'Top 11'], ['gwnst11', 'Gewenst 11']], kort: true, ph: 'geen' })) +
+      _teamRijHtml('Strategisch', 'strat_cp', W.strat_cp || '', true, '') + _teamRijHtml('Operationeel', 'op_cp', W.op_cp || '', true, 'op') +
+      rijB('Voorwaarden bekend', _crmBewerkVeld('kam_voorw', { select: ['Ja', 'Nee'], kort: true, ph: '—' })) +
+      rijB('Actief aanbieden', _crmBewerkVeld('kam_actief', { select: ['Ja', 'Nee'], kort: true, ph: '—' })) + '</div>' +
+      '<div class="ap-l" style="margin-top:8px;">Scorekaart <span class="stil">· 1 – 5 per onderdeel; opslaan zet "laatste wijziging" op vandaag</span></div>' + scoreTegels
+    : a
+    ? '<div class="kk-lijst">' + rij('In KAM-lijst', '<span class="crm-pil ok">ja</span>' + markPil) +
+      rij('Team', escHtml([a.strat_cp ? 'strategisch ' + a.strat_cp : '', a.op_cp ? 'operationeel ' + a.op_cp : ''].filter(Boolean).join(' · '))) +
+      rij('Voorwaarden bekend', escHtml(a.voorwaarden_bekend || '')) + rij('Actief aanbieden', escHtml(a.actief_aanbieden || '')) +
+      rij('Scorekaart', '<b>' + score + '</b>/45' + (a.updated_at ? ' <span class="stil">· laatste wijziging ' + escHtml(_kandDatumKort(String(a.updated_at).slice(0, 10))) + (accIsStale(a.updated_at) ? ' <span style="color:#ff6b6b" title="ouder dan een maand">!</span>' : '') + '</span>' : ''),
+        magAcc ? '<button type="button" class="kk-knop" title="De scores kloppen nog: zet laatste wijziging op vandaag zonder de scores aan te raken" onclick="kaartScoreOk(\'' + sE + '\')">✓ geen wijziging</button>' : '') + '</div>' + scoreTegels
+    : '<div class="kk-tekst stil">niet in de KAM-lijst — klik Wijzigen en zet "In KAM-lijst" op Ja voor de scorekaart, markering en het BrighTech-team</div>';
+  const scoreBlok = blok('Key Accountmanagement', scores, a ? 'groen vanaf 28' : '');
   // Accountplan: openen of maken; de kernvelden uit het plan als leesregels.
   const planBlok = blok('Accountplan', '<div class="kk-lijst">' +
     rij('Plan', plan ? '<span class="crm-pil ok">Ja · ' + escHtml(datumNL(String(plan.updated_at || '').slice(0, 10))) + '</span>' : '<span class="crm-pil leeg">nee</span>',
@@ -38737,7 +38996,7 @@ function accountKaartHtml(sleutel) {
     : rij('SWO', _crmLink(r.swo_link, 'openen')) + rij('Offerte', _crmLink(r.offerte_link, 'openen'))) + '</div>');
   const knoppen = _bedrijfBladenRij(k, 'account', bewerk
     ? { bewerk: true, opslaan: 'accountKaartBewerkOpslaan()', annuleren: 'accountKaartBewerkStop()' }
-    : { wijzig: magCrm ? "accountKaartBewerk('" + sE + "')" : null, wijzigTitel: 'Wijzigen (afspraken, RLDV, scores, documenten)' });
+    : { wijzig: magCrm ? "accountKaartBewerk('" + sE + "')" : null, wijzigTitel: 'Wijzigen (KAM, RLDV, afspraken, documenten)' });
   return _bedrijfKopHtml(k) + '<span class="klant-kaart-id" data-account="' + escHtml(a ? String(a.id) : '') + '" data-sleutel="' + escHtml(k.sleutel) + '" hidden></span>' +
     '<div class="crm-sub">' + escHtml(sub) + '</div>' +
     '<div class="crm-body bd-body">' +
@@ -38764,7 +39023,10 @@ function accountKaartBewerk(sleutel) {
   if (!magWijzigen('crm')) { alert('Je hebt geen recht om het CRM te wijzigen.'); return; }
   const k = crmBedrijfLijst().find(x => x.sleutel === String(sleutel)); if (!k) return;
   const r = k.crm || {}, g = (v) => v == null ? '' : String(v);
-  CRM_BEWERK = { soort: 'account', sleutel: k.sleutel, w: { factor: g(r.factor), inleentermijn: g(r.inleentermijn), betalingstermijn: g(r.betalingstermijn), cao: g(r.cao), procedure_gesprekken: g(r.procedure_gesprekken), afspraken: g(r.afspraken), swo_link: g(r.swo_link), offerte_link: g(r.offerte_link) } };
+  CRM_BEWERK = { soort: 'account', sleutel: k.sleutel, w: { factor: g(r.factor), inleentermijn: g(r.inleentermijn), betalingstermijn: g(r.betalingstermijn), cao: g(r.cao), procedure_gesprekken: g(r.procedure_gesprekken), afspraken: g(r.afspraken), swo_link: g(r.swo_link), offerte_link: g(r.offerte_link),
+    // 29-10: KAM en RLDV op de kaart
+    kam_aan: k.account ? 'Ja' : 'Nee', kam_markering: g(k.account && k.account.notitie), strat_cp: g(k.account && k.account.strat_cp), op_cp: g(k.account && k.account.op_cp), kam_voorw: g(k.account && k.account.voorwaarden_bekend), kam_actief: g(k.account && k.account.actief_aanbieden),
+    rldv_aan: k.lead ? 'Ja' : 'Nee', rldv_status: g(k.lead && k.lead.status), rldv_vak: g(k.lead && k.lead.vakgebied), rldv_regio: g(k.lead && k.lead.regio), rldv_cp: g(k.lead && k.lead.contactpersoon) } };
   accountKaartOpen(k.sleutel, true);
   const el = document.getElementById('crm-b-factor'); if (el && el.focus) el.focus();
 }
@@ -38820,7 +39082,35 @@ async function accountKaartBewerkOpslaan() {
 async function _accountKaartKamOpslaan(k) {
   if (!magWijzigen('accounts')) return true;   // zonder recht stonden de velden op slot
   const byId = (id) => document.getElementById(id);
-  const a = k.account;
+  const W = (CRM_BEWERK && CRM_BEWERK.w) || {};
+  const nuIso = new Date().toISOString(), tx = (v) => { const t = String(v == null ? '' : v).trim(); return t || null; };
+  let a = k.account;
+  // 29-10 · KAM aan/uit en de kopvelden (markering, voorwaarden, aanbieden, team).
+  if (W.kam_aan === 'Nee' && a) {
+    const ok = await btBevestig(k.naam + ' uit de KAM-lijst halen?\n\nDe scorekaart en het team verdwijnen; de contactpersonen gaan mee naar de bedrijfskaart. Het accountplan blijft bestaan.', { knop: 'Uit de KAM-lijst', soort: 'weg' });
+    if (!ok) return false;
+    const cps = Array.isArray(a.contacten) ? a.contacten.filter(c => c && c.naam) : [];
+    if (cps.length) { const oude = k.crm && Array.isArray(k.crm.contacten) ? k.crm.contacten : []; const namen = new Set(oude.map(c => _itkSleutel(c.naam))); await _crmBedrijfRijSchrijf(k, { contacten: oude.concat(cps.filter(c => !namen.has(_itkSleutel(c.naam)))) }); }
+    if (supa && !String(a.id).startsWith('local-')) { _echoVanZelf('accounts'); const { error } = await supa.from('accounts').delete().eq('id', a.id); if (error) { meldFout('uit KAM-lijst mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('Niet gelukt: ' + _accFoutTekst(error)); return false; } }
+    ACCOUNTS_CACHE = (ACCOUNTS_CACHE || []).filter(x => String(x.id) !== String(a.id)); if (!supa && typeof accountsSaveLocal === 'function') accountsSaveLocal();
+    k.account = null; a = null; _crmLijstCacheWeg();
+  } else if (W.kam_aan === 'Ja' && !a) {
+    const rij = { naam: k.naam, notitie: tx(W.kam_markering), strat_cp: tx(W.strat_cp) ? String(W.strat_cp).toUpperCase() : null, op_cp: tx(W.op_cp) ? String(W.op_cp).toUpperCase() : null, voorwaarden_bekend: tx(W.kam_voorw), actief_aanbieden: tx(W.kam_actief), contacten: k.crm && Array.isArray(k.crm.contacten) ? k.crm.contacten.filter(c => c && c.naam) : [], updated_at: nuIso };
+    ACC_SCORE_FIELDS.forEach(([f]) => { const el = byId('kk-score-' + f); const raw = el ? String(el.value || '').trim() : ''; rij[f] = raw === '' ? null : Math.max(1, Math.min(5, parseInt(raw, 10) || 1)); });
+    if (supa) { _echoVanZelf('accounts'); const { data, error } = await supa.from('accounts').insert(rij).select().single(); if (error) { meldFout('in KAM-lijst zetten mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('Niet in de KAM-lijst gezet: ' + _accFoutTekst(error)); return false; } a = data; }
+    else a = { id: 'local-' + Date.now(), ...rij };
+    ACCOUNTS_CACHE.push(a); if (!supa && typeof accountsSaveLocal === 'function') accountsSaveLocal();
+    k.account = a; _crmLijstCacheWeg();
+  } else if (a) {
+    const kop = {};
+    if ((a.notitie || null) !== tx(W.kam_markering)) kop.notitie = tx(W.kam_markering);
+    if ((a.voorwaarden_bekend || null) !== tx(W.kam_voorw)) kop.voorwaarden_bekend = tx(W.kam_voorw);
+    if ((a.actief_aanbieden || null) !== tx(W.kam_actief)) kop.actief_aanbieden = tx(W.kam_actief);
+    const st = tx(W.strat_cp) ? String(W.strat_cp).toUpperCase() : null, op = tx(W.op_cp) ? String(W.op_cp).toUpperCase() : null;
+    if ((a.strat_cp || null) !== st) kop.strat_cp = st; if ((a.op_cp || null) !== op) kop.op_cp = op;
+    if (Object.keys(kop).length) { Object.assign(a, kop); if (supa && !String(a.id).startsWith('local-')) { _echoVanZelf('accounts'); const { error } = await supa.from('accounts').update(kop).eq('id', a.id); if (error) { meldFout('KAM opslaan mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('KAM niet opgeslagen: ' + _accFoutTekst(error)); return false; } } else if (typeof accountsSaveLocal === 'function') accountsSaveLocal(); }
+  }
+  if (a && W.kam_aan !== 'Ja' && W.kam_aan !== 'Nee') { /* oud venster zonder KAM-velden: niets */ }
   if (a) {
     const scores = {};
     ACC_SCORE_FIELDS.forEach(([f]) => {
@@ -38839,9 +39129,31 @@ async function _accountKaartKamOpslaan(k) {
       } else if (typeof accountsSaveLocal === 'function') accountsSaveLocal();
     }
   }
-  const lead = k.lead;
+  let lead = k.lead;
+  // 29-10 · RLDV aan/uit en de velden status, sector, regio, contactpersoon.
+  if (W.rldv_aan === 'Nee' && lead) {
+    const ok = await btBevestig(k.naam + ' van de RLDV-lijst halen?\n\nDe RLDV-tool en RLDV-check zien het bedrijf dan niet meer. Bestaande selecties blijven staan.', { knop: 'Van de RLDV-lijst', soort: 'weg' });
+    if (!ok) return false;
+    if (supa && !String(lead.id).startsWith('local-')) { _echoVanZelf('sales_leads'); const { error } = await supa.from('sales_leads').delete().eq('id', lead.id); if (error) { meldFout('van RLDV-lijst mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('Niet gelukt: ' + _accFoutTekst(error)); return false; } }
+    SALES_LEADS_CACHE = (SALES_LEADS_CACHE || []).filter(x => String(x.id) !== String(lead.id)); if (!supa && typeof salesLeadsSaveLocal === 'function') salesLeadsSaveLocal();
+    k.lead = null; lead = null; _crmLijstCacheWeg();
+  } else if (W.rldv_aan === 'Ja' && !lead) {
+    const rij = { naam: k.naam, vakgebied: tx(W.rldv_vak), regio: tx(W.rldv_regio) || tx(k.crm && k.crm.plaats), status: tx(W.rldv_status), contactpersoon: tx(W.rldv_cp), voorwaarden_bekend: null, updated_at: nuIso };
+    SL_BOOL_FIELDS.forEach(([f]) => { const el = byId('kk-rldv-' + f); rij[f] = !!(el && el.checked); });
+    if (supa) { _echoVanZelf('sales_leads'); const { data, error } = await supa.from('sales_leads').insert(rij).select().single(); if (error) { meldFout('in RLDV-lijst zetten mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('Niet in de RLDV-lijst gezet: ' + _accFoutTekst(error)); return false; } lead = data; }
+    else lead = { id: 'local-' + Date.now(), ...rij };
+    SALES_LEADS_CACHE.push(lead); if (!supa && typeof salesLeadsSaveLocal === 'function') salesLeadsSaveLocal();
+    k.lead = lead; _crmLijstCacheWeg();
+    return true;   // de schuifjes zitten al in de nieuwe rij
+  }
   if (lead) {
     const rl = {};
+    if (W.rldv_aan === 'Ja') {   // 29-10: kopvelden van de RLDV-rij
+      if ((lead.status || null) !== tx(W.rldv_status)) rl.status = tx(W.rldv_status);
+      if ((lead.vakgebied || null) !== tx(W.rldv_vak)) rl.vakgebied = tx(W.rldv_vak);
+      if ((lead.regio || null) !== tx(W.rldv_regio)) rl.regio = tx(W.rldv_regio);
+      if ((lead.contactpersoon || null) !== tx(W.rldv_cp)) rl.contactpersoon = tx(W.rldv_cp);
+    }
     SL_BOOL_FIELDS.forEach(([f]) => { const el = byId('kk-rldv-' + f); if (el && !!lead[f] !== !!el.checked) rl[f] = !!el.checked; });
     if (Object.keys(rl).length) {
       const vorige = {}; Object.keys(rl).forEach(f => { vorige[f] = lead[f]; });
@@ -38932,11 +39244,11 @@ function crmBedrijfSamenvoegVenster(sleutel) {
   const doel = lijst.find(x => x.sleutel === String(sleutel)); if (!doel) return;
   const lijkt = (x) => { const a = doel.sleutel, b = x.sleutel; return a.length > 3 && b.length > 3 && (a.includes(b) || b.includes(a)); };
   const keuzes = lijst.filter(x => x.sleutel !== doel.sleutel).sort((x, y) => (lijkt(y) ? 1 : 0) - (lijkt(x) ? 1 : 0) || x.naam.localeCompare(y.naam, 'nl'));
-  const opt = (x) => '<option value="' + escHtml(x.sleutel) + '"' + (lijkt(x) ? ' class="let"' : '') + '>' + escHtml(x.naam) + (lijkt(x) ? ' · lijkt erop' : '') + (x.bezoeken ? ' · ' + x.bezoeken + ' bezoek' + (x.bezoeken === 1 ? '' : 'en') : '') + (x.account ? ' · KAM' : '') + (x.lead ? ' · RLDV' : '') + '</option>';
+  const item = (x) => ({ naam: x.naam, sub: [lijkt(x) ? 'lijkt erop' : '', x.bezoeken ? x.bezoeken + ' bezoek' + (x.bezoeken === 1 ? '' : 'en') : '', x.account ? 'KAM' : '', x.lead ? 'RLDV' : ''].filter(Boolean).join(' · '), id: x.sleutel });   // 29-10: zoekkiezer
   crmKaartToon('<h4 class="wit">Samenvoegen met ' + escHtml(doel.naam) + '</h4>' +
     '<div class="crm-sub">Kies welk bedrijf hierin opgaat. De naam <b>' + escHtml(doel.naam) + '</b> blijft; alles van het andere komt eronder.</div>' +
     '<div class="crm-kop">Opgaan in dit bedrijf</div>' +
-    '<select id="crm-bsv-bron" class="kand-vervolg-veld" data-doel="' + escHtml(doel.sleutel) + '" onchange="crmBedrijfSamenvoegKeuze()"><option value="">— kies een bedrijf —</option>' + keuzes.map(opt).join('') + '</select>' +
+    _kzIdKiezerHtml({ id: 'crm-bsv-bron', lijst: _kzUniek(keuzes.map(item)), placeholder: 'typ de naam van het andere bedrijf…', leeg: 'Geen ander bedrijf met die naam', na: 'crmBedrijfSamenvoegKeuze()', bijTyp: true, data: ' data-doel="' + escHtml(doel.sleutel) + '"' }) +
     '<div class="crm-kop">Dit gebeurt er</div><div id="crm-bsv-plan" class="kk-tekst stil">Kies eerst een bedrijf.</div>' +
     '<div class="crm-knoppen"><button id="crm-bsv-knop" class="crm-knop goed crm-knop-vast" disabled onclick="crmBedrijfSamenvoegen(\'' + escApos(doel.sleutel) + '\')">Samenvoegen</button>' +
     '<button class="crm-knop crm-knop-vast" onclick="crmBedrijfOpen(\'' + escApos(doel.sleutel) + '\')">Annuleren</button></div>', 'crm-samenvoeg');
@@ -39690,14 +40002,12 @@ function renderAccounts() {
   const subTabBtn = (key, label) => `<button class="bm-subtab-btn ${ACCOUNT_SUBTAB===key?'active':''}" onclick="accSelectSubTab('${key}')">${label}</button>`;
   const subTabBtns = `
     <div class="bm-subtabs">
-      ${subTabBtn('sales', 'RLDV')}
-      ${subTabBtn('strategisch', 'Key Accountmanagement (KAM)')}
-      ${subTabBtn('accountplan', 'Accountplan (KAM)')}
+      ${subTabBtn('accountplan', 'Accountplannen')}
       ${subTabBtn('beweging', 'Bezoeken &amp; wijzigingen')}
     </div>`;
-  // Gespreksverslagen is sinds 29-09 een eigen menuregel (tab 'gvpagina'), zonder knoppenrij; op KAM & RLDV
-  // valt een achtergebleven stand terug op RLDV.
-  if (currentTab === 'accounts' && ACCOUNT_SUBTAB === 'verslagen') ACCOUNT_SUBTAB = 'sales';
+  // 29-10: RLDV en KAM zijn geen tabbladen meer (invoer op de bedrijfskaart, overzicht onder Beheer);
+  // een achtergebleven stand valt terug op Accountplannen.
+  if (currentTab === 'accounts' && ['sales', 'strategisch', 'verslagen'].includes(ACCOUNT_SUBTAB)) ACCOUNT_SUBTAB = 'accountplan';
   const body = ACCOUNT_SUBTAB === 'strategisch' ? renderStrategischeLeadsHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'accountplan'  ? renderAccountplannenHtml(subTabBtns)
              : ACCOUNT_SUBTAB === 'beweging'     ? renderKamBewegingHtml(subTabBtns)
@@ -43315,12 +43625,14 @@ async function cvGenDownloadWoordCv() {
 
 // Dezelfde lijst als de RLDV-tool: intakekaarten van de laatste 26 weken,
 // van alle collega's. De browser laat hem zien zodra je in het veld typt.
-function _cvGenKandLijstHtml() {
+function _cvGenKandLijst() {
   let lijst = [];
   try { lijst = rldvKandidaten(); } catch (_) { lijst = []; }
-  return '<datalist id="cvgen-kand-lijst">' + lijst.map(k =>
-    '<option value="' + escHtml(k.naam) + '">' +
-    escHtml([k.functie, k.bmNaam].filter(Boolean).join(' · ')) + '</option>').join('') + '</datalist>';
+  return lijst.map(k => ({ naam: k.naam, sub: [k.functie, k.bmNaam].filter(Boolean).join(' · ') }));
+}
+// 29-10: zoekkiezer (ontwerp_kiezers); een vrije naam mag hier nog steeds (verzoek 11-09), zonder "+ nieuw"-regel.
+function _cvGenKandKiezerHtml(naam) {
+  return _kiezerHtml({ id: 'cvgen-naam', klasse: 'donker', lijst: _cvGenKandLijst, waarde: naam || '', placeholder: 'kies uit de intakes of typ een naam…', nieuw: false, leeg: 'Niet in de intakes — de naam blijft zoals je hem typt', typ: "cvGenSetVeld('naam', this.value)" });
 }
 
 // Staat de naam op een kaart uit die lijst, dan gaat de fase CV aan (het
@@ -43498,10 +43810,7 @@ function renderCvGenerator() {
           ${/* Naam uit de kandidatenlijst óf vrij getypt (verzoek 11-09): een
                keuzelijst achter het tekstveld, niet in plaats ervan. */''}
           <div class="plan-field"><div class="plan-field-title">Naam</div>
-            <input type="text" class="acc-text-input" id="cvgen-naam" list="cvgen-kand-lijst" autocomplete="off"
-                   placeholder="Kies uit de lijst of typ een nieuwe naam"
-                   value="${escHtml(v.naam||'')}" onchange="cvGenSetVeld('naam', this.value)">
-            ${_cvGenKandLijstHtml()}
+            ${_cvGenKandKiezerHtml(v.naam)}
           </div>
           ${kleinField('Woonplaats', 'woonplaats')}
         </div>
@@ -45079,11 +45388,10 @@ function _recNaamRegelHtml(naam, zet, bewerk) {
 }
 // Kandidaten om aan een naamloos verslag te koppelen: CRM · Kandidaten plus
 // de intake-namen uit de pipelines, zonder dubbelen.
-function _recNaamKeuzes() {
+function _recNaamKeuzes() {   // 09-10: alleen het CRM — één naam voor alles · 29-10: met functie · woonplaats
   const per = new Map();
-  [].concat(typeof _crmKandNamen === 'function' ? _crmKandNamen() : [])   // 09-10: alleen het CRM (geen pipeline-namen meer) — één naam voor alles
-    .forEach(n => { const k = _itkSleutel(n); if (k && !per.has(k)) per.set(k, String(n).trim()); });
-  return Array.from(per.values()).sort((a, b) => a.localeCompare(b, 'nl'));
+  _kzKandidaten().forEach(x => { const k = _itkSleutel(x.naam); if (k && !per.has(k)) per.set(k, x); });
+  return Array.from(per.values()).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
 }
 // Naam alsnog koppelen (18-09): verslagen van 17/18-09 kwamen zonder naam
 // binnen. De naam gaat naar meta.naam op de server, zodat de RLDV-check en de
@@ -47274,7 +47582,7 @@ function renderVacaturesHtml() {
     const k = _vacKlant(v);
     return '<tr class="crm-lijstrij" onclick="vacOpen(\'' + escApos(String(v.id)) + '\')" title="Vacature openen">' +
       '<td class="naam">' + _oneMarkeer(v.titel || '—', z) + '</td>' +
-      '<td class="d">' + (k ? '<span class="crm-klik" onclick="event.stopPropagation();crmBedrijfOpen(\'' + escApos(k.sleutel) + '\')">' + _oneMarkeer(k.naam, z) + '</span>' : (magWijzigen('crm') ? '<span onclick="event.stopPropagation()">' + _kiezerHtml({ id: 'vac-klant-rij-' + String(v.id), klasse: 'donker klein', lijst: () => crmBedrijfLijst().map(b => ({ naam: b.naam, sub: b.plaats || '' })), waarde: '', placeholder: 'klant kiezen…', nieuw: false, kies: 'vacKlantKiesRij(\'' + escApos(String(v.id)) + '\', this.value)' }) + '</span>' : '<span class="crm-pil wacht" title="Kies de klant op de vacaturekaart">klant nog kiezen</span>')) + '</td>' +   // 12-10: klant direct in de lijst kiezen
+      '<td class="d">' + (k ? '<span class="crm-klik" onclick="event.stopPropagation();crmBedrijfOpen(\'' + escApos(k.sleutel) + '\')">' + _oneMarkeer(k.naam, z) + '</span>' : (magWijzigen('crm') ? '<span onclick="event.stopPropagation()">' + _kiezerHtml({ id: 'vac-klant-rij-' + String(v.id), klasse: 'donker klein', lijst: _kzKlanten, waarde: '', placeholder: 'klant kiezen…', nieuw: false, kies: 'vacKlantKiesRij(\'' + escApos(String(v.id)) + '\', this.value)' }) + '</span>' : '<span class="crm-pil wacht" title="Kies de klant op de vacaturekaart">klant nog kiezen</span>')) + '</td>' +   // 12-10: klant direct in de lijst kiezen
       '<td class="d">' + escHtml(v.vakgebied || '—') + '</td><td class="d">' + escHtml(v.regio || '—') + '</td><td class="d">' + escHtml(v.opleidingsniveau || '—') + '</td>' +
       '<td>' + _vacBmHtml(v) + '</td>' +
       '<td>' + _vacStatusPil(v) + '</td>' +
@@ -47366,7 +47674,7 @@ function _vacKaartHtml(f) {
   const tal = (id, w, ph, rows, sleutel) => _vacTaLijstHtml(id, w, ph, rows, inp, sleutel, !!VAC_LIJST_VELDEN[sleutel]);   // 27-10: met lijst-knop
   const keuze = (id, w, lijst, ph, nieuw) => _kiezerHtml({ id, klasse: 'donker', lijst: () => Array.from(new Set(lijst.concat(VACATURES.map(x => x[id.replace('vac-', '').replace('niveau', 'opleidingsniveau')]).filter(Boolean)))).map(n => ({ naam: n })), waarde: w, placeholder: ph, nieuw: nieuw === false ? false : 'Nieuwe waarde', uit: !mag });
   const klantNaam = g.klant_sleutel ? _vacKlantNaam({ klant_sleutel: g.klant_sleutel, klant_naam: g.klant_naam }) : (g.klant_naam || '');
-  const klant = _kiezerHtml({ id: 'vac-klant', klasse: 'donker', lijst: () => crmBedrijfLijst().map(k => ({ naam: k.naam, sub: k.plaats || '' })), waarde: klantNaam, placeholder: 'kies de klant uit CRM · Bedrijven', nieuw: false, leeg: 'Niet in het CRM — voeg het bedrijf eerst toe bij CRM · Bedrijven', uit: !mag });
+  const klant = _kiezerHtml({ id: 'vac-klant', klasse: 'donker', lijst: _kzKlanten, waarde: klantNaam, placeholder: 'kies de klant uit CRM · Bedrijven', nieuw: false, leeg: 'Niet in het CRM — voeg het bedrijf eerst toe bij CRM · Bedrijven', uit: !mag });
   const collegas = bmsMetCijfers().map(b => b.naam); if (g.bm_naam && collegas.indexOf(g.bm_naam) < 0) collegas.unshift(g.bm_naam);
   const sel = (id, w, lijst, uit) => '<select id="' + id + '" ' + inp + (uit ? ' disabled' : '') + (id === 'vac-bm' ? ' data-ini="1"' : '') + '>' + lijst.map(n => '<option value="' + escHtml(n) + '"' + (n === w ? ' selected' : '') + '>' + escHtml(n) + '</option>').join('') + '</select>';
   const status = String(g.status || 'concept');
@@ -49592,12 +49900,12 @@ function renderBezoekRecorder() {
         <div>
           <label style="display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">${b.soortBezoek==='evaluatie_medewerker'?'Opdrachtgever':b.soortBezoek==='voorbereiding_matchgesprek'?'Kandidaat · uit CRM · Kandidaten':'Contactpersoon'}</label>
           ${b.soortBezoek==='voorbereiding_matchgesprek'
-            ? _kiezerHtml({ id: 'bzk-match-kand', lijst: () => (typeof crmKandLijst === 'function' ? crmKandLijst() : []).map(x => ({ naam: x.naam, sub: [x.functie, x.woonplaats].filter(Boolean).join(' · ') })),
+            ? _kiezerHtml({ id: 'bzk-match-kand', lijst: _kzKandidaten,
                             waarde: b.kandidaat || '', placeholder: 'typ de naam van de kandidaat…', leeg: 'Geen kandidaten in het CRM', nieuw: false,
                             uit: b.recording || b.analyzing, typ: '_bzkMatchKandKies(this.value)', kies: '_bzkMatchKandKies(this.value)', herteken: 'renderBezoekRecorder()' }) +
               (b.kandidaat && !b.kandidaatSleutel ? `<div class="rec-hint let">Kies een naam uit het CRM — een vrije naam kan niet.</div>` : b.kandidaatSleutel ? `<div class="rec-hint ok">✓ gekoppeld aan het CRM-dossier</div>` : '')
             : b.soortBezoek==='evaluatie_medewerker'
-            ? _kiezerHtml({ id: 'bzk-eval-bedrijf', lijst: () => crmBedrijfLijst().map(x => ({ naam: x.naam, sub: x.plaats || '' })),
+            ? _kiezerHtml({ id: 'bzk-eval-bedrijf', lijst: _kzKlanten,
                             waarde: b.contactpersoon || '', placeholder: 'typ de naam van het bedrijf (uit CRM · Bedrijven)…', leeg: 'Geen bedrijven in het CRM', nieuw: false,
                             uit: b.recording || b.analyzing, typ: '_bzkEvalBedrijfKies(this.value)', kies: '_bzkEvalBedrijfKies(this.value)', herteken: 'renderBezoekRecorder()' }) +
               (b.contactpersoon && !b.bedrijfSleutel ? `<div class="rec-hint let">Kies een bedrijf uit het CRM — een vrije naam kan niet (30-09).</div>` : b.bedrijfSleutel ? `<div class="rec-hint ok">✓ gekoppeld aan het CRM-bedrijf</div>` : '')
@@ -49727,7 +50035,7 @@ function renderPlaatsing() {
   const profielHtml = `
     <div class="mm-prof">
       <div class="mm-lbl">Kandidaat uit het CRM <span>optioneel · vult het profiel</span></div>
-      ${_kiezerHtml({ lijst: () => crmKandLijst().map(k => ({ naam: k.naam, sub: k.functie || '' })), waarde: p.kandNaam, placeholder: 'typ de naam van de kandidaat…', nieuw: false, kies: '_mmKandKies(this.value)', leeg: 'Geen kandidaat gevonden' })}
+      ${_kiezerHtml({ lijst: _kzKandidaten, waarde: p.kandNaam, placeholder: 'typ de naam van de kandidaat…', nieuw: false, kies: '_mmKandKies(this.value)', leeg: 'Geen kandidaat gevonden' })}
       ${p.kandCv ? `<div class="mm-hint">${/^doc:\d+$/.test(p.kandCv) ? `<a href="#" onclick="event.preventDefault();docBekijk(${p.kandCv.slice(4)})">CV uit het CRM openen ›</a>` : `<a href="${escHtml(p.kandCv)}" target="_blank" rel="noopener">CV uit het CRM openen ›</a>`} — plak de tekst in het CV-vak voor een betere match</div>` : ''}
 
       <div class="mm-lbl">Gewenste functietitel(s) <b>*</b></div>
@@ -53066,14 +53374,13 @@ var _pipeModalCtx = { bmNaam: null, stage: null, week: null, jaar: null, cardId:
 // voorgevuld bij bewerken. De klantenlijst komt uit KAM + pipelines.
 function _pipeKanbanVeldenVul(card) {
   const z = (id, v) => { const el = document.getElementById(id); if (el) el.value = v == null ? '' : String(v); };
-  z('pipe-modal-kb-klant', card ? (card.kanban_klant || '') : '');
+  KIEZERS['pipe-modal-kb-klant'] = { lijst: _kzKlanten, nieuw: 'Nieuw bedrijf', leeg: 'Geen bedrijf met die naam in het CRM' };   // 29-10
+  _kiezerZet('pipe-modal-kb-klant', card ? (card.kanban_klant || '') : '');
   z('pipe-modal-kb-functie', card ? (card.kanban_functie || '') : '');
   z('pipe-modal-gesprek-op', card ? _naarVeldTijd(card.gesprek_op) : '');
   z('pipe-modal-gesprek', card && card.gesprek ? String(card.gesprek) : '1');
   z('pipe-modal-contract-functie', card ? (card.kanban_functie || '') : '');
   z('pipe-modal-contract-op', card ? _naarVeldTijd(card.gesprek_op) : '');
-  const dl = document.getElementById('pipe-modal-klanten');
-  if (dl && typeof _kanbanKlantKeuzes === 'function') dl.innerHTML = _kanbanKlantKeuzes().map(n => '<option value="' + escHtml(n) + '">').join('');
 }
 // Aanbieden via de RLDV-check (17-09): bij het plusje in de kolom Aanbieden
 // laat het venster zien of de kandidaat een check heeft, en opent die met
@@ -53102,8 +53409,9 @@ function _pipeNaamKeuzeVul(aan, huidig, bron) {
   _pipeNaamCrmHint(aan && crm, huidig);
   // Typbare keuzelijst (18-09): de lijst hangt van de fase af; uit = vrij veld.
   KIEZERS['pipe-modal-naam'] = {
-    lijst: !aan ? null : bedrijf ? _bedrijfKeuzes : crm ? _crmKandNamen : _pipeIntakeNamen,
-    nieuw: bedrijf ? 'Nieuw bedrijf' : crm ? 'Nog niet in het CRM' : 'Andere naam',
+    lijst: !aan ? null : bedrijf ? _bedrijfKeuzes : crm ? _kzKandidaten : _pipeIntakeNamen,
+    nieuw: bedrijf ? 'Nieuw bedrijf' : crm ? 'Nieuwe kandidaat in CRM' : 'Andere naam',
+    nieuwDoe: crm ? 'pipeNieuweCrmKandidaat(this.value)' : null,   // 29-10: "+ nieuw" opent de CRM-wizard met de naam ingevuld
     leeg: bedrijf ? 'Geen bedrijven in de RLDV-lijst of KAM' : crm ? 'Nog geen kandidaten in het CRM' : 'Geen intakes in de pipeline',
     typ: '_pipeNaamBij()', kies: '_pipeNaamBij()' };
   inp.value = huidig || '';
@@ -53128,13 +53436,12 @@ function _pipeNaamCrmHint(aan, huidig) {
   const magNieuw = typeof magWijzigen === 'function' ? magWijzigen('crm') : true;
   blok.innerHTML = (CRM_ONTBREEKT
       ? 'De CRM-tabellen bestaan nog niet: draai <b>supabase/crm.sql</b> in de SQL-editor. Tot die tijd kun je geen intake opvoeren.'
-      : (huidig && !_crmKandBestaat(huidig) ? '<span style="color:#E87400;">' + escHtml(huidig) + ' staat nog niet in het CRM — voeg hem daar toe, dan valt alles onder één naam.</span> ' : 'Staat de kandidaat er nog niet bij? ') +
-        (magNieuw ? '<button type="button" class="crm-knop pm-crm-nieuw" onclick="pipeNieuweCrmKandidaat()">+ Nieuwe kandidaat in CRM</button>' : ''));
-  blok.style.display = '';
+      : (huidig && !_crmKandBestaat(huidig) ? '<span style="color:#E87400;">' + escHtml(huidig) + ' staat nog niet in het CRM — kies een naam uit de lijst of ' + (magNieuw ? '<button type="button" class="crm-knop pm-crm-nieuw" onclick="pipeNieuweCrmKandidaat(' + escHtml(JSON.stringify(huidig)) + ')">+ zet hem in het CRM</button>' : 'voeg hem toe bij CRM · Kandidaten') + '</span>' : ''));
+  blok.style.display = blok.innerHTML ? '' : 'none';   // 29-10: de "+ nieuw"-regel zit in de kiezer zelf
 }
 // Opent de CRM-wizard bovenop het pipeline-venster; na Opslaan staat de nieuwe
 // naam direct geselecteerd (ook als de naam al bestond).
-function pipeNieuweCrmKandidaat() {
+function pipeNieuweCrmKandidaat(naam) {
   _CRM_WIZ_NA = (rij) => {
     crmKaartSluit();
     const naam = rij && rij.naam ? String(rij.naam) : '';
@@ -53142,6 +53449,9 @@ function pipeNieuweCrmKandidaat() {
     const inp = document.getElementById('pipe-modal-naam'); if (inp) inp.value = naam;
   };
   crmKandWizard();
+  // 29-10: de getypte naam alvast in de wizard.
+  const t = String(naam || '').trim();
+  if (t && CRM_WIZ && CRM_WIZ.soort === 'kand' && !CRM_WIZ.id) { const sp = _crmNaamSplits(t); CRM_WIZ.w.voornaam = sp.voornaam; CRM_WIZ.w.achternaam = sp.achternaam; _crmWizToon(); const el = document.getElementById('crm-w-voornaam'); if (el && el.focus) el.focus(); }
 }
 function _pipeAanbRldvBij() {
   const blok = document.getElementById('pipe-modal-aanb-rldv');
@@ -53307,7 +53617,7 @@ function _pipeEvalToggle() {
   if (mg) {
     const isMg = stage === 'Bezoeken' && sel && String(sel.value || '') === 'matchgesprek';
     mg.style.display = isMg ? 'block' : 'none';
-    if (isMg) KIEZERS['pipe-modal-match-kand'] = { lijst: () => (typeof crmKandLijst === 'function' ? crmKandLijst() : []).map(x => ({ naam: x.naam, sub: [x.functie, x.woonplaats].filter(Boolean).join(' · ') })), nieuw: false, leeg: 'Geen kandidaten in het CRM', typ: '', kies: '' };
+    if (isMg) KIEZERS['pipe-modal-match-kand'] = { lijst: _kzKandidaten, nieuw: false, leeg: 'Geen kandidaten in het CRM', typ: '', kies: '' };
   }
   if (ev) {
     KIEZERS['pipe-modal-eval-mw'] = { lijst: () => _evalLopendeStarters().map(x => ({ naam: x.naam, sub: [x.opdrachtgever, x.projectnr ? 'projectnr ' + x.projectnr : '', x.begin ? 'gestart ' + _crmDatum(+x.begin) : ''].filter(Boolean).join(' · ') })),
@@ -53914,11 +54224,16 @@ function pipeDelete(bmNaam, cardId) {
       <div class="pm-sec">Gesprek</div>
       <div class="pm-r">
         <div><label class="pm-l" for="pipe-modal-kb-klant">Klant <span class="pm-req">*</span></label>
-          <input type="text" id="pipe-modal-kb-klant" list="pipe-modal-klanten" placeholder="bijv. Bodycote" autocomplete="off"/></div>
+          <!-- 29-10: zoekkiezer klant (CRM · Bedrijven); de lijst zet _pipeModalVul in KIEZERS['pipe-modal-kb-klant']. -->
+          <div class="kiezer" data-kz="pipe-modal-kb-klant">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="text" id="pipe-modal-kb-klant" class="kiezer-veld" placeholder="typ de naam van de klant…" autocomplete="off" oninput="_kiezerTyp(this)" onfocus="_kiezerTyp(this)" onkeydown="return _kiezerToets(event, this)" onblur="_kiezerWeg(this)"/>
+            <button type="button" class="kiezer-wis" title="Leegmaken" tabindex="-1" onmousedown="event.preventDefault()" onclick="_kiezerKies(this.parentNode, '')" hidden>✕</button>
+            <div class="kiezer-lijst" hidden></div>
+          </div></div>
         <div><label class="pm-l" for="pipe-modal-kb-functie">Functie waarvoor <span class="pm-req">*</span></label>
           <input type="text" id="pipe-modal-kb-functie" placeholder="bijv. Servicemonteur" autocomplete="off"/></div>
       </div>
-      <datalist id="pipe-modal-klanten"></datalist>
       <div class="pm-r">
         <div><label class="pm-l" for="pipe-modal-gesprek-op">Datum en tijd <span class="pm-req">*</span></label>
           <input type="datetime-local" id="pipe-modal-gesprek-op" class="veld-licht"/></div>
