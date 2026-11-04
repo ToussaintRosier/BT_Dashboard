@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261104-0853 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261104-2343 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5405,6 +5405,17 @@
   .st-tik   { position:absolute; top:-3px; bottom:-3px; width:2px;
               background:rgba(255,255,255,.8); border-radius:1px; }
   .st-pct   { font-size:var(--t-xs); font-variant-numeric:tabular-nums; flex-shrink:0; }
+  /* 04-11 (ontwerp_starters_balk): "van 10" bij het getal, de schemazone in de baan, de overschot-zone rechts, de standregel. */
+  .st-van   { font-size:.66rem; color:rgba(255,255,255,.5); font-weight:400; margin-left:5px; }
+  .st-balkrij .st-baan { flex:0 0 78%; }
+  .st-schema{ position:absolute; left:0; top:0; bottom:0; background:rgba(255,255,255,.09); border-radius:4px 0 0 4px; }
+  .st-overzone { flex:1; height:7px; position:relative; margin-left:3px; }
+  .st-over  { position:absolute; left:0; top:0; bottom:0; background:#25D366; border-radius:0 4px 4px 0; box-shadow:0 0 8px rgba(37,211,102,.6); }
+  .st-over::after { content:''; position:absolute; right:-5px; top:-2px; border:5.5px solid transparent; border-left:5px solid #25D366; border-right:0; }
+  .st-stand { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:var(--t-xs); color:rgba(255,255,255,.55); white-space:nowrap; overflow:hidden; }
+  .st-stand .st-rechts { margin-left:auto; overflow:hidden; text-overflow:ellipsis; } .st-stand .st-rechts b { color:#fff; }
+  .st-pil   { display:inline-block; border-radius:999px; padding:1px 8px; font-size:.66rem; font-weight:var(--w-nadruk); }
+  .st-pil.groen { background:rgba(37,211,102,.18); color:#25D366; } .st-pil.geel { background:rgba(244,203,60,.18); color:#F4CB3C; } .st-pil.oranje { background:rgba(232,116,0,.2); color:#ffb37a; } .st-pil.rood { background:rgba(255,107,107,.2); color:#ff9b9b; }
   /* Nog niet gestart (18-09): kop en balk gedempt, de pil blijft leesbaar. */
   .st-kaart.nog-niet .st-kop, .st-kaart.nog-niet .st-balkrij { opacity:.42; filter:saturate(.35); }
   tr.nog-niet td { opacity:.42; filter:saturate(.35); }
@@ -7269,6 +7280,19 @@ function pctWide(p)        { return Math.max(0, Math.min(200, p)) / 2; }
 function barColorWide(p)   { return p<=69?'var(--danger)':p<=94?'var(--warn)':'var(--success)'; }
 // 06-10: dezelfde drie standen als tekstkleur op een donkere ondergrond (de balk houdt de volle kleur).
 function barColorWideDonker(p) { return p<=69?'#f87171':p<=94?'#fbbf24':'#4ade80'; }
+// 04-11 · Stand van de starters tegenover het schema tot vandaag (ontwerp_starters_balk): één betekenis van "op schema".
+//   groen = op of voor schema · geel = minder dan 1,5 starter achter · oranje = 1,5 of meer achter · rood = nog 0 terwijl er al ≥ 1 verwacht was.
+function startersStand(starters, verwacht, doel) {
+  const st = +starters || 0, vw = +verwacht || 0, d = +doel || 0;
+  const gat = Math.round((st - vw) * 10) / 10;
+  const klasse = (st === 0 && vw >= 1) ? 'rood' : gat >= -0.05 ? 'groen' : gat > -1.5 ? 'geel' : 'oranje';
+  const kleur = { groen: '#25D366', geel: '#F4CB3C', oranje: '#E87400', rood: '#ff6b6b' }[klasse];
+  const pil = Math.abs(gat) < 0.05 ? 'op schema' : (gat > 0 ? '+' : '−') + fmtNl(Math.abs(gat), 1) + (gat > 0 ? ' voor op schema' : ' achter op schema');
+  const over = d > 0 ? Math.max(0, st - d) : 0;
+  const pctDoel = d > 0 ? Math.round(st / d * 100) : 0;
+  const rechts = d <= 0 ? '' : over > 0 || st >= d ? 'jaardoel gehaald' + (over > 0 ? ' · <b>+' + fmtNl(over, 1) + '</b>' : '') : pctDoel + '% van jaardoel · nog ' + fmtNl(Math.round((d - st) * 10) / 10, 1);
+  return { gat, klasse, kleur, pil, over, pctDoel, rechts, vul: d > 0 ? Math.max(0, Math.min(100, st / d * 100)) : 0, tik: d > 0 ? Math.round(Math.max(0, Math.min(100, vw / d * 100)) * 10) / 10 : 0, overVul: d > 0 ? Math.round(Math.min(100, over / d * 100 / 0.25) * 10) / 10 : 0 };
+}
 
 function filterData(naam, year) {
   return RAW.filter(d => (!naam || d.naam===naam) && d.jaar===year);
@@ -12155,7 +12179,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261104-0853';
+const APP_VERSIE = '20261104-2343';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16590,30 +16614,30 @@ function renderMedewerkersOverzicht() {
   // getallen met gelijke breedte zodat ze echt onder elkaar staan.
   const rankRows = ranking.map((r) => {
     const nogNiet = collegaNogNietGestart(r.bm.naam);
-    const kleur = barColorWide(r.p), kleurTekst = barColorWideDonker(r.p);
-    // De balk gaat over de weg naar het jaardoel, niet over het percentage:
-    // 165% van je weekverwachting kan nog steeds halverwege je jaar zijn.
+    // 04-11 (ontwerp_starters_balk): de balk ís het jaardoel, de lichte zone het schema tot vandaag; boven het doel
+    // steekt de balk uit in de zone rechts. Geen percentage t.o.v. verwacht meer — de pil zegt het in starters.
     const doel  = r.bm.doel || 0;
-    const vul   = doel > 0 ? Math.max(0, Math.min(100, r.starters  / doel * 100)) : 0;
-    const tik   = doel > 0 ? Math.max(0, Math.min(100, r.ytdTarget / doel * 100)) : 0;
+    const st    = startersStand(r.starters, r.ytdTarget, doel);
+    const onbekend = r.bm.doelOnbekend ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>` : '';
     return `<div class="${'st-kaart' + (nogNiet ? ' nog-niet' : '')}">
       <div class="st-kop">
         <span class="st-wie">
           <span class="st-streep" style="background:${r.bm.kleur};"></span>
           <span class="st-naam" title="${escHtml(r.bm.naam)}">${escHtml(r.bm.naam)}</span>
         </span>
-        <span class="st-getal">${fmtNl(r.starters, 1)}</span>
+        <span class="st-getal">${fmtNl(r.starters, 1)}<small class="st-van">van ${doel}</small></span>
       </div>
       <div class="st-balkrij">
-        <span class="st-baan" title="${fmt(r.starters, 1)} van ${doel} — het streepje is waar je deze week hoort te staan (${fmt(r.ytdTarget, 1)})">
-          <span class="st-vul" style="width:${nogNiet ? 0 : vul.toFixed(1)}%;background:${kleur};"></span>
-          ${doel > 0 && !nogNiet ? `<span class="st-tik" style="left:${tik.toFixed(1)}%;"></span>` : ''}
+        <span class="st-baan" title="${fmt(r.starters, 1)} van ${doel} — de lichte zone is het schema tot vandaag (${fmt(r.ytdTarget, 1)})">
+          ${doel > 0 && !nogNiet ? `<span class="st-schema" style="width:${st.tik.toFixed(1)}%;"></span>` : ''}
+          <span class="st-vul" style="width:${nogNiet ? 0 : st.vul.toFixed(1)}%;background:${st.kleur};"></span>
+          ${doel > 0 && !nogNiet ? `<span class="st-tik" style="left:${st.tik.toFixed(1)}%;"></span>` : ''}
         </span>
-        <span class="st-pct" style="color:${kleurTekst};">${nogNiet ? '—' : r.p + '%'}</span>
+        <span class="st-overzone">${st.over > 0 && !nogNiet ? `<span class="st-over" style="width:${st.overVul.toFixed(1)}%;" title="${fmtNl(st.over, 1)} boven het jaardoel"></span>` : ''}</span>
       </div>
-      <div class="st-sub">${nogNiet ? collegaStartPilHtml(r.bm.naam) + ' · jaardoel ' : 'verwacht ' + fmt(r.ytdTarget, 1) + ' · jaardoel '}${doel}${r.bm.doelOnbekend
-        ? `<span title="Er staat voor dit jaar geen jaardoel ingesteld; dit is een aanname. Zet het recht bij Beheer." style="color:var(--accent);margin-left:4px;">niet ingesteld</span>`
-        : ''}</div>
+      <div class="st-stand">${nogNiet
+        ? collegaStartPilHtml(r.bm.naam) + '<span class="st-rechts">jaardoel ' + doel + onbekend + '</span>'
+        : `<span class="st-pil ${st.klasse}">${st.pil}</span><span class="st-rechts">${st.rechts}${onbekend}</span>`}</div>
       ${_aanbTellerHtml(r.bm.naam)}
     </div>`;
   }).join('');
