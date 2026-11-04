@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261102-1531 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261104-0850 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -10898,7 +10898,15 @@ function _oneBerTekstHtml(x) {
     .sort((a, b) => b.label.length - a.label.length);
   const chips = [];
   kopp.forEach(({ k, label }) => {
-    if (!h.includes(label)) return;
+    // 04-11: een collega staat in de tekst als "@Naam" of "@voornaam" (hoofdletters vrij); de chip komt daarvoor in de plaats.
+    let atTreffer = null;
+    if (!h.includes(label) && k.soort === 'collega') {
+      const naam = String(k.naam || ''), voornaam = naam.split(' ')[0];
+      const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('@(?:' + esc(escHtml(naam)) + '|' + esc(escHtml(voornaam)) + ')(?![a-zà-ÿ])', 'i');
+      const m = re.exec(h); if (m) atTreffer = m[0]; else return;
+      label = '@' + escHtml(naam);
+    } else if (!h.includes(label)) return;
     const soort = k.soort === 'bedrijf' ? 'scorekaart' : (k.soort || 'kandidaat');
     const kl = soort === 'scorekaart' ? 's' : soort === 'bezoek' || soort === 'verslag' ? 'b' : soort === 'collega' ? 'c' : 'k';
     const ico = soort === 'scorekaart' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>'
@@ -10909,7 +10917,7 @@ function _oneBerTekstHtml(x) {
     const idx = chips.length;
     chips.push('<button class="one-ber-chip ' + kl + '" type="button" data-soort="' + soort + '" data-id="' + escHtml(k.id) +
       '" data-naam="' + escHtml(k.naam) + '" data-bm="' + escHtml(k.bm || '') + '" onclick="oneKoppelingOpen(this)" title="' + titel + '">' + ico + label + '</button>');
-    h = h.replace(label, () => '\u0001' + idx + '\u0001');
+    h = h.replace(atTreffer || label, () => '\u0001' + idx + '\u0001');
   });
   return h.replace(/\u0001(\d+)\u0001/g, (_, i) => chips[+i]);
 }
@@ -11354,7 +11362,7 @@ async function oneBerichtVerstuur(gid) {
       }
     }
     const antw = ONE_BER_ANTWOORD[gid];
-    const kopp = (ONE_BER_KOPPELINGEN[gid] || []).filter(k => k && k.naam && tekst.includes('#' + (k.label || k.naam)));
+    const kopp = _svTagsUitTekst(tekst, ONE_BER_KOPPELINGEN[gid] || []);   // 04-11: ook "@naam" uit de tekst
     const rij = { gesprek_id: gid, tekst, auteur: String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), created_by: ONE_MIJN_ID };
     if (antw) rij.antwoord_op = antw.id;
     if (kopp.length) rij.koppelingen = kopp;
@@ -12147,7 +12155,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261102-1531';
+const APP_VERSIE = '20261104-0850';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19851,9 +19859,11 @@ async function loadBegroting() {
 // 02-11: handmatige maandcorrecties van de projectenlijn; zonder tabel gewoon geen correcties.
 async function loadProjCorrecties() {
   if (!supa) return;
-  const r = await _alleRijen(() => supa.from('projectenlijn_correcties').select('*'));
-  if (r.error) { if (/relation .* does not exist|schema cache|PGRST205/i.test(r.error.message || '')) { PROJ_CORR_ONTBREEKT = true; PROJ_CORR_CACHE = []; return; } _meldStil('projectenlijn_correcties laden', r.error); return; }
-  PROJ_CORR_ONTBREEKT = false; PROJ_CORR_CACHE = r.data || [];
+  try {
+    const r = await _alleRijen(() => supa.from('projectenlijn_correcties').select('*'));
+    if (r.error) { if (/relation .* does not exist|schema cache|PGRST205|does not exist/i.test(String(r.error.message || r.error.code || ''))) { PROJ_CORR_ONTBREEKT = true; PROJ_CORR_CACHE = []; return; } _meldStil('projectenlijn_correcties laden', r.error); return; }
+    PROJ_CORR_ONTBREEKT = false; PROJ_CORR_CACHE = r.data || [];
+  } catch (e) { _meldStil('projectenlijn_correcties laden', e); }   // 04-11: nooit de begroting laten struikelen
   FINANCIEEL_OMZET_MAAND_CACHE = maand.data || [];
   FINANCIEEL_OMZET_WEEK_CACHE = week.data || [];
 }
@@ -26399,33 +26409,8 @@ function _projCorrNootHtml(year, corr) {
   return '<div class="proj-corr-noot">✎ <span><b>' + escHtml(namen) + ' ' + year + ' handmatig gecorrigeerd</b>' + (c0.door ? ' door ' + escHtml(c0.door) : '') + (c0.op ? ' op ' + escHtml(_crmDatum(Date.parse(c0.op))) : '') + (c0.reden ? ' — reden: ' + escHtml(c0.reden) : '') +
     '. Telling was ' + escHtml(corr.map(c => String(c.telling).replace('.', ',')).join(' · ')) + '. Daarbuiten telt de Cockpit zelf.</span>' + knop + '</div>';
 }
-// De gearceerde band over de gecorrigeerde weken, met label — eigen tekening op de grafiek.
-function _projCorrPlugin(perWeek, corr) {
-  return {
-    id: 'projCorr',
-    beforeDatasetsDraw(chart) {
-      if (!perWeek || !perWeek.some(Boolean)) return;
-      const { ctx, chartArea: a, scales } = chart;
-      const stap = perWeek.length > 1 ? (scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0)) : 0;
-      let i = 0;
-      while (i < perWeek.length) {
-        if (!perWeek[i]) { i++; continue; }
-        let j = i; while (j + 1 < perWeek.length && perWeek[j + 1]) j++;
-        const x0 = Math.max(a.left, scales.x.getPixelForValue(i) - stap / 2), x1 = Math.min(a.right, scales.x.getPixelForValue(j) + stap / 2);
-        ctx.save();
-        ctx.fillStyle = 'rgba(159,196,255,.07)'; ctx.fillRect(x0, a.top, x1 - x0, a.bottom - a.top);
-        ctx.strokeStyle = 'rgba(159,196,255,.22)'; ctx.lineWidth = 1;
-        for (let x = x0 - (a.bottom - a.top); x < x1; x += 9) { ctx.beginPath(); ctx.moveTo(Math.max(x0, x), a.bottom - Math.max(0, x0 - x)); ctx.lineTo(Math.min(x1, x + (a.bottom - a.top)), a.top + Math.max(0, x + (a.bottom - a.top) - x1)); ctx.stroke(); }
-        ctx.strokeStyle = 'rgba(159,196,255,.4)'; ctx.setLineDash([4, 3]); ctx.strokeRect(x0, a.top, x1 - x0, a.bottom - a.top); ctx.setLineDash([]);
-        ctx.fillStyle = '#9fc4ff'; ctx.font = '11px sans-serif'; ctx.textBaseline = 'top';
-        const mnd = corr.filter(c => c.weken.some(w => w - 1 >= i && w - 1 <= j)).map(c => c.naam);
-        ctx.fillText('✎ gecorrigeerd · ' + (mnd.length > 1 ? mnd[0] + '–' + mnd[mnd.length - 1] : mnd[0] || '') + ' · maandgemiddelde handmatig vastgezet', x0 + 6, a.top + 4);
-        ctx.restore();
-        i = j + 1;
-      }
-    },
-  };
-}
+// 04-11: geen band, kader of label meer over de grafiek (verzoek Toussaint): de lichtblauwe stippellijn, de legenda, de ✎ op de
+// tegels en de noot eronder zeggen genoeg.
 // Het venster: twaalf maanden, leeg = telling; reden verplicht.
 let PROJ_CORR_JAAR = null;
 function projCorrVenster(year) {
@@ -29817,7 +29802,7 @@ function renderPrognose() {
       legend: begroteLijn.some(v => v !== null) || heeftPrognose || projCorr.actief,
       yMin: projLijnYMin(projLineCounts, begroteLijn),
       xTick: (i) => maandLabels[i],
-      plugins: [_projCorrPlugin(projCorr.perWeek, projCorr.corr), _projVandaagPlugin(nuIdx, nuIdx >= 0 ? projLineCounts[nuIdx] : null, nuIdx >= 0 ? begroteLijn[nuIdx] : null)],
+      plugins: [_projVandaagPlugin(nuIdx, nuIdx >= 0 ? projLineCounts[nuIdx] : null, nuIdx >= 0 ? begroteLijn[nuIdx] : null)],
     });
     projChartSleepInit();
     if (isBeheerder()) bonusFiltApply();
@@ -30932,7 +30917,7 @@ async function kandNotitiePlaats(sleutel, naam) {
   const tekst = String((veld && veld.value) || '').trim();
   if (!tekst) { if (veld) veld.focus(); return; }
   const gid = 'kand:' + sleutel;
-  const kopp = (ONE_BER_KOPPELINGEN[gid] || []).filter(k => k && k.naam && tekst.includes('#' + (k.label || k.naam)));
+  const kopp = _svTagsUitTekst(tekst, ONE_BER_KOPPELINGEN[gid] || []);   // 04-11: ook "@naam" uit de tekst
   const rij = { kand_sleutel: sleutel, kand_naam: naam, tekst, auteur: String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), created_by: ONE_MIJN_ID || CURRENT_USER.id || null };
   if (kopp.length) rij.koppelingen = kopp;
   const taak = _taakUitConcept(gid); if (taak === false) return;   // 16-10: taak zonder datum → eerst kiezen
@@ -39640,7 +39625,7 @@ async function accNotitiePlaats(accId) {
   const tekst = String((veld && veld.value) || '').trim();
   if (!tekst) { if (veld) veld.focus(); return; }
   const sleutel = 'acc:' + String(accId);
-  const kopp = (ONE_BER_KOPPELINGEN[sleutel] || []).filter(k => k && k.naam && tekst.includes('#' + (k.label || k.naam)));
+  const kopp = _svTagsUitTekst(tekst, ONE_BER_KOPPELINGEN[sleutel] || []);   // 04-11: ook "@naam" uit de tekst
   const rij = { account_id: String(accId), tekst, auteur: String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), created_by: ONE_MIJN_ID || CURRENT_USER.id || null };
   if (kopp.length) rij.koppelingen = kopp;
   const taak = _taakUitConcept(sleutel); if (taak === false) return;   // 16-10
@@ -48663,6 +48648,26 @@ function _svNaTag(gid, k, t) {
     const vak = t.closest ? t.closest('.sv') : null; const c = vak ? vak.querySelector('.sv-chips') : null;
     if (c) c.innerHTML = _svKoppelChipsHtml(gid, t.id);
   }
+}
+// 04-11: collega-tags uit de tekst zelf. "@Robin Amory" (hele naam, hoofdletters maken niet uit) of "@robin"
+// (voornaam, als die bij precies één collega hoort). De via de lijst gekozen koppelingen blijven staan zolang hun
+// naam nog in de tekst voorkomt (met @ of #). Zo krijgt een collega ook een melding als je de naam gewoon typt.
+function _svCollegaBron() {
+  const prof = (typeof ONE_PROFIELEN !== 'undefined' && Array.isArray(ONE_PROFIELEN) ? ONE_PROFIELEN : []).filter(p => p && p.naam && p.id);
+  return prof.map(p => ({ id: String(p.id), naam: String(p.naam) }));
+}
+function _svTagsUitTekst(tekst, kopp) {
+  const t = String(tekst || ''), tl = t.toLowerCase();
+  const ik = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
+  const uit = (kopp || []).filter(k => k && k.naam && (t.includes('#' + (k.label || k.naam)) || (k.soort === 'collega' && (tl.includes('@' + String(k.naam).toLowerCase()) || tl.includes('@' + String(k.naam).toLowerCase().split(' ')[0])))));
+  if (t.indexOf('@') < 0) return uit;
+  const bron = _svCollegaBron(), heeft = (id) => uit.some(x => x.soort === 'collega' && String(x.id) === String(id));
+  const voeg = (p) => { if (p.naam !== ik && !heeft(p.id)) uit.push({ soort: 'collega', id: p.id, naam: p.naam, label: p.naam }); };
+  bron.forEach(p => { if (tl.includes('@' + p.naam.toLowerCase())) voeg(p); });
+  const perVoornaam = {}; bron.forEach(p => { const v = p.naam.toLowerCase().split(' ')[0]; (perVoornaam[v] = perVoornaam[v] || []).push(p); });
+  const re = /@([a-zà-ÿ]+)/gi; let m;
+  while ((m = re.exec(t))) { const v = m[1].toLowerCase(); const lijst = perVoornaam[v]; if (lijst && lijst.length === 1) voeg(lijst[0]); }
+  return uit;
 }
 // De collega's voor @: uit de profielen (met id, zodat een koppeling kan), anders uit de namenlijst.
 function _svCollegaKeuzes(term, iedereen) {
