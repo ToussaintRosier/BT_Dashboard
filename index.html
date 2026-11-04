@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261030-0814 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261102-1531 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3184,6 +3184,11 @@
   .proj-mtegel-verschil.min { color:#f3a3a3; }
   .proj-mtegel-verschil.plus { color:#7fdcb4; }
   .proj-mtegel.nu { border-color:rgba(244,203,60,.5); background:rgba(244,203,60,.1); }
+  /* 02-11: handmatig gecorrigeerde maand */
+  .proj-mtegel.corr { border-color:rgba(159,196,255,.45); background:rgba(79,142,247,.08); cursor:help; } .proj-corr-pen { font-size:.68rem; color:#9fc4ff; vertical-align:top; margin-left:3px; }
+  .proj-corr-noot { display:flex; gap:10px; align-items:center; margin-top:10px; font-size:.78rem; color:rgba(255,255,255,.75); background:rgba(79,142,247,.08); border:1px dashed rgba(159,196,255,.4); border-radius:8px; padding:7px 10px; } .proj-corr-noot b { color:#9fc4ff; } .proj-corr-noot.stil { background:none; border:0; justify-content:flex-end; padding:4px 0 0; }
+  .proj-corr-knop { margin-left:auto; font-size:.72rem; color:#F4CB3C; border:1px solid rgba(244,203,60,.5); background:transparent; border-radius:6px; padding:2px 8px; cursor:pointer; font-family:inherit; white-space:nowrap; } .proj-corr-knop:hover { background:rgba(244,203,60,.12); }
+  .proj-corr-rooster { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px 10px; margin:8px 0 10px; } .proj-corr-rooster label { display:flex; flex-direction:column; gap:2px; font-size:.7rem; color:rgba(255,255,255,.6); } .proj-corr-rooster input { width:100%; box-sizing:border-box; background:var(--l2); border:1px solid rgba(255,255,255,.16); border-radius:8px; color:#fff; padding:6px 8px; font-size:.84rem; font-family:inherit; text-align:right; } .proj-corr-rooster input::placeholder { color:rgba(255,255,255,.3); }
   .proj-mtegel.nu .proj-mtegel-maand { color:#F4CB3C; }
   .proj-mtegel.toekomst { background:rgba(255,255,255,.03); }
   .proj-mtegel.toekomst .proj-mtegel-gem { color:rgba(255,255,255,.4); }
@@ -6538,6 +6543,8 @@ let UREN_SYNC_MSG = '';
 let FINANCIEEL_SUBVIEW = 'overzicht'; // 'actief' (omzet YTD > 0), 'oud' (omzet YTD = 0), 'begroting' (Omzetten vs. begroting), 'declarabiliteit', 'ziekte', 'marge', 'overuren' of 'ranking' (op basis van Urenrapportage)
 let BEGROTING_OMZET_CACHE = [];     // begrote omzet/declarabiliteit per jaar+maand, uit Begroting.xlsx
 let BEGROTING_PROJ_CACHE = [];      // begrote projectenlijn per jaar+week, uit Begroting.xlsx
+let PROJ_CORR_CACHE = [];           // 02-11: handmatige maandcorrecties op de projectenlijn (projectenlijn_correcties)
+let PROJ_CORR_ONTBREEKT = false;
 let FINANCIEEL_OMZET_MAAND_CACHE = []; // werkelijke omzet per jaar+maand (alle klanten), gevuld via Moneybird-sync
 let FINANCIEEL_OMZET_WEEK_CACHE = [];  // werkelijke omzet per (ISO-)jaar+week (alle klanten), gevuld via Moneybird-sync
 let UREN_KPI_MAAND_CACHE = [];          // Urenrapportage: declarabiliteit/ziekte/marge/overuren per maand, gevuld via uren-sync
@@ -6701,7 +6708,7 @@ const BACKUP_TABELLEN = [
   'project_evaluaties', 'plan_van_aanpak', 'accounts', 'sales_leads',
   'accountplannen', 'verslagen', 'gedeelde_afspraken', 'comrap_analyses',
   'financieel_omzet', 'financieel_omzet_maand', 'financieel_omzet_week',
-  'begroting_omzet', 'begroting_projectenlijn',
+  'begroting_omzet', 'begroting_projectenlijn', 'projectenlijn_correcties',
   'uren_kpi_maand', 'uren_kpi_week', 'uren_kpi_opdrachtgever_maand',
   'aanmeld_formulieren', 'aanmeld_standaarden', 'ec_documenten', 'gebruik_log',
   'medewerker_documenten',   // 05-10: documenten per medewerker (blad HRM)
@@ -12140,7 +12147,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261030-0814';
+const APP_VERSIE = '20261102-1531';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -19839,6 +19846,14 @@ async function loadBegroting() {
   if (week.error) console.error('Werkelijke weekomzet laden mislukt:', week.error);
   BEGROTING_OMZET_CACHE = omzet.data || [];
   BEGROTING_PROJ_CACHE = proj.data || [];
+  await loadProjCorrecties();   // 02-11
+}
+// 02-11: handmatige maandcorrecties van de projectenlijn; zonder tabel gewoon geen correcties.
+async function loadProjCorrecties() {
+  if (!supa) return;
+  const r = await _alleRijen(() => supa.from('projectenlijn_correcties').select('*'));
+  if (r.error) { if (/relation .* does not exist|schema cache|PGRST205/i.test(r.error.message || '')) { PROJ_CORR_ONTBREEKT = true; PROJ_CORR_CACHE = []; return; } _meldStil('projectenlijn_correcties laden', r.error); return; }
+  PROJ_CORR_ONTBREEKT = false; PROJ_CORR_CACHE = r.data || [];
   FINANCIEEL_OMZET_MAAND_CACHE = maand.data || [];
   FINANCIEEL_OMZET_WEEK_CACHE = week.data || [];
 }
@@ -20841,7 +20856,7 @@ const DAGSTART_BOODSCHAPPEN = [
 function _kompasNorm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 function _dagstartKompas() {
   const jaar = CUR.year, week = CUR.week, nu = new Date();
-  const lopend  = countActiveProjectsPerWeek(jaar);
+  const lopend  = projLijnGecorrigeerd(jaar, countActiveProjectsPerWeek(jaar)).counts;   // 02-11: met de handmatige maandcorrecties
   const begroot = getBegroteLijnPerWeek(jaar);
   const lopendNu  = lopend[week - 1] || 0;
   const begrootNu = begroot[week - 1];
@@ -22512,6 +22527,7 @@ const _RT_TAKEN = {
   bezoek_vervolg:   async () => { await loadBezoekVervolg(); },
   sales_leads:      async () => { await salesLeadsFetchAll(); _klantKaartHerteken(); },
   financieel_omzet: async () => { await loadFinancieelOmzet(); },
+  projectenlijn_correcties: async () => { await loadProjCorrecties(); },   // 02-11
   plan_van_aanpak:  async () => { await loadPlanVanAanpak(); },
   bum_gesprek:      async () => { await loadBumGesprekken(); },
   // De kandidaat reageert op zijn eigen link, buiten het dashboard om; deze
@@ -22723,6 +22739,7 @@ function _rtVerzamel(tabel, payload) {
 // "overal" (veilige kant); de ONE-tabellen tekenen zichzelf al in hun taak.
 const _RT_SCHERMEN = {
   kpi_weekly:           ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten'],
+  projectenlijn_correcties: ['projecten', 'bm'],   // 02-11
   pipeline_cards:       ['bm', 'team', 'medewerkers', 'comrap', 'hrm', 'projecten', 'kandidaten', 'crmkand', 'kanban', 'plaatsing', 'rldvtool', 'rldvcheck', 'cvgen'],
   projecten:            ['bm', 'team', 'projecten', 'plaatsing', 'hrm', 'financieel'],
   accounts:             ['accounts', 'accoverzicht', 'gvpagina', 'crmbedrijf', 'comrap', 'rldvtool', 'rldvcheck', 'bm', 'kamscores'],
@@ -26292,19 +26309,20 @@ function projMaandGemiddelden(year, counts, begroot, nuWeek, prognose) {
   });
 }
 
-function projMaandTegelsHtml(maanden) {
+function projMaandTegelsHtml(maanden, corr) {
   const nl = (s) => String(s).replace('.', ',').replace('-', '−');
-  return '<div class="proj-mtegels">' + maanden.map(m =>
-    '<div class="proj-mtegel' + (m.nu ? ' nu' : m.toekomst ? ' toekomst' : '') + '">' +
+  const corrVan = (m) => (corr || []).find(c => c.maand === m.maand) || null;   // 02-11
+  return '<div class="proj-mtegels">' + maanden.map(m => { const c = corrVan(m); return (
+    '<div class="proj-mtegel' + (c ? ' corr' : '') + (m.nu ? ' nu' : m.toekomst ? ' toekomst' : '') + '"' + (c ? ' title="' + escHtml(_projCorrTitel(c)) + '"' : '') + '>' +
       '<div class="proj-mtegel-maand">' + escHtml(m.naam) + (m.nu ? ' ·' : '') + '</div>' +
-      '<div class="proj-mtegel-gem">' + (m.gem == null ? '—' : nl(m.gem)) + '</div>' +
+      '<div class="proj-mtegel-gem">' + (m.gem == null ? '—' : nl(m.gem)) + (c ? '<span class="proj-corr-pen">✎</span>' : '') + '</div>' +
       (m.toekomst
         ? '<div class="proj-mtegel-verschil">prognose</div>'
         : m.verschil == null
           ? '<div class="proj-mtegel-verschil">geen begroting</div>'
           : '<div class="proj-mtegel-verschil ' + (+m.verschil < 0 ? 'min' : 'plus') + '">' +
             (+m.verschil > 0 ? '+' : '') + nl(m.verschil) + '</div>') +
-    '</div>').join('') + '</div>';
+    '</div>'); }).join('') + '</div>';
 }
 
 // De vandaag-lijn, de gedempte toekomst en de twee getallen erbij — een eigen
@@ -26345,6 +26363,101 @@ function _projVandaagPlugin(nuIdx, standNu, begrootNu) {
   };
 }
 
+// ── Handmatige maandcorrectie (02-11, ontwerp_projectenlijn_correctie) ───────────────────────────────────────
+// De weken van een gecorrigeerde maand worden geschaald zodat het maandgemiddelde precies het opgegeven getal is;
+// de vorm van de telling blijft. Levert de gecorrigeerde reeks, per week of hij gecorrigeerd is, en de uitleg per maand.
+function projCorrectiesVoor(year) {
+  const per = {};
+  (PROJ_CORR_CACHE || []).forEach(r => { if (+r.jaar === +year && r.maand >= 1 && r.maand <= 12 && r.gemiddelde != null) per[r.maand - 1] = r; });
+  return per;
+}
+function projLijnGecorrigeerd(year, counts) {
+  const per = projCorrectiesVoor(year), maanden = Object.keys(per).map(Number).sort((a, b) => a - b);
+  const uit = (counts || []).slice(), perWeek = (counts || []).map(() => false), corr = [];
+  maanden.forEach(m => {
+    const r = per[m], weken = [];
+    for (let w = 1; w <= 52; w++) if (_projWeekMaand(year, w) === m) weken.push(w);
+    const vals = weken.map(w => counts[w - 1]).filter(v => v != null && isFinite(v));
+    const telling = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : 0;
+    const doel = +r.gemiddelde, factor = telling > 0 ? doel / telling : null;
+    weken.forEach(w => { const c = counts[w - 1]; uit[w - 1] = factor != null && c != null && isFinite(c) ? Math.round(c * factor * 100) / 100 : doel; perWeek[w - 1] = true; });
+    corr.push({ maand: m, naam: PROJ_MAANDEN[m], gemiddelde: doel, telling: Math.round(telling * 100) / 100, reden: r.reden || '', door: r.door || '', op: r.op || '', weken });
+  });
+  return { counts: uit, perWeek, corr, actief: corr.length > 0 };
+}
+// Tooltip op een gecorrigeerde tegel.
+function _projCorrTitel(c) {
+  return 'Handmatig gecorrigeerd' + (c.door ? ' · ' + c.door : '') + (c.op ? ' · ' + _crmDatum(Date.parse(c.op)) : '') + ' · telling ' + String(c.telling).replace('.', ',') + ' → ' + String(c.gemiddelde).replace('.', ',') + (c.reden ? ' · reden: ' + c.reden : '');
+}
+// De noot onder de tegels: welke maanden, door wie, waarom — en de knop voor wie mag corrigeren.
+function _projCorrNootHtml(year, corr) {
+  const mag = typeof isManagerLevel === 'function' && (isManagerLevel() || isBeheerder()) && !PROJ_CORR_ONTBREEKT;
+  const knop = mag ? '<button type="button" class="proj-corr-knop" onclick="projCorrVenster(' + year + ')">✎ corrigeren</button>' : '';
+  if (!corr.length) return mag ? '<div class="proj-corr-noot stil">' + knop + '</div>' : '';
+  const namen = corr.length === 1 ? corr[0].naam : corr[0].naam + '–' + corr[corr.length - 1].naam;
+  const c0 = corr[0];
+  return '<div class="proj-corr-noot">✎ <span><b>' + escHtml(namen) + ' ' + year + ' handmatig gecorrigeerd</b>' + (c0.door ? ' door ' + escHtml(c0.door) : '') + (c0.op ? ' op ' + escHtml(_crmDatum(Date.parse(c0.op))) : '') + (c0.reden ? ' — reden: ' + escHtml(c0.reden) : '') +
+    '. Telling was ' + escHtml(corr.map(c => String(c.telling).replace('.', ',')).join(' · ')) + '. Daarbuiten telt de Cockpit zelf.</span>' + knop + '</div>';
+}
+// De gearceerde band over de gecorrigeerde weken, met label — eigen tekening op de grafiek.
+function _projCorrPlugin(perWeek, corr) {
+  return {
+    id: 'projCorr',
+    beforeDatasetsDraw(chart) {
+      if (!perWeek || !perWeek.some(Boolean)) return;
+      const { ctx, chartArea: a, scales } = chart;
+      const stap = perWeek.length > 1 ? (scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0)) : 0;
+      let i = 0;
+      while (i < perWeek.length) {
+        if (!perWeek[i]) { i++; continue; }
+        let j = i; while (j + 1 < perWeek.length && perWeek[j + 1]) j++;
+        const x0 = Math.max(a.left, scales.x.getPixelForValue(i) - stap / 2), x1 = Math.min(a.right, scales.x.getPixelForValue(j) + stap / 2);
+        ctx.save();
+        ctx.fillStyle = 'rgba(159,196,255,.07)'; ctx.fillRect(x0, a.top, x1 - x0, a.bottom - a.top);
+        ctx.strokeStyle = 'rgba(159,196,255,.22)'; ctx.lineWidth = 1;
+        for (let x = x0 - (a.bottom - a.top); x < x1; x += 9) { ctx.beginPath(); ctx.moveTo(Math.max(x0, x), a.bottom - Math.max(0, x0 - x)); ctx.lineTo(Math.min(x1, x + (a.bottom - a.top)), a.top + Math.max(0, x + (a.bottom - a.top) - x1)); ctx.stroke(); }
+        ctx.strokeStyle = 'rgba(159,196,255,.4)'; ctx.setLineDash([4, 3]); ctx.strokeRect(x0, a.top, x1 - x0, a.bottom - a.top); ctx.setLineDash([]);
+        ctx.fillStyle = '#9fc4ff'; ctx.font = '11px sans-serif'; ctx.textBaseline = 'top';
+        const mnd = corr.filter(c => c.weken.some(w => w - 1 >= i && w - 1 <= j)).map(c => c.naam);
+        ctx.fillText('✎ gecorrigeerd · ' + (mnd.length > 1 ? mnd[0] + '–' + mnd[mnd.length - 1] : mnd[0] || '') + ' · maandgemiddelde handmatig vastgezet', x0 + 6, a.top + 4);
+        ctx.restore();
+        i = j + 1;
+      }
+    },
+  };
+}
+// Het venster: twaalf maanden, leeg = telling; reden verplicht.
+let PROJ_CORR_JAAR = null;
+function projCorrVenster(year) {
+  if (!(isManagerLevel() || isBeheerder())) return;
+  if (PROJ_CORR_ONTBREEKT) { btMeld('Draai eerst supabase/projectenlijn_correcties.sql in de SQL-editor.', 'geel'); return; }
+  PROJ_CORR_JAAR = year;
+  const per = projCorrectiesVoor(year), telling = countActiveProjectsPerWeek(year);
+  const gem = projMaandGemiddelden(year, telling, [], 0, null);
+  const reden = Object.values(per).map(r => r.reden).find(Boolean) || '';
+  crmKaartToon('<h4 class="wit">Projectenlijn corrigeren · ' + year + '</h4>' +
+    '<div class="crm-sub">Vul per maand het juiste gemiddelde in; leeg = de telling van de Cockpit. De lijn wordt in die maand geschaald naar dit gemiddelde en als gecorrigeerd getoond.</div>' +
+    '<div class="proj-corr-rooster">' + PROJ_MAANDEN.map((n, m) => '<label><span>' + n + '</span><input type="number" step="0.01" min="0" id="pc-m-' + m + '" value="' + (per[m] ? escHtml(String(per[m].gemiddelde)) : '') + '" placeholder="' + (gem[m] && gem[m].gem != null ? escHtml(gem[m].gem) : '—') + '"></label>').join('') + '</div>' +
+    '<div class="crm-kop">Reden <b>*</b></div><input type="text" id="pc-reden" class="kand-vervolg-veld" maxlength="200" placeholder="bijv. projectenlijst jan–mei onvolledig; cijfers uit de maandrapportage" value="' + escHtml(reden) + '">' +
+    '<div class="crm-sub" style="margin-top:6px">Grijs = de telling. Elke correctie wordt bewaard met naam en datum.</div>' +
+    '<div id="pc-status" style="margin-top:6px;font-size:.78rem;color:#ffb3b3;"></div>' +
+    '<div class="crm-knoppen"><button class="crm-knop goed" onclick="projCorrOpslaan()">Opslaan</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'crm-kaart-smal proj-corr-venster', () => { PROJ_CORR_JAAR = null; });
+}
+async function projCorrOpslaan() {
+  const year = PROJ_CORR_JAAR; if (!year || !supa || !(isManagerLevel() || isBeheerder())) return;
+  const st = (t) => { const el = document.getElementById('pc-status'); if (el) el.textContent = t; };
+  const reden = String((document.getElementById('pc-reden') || {}).value || '').trim();
+  const per = projCorrectiesVoor(year), rijen = [], weg = [];
+  PROJ_MAANDEN.forEach((n, m) => { const el = document.getElementById('pc-m-' + m); const raw = el ? String(el.value || '').trim().replace(',', '.') : ''; if (raw === '') { if (per[m]) weg.push(m + 1); return; } const v = parseFloat(raw); if (!isFinite(v) || v < 0) return; rijen.push({ jaar: year, maand: m + 1, gemiddelde: Math.round(v * 100) / 100 }); });
+  if (rijen.length && !reden) { st('Vul de reden in.'); return; }
+  const door = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
+  _echoVanZelf('projectenlijn_correcties');
+  if (rijen.length) { const { error } = await supa.from('projectenlijn_correcties').upsert(rijen.map(r => ({ ...r, reden, door, op: new Date().toISOString() })), { onConflict: 'jaar,maand' }); if (error) { st('Niet opgeslagen: ' + error.message); return; } }
+  if (weg.length) { const { error } = await supa.from('projectenlijn_correcties').delete().eq('jaar', year).in('maand', weg); if (error) { st('Niet verwijderd: ' + error.message); return; } }
+  await loadProjCorrecties();
+  crmKaartSluit(); render();
+  btMeld(rijen.length ? rijen.length + ' maand' + (rijen.length === 1 ? '' : 'en') + ' gecorrigeerd voor ' + year + '.' : 'Correcties weggehaald; de telling geldt weer.', 'groen');
+}
 function countActiveProjectsPerWeek(year) {
   const ranges = getCombinedProjectRanges();
   const counts = [];
@@ -29356,7 +29469,9 @@ function renderPrognose() {
   const gapToGoal2    = +(JAAR_DOEL_AMBITIEUS - growthYearEnd).toFixed(1);
 
   // ── Projectenlijst / projectenlijn / starters-goedkeuring ──────────────────
-  const projLineCounts = countActiveProjectsPerWeek(year);
+  const projTelling    = countActiveProjectsPerWeek(year);
+  const projCorr       = projLijnGecorrigeerd(year, projTelling);   // 02-11: handmatige maandcorrecties
+  const projLineCounts = projCorr.counts;
   const begroteLijn     = getBegroteLijnPerWeek(year);
   const starterCards   = getStarterCards();
   const nuVoorOverdue  = new Date();
@@ -29517,7 +29632,8 @@ function renderPrognose() {
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chartProjLine"></canvas></div>
-      ${projMaandTegelsHtml(projMaandGemiddelden(year, projLineCounts, begroteLijn, year === isoWeek(TODAY).year ? isoWeek(TODAY).week : (year < isoWeek(TODAY).year ? 53 : 0), getPrognoseLijnPerWeek(year)))}
+      ${projMaandTegelsHtml(projMaandGemiddelden(year, projLineCounts, begroteLijn, year === isoWeek(TODAY).year ? isoWeek(TODAY).week : (year < isoWeek(TODAY).year ? 53 : 0), getPrognoseLijnPerWeek(year)), projCorr.corr)}
+      ${_projCorrNootHtml(year, projCorr.corr)}
     </div>
 
     <!-- Starters goedkeuring (S1, 15-09) -->
@@ -29684,19 +29800,24 @@ function renderPrognose() {
     // jaar is er geen vandaag-lijn.
     const nuW   = isoWeek(TODAY);
     const nuIdx = nuW.year === year ? nuW.week - 1 : (year < nuW.year ? 51 : -1);
+    // 02-11: de gecorrigeerde weken als eigen lijn (lichtblauw gestippeld); de telling heeft daar een gat.
+    const pw = projCorr.perWeek;
+    const tellingLijn = projCorr.actief ? projLineCounts.map((v, i) => pw[i] ? null : v) : projLineCounts;
+    const corrLijn = projCorr.actief ? projLineCounts.map((v, i) => (pw[i] || (i > 0 && pw[i - 1])) ? v : null) : null;
     const datasets = [
-      { label: 'Actieve projecten', data: projLineCounts, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,.15)', fill: true, tension: .3, pointRadius: 0, pointHitRadius: 8, borderWidth: 2.5,
+      { label: 'Actieve projecten', data: tellingLijn, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,.15)', fill: true, tension: .3, pointRadius: 0, pointHitRadius: 8, borderWidth: 2.5,
         segment: { borderDash: (c) => c.p0DataIndex >= nuIdx ? [5, 4] : undefined } },
       { label: 'Begrote lijn', data: begroteLijn, borderColor: '#E87400', borderDash: [6,4], pointRadius: 0, borderWidth: 2, fill: false },
     ];
+    if (corrLijn) datasets.splice(1, 0, { label: 'Gecorrigeerd (handmatig maandgemiddelde)', data: corrLijn, borderColor: '#9fc4ff', borderDash: [2, 4], pointRadius: 0, pointHitRadius: 8, borderWidth: 2.5, fill: false, tension: .3 });
     if (heeftPrognose) datasets.push({ label: 'Prognose · tempo ' + fmtNl(prognoseTempo) + ' starter/week · wk 52: ' + Math.round(prognoseEind), data: prognoseLijn, borderColor: '#EAB308', borderDash: [4,3], pointRadius: 0, borderWidth: 1.5, fill: false });
     const maandLabels = projWeekMaandLabels(year);
     window._projYAuto = projLijnYMin(projLineCounts, begroteLijn);
     makeChart('chartProjLine', wkLabels, datasets, 'line', {
-      legend: begroteLijn.some(v => v !== null) || heeftPrognose,
+      legend: begroteLijn.some(v => v !== null) || heeftPrognose || projCorr.actief,
       yMin: projLijnYMin(projLineCounts, begroteLijn),
       xTick: (i) => maandLabels[i],
-      plugins: [_projVandaagPlugin(nuIdx, nuIdx >= 0 ? projLineCounts[nuIdx] : null, nuIdx >= 0 ? begroteLijn[nuIdx] : null)],
+      plugins: [_projCorrPlugin(projCorr.perWeek, projCorr.corr), _projVandaagPlugin(nuIdx, nuIdx >= 0 ? projLineCounts[nuIdx] : null, nuIdx >= 0 ? begroteLijn[nuIdx] : null)],
     });
     projChartSleepInit();
     if (isBeheerder()) bonusFiltApply();
