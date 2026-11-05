@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261105-1353 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261105-1402 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4568,7 +4568,7 @@
   .bz-tabel { width:100%; border-collapse:collapse; font-size:.8rem; } .bz-tabel th { text-align:left; color:rgba(255,255,255,.5); font-weight:500; font-size:.64rem; text-transform:uppercase; letter-spacing:.05em; padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.12); }
   .bz-tabel td { padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:middle; white-space:nowrap; color:rgba(255,255,255,.88); } .bz-tabel td.bz-wie { white-space:normal; max-width:320px; } .bz-tabel td.bz-actie { text-align:right; }
   .bz-rij { cursor:pointer; } .bz-rij:hover td { background:rgba(255,255,255,.04); } .bz-rij.gepland td { color:#fff; }
-  .bz-groep td { background:rgba(255,255,255,.04); color:#F4CB3C; font-size:.64rem; letter-spacing:.06em; text-transform:uppercase; padding:5px 8px; }
+  .bz-groep td { background:rgba(255,255,255,.04); color:#F4CB3C; font-size:.64rem; letter-spacing:.06em; text-transform:uppercase; padding:5px 8px; } .bz-groep td > span:first-child { margin-right:10px; } .bz-groep-knoppen { float:right; display:inline-flex; gap:6px; text-transform:none; letter-spacing:0; } .bz-groep-knoppen .kk-knop { padding:1px 8px; font-size:.66rem; }
   .bz-tabel .bz-ini { display:inline-flex; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; color:#fff; margin-right:2px; }
   .bz-pil { display:inline-block; border-radius:999px; padding:1px 8px; font-size:.68rem; } .bz-pil.ok { background:rgba(37,211,102,.18); color:#25D366; } .bz-pil.mis { background:rgba(232,116,0,.2); color:#ffb37a; } .bz-pil.geen { background:rgba(255,155,155,.16); color:#ff9b9b; }
   .bz-tabel .kk-knop.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); }
@@ -12156,7 +12156,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261105-1353';
+const APP_VERSIE = '20261105-1402';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -33091,7 +33091,7 @@ function renderAccOverzichtHtml(subTabBtns) {
     '<span class="bz-export-knoppen"><button type="button" class="bz-chip" onclick="accOverzichtExcel()" title="De regels zoals ze nu in beeld staan">Excel</button>' +
     '<button type="button" class="bz-chip bz-export" onclick="accOverzichtPrint()" title="De selectie als lijst per bedrijf — PDF via \'Opslaan als PDF\' in het printvenster">⎙ PDF / print</button></span></div>';
   const body = w.groepen.length ? '<div class="bt-venster bz-venster"><table class="bz-tabel"><thead><tr><th>Wanneer</th><th>Bedrijf</th><th>Soort</th><th>Met wie</th><th>Collega</th><th>Verslag</th><th>Vervolg</th><th></th></tr></thead><tbody>' +
-      w.groepen.map(g => '<tr class="bz-groep"><td colspan="8">' + escHtml(g.titel) + ' · ' + g.rijen.length + '</td></tr>' + g.rijen.map(_bzRijHtml).join('')).join('') + '</tbody></table></div>'
+      w.groepen.map(g => '<tr class="bz-groep"><td colspan="8"><span>' + escHtml(g.titel) + ' · ' + g.rijen.length + '</span>' + _bzGroepKnoppenHtml(g) + '</td></tr>' + g.rijen.map(_bzRijHtml).join('')).join('') + '</tbody></table></div>'
     : '<div class="bz-leeg">' + (ACC_OVERZICHT_TAB === 'todo' ? 'Niets te doen' + (w.z ? ' voor "' + escHtml(ACC_OVERZICHT_ZOEK) + '"' : '') + ' — alle verslagen zijn er en de vervolgen staan gepland.' : 'Geen bezoeken' + (w.z ? ' gevonden voor "' + escHtml(ACC_OVERZICHT_ZOEK) + '"' : ACC_OVERZICHT_TAB === 'komend' ? ' in de komende twee weken' : '') + '.') + '</div>';
   return '<div><div class="person-header"><div class="person-name">Overzicht bezoeken' + btUitlegKnop('accounts') + '</div>' +
     '<div class="person-meta">' + w.lijst.length + ' bezoek' + (w.lijst.length === 1 ? '' : 'en') + ' · ' + w.bedrijven + ' bedrij' + (w.bedrijven === 1 ? 'f' : 'ven') + (ACC_OVERZICHT_TAB === 'todo' ? ' · ' + w.todoN + ' te doen' : '') + '</div></div>' +
@@ -33111,7 +33111,7 @@ function _accWerklijstSelectie() {
   if (ACC_OVERZICHT_MIJ) basis = basis.filter(vanMij);
   if (z) basis = basis.filter(b => [b.bedrijf, b.contactpersoon, b.functie, b.afdeling, b.collega, b.kandidaat, b.medewerker, b.datumTekst].join(' ').toLowerCase().includes(z));
   // Te doen: drie groepen.
-  const mis = basis.filter(b => _bzVerslagStand(b) === 'mis').sort((a, b) => a.datumMs - b.datumMs);
+  const mis = basis.filter(b => _bzVerslagStand(b) === 'mis' && !b.afgerond).sort((a, b) => b.datumMs - a.datumMs);   // 05-11: nieuwste bovenaan; afgesloten eruit
   const laterBij = (b) => alles.some(x => x !== b && _itkSleutel(x.bedrijf) === _itkSleutel(b.bedrijf) && x.datumMs > b.datumMs);
   const geenVervolg = basis.filter(b => _bzVerslagStand(b) === 'ok' && !b.vervolg && !b.afgerond && b.datumMs >= negentig && b.datumMs < nu && !laterBij(b)).sort((a, b) => b.datumMs - a.datumMs);
   const gepland = basis.filter(b => _bzVerslagStand(b) === 'nvt' && b.datumMs >= gisteren && b.datumMs <= twee).sort((a, b) => a.datumMs - b.datumMs);
@@ -33156,6 +33156,32 @@ function _bzRijHtml(b) {
     '<td class="bz-wanneer">' + (stand === 'nvt' ? '<b>' : '') + escHtml(_bzDatumKort(b.datumMs, !!(b.kaart && b.kaart.gesprek_op)) || b.datumTekst || '') + (stand === 'nvt' ? '</b>' : '') + '</td>' +
     '<td>' + bedrijf + '</td><td><span class="bz-soort ' + soortKl + '">' + escHtml(BEZOEK_SOORTEN[b.soortBezoek] || b.soortBezoek) + '</span></td>' +
     '<td class="bz-wie">' + (wie || '<span class="stil">—</span>') + '</td><td>' + ini + '</td><td>' + verslag + '</td><td>' + vervolg + '</td><td class="bz-actie">' + actie + '</td></tr>';
+}
+// 05-11: opschonen — per groep in "Te doen" alles (of alles ouder dan 30 dagen) in één keer afsluiten.
+function _bzGroepKnoppenHtml(g) {
+  if (ACC_OVERZICHT_TAB !== 'todo' || !(g.soort === 'mis' || g.soort === 'vervolg') || !magWijzigen('medewerkers')) return '';
+  const oud = g.soort === 'mis' ? g.rijen.filter(b => b.datumMs < Date.now() - 30 * 864e5).length : 0;
+  return '<span class="bz-groep-knoppen">' + (oud ? '<button type="button" class="kk-knop" onclick="event.stopPropagation();bzGroepAfsluiten(\'' + g.soort + '\', 30)">ouder dan 30 dagen afsluiten (' + oud + ')</button>' : '') +
+    '<button type="button" class="kk-knop" onclick="event.stopPropagation();bzGroepAfsluiten(\'' + g.soort + '\', 0)">alles afsluiten (' + g.rijen.length + ')</button></span>';
+}
+async function bzGroepAfsluiten(soort, ouderDanDagen) {
+  if (!eisWijzig('medewerkers') || !supa) return;
+  const w = _accWerklijstSelectie();
+  const g = w.groepen.find(x => x.soort === soort); if (!g) return;
+  const grens = ouderDanDagen ? Date.now() - ouderDanDagen * 864e5 : Infinity;
+  const rijen = g.rijen.filter(b => b.datumMs < grens);
+  if (!rijen.length) return;
+  const wat = soort === 'mis' ? 'bezoek' + (rijen.length === 1 ? '' : 'en') + ' zonder verslag' : 'bezoek' + (rijen.length === 1 ? '' : 'en') + ' zonder vervolg';
+  const ok = await btBevestig(rijen.length + ' ' + wat + ' afsluiten?\n\nZe verdwijnen uit "Te doen" en krijgen het vinkje Afgerond; de bezoeken zelf blijven in "Alles" en op de bedrijfskaart staan. Terugdraaien kan per bezoek op de bezoekkaart.', { knop: 'Afsluiten', regels: rijen.slice(0, 12).map(b => ({ tekst: _bzDatumKort(b.datumMs) + ' · ' + b.bedrijf + (b.contactpersoon ? ' · ' + b.contactpersoon : ''), ok: false, weg: false })).concat(rijen.length > 12 ? [{ tekst: '… en nog ' + (rijen.length - 12), ok: false, weg: false }] : []) });
+  if (!ok) return;
+  const nu = new Date().toISOString(), mij = ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null;
+  const payload = rijen.map(b => Object.assign({ verslag_id: b.id, vervolg_op: null, vervolg_met: null, vervolg_afd: null, vervolg_waar: null }, BEZOEK_VERVOLG[b.id] || {}, { afgerond_op: nu, updated_by: mij, updated_at: nu }));
+  _echoVanZelf('bezoek_vervolg');
+  const { error } = await supa.from('bezoek_vervolg').upsert(payload, { onConflict: 'verslag_id' });
+  if (error) { meldFout('afsluiten mislukt: ' + error.message, 'bzGroepAfsluiten'); btMeld('Niet afgesloten: ' + error.message, 'rood'); return; }
+  payload.forEach(r => { BEZOEK_VERVOLG[r.verslag_id] = r; });
+  btMeld(rijen.length + ' ' + wat + ' afgesloten.', 'groen');
+  renderAccOverzicht();
 }
 function accOverzichtTab(k) { ACC_OVERZICHT_TAB = ['todo', 'komend', 'alles'].includes(k) ? k : 'todo'; renderAccOverzicht(); }
 function accOverzichtMij(aan) { ACC_OVERZICHT_MIJ = !!aan; renderAccOverzicht(); }
