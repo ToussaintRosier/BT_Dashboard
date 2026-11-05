@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261105-0809 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261105-0814 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1448,6 +1448,7 @@
                 font-size:var(--t-xs); margin-top:6px; cursor:pointer;
                 text-decoration:underline; }
   .memo-later:hover { color:var(--text); }
+  .memo-links { display:flex; justify-content:space-between; gap:8px; } .memo-links .memo-later { width:auto; padding:9px 4px; } .memo-weg { text-decoration:underline dotted; }   /* 05-11 */
 
 
   /* ── Verslagen: label boven, tekst eronder ──────────────────────────────
@@ -12190,7 +12191,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261105-0809';
+const APP_VERSIE = '20261105-0814';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13200,7 +13201,7 @@ async function toonMemos() {
           <div class="memo-label">Mededeling</div>
           <h3>${escHtml(m.titel)}</h3>
         </div>
-        <div class="memo-body">${escHtml(m.bericht)}</div>
+        ${String(m.bericht || '').trim() ? `<div class="memo-body">${escHtml(m.bericht)}</div>` : ''}
         ${m.video_pad ? `<video id="memo-video-speler" class="memo-video" controls
               controlslist="nodownload noplaybackrate" disablepictureinpicture playsinline></video>` : ''}
         <div class="memo-afzender">
@@ -13209,8 +13210,8 @@ async function toonMemos() {
         </div>
         <div class="memo-voet">
           <button id="memo-knop"${m.video_pad ? ' disabled' : ''}>${
-            m.video_pad ? 'Bekijk eerst het filmpje' : 'Gelezen en begrepen'}</button>
-          ${m.video_pad ? `<button class="memo-later" id="memo-later">Nu even niet</button>` : ''}
+            m.video_pad ? 'Bekijk eerst het filmpje' : 'Duidelijk ✓'}</button>
+          ${m.video_pad ? `<div class="memo-links"><button class="memo-later" id="memo-later">Nu even niet</button><button class="memo-later memo-weg" id="memo-weg" title="Definitief wegklikken zonder het filmpje te kijken">Niet meer tonen</button></div>` : ''}
           ${wachtrij.length > 1 ? `<div class="memo-teller">${i + 1} van ${wachtrij.length}</div>` : ''}
         </div>
       </div>`;
@@ -13218,6 +13219,7 @@ async function toonMemos() {
 
     const knopEl  = laag.querySelector('#memo-knop');
     const laterEl = laag.querySelector('#memo-later');
+    const wegEl   = laag.querySelector('#memo-weg');   // 05-11: definitief wegklikken zonder te kijken
     let hoe = 'gelezen';
 
     // ── Het filmpje ─────────────────────────────────────────────────────────
@@ -13232,6 +13234,7 @@ async function toonMemos() {
         hoe = 'niet_afgespeeld';
         if (speler) speler.remove();
         if (laterEl) laterEl.remove();
+        if (wegEl) wegEl.remove();
         const vak = document.createElement('div');
         vak.className = 'memo-videofout';
         vak.textContent = 'Het filmpje kan hier niet worden afgespeeld. Je kunt doorgaan; '
@@ -13271,14 +13274,24 @@ async function toonMemos() {
       speler.onended = () => {
         hoe = 'uitgekeken';
         knopEl.disabled = false;
-        knopEl.textContent = 'Gelezen en begrepen';
+        knopEl.textContent = 'Duidelijk ✓';
         if (laterEl) laterEl.remove();   // uitgekeken: nog maar één weg vooruit
+        if (wegEl) wegEl.remove();
       };
     }
 
     if (laterEl) laterEl.onclick = () => {
       MEMO_UITGESTELD.add(String(m.id));
       laag.remove();
+      toonVolgende(i + 1);
+    };
+    // 05-11: "Niet meer tonen" — definitief weg, maar wel vastgelegd dat het filmpje niet is bekeken.
+    if (wegEl) wegEl.onclick = async () => {
+      wegEl.disabled = true;
+      const gelukt = await _memoBevestig(m.id, mijnId, 'weggeklikt');
+      laag.remove();
+      if (!gelukt) return;
+      if (m.video_pad) { _memoVideoOpruimen(m).catch(() => {}); }
       toonVolgende(i + 1);
     };
 
@@ -13384,7 +13397,7 @@ async function memoVerstuur() {
   const msg     = document.getElementById('memo-msg');
   const titel = (titelEl?.value || '').trim();
   const tekst = (tekstEl?.value || '').trim();
-  if (!titel || !tekst) { btZetStatus(msg, '⚠️ Vul een titel en een bericht in.'); return; }
+  if (!titel) { btZetStatus(msg, '⚠️ Vul een titel in.'); return; }   // 05-11: het bericht is niet verplicht (alleen titel + filmpje mag)
 
   const gekozen = Array.from(document.querySelectorAll('.memo-ontvanger:checked')).map(c => c.value);
   const allen   = document.getElementById('memo-allen')?.checked;
@@ -15433,6 +15446,7 @@ function renderBeheer() {
         // verschil telt: bevestigd is niet hetzelfde als gezien.
         const nietGezien = bev.filter(b => b.gezien_hoe === 'niet_afgespeeld')
                               .map(b => b.gebruiker).filter(Boolean);
+        const weggeklikt = bev.filter(b => b.gezien_hoe === 'weggeklikt').map(b => b.gebruiker).filter(Boolean);   // 05-11
         const gepland = !_memoGepubliceerd(m);
 
         // In de titelregel staat alleen wat je nodig hebt om te kiezen welke je
@@ -15456,7 +15470,7 @@ function renderBeheer() {
             <span class="memo-status">${status}</span>
           </summary>
           <div class="memo-inhoud">
-            <div class="memo-tekst">${escHtml(m.bericht)}</div>
+            ${String(m.bericht || '').trim() ? `<div class="memo-tekst">${escHtml(m.bericht)}</div>` : ''}
             ${(m.video_pad || m.video_weg_op) ? `<div class="memo-onderregel" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;">
               <span style="color:var(--text-muted);">
                 ${m.video_pad ? 'Met filmpje — wordt opgeruimd zodra iedereen bevestigd heeft.'
@@ -15464,6 +15478,8 @@ function renderBeheer() {
               </span>
               ${nietGezien.length ? `<span style="color:#8a5a08;margin-left:auto;">
                 Niet kunnen afspelen bij: ${escHtml(nietGezien.join(', '))}</span>` : ''}
+              ${weggeklikt.length ? `<span style="color:#b45309;margin-left:auto;">
+                Weggeklikt zonder te kijken: ${escHtml(weggeklikt.join(', '))}</span>` : ''}
             </div>` : ''}
             <div class="memo-onderregel">
               ${gepland
@@ -15490,7 +15506,7 @@ function renderBeheer() {
       <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Publiceren vanaf</label>
       <input id="memo-datum" type="date" value="${new Date().toISOString().slice(0,10)}" style="padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);margin-bottom:10px;">
       <div style="font-size:.76rem;color:var(--text-muted);margin:-6px 0 12px;">Vanaf deze dag verschijnt de mededeling. Wie die dag niet inlogt, krijgt hem de eerstvolgende keer daarna.</div>
-      <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Bericht</label>
+      <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Bericht <span style="font-weight:400;opacity:.7">(niet verplicht — leeg = alleen titel en filmpje)</span></label>
       <textarea id="memo-tekst" rows="5" placeholder="Kort en concreet. Wat is er veranderd, en wat betekent dat voor jou?" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);line-height:1.6;resize:vertical;"></textarea>
       <div style="margin-top:12px;">
         <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:4px;">Filmpje (optioneel)</label>
