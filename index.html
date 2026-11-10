@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261110-0810 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261110-1455 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2245,6 +2245,7 @@
   .crm-s-velden label.crm-s-tekst input { border-color:rgba(37,211,102,.45); }
   .crm-pil.indoc em { font-style:normal; text-decoration:underline; }
   .crm-zoek-lijst .ic.d { background:rgba(37,211,102,.18); color:#6ee7b7; }
+  .crm-zoek-lijst .ic.v { background:rgba(167,139,250,.22); color:#c4b5fd; }   /* 10-11: vacature */
   .crm-zoek-lijst .frag { color:var(--tekst-gedempt); font-size:.78rem; } .crm-zoek-lijst .frag em { font-style:normal; background:rgba(244,203,60,.25); border-radius:3px; color:#fff; }
 
   /* Vacatures (01-10) */
@@ -4682,6 +4683,9 @@
   .kb-knop svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .kb-knop:hover { background:rgba(255,255,255,.08); color:#fff; }
   .kb-knop.go { margin-left:auto; border-color:#F4CB3C; color:#F4CB3C; }
+  .kb-knop.taak { margin-left:auto; } .kb-knop.taak + .kb-knop.go { margin-left:0; } .kb-knop.taak:hover { border-color:#F4CB3C; color:#F4CB3C; }   /* 10-11: taak voor een collega */
+  .kb-taak { display:inline-flex; align-items:center; gap:5px; max-width:100%; background:rgba(244,203,60,.16); color:#F4CB3C; border-radius:99px; padding:1px 8px; font-size:.66rem; margin-top:5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .kb-taak.laat { background:rgba(232,116,0,.25); color:#ffb37a; }
+  .kb-taak-tekst { width:100%; min-height:64px; box-sizing:border-box; resize:vertical; }
   .kb-knop.tekst { width:auto; padding:0 7px; gap:4px; font-size:.66rem; font-family:inherit; white-space:nowrap; }   /* 10-11: "Datum prikken →" */
   .kb-knop.go:hover { background:rgba(244,203,60,.15); }
   .kb-knop.af { border-color:rgba(127,220,180,.5); color:#7fdcb4; }
@@ -12154,7 +12158,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261110-0810';
+const APP_VERSIE = '20261110-1455';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -16176,6 +16180,13 @@ function _crmZoekMarkeer(tekst, z) {
   if (i < 0 || !z) return escHtml(t);
   return escHtml(t.slice(0, i)) + '<em>' + escHtml(t.slice(i, i + z.length)) + '</em>' + escHtml(t.slice(i + z.length));
 }
+// 10-11: vacatures in de kop-zoekbalk — titel, klant, vakgebied, regio; open vóór gesloten, nieuwste eerst; max 5.
+function _crmZoekVacatures(q) {
+  const z = String(q || '').trim().toLowerCase();
+  if (z.length < 2 || typeof VACATURES === 'undefined' || !Array.isArray(VACATURES) || (typeof magZien === 'function' && !magZien('vacatures'))) return [];
+  return VACATURES.filter(v => !v.verwijderd_op && [v.titel, _vacKlantNaam(v), v.vakgebied, v.regio].join(' ').toLowerCase().indexOf(z) >= 0)
+    .sort((a, b) => ((a.status === 'gesloten') - (b.status === 'gesloten')) || String(b.updated_at || '').localeCompare(String(a.updated_at || ''))).slice(0, 5);
+}
 function _crmZoekLijstHtml(q, res) {
   const z = String(q || '').trim().toLowerCase();
   const items = [];
@@ -16186,6 +16197,10 @@ function _crmZoekLijstHtml(q, res) {
   res.kandidaten.forEach(k => items.push({ soort: 'kand', sleutel: k.sleutel, html: '<span class="ic k">K</span><span><b>' + _crmZoekMarkeer(k.naam, z) + '</b>' + (k.functie ? ' · ' + escHtml(k.functie) : '') + (k.regio ? ' · ' + escHtml(k.regio) : '') + '</span><small>' + escHtml((k.stage ? k.stage + ' · ' : '') + (k.bmNaam ? String(k.bmNaam).split(' ')[0] : 'CRM')) + '</small>' }));
   res.bedrijven.forEach(b => items.push({ soort: 'bedr', sleutel: b.sleutel, html: '<span class="ic b">B</span><span><b>' + _crmZoekMarkeer(b.naam, z) + '</b>' + (b.crm && b.crm.plaats ? ' · ' + escHtml(b.crm.plaats) : '') + '</span><small>' + (b.klant ? 'klant' : b.account ? 'account' : 'CRM') + '</small>' }));
   (res.docs || []).forEach(d => items.push({ soort: 'doc', docId: d.id, bij: d.hoort_bij, sleutel: d.sleutel, html: '<span class="ic d">' + escHtml(String(d.soort || 'doc').toUpperCase().slice(0, 3)) + '</span><span><b>' + escHtml(naamVan(d)) + '</b><span class="frag"> · "' + _docFragmentHtml(d.fragment) + '"</span></span><small>' + escHtml(d.naam || '') + '</small>' }));
+  // 10-11: vacatures + een regel naar de pagina Vacatures met dit zoekwoord
+  const vacs = _crmZoekVacatures(q);
+  vacs.forEach(v => items.push({ soort: 'vac', id: String(v.id), html: '<span class="ic v">V</span><span><b>' + _crmZoekMarkeer(v.titel || 'vacature', z) + '</b>' + (_vacKlantNaam(v) ? ' · ' + _crmZoekMarkeer(_vacKlantNaam(v), z) : '') + (v.regio ? ' · ' + escHtml(v.regio) : '') + '</span><small>' + escHtml(v.status || 'concept') + '</small>' }));
+  if (vacs.length || /^vac/.test(z)) items.push({ soort: 'vacpagina', html: '<span class="ic v">→</span><span>' + (vacs.length ? 'Alle vacatures met "' + escHtml(q.trim()) + '"' : 'Naar de pagina Vacatures') + '</span><small>pagina</small>' });
   CRM_ZOEK.items = items;
   if (!items.length && res.docsBezig) return '<div class="leeg">Geen kandidaat of bedrijf met "' + escHtml(q) + '" — in documenten zoeken…</div>';
   if (!items.length) {
@@ -16193,7 +16208,7 @@ function _crmZoekLijstHtml(q, res) {
   }
   let html = '', vorige = '';
   items.forEach((it, i) => {
-    const kop = it.soort === 'kand' ? 'Kandidaten' : it.soort === 'doc' ? 'In documenten' : 'Bedrijven';
+    const kop = it.soort === 'kand' ? 'Kandidaten' : it.soort === 'doc' ? 'In documenten' : (it.soort === 'vac' || it.soort === 'vacpagina') ? 'Vacatures' : 'Bedrijven';
     if (kop !== vorige) { html += '<div class="kop">' + kop + '</div>'; vorige = kop; }
     html += '<div class="it' + (i === CRM_ZOEK.keuze ? ' aan' : '') + '" onmousedown="event.preventDefault()" onclick="crmZoekOpen(' + i + ', false)" onmouseenter="CRM_ZOEK.keuze=' + i + '">' + it.html + '</div>';
   });
@@ -16248,6 +16263,8 @@ function crmZoekOpen(i, naarPagina) {
   }
   const it = CRM_ZOEK.items[i]; if (!it) return;
   crmZoekSluit();
+  if (it.soort === 'vac') { selectTab('vacatures'); setTimeout(() => vacOpen(it.id), 60); return; }   // 10-11
+  if (it.soort === 'vacpagina') { if (typeof VAC_TAB !== 'undefined') { VAC_TAB.zoek = /^vac/i.test(q.trim()) && !_crmZoekVacatures(q).length ? '' : q.trim(); VAC_TAB.filter = ''; VAC_TAB.mijnGekozen = false; } selectTab('vacatures'); return; }
   if (it.soort === 'doc') {   // 08-10: de kaart openen en daarna het document zelf
     if (it.bij === 'kandidaat') crmKandOpen(it.sleutel); else crmBedrijfOpen(it.sleutel);
     setTimeout(() => { if (!_docVan(it.docId)) { docLaad(it.bij, it.sleutel).then(() => docBekijk(it.docId)); } else docBekijk(it.docId); }, 400);
@@ -16302,7 +16319,7 @@ function crmZoekNieuw(soort) {
 // Sneltoets / : cursor in het zoekveld (niet als je al ergens typt, en niet in een venster).
 // De zoekbalk in de kop (collega-pagina én het algemene Medewerkers-scherm, 16-10): één stuk HTML voor beide.
 function _crmKopZoekHtml() {
-  return `<div class="crm-zoek" id="crm-zoek"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input type="search" id="crm-zoek-veld" placeholder="zoek kandidaat of bedrijf in het CRM…" autocomplete="off" oninput="crmZoekTyp(this.value)" onkeydown="crmZoekToets(event)" onfocus="crmZoekTyp(this.value)" onblur="setTimeout(crmZoekSluit, 150)"><kbd class="crm-zoek-k" title="Sneltoets: /">/</kbd>${magWijzigen('crm') ? `<button type="button" class="crm-zoek-plus" onclick="crmZoekPlus(event)" title="Toevoegen: kandidaat of klant (ook: + in het zoekveld)" aria-label="Toevoegen">+</button><div class="crm-plus-paneel" id="crm-plus-paneel" hidden></div>` : ''}<div class="crm-zoek-lijst" id="crm-zoek-lijst" hidden></div></div>`;
+  return `<div class="crm-zoek" id="crm-zoek"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input type="search" id="crm-zoek-veld" placeholder="zoek kandidaat, bedrijf of vacature…" autocomplete="off" oninput="crmZoekTyp(this.value)" onkeydown="crmZoekToets(event)" onfocus="crmZoekTyp(this.value)" onblur="setTimeout(crmZoekSluit, 150)"><kbd class="crm-zoek-k" title="Sneltoets: /">/</kbd>${magWijzigen('crm') ? `<button type="button" class="crm-zoek-plus" onclick="crmZoekPlus(event)" title="Toevoegen: kandidaat of klant (ook: + in het zoekveld)" aria-label="Toevoegen">+</button><div class="crm-plus-paneel" id="crm-plus-paneel" hidden></div>` : ''}<div class="crm-zoek-lijst" id="crm-zoek-lijst" hidden></div></div>`;
 }
 function _crmZoekSneltoets(e) {
   if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -38200,10 +38217,11 @@ function kanbanKaartHtml(c) {
   const doorTitel = fase === 'gp' ? 'Datum prikken → 1ste gesprek' : fase === 'contract' ? 'Melden als starter' : volgende ? 'Door naar ' + _kanbanFase(volgende).label : '';
   const doorIco = fase === 'contract' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c3 2 5 6 5 10l-2 3H9l-2-3c0-4 2-8 5-10z"/><path d="M9 15l-3 5M15 15l3 5M12 15v6"/></svg>'
                 : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
-  const knoppen = mag
+  const taakKnop = magWijzigen('medewerkers') ? '<button class="kb-knop taak" type="button" title="Taak voor een collega — komt in zijn To Do\'s en in het gesprekslog van de kandidaat" onclick="kanbanTaakVenster(\'' + bmE + '\',\'' + idE + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/></svg></button>' : '';   // 10-11
+  const knoppen = taakKnop + (mag
     ? (volgende ? '<button class="kb-knop go' + (fase === 'gp' ? ' tekst' : '') + '" type="button" title="' + doorTitel + '" onclick="kanbanDoorVenster(\'' + bmE + '\',\'' + idE + '\')">' + (fase === 'gp' ? 'Datum prikken' : '') + doorIco + '</button>' : '') +
       '<button class="kb-knop af" type="button" title="Van het bord halen (het tegeltje blijft in de pipeline)" onclick="kanbanAfVenster(\'' + bmE + '\',\'' + idE + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4 10-10"/></svg></button>'
-    : '';
+    : '');
   const bms = Array.isArray(c.bms) && c.bms.length ? c.bms : [c.bmNaam];
   return '<div class="kb-kaart' + (kleur.klasse ? ' ' + kleur.klasse : '') + '" data-id="' + escHtml(c.id) + '" data-bm="' + escHtml(c.bmNaam) + '" data-fase="' + fase + '"' +
     (mag && volgende ? ' draggable="true" ondragstart="kanbanSleepStart(event, this)" ondragend="kanbanSleepEind()"' : '') + '>' +
@@ -38213,6 +38231,7 @@ function kanbanKaartHtml(c) {
     '<div class="kb-regel">' + regel + '</div>' +
     _kanbanVacaturePilHtml(c, fase, mag) + (typeof _msKaartHtml === 'function' ? _msKaartHtml(c) : '') +   // 12-10: vacature + matchscore vanaf Matchgesprek
     (fase === 'starboy' ? '<div class="kb-rldv-rij">' + _kanbanRldvHtml(c) + '</div>' : '') +
+    _kanbanTaakPilHtml(c) +
     (pil || knoppen ? '<div class="kb-voet">' + pil + knoppen + '</div>' : '') +
     '</div>';
 }
@@ -38485,6 +38504,76 @@ async function kanbanStarboyZet() {
   if (!_kanbanMag(bmNaam)) { _kanbanStatus('Je mag de kaart van ' + bmNaam + ' niet wijzigen.'); return; }
   const ok = await _kanbanUpdate(bmNaam, id, { starboy: true });
   if (ok) { crmKaartSluit(); render(); }
+}
+// ── Taak voor een collega vanaf het kaartje (10-11, ontwerp_kanban_taak.html) ──────────────────────────────
+// Dezelfde taak als uit het gesprekslog: een notitie met taak in kandidaat_notities. Daardoor staat hij vanzelf in het
+// gesprekslog van de kandidaat, in de To Do's van de collega, op zijn dagstart en in de weekbriefing; afvinken idem.
+let KB_TAAK = null;   // { id, bm, voor, datum }
+function _kanbanTaakPilHtml(c) {
+  const sl = _itkSleutel(c.naam || ''); if (!sl || typeof KAND_NOTITIES === 'undefined' || !KAND_NOTITIES) return '';
+  const open = (KAND_NOTITIES[sl] || []).filter(n => n && n.taak && typeof n.taak === 'object' && !n.taak.gedaan_op).sort((a, b) => _taakDeadlineMs(a.taak) - _taakDeadlineMs(b.taak));
+  if (!open.length) return '';
+  const t = open[0].taak, ms = _taakDeadlineMs(t), laat = ms && ms < Date.now() - 864e5 * 0.5;
+  const dagen = laat ? Math.max(1, Math.round((Date.now() - ms) / 864e5)) : 0;
+  return '<span class="kb-taak' + (laat ? ' laat' : '') + '" role="button" tabindex="0" title="' + escHtml('Taak voor ' + (t.voor || '') + ': ' + String(open[0].tekst || '').slice(0, 140) + ' · klik: kandidaatkaart (gesprekslog)') + '" onclick="event.stopPropagation();kandKaartOpen(\'' + escApos(c.bmNaam) + '\',\'' + escApos(c.id) + '\')">☑ taak voor ' + escHtml(String(t.voor || '').split(' ')[0]) + ' · ' +
+    escHtml(laat ? dagen + (dagen === 1 ? ' dag' : ' dagen') + ' te laat' : _taakWanneer(t)) + (open.length > 1 ? ' · +' + (open.length - 1) : '') + '</span>';
+}
+function kanbanTaakVenster(bmNaam, id, behoud) {
+  if (!magWijzigen('medewerkers')) return;
+  const v = _kanbanVind(id); if (!v) return;
+  const c = v.kaart, groep = _kanbanGroepVan(c.id), bms = groep && groep.bms && groep.bms.length ? groep.bms : [bmNaam];
+  const mij = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
+  const tekstNu = behoud && document.getElementById('kb-taak-tekst') ? document.getElementById('kb-taak-tekst').value : '';
+  if (!KB_TAAK || String(KB_TAAK.id) !== String(c.id)) KB_TAAK = { id: c.id, bm: bmNaam, voor: bms.find(n => _itkSleutel(n) !== _itkSleutel(mij)) || bms[0] || '', datum: _taakVandaagPlus(1) };
+  const K = KB_TAAK, idE = escApos(String(c.id)), bmE = escApos(bmNaam);
+  const f = _kanbanFase(kanbanFaseVan(c)), klant = _kanbanKlantVan(c);
+  const chip = (naam) => '<button type="button" class="kb-stap' + (_itkSleutel(K.voor) === _itkSleutel(naam) ? ' aan' : '') + '" onclick="kanbanTaakZet(\'voor\',\'' + escApos(naam) + '\')"><span class="one-ber-av klein" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(_oneInitialen(naam)) + '</span> ' + escHtml(String(naam).split(' ')[0]) + (_itkSleutel(naam) === _itkSleutel(mij) ? ' (ik)' : '') + '</button>';
+  const andere = _taakCollegas().filter(x => !bms.some(n => _itkSleutel(n) === _itkSleutel(x.naam)));
+  const opKaart = bms.some(n => _itkSleutel(n) === _itkSleutel(K.voor));
+  const dagChip = (n, label) => '<button type="button" class="kb-stap' + (K.datum === _taakVandaagPlus(n) ? ' aan' : '') + '" onclick="kanbanTaakZet(\'datum\',\'' + _taakVandaagPlus(n) + '\')">' + label + '</button>';
+  crmKaartToon('<h4 class="wit">Taak bij ' + escHtml(c.naam || '') + '</h4>' +
+    '<div class="crm-sub">' + escHtml([klant, c.kanban_functie || c.functie, f ? f.label : ''].filter(Boolean).join(' · ')) + '</div>' +
+    '<div class="crm-kop">Voor wie</div><div class="kb-stappen">' + bms.map(chip).join('') +
+      '<select class="crm-select" onchange="if(this.value)kanbanTaakZet(\'voor\',this.value)"><option value="">andere collega…</option>' + andere.map(x => '<option value="' + escHtml(x.naam) + '"' + (!opKaart && _itkSleutel(K.voor) === _itkSleutel(x.naam) ? ' selected' : '') + '>' + escHtml(x.naam) + '</option>').join('') + '</select></div>' +
+    '<div class="crm-kop">Wat moet er gebeuren</div><textarea id="kb-taak-tekst" class="kand-vervolg-veld kb-taak-tekst" maxlength="600" placeholder="bijv. terugkoppeling ophalen bij de klant en de kandidaat bellen">' + escHtml(tekstNu) + '</textarea>' +
+    '<div class="crm-kop">Wanneer klaar</div><div class="kb-stappen">' + dagChip(0, 'vandaag') + dagChip(1, 'morgen') + dagChip(7, 'over een week') +
+      '<input type="date" class="kand-vervolg-veld" style="width:auto" value="' + escHtml(K.datum || '') + '" onchange="kanbanTaakZet(\'datum\',this.value)"></div>' +
+    '<div class="vv-tegel klaar" style="margin-top:10px;">Komt bij ' + escHtml(String(K.voor || '…').split(' ')[0]) + ' in de To Do\'s en als melding, en als regel in het gesprekslog van ' + escHtml(c.naam || 'de kandidaat') + '.</div>' +
+    '<div id="kb-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
+    '<div class="crm-knoppen"><button class="crm-knop goed" id="kb-taak-knop" onclick="kanbanTaakOpslaan(\'' + bmE + '\',\'' + idE + '\')">Taak aanmaken</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'kand-kaart', () => { KB_TAAK = null; });
+  setTimeout(() => { const el = document.getElementById('kb-taak-tekst'); if (el && el.focus) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }, 30);
+}
+function kanbanTaakZet(veld, waarde) {
+  if (!KB_TAAK) return;
+  KB_TAAK[veld] = String(waarde || '');
+  const K = KB_TAAK, houd = K; kanbanTaakVenster(K.bm, K.id, true); KB_TAAK = houd;
+}
+async function kanbanTaakOpslaan(bmNaam, id) {
+  if (!eisWijzig('medewerkers') || !supa || !CURRENT_USER || !KB_TAAK) return;
+  const v = _kanbanVind(id); if (!v) return;
+  const c = v.kaart, K = KB_TAAK, sl = _itkSleutel(c.naam || '');
+  const veld = document.getElementById('kb-taak-tekst'), tekst = String((veld && veld.value) || '').trim();
+  if (!sl) { _kanbanStatus('Dit kaartje heeft geen kandidaatnaam.'); return; }
+  if (!tekst) { _kanbanStatus('Schrijf wat er moet gebeuren.'); if (veld) veld.focus(); return; }
+  if (!K.voor) { _kanbanStatus('Kies voor wie de taak is.'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(K.datum || '')) { _kanbanStatus('Kies een datum voor de taak.'); return; }
+  const mij = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), mijnId = ONE_MIJN_ID || CURRENT_USER.id || null;
+  const voorMij = _itkSleutel(K.voor) === _itkSleutel(mij);
+  const col = _taakCollegas().find(x => _itkSleutel(x.naam) === _itkSleutel(K.voor));
+  const f = _kanbanFase(kanbanFaseVan(c)), klant = _kanbanKlantVan(c);
+  const rij = { kand_sleutel: sl, kand_naam: String(c.naam || '').trim(), tekst: tekst + ' — vanaf de Kanban (' + [f ? f.label : '', klant].filter(Boolean).join(' · ') + ')', auteur: mij, created_by: mijnId,
+    taak: { voor: voorMij ? mij : K.voor, voor_id: voorMij ? (mijnId || '') : ((col && col.id) || ''), datum: K.datum, tijd: '', door: mij, gezet_op: new Date().toISOString(), gedaan_op: null, gedaan_door: null } };
+  const knop = document.getElementById('kb-taak-knop'); if (knop) knop.disabled = true;
+  _echoVanZelf('kandidaat_notities');
+  const { data, error } = await supa.from('kandidaat_notities').insert(rij).select().single();
+  if (knop) knop.disabled = false;
+  if (error) { meldFout('taak vanaf kanban mislukt: ' + error.message, 'kanbanTaakOpslaan'); _kanbanStatus('Niet opgeslagen: ' + error.message); return; }
+  KAND_NOTITIES = KAND_NOTITIES || {}; KAND_NOTITIES[sl] = [data].concat(KAND_NOTITIES[sl] || []);
+  _TODO_CACHE = null;
+  const t = rij.taak;
+  if (t.voor_id && t.voor_id !== mijnId) { try { await _oneMeldCollegas([{ soort: 'collega', id: t.voor_id, naam: t.voor }], rij.kand_naam, '📋 Taak voor jou op ' + _taakWanneer(t) + ': ' + tekst, null); } catch (e) { _meldStil('taak melden', e); } }
+  KB_TAAK = null; crmKaartSluit(); render();
+  btMeld('Taak voor ' + String(t.voor).split(' ')[0] + ' aangemaakt · ' + _taakWanneer(t) + ' · staat in het gesprekslog van ' + rij.kand_naam + '.', 'groen');
 }
 // ── Nieuw kaartje in een kolom ──────────────────────────────────────────────
 function kanbanNieuwVenster(fase, vooraf) {   // 10-11: vooraf = { naam, klant, functie } (vanuit de RLDV-check)
