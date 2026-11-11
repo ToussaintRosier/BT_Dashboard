@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261110-1929 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261111-0843 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12177,7 +12177,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261110-1929';
+const APP_VERSIE = '20261111-0843';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -34603,13 +34603,27 @@ function _docRijHtml(d, nOuder, mag) {
 }
 // Zoeken in de tekst van documenten (08-10, stap 3): de database zoekt met Nederlandse woordstammen
 // (bt_doc_zoek); de Cockpit stuurt alleen het zoekwoord. Terug: id, hoort_bij, sleutel, soort, naam, fragment.
+// 11-11: "alles" voor CRM-Search en vacature-match. De database gaf nooit meer dan 100 documenten (≈ 66 kandidaten);
+// met supabase/doc_zoek_alles.sql tot 5.000. PostgREST geeft per vraag hoogstens 1.000 rijen → in bladzijden ophalen.
+const DOC_ZOEK_ALLES = 5000;
 async function docZoek(q, max) {
   const z = String(q || '').trim();
   if (!supa || z.length < 3) return [];
+  const m = max || 20, BLAD = 1000;
   try {
-    const { data, error } = await supa.rpc('bt_doc_zoek', { q: z, p_max: max || 20 });
-    if (error) { if (!/does not exist|42883|PGRST202/i.test(String(error.message || error.code || ''))) _meldStil('documenten zoeken', error); return []; }
-    return data || [];
+    if (m <= BLAD) {
+      const { data, error } = await supa.rpc('bt_doc_zoek', { q: z, p_max: m });
+      if (error) { if (!/does not exist|42883|PGRST202/i.test(String(error.message || error.code || ''))) _meldStil('documenten zoeken', error); return []; }
+      return data || [];
+    }
+    let uit = [];
+    for (let van = 0; van < m; van += BLAD) {
+      const { data, error } = await supa.rpc('bt_doc_zoek', { q: z, p_max: m }).range(van, van + BLAD - 1);
+      if (error) { if (!/does not exist|42883|PGRST202|PGRST103|range/i.test(String(error.message || error.code || ''))) _meldStil('documenten zoeken', error); break; }
+      uit = uit.concat(data || []);
+      if (!data || data.length < BLAD) break;
+    }
+    return uit;
   } catch (e) { _meldStil('documenten zoeken', e); return []; }
 }
 // Het fragment komt met <em>…</em> uit de database; alles ontsmetten en alleen die markering terugzetten.
@@ -36576,12 +36590,12 @@ async function vmKortelijst() {
   if (!VM.tekst && !VM.titel) { VM.kort = []; renderCrmSearch(); return; }
   VM.kortBezig = true; renderCrmSearch();
   const q = _vmZoekvraag(); let hits = [];
-  try { hits = q ? await docZoek(q, 300) : []; } catch (e) { _meldStil('vacature-match zoeken', e); }
+  try { hits = q ? await docZoek(q, DOC_ZOEK_ALLES) : []; } catch (e) { _meldStil('vacature-match zoeken', e); }
   const per = new Map(); let max = 0;
   hits.forEach(h => { if (h.hoort_bij !== 'kandidaat') return; const r = +h.rang || 0; if (!per.has(h.sleutel) || per.get(h.sleutel).rang < r) per.set(h.sleutel, { rang: r, soort: h.soort, fragment: h.fragment || '' }); max = Math.max(max, r); });
   // 30-10: per must-have apart zoeken, zodat we per kandidaat weten hoeveel must-haves in zijn CV/CR staan.
   const musts = VM.eisen.filter(e => e.aan && e.must);
-  const mustSets = await Promise.all(musts.map(async (e) => { try { const hs = await docZoek(/\s/.test(e.w) ? '"' + e.w + '"' : e.w, 300); return new Set((hs || []).filter(h => h.hoort_bij === 'kandidaat').map(h => h.sleutel)); } catch (err) { _meldStil('vacature-match must-have', err); return new Set(); } }));
+  const mustSets = await Promise.all(musts.map(async (e) => { try { const hs = await docZoek(/\s/.test(e.w) ? '"' + e.w + '"' : e.w, DOC_ZOEK_ALLES); return new Set((hs || []).filter(h => h.hoort_bij === 'kandidaat').map(h => h.sleutel)); } catch (err) { _meldStil('vacature-match must-have', err); return new Set(); } }));
   const mustTel = (k) => { const prof = _vmNorm([k.functie, (k.crm || {}).functie, _crmVakgebied(k), (k.crm || {}).opmerking].filter(Boolean).join(' ')); return musts.reduce((n, e, i) => n + ((mustSets[i] && mustSets[i].has(k.sleutel)) || (prof && prof.includes(_vmNorm(e.w))) ? 1 : 0), 0); };
   const v = VM.vacId && typeof _vacVind === 'function' ? _vacVind(VM.vacId) : null;
   const vak = v && v.vakgebied ? _vmNorm(v.vakgebied) : '', regio = v && v.regio ? _vmNorm(v.regio) : '';
@@ -37129,7 +37143,7 @@ function _crmSearchDocsZoek(v, direct) {
   if (S.sort !== 'treffer' && !CRM_DOC_HITS.q) { S.sort = 'treffer'; S.dir = 1; }
   _crmZoekLater(renderCrmSearch);   // teller toont "zoeken…"
   _CRM_SEARCH_DOCS_TIMER = setTimeout(async () => {
-    const hits = await docZoek(z, 300);
+    const hits = await docZoek(z, DOC_ZOEK_ALLES);
     if (String(CRM_SEARCH.tekst || '').trim().toLowerCase() !== z) return;
     const map = {}; let max = 0;
     hits.forEach(h => {
@@ -47189,7 +47203,7 @@ function vacKiezerTyp(v) {
   if (K.timer) clearTimeout(K.timer);
   K.timer = setTimeout(async () => {
     const z = K.q.trim();
-    if (z.length >= 3) { const hits = await docZoek(z, 300); const map = {}; let max = 0; hits.forEach(h => { if (h.hoort_bij && h.hoort_bij !== 'kandidaat') return; if (!map[h.sleutel]) { map[h.sleutel] = { rang: +h.rang || 0, fragment: h.fragment || '' }; max = Math.max(max, +h.rang || 0); } }); K.docHits = map; K.docMax = max; }
+    if (z.length >= 3) { const hits = await docZoek(z, DOC_ZOEK_ALLES); const map = {}; let max = 0; hits.forEach(h => { if (h.hoort_bij && h.hoort_bij !== 'kandidaat') return; if (!map[h.sleutel]) { map[h.sleutel] = { rang: +h.rang || 0, fragment: h.fragment || '' }; max = Math.max(max, +h.rang || 0); } }); K.docHits = map; K.docMax = max; }
     else K.docHits = {};
     if (VAC_KIEZER === K) _vacKiezerToon();
   }, 300);
