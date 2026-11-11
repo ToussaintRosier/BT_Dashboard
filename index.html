@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261111-0853 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261111-1438 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4704,6 +4704,11 @@
   .kb-knop.go { margin-left:auto; border-color:#F4CB3C; color:#F4CB3C; }
   .kb-knop.taak { margin-left:auto; } .kb-knop.taak + .kb-knop.go { margin-left:0; } .kb-knop.taak:hover { border-color:#F4CB3C; color:#F4CB3C; }   /* 10-11: taak voor een collega */
   .kb-taak { display:inline-flex; align-items:center; gap:5px; max-width:100%; background:rgba(244,203,60,.16); color:#F4CB3C; border-radius:99px; padding:1px 8px; font-size:.66rem; margin-top:5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .kb-taak.laat { background:rgba(232,116,0,.25); color:#ffb37a; }
+  /* 11-11: CR maken vanaf de kandidaatkaart */
+  .cr-maak { margin:8px 0 12px; } .cr-maak .kn.cr-uit { opacity:1; border:1px dashed rgba(255,255,255,.28); background:transparent; color:rgba(255,255,255,.5); cursor:not-allowed; }
+  .cr-stand { font-size:.72rem; color:rgba(255,255,255,.6); margin-top:6px; } .cr-ok { color:#9be3bd; } .cr-mis { color:#ffb37a; }
+  .cr-herkomst { background:#e8effc; color:#1a3f8f; border-radius:10px; padding:9px 14px; margin-bottom:12px; font-size:.82rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .cr-herkomst a { margin-left:auto; color:#1a3f8f; text-decoration:underline; }
+  .cr-bron { background:#e8f6ee; color:#0e7a4a; border-radius:99px; padding:2px 10px; font-size:.74rem; } .cr-bron.geel { background:#fdf6e0; color:#8a6410; }
   .kb-taak-tekst { width:100%; min-height:64px; box-sizing:border-box; resize:vertical; }
   .kb-knop.tekst { width:auto; padding:0 7px; gap:4px; font-size:.66rem; font-family:inherit; white-space:nowrap; }   /* 10-11: "Datum prikken →" */
   .kb-knop.go:hover { background:rgba(244,203,60,.15); }
@@ -12177,7 +12182,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261111-0853';
+const APP_VERSIE = '20261111-1438';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -35913,6 +35918,7 @@ function crmKandDossierHtml(sleutel) {
       rijA('E-mail', r.email ? '<a class="crm-link" href="mailto:' + escHtml(r.email) + '">' + escHtml(r.email) + '</a>' : '') +
       rijA('LinkedIn', _crmLink(r.linkedin, 'profiel openen'))) +
     _docBlokHtml('kandidaat', k.sleutel) +   // 08-10: documenten in de Cockpit (ontwerp_documenten.html)
+    _crMaakKnopHtml(k) +   // 11-11: CR maken in de CV-generator
     _oudeLinksBlok(r, k.sleutel, blok, rijA);   // 09-10: alleen voor een soort zónder document in de Cockpit
   const functieNu = k.functie || r.functie || '';
   const rechts = bewerk ?
@@ -43702,6 +43708,7 @@ async function cvGenDownloadWoordCv() {
 
     CV_GEN.statusMsg = '✅ Word-CV gedownload.';
     logGebruik('cvgen', 1);
+    try { await _crNaDownload(blob, `CV ${naamVeilig}.docx`); } catch (e) { _meldStil('CR op de kaart zetten', e); }   // 11-11
     // Staat de naam op een kandidaatkaart, dan gaat de fase CV daar aan
     // (verzoek 11-09). Los van de download: mislukt dít, dan is het CV er toch.
     try {
@@ -43775,6 +43782,75 @@ async function kandidaatFaseZet(bmNaam, cardId, sleutel) {
   return true;
 }
 
+// ── CR maken vanaf de kandidaatkaart (11-11, ontwerp_cr_maken_knop.html) ─────────────────────────────────────
+// Wat is er: het CV als document in de Cockpit (daar halen we de tekst uit), een intakeverslag (opname of handmatig)
+// en eventueel al een CR.
+function _crMaakStand(k) {
+  const sl = String((k && k.sleutel) || '');
+  const cv = typeof _docVanKand === 'function' ? _docVanKand(sl, 'cv') : null, cr = typeof _docVanKand === 'function' ? _docVanKand(sl, 'cr') : null;
+  const rec = typeof _kandRecordVan === 'function' ? _kandRecordVan((k && k.naam) || sl) : null;
+  return { cv, cr, rec, ok: !!(cv && rec) };
+}
+function _crMaakKnopHtml(k) {
+  if (!k || typeof magWijzigen !== 'function' || !magWijzigen('crm') || (typeof magZien === 'function' && !magZien('cvgen'))) return '';
+  const st = _crMaakStand(k), sE = escApos(String(k.sleutel));
+  const ja = (t) => '<span class="cr-ok">✓ ' + t + '</span>', nee = (t) => '<span class="cr-mis">✗ ' + t + '</span>';
+  const stand = (st.cv ? ja('CV') : nee('geen CV als document in de Cockpit')) + ' · ' + (st.rec ? ja('intakeverslag' + (st.rec.datum ? ' ' + escHtml(String(st.rec.datum)) : '')) : nee('geen intakeverslag (maak eerst het ITK-verslag: opname of handmatig)'));
+  const knop = !st.ok ? '<button type="button" class="kn k cr-uit" disabled title="Er ontbreekt nog iets — zie hieronder">✦ CR maken in de CV-generator</button>'
+    : st.cr ? '<button type="button" class="kn k" onclick="crMaakStart(\'' + sE + '\')" title="Opent de CV-generator met deze kandidaat, het CV en het intakeverslag; de CR op de kaart wordt pas vervangen als je de nieuwe opslaat">CR opnieuw maken →</button>'
+    : '<button type="button" class="kn hoofd k" onclick="crMaakStart(\'' + sE + '\')" title="Opent de CV-generator met deze kandidaat, het CV en het intakeverslag al ingeladen">✦ CR maken in de CV-generator →</button>';
+  return '<div class="cr-maak">' + knop + '<div class="cr-stand">' + stand + (st.ok && !st.cr ? ' · alles is er' : '') + '</div></div>';
+}
+// Het verslag als bron voor de commerciële tekst. Opname: wensen en zachte factoren. Handmatig: motivatie als drijfveer,
+// samenvatting/uitgangspunten/beschikbaarheid als aantekening.
+function _crGesprekData(rec, k) {
+  const r = (rec && rec.result) || {}, hw = r.hardeWensen || {}, zf = r.zachteFactoren || {}, h = (rec && rec.hand) || null;
+  const data = { naam: (k && k.naam) || (rec && rec.naam) || '', functie: (rec && rec.functie) || (k && k.functie) || '',
+    wensen: { functie: hw.functie || '', werktijden: hw.werktijden || '', overige: hw.overige || '' },
+    zachteFactoren: { drijfveren: zf.drijfveren || (h && h.motivatie) || '', redenAchterCV: zf.redenAchterCV || '', eigenschappen: zf.eigenschappen || '', persoonlijkeSituatie: zf.persoonlijkeSituatie || '' } };
+  const notities = h ? [h.samenvatting ? 'Samenvatting intake: ' + h.samenvatting : '', h.uitgangspunten ? 'Uitgangspunten: ' + h.uitgangspunten : '', h.beschikbaarheid ? 'Beschikbaarheid & salaris: ' + h.beschikbaarheid : ''].filter(Boolean).join('\n\n') : '';
+  return { data, notities };
+}
+async function crMaakStart(sleutel) {
+  const k = (typeof crmKandLijst === 'function' ? crmKandLijst() : []).find(x => String(x.sleutel) === String(sleutel)); if (!k) return;
+  const st = _crMaakStand(k);
+  if (!st.ok) { btMeld('Voor een CR zijn het CV (als document op de kaart) en een intakeverslag nodig.', 'geel'); return; }
+  let tekst = '';
+  if (supa) {
+    try { const { data, error } = await supa.from('documenten').select('tekst').eq('id', st.cv.id).single(); if (error) _meldStil('cv-tekst ophalen', error); else tekst = String((data && data.tekst) || '').trim(); }
+    catch (e) { _meldStil('cv-tekst ophalen', e); }
+  }
+  const r = k.crm || {}, g = _crGesprekData(st.rec, k), h = (st.rec && st.rec.hand) || null;
+  cvGenNieuwCv();
+  CV_GEN.velden.naam = k.naam || '';
+  CV_GEN.velden.woonplaats = r.woonplaats || '';
+  CV_GEN.velden.geboortedatum = r.geboortedatum ? datumNL(String(r.geboortedatum).slice(0, 10)) : '';
+  CV_GEN.velden.reisbereidheid = k.intake && k.intake.reisbereidheid ? k.intake.reisbereidheid + ' min' : '';
+  CV_GEN.velden.beschikbaarheid = (h && h.beschikbaarheid) || '';
+  CV_GEN.fileName = st.cv.naam || '';
+  CV_GEN.extractedText = tekst;
+  CV_GEN.gesprekData = g.data; CV_GEN.notities = g.notities;
+  CV_GEN.vanKaart = { sleutel: String(k.sleutel), naam: k.naam || '', cvNaam: st.cv.naam || 'CV', verslag: [st.rec.datum, st.rec.recorder_naam ? String(st.rec.recorder_naam).split(' ')[0] : ''].filter(Boolean).join(' · '), crId: st.cr ? st.cr.id : null };
+  CV_GEN.statusMsg = tekst ? '✅ CV van de kaart ingeladen (' + tekst.length + ' tekens) en het intakeverslag gaat mee. Controleer de tekst en klik op "Genereer tekstsuggestie".'
+    : '⚠️ De tekst van het CV op de kaart kon niet gelezen worden (bijv. een scan). Kies het CV-bestand hieronder opnieuw of plak de tekst; het intakeverslag gaat wel mee.';
+  crmKaartSluit();
+  selectTab('cvgen');
+}
+// Na het downloaden: het Word-bestand als CR op de kaart? Alleen als de naam bij een CRM-kandidaat hoort.
+async function _crNaDownload(blob, bestandsnaam) {
+  if (!supa || typeof docUpload !== 'function' || !magWijzigen('crm')) return;
+  const naam = String(CV_GEN.velden.naam || '').trim(); if (!naam) return;
+  const sl = CV_GEN.vanKaart ? CV_GEN.vanKaart.sleutel : _itkSleutel(naam);
+  const k = (typeof crmKandLijst === 'function' ? crmKandLijst() : []).find(x => String(x.sleutel) === String(sl)); if (!k || !k.crm) return;
+  const oud = typeof _docVanKand === 'function' ? _docVanKand(k.sleutel, 'cr') : null;
+  const ja = await btBevestig('Als CR op de kaart van ' + k.naam + ' zetten?\n\nHet Word-bestand dat je net downloadde komt bij Documenten als CR' + (oud ? ' en vervangt de huidige CR (' + oud.naam + ' blijft als oudere versie bewaard)' : '') + '. Pas je het in Word nog aan, upload dan later de nieuwe versie op de kaart.', { knop: 'Ja, op de kaart zetten' });
+  if (!ja) return;
+  const bestand = new File([blob], bestandsnaam.replace(/^CV /, 'CR '), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  const platte = String(CV_GEN.suggestie || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  const uit = await docUpload('kandidaat', k.sleutel, [bestand], 'cr', { tekst: (platte + '\n\n' + String(CV_GEN.extractedText || '')).trim(), versieVan: oud ? oud.id : null, bron: 'cvgen', stil: true });
+  if (uit && uit.length) { CV_GEN.statusMsg += ' De CR staat op de kaart van ' + escHtml(k.naam) + '.'; btMeld('CR opgeslagen op de kaart van ' + k.naam + '.', 'groen'); }
+  else btMeld('De CR kon niet op de kaart gezet worden — upload hem daar zelf.', 'rood');
+}
 function cvGenNieuwCv() {
   CV_GEN = {
     fileName: '', extractedText: '', notities: '',
@@ -43896,6 +43972,7 @@ function renderCvGenerator() {
       </div>
     </div>
 
+    ${CV_GEN.vanKaart ? `<div class="cr-herkomst">Geopend vanaf de kaart van <b>${escHtml(CV_GEN.vanKaart.naam)}</b> · <span class="cr-bron">✓ CV: ${escHtml(CV_GEN.vanKaart.cvNaam)}</span> <span class="cr-bron">✓ Intakeverslag${CV_GEN.vanKaart.verslag ? ' ' + escHtml(CV_GEN.vanKaart.verslag) : ''}</span>${CV_GEN.vanKaart.crId ? ' <span class="cr-bron geel">er is al een CR — de nieuwe vervangt hem pas bij opslaan</span>' : ''} <a href="#" onclick="event.preventDefault();crmKandOpen('${escApos(CV_GEN.vanKaart.sleutel)}')">terug naar de kaart</a></div>` : ''}
     <div class="table-card" style="padding:16px;margin-bottom:14px;">
       <div class="plan-field-title" style="font-size:.9rem;margin-bottom:10px;">Stap 1 — Kandidaatgegevens</div>
       <div class="plan-grid">
