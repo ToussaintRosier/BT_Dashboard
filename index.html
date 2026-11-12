@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261112-0951 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261112-1123 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12185,7 +12185,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261112-0951';
+const APP_VERSIE = '20261112-1123';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -39035,7 +39035,7 @@ function accountKaartHtml(sleutel) {
   const rldv = blok('RLDV', bewerk
     ? '<div class="kk-lijst">' + rijB('In RLDV-lijst', _crmBewerkVeld('rldv_aan', { select: ['Ja', 'Nee'], kort: true, ph: 'kies' }) + '<span class="stil" style="font-size:.72rem;">Nee = van de RLDV-lijst (de RLDV-tool ziet hem dan niet meer)</span>') +
       rijB('Status', _crmBewerkVeld('rldv_status', { select: ['Prospect', 'Lead', 'CP-bekend', 'Klant'], kort: true, ph: 'kies' })) +
-      rijB('Sector · regio', _crmBewerkVeld('rldv_vak', { ph: 'bijv. Metaal', kort: true }) + _crmBewerkVeld('rldv_regio', { ph: 'plaats of regio', kort: true })) +
+      rijB('Sector · regio', _crmBewerkVeld('rldv_vak', { ph: 'sector', kort: true, select: _rldvKeuzes('vakgebied', CRM_BEWERK && CRM_BEWERK.w && CRM_BEWERK.w.rldv_vak) }) + _crmBewerkVeld('rldv_regio', { ph: 'regio', kort: true, select: _rldvKeuzes('regio', CRM_BEWERK && CRM_BEWERK.w && CRM_BEWERK.w.rldv_regio) })) +   // 12-11: keuzelijst i.p.v. vrij veld
       '<div class="kk-rij bewerk"><span>Functies</span>' + functies + '</div>' +
       rijB('Contactpersoon', cpNamen.length ? _crmBewerkVeld('rldv_cp', { select: cpNamen, ph: 'kies' }) : _crmBewerkVeld('rldv_cp', { ph: 'naam contactpersoon' })) + '</div>'
     : lead
@@ -39218,7 +39218,7 @@ async function _accountKaartKamOpslaan(k) {
     SALES_LEADS_CACHE = (SALES_LEADS_CACHE || []).filter(x => String(x.id) !== String(lead.id)); if (!supa && typeof salesLeadsSaveLocal === 'function') salesLeadsSaveLocal();
     k.lead = null; lead = null; _crmLijstCacheWeg();
   } else if (W.rldv_aan === 'Ja' && !lead) {
-    const rij = { naam: k.naam, vakgebied: tx(W.rldv_vak), regio: tx(W.rldv_regio) || tx(k.crm && k.crm.plaats), status: tx(W.rldv_status), contactpersoon: tx(W.rldv_cp), voorwaarden_bekend: null, updated_at: nuIso };
+    const rij = { naam: k.naam, vakgebied: tx(W.rldv_vak), regio: tx(W.rldv_regio), status: tx(W.rldv_status), contactpersoon: tx(W.rldv_cp), voorwaarden_bekend: null, updated_at: nuIso };
     SL_BOOL_FIELDS.forEach(([f]) => { const el = byId('kk-rldv-' + f); rij[f] = !!(el && el.checked); });
     if (supa) { _echoVanZelf('sales_leads'); const { data, error } = await supa.from('sales_leads').insert(rij).select().single(); if (error) { meldFout('in RLDV-lijst zetten mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('Niet in de RLDV-lijst gezet: ' + _accFoutTekst(error)); return false; } lead = data; }
     else lead = { id: 'local-' + Date.now(), ...rij };
@@ -39416,15 +39416,15 @@ function crmNaarRldvVenster(sleutel) {
   if (k.lead) { btMeld(k.naam + ' staat al in de RLDV-lijst.', 'geel'); return; }
   const r = k.crm || {}, sE = escApos(k.sleutel), lijkt = _crmRldvLijktOp(k);
   const lijst = typeof SALES_LEADS_CACHE !== 'undefined' && Array.isArray(SALES_LEADS_CACHE) ? SALES_LEADS_CACHE : [];
-  const opties = (veld) => Array.from(new Set(lijst.map(x => String(x[veld] || '').trim()).filter(Boolean))).sort().map(v => '<option value="' + escHtml(v) + '">').join('');
+  const opties = (veld) => Array.from(new Set(lijst.map(x => String(x[veld] || '').trim()).filter(Boolean))).sort().map(v => '<option value="' + escHtml(v) + '">' + escHtml(v) + '</option>').join('');   // 12-11: keuzelijst
   const cp = (k.contacten && k.contacten[0] && k.contacten[0].naam) || r.contactpersoon || '';
   const veld = (label, inhoud) => '<div class="nr-veld"><span>' + label + '</span>' + inhoud + '</div>';
   crmKaartToon('<h4 class="wit">' + escHtml(k.naam) + ' in de RLDV-lijst zetten</h4>' +
     '<div class="crm-sub">Naam en plaats komen uit CRM. Vul in wat je weet; de rest kan later op de kaart.</div>' +
     (lijkt ? '<div class="nr-lijkt"><span>In de RLDV-lijst staat al <b>' + escHtml(lijkt.naam) + '</b>' + (lijkt.regio ? ' · ' + escHtml(lijkt.regio) : '') + ' — ' + escHtml(_dubBedrijfVariant(lijkt.naam, k.naam).reden.toLowerCase()) + '.</span><button type="button" class="kk-knop goed" onclick="crmNaarRldvKoppel(\'' + sE + '\',\'' + escApos(String(lijkt.id)) + '\')">Dat is dezelfde — koppel</button><span class="stil">of maak hieronder toch een eigen rij</span></div>' : '') +
     veld('Naam', '<input id="nr-naam" value="' + escHtml(k.naam) + '" readonly style="opacity:.7">') +
-    veld('Vakgebied', '<input id="nr-vakgebied" list="nr-vak-lijst" placeholder="bijv. Metaal" autocomplete="off"><datalist id="nr-vak-lijst">' + opties('vakgebied') + '</datalist>') +
-    veld('Regio', '<input id="nr-regio" list="nr-regio-lijst" value="' + escHtml(r.plaats || r.locatie || '') + '" placeholder="plaats of regio" autocomplete="off"><datalist id="nr-regio-lijst">' + opties('regio') + '</datalist>') +
+    veld('Sector', '<select id="nr-vakgebied"><option value="">kies de sector</option>' + opties('vakgebied') + '</select>') +
+    veld('Regio', '<select id="nr-regio"><option value="">kies de regio</option>' + opties('regio') + '</select>' + (r.plaats || r.locatie ? '<small style="color:rgba(255,255,255,.55);margin-left:8px;">plaats: ' + escHtml(r.plaats || r.locatie) + '</small>' : '')) +
     veld('Functies', '<div class="nr-schuifjes">' + SL_BOOL_FIELDS.map(([f, label]) => '<label><input type="checkbox" id="nr-' + f + '">' + escHtml(label) + '</label>').join('') + '</div>') +
     veld('Status', '<select id="nr-status"><option value="">—</option><option value="Prospect">Prospect</option><option value="Lead">Lead</option><option value="CP-bekend">CP-bekend</option><option value="Klant"' + (k.klant ? ' selected' : '') + '>Klant</option></select>') +
     veld('Contactpersoon', '<input id="nr-cp" value="' + escHtml(cp) + '" autocomplete="off">') +
@@ -42676,6 +42676,12 @@ function slActiefHtml() {
   return '<div class="sl-actief"><b>' + n + '</b> van ' + N + ' bedrijven · filters:' + pillen.join('') + '<button type="button" class="wis" onclick="slResetFilters()">alles wissen</button></div>';
 }
 
+// 12-11: keuzes voor sector/regio op de bedrijfskaart: wat in de RLDV-lijst voorkomt. Een bestaande waarde die daar
+// niet (meer) in staat blijft kiesbaar, gemarkeerd — anders zou opslaan hem ongemerkt wissen.
+function _rldvKeuzes(veld, huidig) {
+  const o = slFilterOpties()[veld] || [], h = String(huidig || '').trim();
+  return h && !o.includes(h) ? [[h, h + ' (niet in de lijst)']].concat(o) : o;
+}
 // De keuzes die in de filters te vinden zijn, uit de lijst zelf afgeleid.
 function slFilterOpties() {
   const uniek = (veld) => [...new Set(SALES_LEADS_CACHE.map(x => String(x[veld] || '').trim()).filter(Boolean))].sort();
