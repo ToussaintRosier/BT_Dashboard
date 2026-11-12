@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261111-1438 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261112-0951 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4704,6 +4704,9 @@
   .kb-knop.go { margin-left:auto; border-color:#F4CB3C; color:#F4CB3C; }
   .kb-knop.taak { margin-left:auto; } .kb-knop.taak + .kb-knop.go { margin-left:0; } .kb-knop.taak:hover { border-color:#F4CB3C; color:#F4CB3C; }   /* 10-11: taak voor een collega */
   .kb-taak { display:inline-flex; align-items:center; gap:5px; max-width:100%; background:rgba(244,203,60,.16); color:#F4CB3C; border-radius:99px; padding:1px 8px; font-size:.66rem; margin-top:5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .kb-taak.laat { background:rgba(232,116,0,.25); color:#ffb37a; }
+  /* 12-11: koppeling van een record wijzigen */
+  .rec-dkop-koppel { margin-left:auto; border:1px solid #d7dfee; background:#fff; color:#253151; border-radius:8px; padding:3px 10px; font-size:.72rem; cursor:pointer; font-family:inherit; white-space:nowrap; } .rec-dkop-koppel:hover { border-color:#F4CB3C; background:#fdf6e0; }
+  .rec-dkop-koppel + .rec-dkop-weg { margin-left:8px; } .rec-kop-noot { color:#8a6410; }
   /* 11-11: CR maken vanaf de kandidaatkaart */
   .cr-maak { margin:8px 0 12px; } .cr-maak .kn.cr-uit { opacity:1; border:1px dashed rgba(255,255,255,.28); background:transparent; color:rgba(255,255,255,.5); cursor:not-allowed; }
   .cr-stand { font-size:.72rem; color:rgba(255,255,255,.6); margin-top:6px; } .cr-ok { color:#9be3bd; } .cr-mis { color:#ffb37a; }
@@ -12182,7 +12185,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261111-1438';
+const APP_VERSIE = '20261112-0951';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -39600,8 +39603,8 @@ function _kamBezoekRij(x) {
     <td>${escHtml(naamKlant)}</td>
     <td class="kam-wie">${escHtml(_dagstartVoornaam(x.collega))}</td>
     <td class="kam-st">${x.verslag
-      ? `<span class="kam-pil ja" onclick="selectTab('bezoek')"
-               title="Naar het verslag in de BZK-recorder">verslag ↗</span>`
+      ? `<span class="kam-pil ja" onclick="${x.verslag.hand ? `gvOpenVerslag('${escApos(String(x.verslag.id))}')` : `selectTab('bezoek')`}"
+               title="${x.verslag.hand ? 'Handmatig verslag openen' : 'Naar het verslag in de BZK-recorder'}">verslag ↗</span>`
       : `<span class="kam-pil nee">geen verslag</span>` +
         (magWijzigen('accounts')
           ? `<button class="kam-plus" title="Hier een gespreksverslag van maken"
@@ -39783,11 +39786,19 @@ function _kamVerslagBij(kaart, naam, jaar, week) {
   const { monday, sunday } = isoWeekDateRange(jaar, week);
   const sleutel = _itkSleutel(kaart.naam || kaart.opdrachtgever || '');
   if (!sleutel) return null;
-  return BEZOEK_RECORDS.find(r => {
+  const opname = BEZOEK_RECORDS.find(r => {
     if (_itkSleutel(r.bedrijf) !== sleutel) return false;
     const d = _kamDatum(r.datum);
     return d && d >= monday && d <= sunday;
-  }) || null;
+  });
+  if (opname) return opname;
+  // 12-11: een handmatig geschreven verslag (Records › potlood) is ook een verslag — die stonden niet in BEZOEK_RECORDS.
+  const hand = (typeof _vsHandmatig === 'function' ? _vsHandmatig() : []).find(g => {
+    if (!g || g.type === 'itk' || _itkSleutel(g.bedrijf || '') !== sleutel) return false;
+    const d = _kamDatum(String(g.datum || ''));
+    return d && d >= monday && d <= sunday;
+  });
+  return hand ? { id: hand.id, hand: true, bedrijf: hand.bedrijf, datum: hand.datum } : null;
 }
 
 // De recorder bewaart de datum als leesbare tekst ("21 augustus 2026"); die
@@ -45164,6 +45175,7 @@ async function loadGesprekRecordsFromDb() {
       id: r.id,
       datum: r.meta?.datum || new Date(r.created_at).toLocaleDateString('nl-NL', fmt),
       naam: r.meta?.naam || '', functie: r.meta?.functie || '',
+      koppelingDoor: r.meta?.koppeling_door || '', koppelingOp: r.meta?.koppeling_op || '',   // 12-11
       // De server is leidend: wat daar staat ziet iedereen hetzelfde. De lokale
       // map is alleen een vangnet voor records die nog niet gepubliceerd zijn.
       recorder_naam: r.meta?.recorder_naam || _recorderAssignments[_recAssignKey(r.meta?.naam||'', r.meta?.functie||'', r.meta?.datum||'')] || lok?.recorder_naam || '',
@@ -45231,6 +45243,7 @@ async function loadBezoekRecordsFromDb() {
       bedrijf: r.meta?.bedrijf || '', contactpersoon: r.meta?.contactpersoon || '',
       soortBezoek: r.meta?.soortBezoek || 'bedrijfsbezoek',
       medewerkerSleutel: r.meta?.medewerker_sleutel || '',
+      koppelingDoor: r.meta?.koppeling_door || '', koppelingOp: r.meta?.koppeling_op || '',   // 12-11
       bedrijfSleutel: r.meta?.bedrijf_sleutel || '', bedrijfNaam: r.meta?.bedrijf_naam || '',   // 30-09: CRM-bedrijf bij een evaluatie
       kandidaat: r.meta?.kandidaat || '', kandidaatSleutel: r.meta?.kandidaat_sleutel || '',
       recorder_naam: r.meta?.recorder_naam || _recorderAssignments[_recAssignKey(r.meta?.bedrijf||'', r.meta?.contactpersoon||'', r.meta?.datum||'')] || lok?.recorder_naam || '',
@@ -46110,10 +46123,116 @@ function _recDossierKop(act) {
   if (rec.datum) delen.push('<span>' + escHtml(String(rec.datum)) + '</span>');
   if (!itk && typeof BEZOEK_VERVOLG !== 'undefined' && BEZOEK_VERVOLG[String(rec.id)] && BEZOEK_VERVOLG[String(rec.id)].afgerond_op) delen.push('<span class="badge badge-green">✓ afgerond</span>');
   if (rec.ongedeeld) delen.push('<span style="font-size:.7rem;background:#fdeaea;color:#a11d1d;border:1px solid #f5b5b5;border-radius:4px;padding:1px 6px;">alleen op dit apparaat</span>');
+  if (rec.koppelingDoor) delen.push('<span class="rec-kop-noot">koppeling gewijzigd door ' + escHtml(String(rec.koppelingDoor).split(' ')[0]) + (rec.koppelingOp ? ' · ' + escHtml(_crmDatum(Date.parse(rec.koppelingOp))) : '') + '</span>');   // 12-11
+  const koppelKnop = recKoppelMag(rec) ? '<button type="button" class="rec-dkop-koppel" title="Hangt dit record aan de verkeerde persoon of het verkeerde bedrijf? Hier zet je het recht." onclick="recKoppelVenster(\'' + (itk ? 'ITK' : 'BZK') + '\',\'' + escApos(String(rec.id)) + '\')">✎ Koppeling wijzigen</button>' : '';
   const weg = itk ? "gesprekRecordVerwijder('" + escApos(String(rec.id)) + "')" : "bezoekRecordVerwijder('" + escApos(String(rec.id)) + "')";
-  return '<div class="rec-dkop"><div class="rec-dkop-r1"><span class="rec-soort ' + (itk ? 'itk">ITK' : 'bzk">BZK') + '</span><span class="rec-dkop-naam" title="' + escHtml(naam) + '">' + escHtml(naam) + '</span>' +
+  return '<div class="rec-dkop"><div class="rec-dkop-r1"><span class="rec-soort ' + (itk ? 'itk">ITK' : 'bzk">BZK') + '</span><span class="rec-dkop-naam" title="' + escHtml(naam) + '">' + escHtml(naam) + '</span>' + koppelKnop +
     '<button type="button" class="rec-dkop-weg" title="Verwijder" onclick="' + weg + '">' + btActie('prullenbak') + '</button></div>' +
     '<div class="rec-dkop-r2">' + delen.filter(Boolean).join(sep) + '</div></div>';
+}
+// ── Koppeling van een record wijzigen (12-11, ontwerp_record_koppeling.html) ─────────────────────────────────
+// Alleen de koppeling: kandidaat + functie (ITK) of soort bezoek, bedrijf, medewerker/kandidaat, contactpersoon (BZK).
+// Verslag, transcript en datum blijven. Opslag in verslagen.meta; op de oude en nieuwe kaart een regel in het gesprekslog.
+let REC_KOP = null;   // { soort: 'ITK'|'BZK', id, o: formulierwaarden }
+function recKoppelMag(rec) {
+  if (!rec || typeof CURRENT_USER === 'undefined' || !CURRENT_USER) return false;
+  if (typeof magWijzigen === 'function' && !magWijzigen('gesprek') && !magWijzigen('bezoek')) return false;
+  const mij = _itkSleutel(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
+  return (typeof isManagerLevel === 'function' && isManagerLevel()) || (!!mij && _itkSleutel(rec.recorder_naam || '') === mij);
+}
+// Wat er nu staat, als formulierwaarden. Bij een evaluatie staat de medewerker in het bedrijf-veld (bestaande afspraak).
+function _recKoppelNu(soort, rec) {
+  if (soort === 'ITK') return { naam: rec.naam || '', functie: rec.functie || '' };
+  const type = _bezoekSoortNorm(rec.soortBezoek);
+  if (type === 'evaluatie') return { soort: 'evaluatie', ruw: rec.soortBezoek || 'evaluatie', bedrijf: _evalBedrijfNaam(rec) || '', medewerker: rec.bedrijf || '', contact: '', kandidaat: '' };
+  return { soort: type, ruw: rec.soortBezoek || type, bedrijf: rec.bedrijf || '', medewerker: '', contact: rec.contactpersoon || '', kandidaat: rec.kandidaat || '' };
+}
+// Formulier → velden voor verslagen.meta.
+function _recKoppelMeta(soort, o) {
+  const s = (x) => String(x || '').trim();
+  if (soort === 'ITK') return { naam: s(o.naam), functie: s(o.functie) };
+  const type = o.soort || 'bedrijfsbezoek', ruw = o.ruw && _bezoekSoortNorm(o.ruw) === type ? o.ruw : type;
+  if (type === 'evaluatie') return { soortBezoek: ruw, bedrijf: s(o.medewerker), contactpersoon: s(o.bedrijf), medewerker: s(o.medewerker), medewerker_sleutel: _itkSleutel(s(o.medewerker)),
+    bedrijf_naam: s(o.bedrijf), bedrijf_sleutel: _itkSleutel(s(o.bedrijf)), kandidaat: '', kandidaat_sleutel: '' };
+  const kand = type === 'matchgesprek' ? s(o.kandidaat) : '';
+  return { soortBezoek: ruw, bedrijf: s(o.bedrijf), contactpersoon: s(o.contact), medewerker: '', medewerker_sleutel: '', bedrijf_naam: s(o.bedrijf), bedrijf_sleutel: _itkSleutel(s(o.bedrijf)), kandidaat: kand, kandidaat_sleutel: _itkSleutel(kand) };
+}
+function _recKoppelToepassen(soort, rec, m) {
+  if (soort === 'ITK') { rec.naam = m.naam; rec.functie = m.functie; return rec; }
+  rec.soortBezoek = m.soortBezoek; rec.bedrijf = m.bedrijf; rec.contactpersoon = m.contactpersoon; rec.medewerkerSleutel = m.medewerker_sleutel;
+  rec.bedrijfSleutel = m.bedrijf_sleutel; rec.bedrijfNaam = m.bedrijf_naam; rec.kandidaat = m.kandidaat; rec.kandidaatSleutel = m.kandidaat_sleutel;
+  return rec;
+}
+function _recKoppelVind(soort, id) { return ((soort === 'ITK' ? GESPREK_RECORDS : BEZOEK_RECORDS) || []).find(r => String(r.id) === String(id)) || null; }
+function _recKoppelLees() {
+  const v = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : undefined; };
+  const o = Object.assign({}, REC_KOP.o);
+  [['naam', 'rk-naam'], ['functie', 'rk-functie'], ['bedrijf', 'rk-bedrijf'], ['medewerker', 'rk-medewerker'], ['contact', 'rk-contact'], ['kandidaat', 'rk-kandidaat']].forEach(([k, id]) => { const w = v(id); if (w !== undefined) o[k] = w; });
+  return o;
+}
+function recKoppelVenster(soort, id, behoud) {
+  const rec = _recKoppelVind(soort, id); if (!rec || !recKoppelMag(rec)) return;
+  if (!behoud || !REC_KOP) REC_KOP = { soort, id: String(id), o: _recKoppelNu(soort, rec) };
+  const o = REC_KOP.o, was = _recKoppelNu(soort, rec);
+  const wasTxt = (k) => was[k] && was[k] !== o[k] ? ' <small class="crm-kop-klein">was: ' + escHtml(was[k]) + '</small>' : '';
+  const kand = (veldId, waarde, ph) => _kiezerHtml({ id: veldId, lijst: _kanbanKandKiezerLijst, waarde: waarde || '', placeholder: ph, nieuw: false, leeg: 'Niet gevonden — de naam blijft zoals je hem typt' });
+  let velden;
+  if (soort === 'ITK') velden = '<div class="crm-kop">Kandidaat' + wasTxt('naam') + '</div>' + kand('rk-naam', o.naam, 'typ de naam van de kandidaat…') +
+    '<div class="crm-kop">Functie</div><input type="text" id="rk-functie" class="kand-vervolg-veld" maxlength="120" value="' + escHtml(o.functie || '') + '">';
+  else {
+    const chips = Object.keys(BEZOEK_SOORTEN).map(k => '<button type="button" class="kb-stap' + (o.soort === k ? ' aan' : '') + '" onclick="recKoppelSoort(\'' + k + '\')">' + escHtml(BEZOEK_SOORTEN[k]) + '</button>').join('');
+    velden = '<div class="crm-kop">Soort bezoek</div><div class="kb-stappen">' + chips + '</div>' +
+      '<div class="crm-kop">Bedrijf' + wasTxt('bedrijf') + '</div>' + _kiezerHtml({ id: 'rk-bedrijf', lijst: _kanbanKlantKiezerLijst, waarde: o.bedrijf || '', placeholder: 'typ de naam van het bedrijf…', nieuw: false, leeg: 'Niet gevonden — de naam blijft zoals je hem typt' }) +
+      (o.soort === 'evaluatie' ? '<div class="crm-kop">Medewerker <small class="crm-kop-klein">over wie de evaluatie gaat</small>' + wasTxt('medewerker') + '</div>' + kand('rk-medewerker', o.medewerker, 'typ de naam van de medewerker…') : '') +
+      (o.soort === 'matchgesprek' ? '<div class="crm-kop">Kandidaat' + wasTxt('kandidaat') + '</div>' + kand('rk-kandidaat', o.kandidaat, 'typ de naam van de kandidaat…') : '') +
+      (o.soort !== 'evaluatie' ? '<div class="crm-kop">Contactpersoon bij de klant <small class="crm-kop-klein">optioneel</small></div><input type="text" id="rk-contact" class="kand-vervolg-veld" maxlength="120" value="' + escHtml(o.contact || '') + '">' : '');
+  }
+  crmKaartToon('<h4 class="wit">Koppeling wijzigen · ' + soort + '-record</h4>' +
+    '<div class="crm-sub">' + escHtml([soort === 'ITK' ? 'Intake' : BEZOEK_SOORTEN[_bezoekSoortNorm(rec.soortBezoek)], rec.datum, rec.recorder_naam ? 'opgenomen door ' + rec.recorder_naam : ''].filter(Boolean).join(' · ')) + '. Het verslag zelf verandert niet.</div>' +
+    velden +
+    '<div class="vv-tegel klaar" style="margin-top:10px;">Na opslaan staat het record op de kaart van de nieuwe ' + (soort === 'ITK' ? 'kandidaat' : 'klant') + ' en niet meer bij de oude; to-do\'s en overzichten rekenen opnieuw. Op beide kaarten komt een regel in het gesprekslog.</div>' +
+    '<div id="kb-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
+    '<div class="crm-knoppen"><button class="crm-knop goed" id="rk-opslaan" onclick="recKoppelOpslaan()">Opslaan</button><button class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>', 'kand-kaart', () => { REC_KOP = null; });
+}
+function recKoppelSoort(k) { if (!REC_KOP) return; const houd = REC_KOP; houd.o = _recKoppelLees(); houd.o.soort = k; recKoppelVenster(houd.soort, houd.id, true); REC_KOP = houd; }
+// Regel in het gesprekslog van de oude en de nieuwe kaart (als die in het CRM staan).
+async function _recKoppelLog(soort, rec, was, nu) {
+  const wat = soort + '-record (' + (soort === 'ITK' ? 'intake' : String(BEZOEK_SOORTEN[nu.soort] || 'bezoek').toLowerCase() + (nu.medewerker ? ' ' + nu.medewerker : '')) + (rec.datum ? ', ' + rec.datum : '') + ')';
+  try {
+    if (soort === 'ITK') {
+      if (_itkSleutel(was.naam) === _itkSleutel(nu.naam)) return;
+      const lijst = typeof crmKandLijst === 'function' ? crmKandLijst() : [], oud = lijst.find(k => k.sleutel === _itkSleutel(was.naam)), nieuw = lijst.find(k => k.sleutel === _itkSleutel(nu.naam));
+      if (nieuw && nieuw.crm) await _kandLogRegel(nieuw, wat + ' hierheen verplaatst' + (was.naam ? ' — stond bij ' + was.naam : '') + '.');
+      if (oud && oud.crm) await _kandLogRegel(oud, wat + ' verplaatst naar ' + nu.naam + '.');
+      return;
+    }
+    if (_itkSleutel(was.bedrijf) === _itkSleutel(nu.bedrijf)) return;
+    const lijst = typeof crmBedrijfLijst === 'function' ? crmBedrijfLijst() : [], oud = lijst.find(k => k.sleutel === _itkSleutel(was.bedrijf)), nieuw = lijst.find(k => k.sleutel === _itkSleutel(nu.bedrijf));
+    if (nieuw) await _crmBedrijfLogRegel(nieuw, wat + ' hierheen verplaatst' + (was.bedrijf ? ' — stond bij ' + was.bedrijf : '') + '.');
+    if (oud) await _crmBedrijfLogRegel(oud, wat + ' verplaatst naar ' + nu.bedrijf + '.');
+  } catch (e) { _meldStil('koppeling in het gesprekslog', e); }
+}
+async function recKoppelOpslaan() {
+  if (!REC_KOP) return;
+  const { soort, id } = REC_KOP, rec = _recKoppelVind(soort, id); if (!rec || !recKoppelMag(rec)) return;
+  const o = _recKoppelLees(), was = _recKoppelNu(soort, rec);
+  const status = (t) => { const el = document.getElementById('kb-status'); if (el) el.textContent = t; };
+  if (soort === 'ITK' && !o.naam) { status('Kies de kandidaat.'); return; }
+  if (soort === 'BZK' && !o.bedrijf) { status('Kies het bedrijf.'); return; }
+  if (soort === 'BZK' && o.soort === 'evaluatie' && !o.medewerker) { status('Kies de medewerker over wie de evaluatie gaat.'); return; }
+  const meta = _recKoppelMeta(soort, o), door = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), op = new Date().toISOString();
+  const knop = document.getElementById('rk-opslaan'); if (knop) knop.disabled = true;
+  const fout = await _verslagMetaNaarServer(id, Object.assign({}, meta, { koppeling_door: door, koppeling_op: op }));
+  if (knop) knop.disabled = false;
+  if (fout) { status('Niet opgeslagen: ' + fout); return; }
+  _recKoppelToepassen(soort, rec, meta); rec.koppelingDoor = door; rec.koppelingOp = op;
+  if (soort === 'ITK') _saveGesprekRec(); else _saveBezoekRec();
+  if (typeof _kandRecCacheWeg === 'function') _kandRecCacheWeg();
+  if (typeof _ACC_BZ_CACHE !== 'undefined') _ACC_BZ_CACHE = null;
+  _TODO_CACHE = null;
+  await _recKoppelLog(soort, rec, was, o);
+  REC_KOP = null; crmKaartSluit(); render();
+  btMeld('Koppeling gewijzigd: het record staat nu bij ' + (soort === 'ITK' ? o.naam : o.bedrijf + (o.medewerker ? ' · ' + o.medewerker : '')) + '.', 'groen');
 }
 function _recDossierTabs(act) {
   if (act.hand) return '';   // 30-09: een handmatig verslag heeft alleen de leesweergave
@@ -46643,6 +46762,7 @@ function _vsDossierKop(act) {
   delen.push('<span>' + escHtml(_vsDatumTekst(g.datum)) + '</span>');
   if (!itk && !_gvBedrijfVind(g.bedrijf)) delen.push('<span class="vs-los">⚠ niet in CRM</span>' + (_vsMag(g) ? ' <button type="button" class="kk-knop" onclick="vsBewerk(\'' + escApos(String(g.id)) + '\')">koppelen</button>' : ''));
   return '<div class="rec-dkop"><div class="rec-dkop-r1"><span class="rec-soort ' + (itk ? 'itk">ITK' : 'bzk">' + escHtml(VS_SOORT_KORT[g.soort] || 'BZK')) + '</span><span class="rec-dkop-naam" title="' + escHtml(naam) + '">' + escHtml(naam) + '</span>' +
+    (_vsMag(g) ? '<button type="button" class="rec-dkop-koppel" title="Bedrijf, kandidaat of contactpersoon van dit verslag aanpassen" onclick="vsBewerk(\'' + escApos(String(g.id)) + '\')">✎ Koppeling wijzigen</button>' : '') +
     (_vsMag(g) ? '<button type="button" class="rec-dkop-weg" title="Verwijder" onclick="vsVerwijder(\'' + escApos(String(g.id)) + '\')">' + btActie('prullenbak') + '</button>' : '') + '</div>' +
     '<div class="rec-dkop-r2">' + delen.filter(Boolean).join(sep) + '</div></div>';
 }
