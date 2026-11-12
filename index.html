@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261112-1248 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261112-1434 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12191,7 +12191,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261112-1248';
+const APP_VERSIE = '20261112-1434';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -37449,6 +37449,20 @@ function _teamKeuzes() {
   (typeof BMS !== 'undefined' ? BMS : []).filter(b => b && b.naam && !b.special).forEach(b => { const ini = _oneInitialen(b.naam); if (!per[ini]) per[ini] = { ini, naam: b.naam }; });
   return Object.values(per).sort((a, b) => a.ini.localeCompare(b.ini));
 }
+// 13-11: de CP in de RLDV-lijst is een collega (initialen). Keuzes = het team; een waarde die geen collega is blijft
+// zichtbaar en gemarkeerd tot iemand hem rechtzet.
+function _rldvCpKeuzes(huidig) {
+  const keuzes = _teamKeuzes().map(x => [x.ini, x.ini + ' · ' + x.naam]), h = String(huidig == null ? '' : huidig).trim();
+  if (h && !keuzes.some(([ini]) => ini === h.toUpperCase())) keuzes.unshift([h, h + ' (geen collega)']);
+  return keuzes;
+}
+// Wat er als CP wordt opgeslagen: bij een KAM-klant de operationeel verantwoordelijke (één waarheid), anders de keuze.
+function _rldvCpVoorOpslaan(W) {
+  const z = (v) => String(v == null ? '' : v).trim();
+  const kam = W && W.kam_aan === 'Ja' ? z(W.op_cp) : '';
+  const v = kam || z(W && W.rldv_cp);
+  return v ? (/^[a-z]{2,3}$/i.test(v) ? v.toUpperCase() : v) : null;
+}
 function _teamNaam(ini) {
   const k = _teamKeuzes().find(x => x.ini === String(ini || '').trim().toUpperCase());
   return k ? k.naam : '';
@@ -39119,16 +39133,16 @@ function accountKaartHtml(sleutel) {
   // RLDV: dezelfde vijf schuifjes als de RLDV-lijst; buiten bewerkmodus gedempt.
   const functies = (lead || bewerk) ? '<div class="kk-rldv">' + SL_BOOL_FIELDS.map(([f, label]) => '<label><input type="checkbox" class="bt-schuif bt-schuif-klein' + (bewerk && magAcc ? '' : ' bt-schuif-vast') + '" id="kk-rldv-' + f + '"' + (lead && lead[f] ? ' checked' : '') + (bewerk && magAcc ? '' : ' disabled') + ' aria-label="' + escHtml(label) + '">' + escHtml(label) + '</label>').join('') + '</div>' : '';
   const laatste = k.laatste;
-  const cpNamen = (k.contacten || []).map(c => c.naam).filter(Boolean);
   const rldv = blok('RLDV', bewerk
     ? '<div class="kk-lijst">' + rijB('In RLDV-lijst', _crmBewerkVeld('rldv_aan', { select: ['Ja', 'Nee'], kort: true, ph: 'kies' }) + '<span class="stil" style="font-size:.72rem;">Nee = van de RLDV-lijst (de RLDV-tool ziet hem dan niet meer)</span>') +
       rijB('Status', _crmBewerkVeld('rldv_status', { select: ['Prospect', 'Lead', 'CP-bekend', 'Klant'], kort: true, ph: 'kies' })) +
       rijB('Sector · regio', _crmBewerkVeld('rldv_vak', { ph: 'sector', kort: true, select: _rldvKeuzes('vakgebied', CRM_BEWERK && CRM_BEWERK.w && CRM_BEWERK.w.rldv_vak) }) + _crmBewerkVeld('rldv_regio', { ph: 'regio', kort: true, select: _rldvKeuzes('regio', CRM_BEWERK && CRM_BEWERK.w && CRM_BEWERK.w.rldv_regio) })) +   // 12-11: keuzelijst i.p.v. vrij veld
       '<div class="kk-rij bewerk"><span>Functies</span>' + functies + '</div>' +
-      rijB('Contactpersoon', cpNamen.length ? _crmBewerkVeld('rldv_cp', { select: cpNamen, ph: 'kies' }) : _crmBewerkVeld('rldv_cp', { ph: 'naam contactpersoon' })) + '</div>'
+      rijB('Collega (CP)', _crmBewerkVeld('rldv_cp', { select: _rldvCpKeuzes(CRM_BEWERK && CRM_BEWERK.w && CRM_BEWERK.w.rldv_cp), kort: true, ph: 'kies collega' }) +
+        '<span class="stil" style="font-size:.72rem;">' + (k.account ? 'bij een KAM-klant volgt dit de operationeel verantwoordelijke (Brightech-team)' : 'operationeel verantwoordelijke collega — de initialen in de RLDV-tool') + '</span>') + '</div>'   // 13-11
     : lead
     ? '<div class="kk-lijst">' + rij('In RLDV-lijst', '<span class="crm-pil ok">ja</span>' + (lead.status ? ' <span class="crm-pil">' + escHtml(lead.status) + '</span>' : '')) + rij('Sector · regio', escHtml([lead.vakgebied, lead.regio].filter(Boolean).join(' · '))) +
-      '<div class="kk-rij"><span>Functies</span>' + functies + '</div>' + rij('Contactpersoon', escHtml(lead.contactpersoon || '')) +
+      '<div class="kk-rij"><span>Functies</span>' + functies + '</div>' + rij('Collega (CP)', lead.contactpersoon ? '<span class="kk-team-pil op">' + escHtml(String(lead.contactpersoon).toUpperCase()) + '</span>' + (_teamNaam(lead.contactpersoon) ? '<span class="kk-team-naam">' + escHtml(_teamNaam(lead.contactpersoon)) + '</span>' : '<span class="kk-team-naam">geen collega — kies via Wijzigen</span>') : '') +
       rij('Laatste bezoek', laatste ? escHtml(_crmDatum(laatste.datumMs) + ' · ' + (_accCollegaKort(laatste) || 'onbekend') + ' · ' + (_ACC_SOORT[laatste.soortBezoek] || laatste.soortBezoek || '')) : '', laatste ? '<button class="kk-knop" onclick="crmKaartSluit();bezoekKaartOpen(\'' + escApos(laatste.id) + '\')">kaart</button>' : '') + '</div>'
     : '<div class="kk-tekst stil kk-rldv-leeg">niet in de RLDV-lijst — sector, status en functies worden nog niet gevolgd' + (magAcc && supa && !bewerk ? '<button type="button" class="crm-kop-knop goud" onclick="crmNaarRldvVenster(\'' + sE + '\')">Zet in RLDV-lijst</button>' : '') + '</div>', lead ? 'gelijk aan de RLDV-lijst' : '');
   void rldvAan;   // 15-10 knop
@@ -39306,7 +39320,7 @@ async function _accountKaartKamOpslaan(k) {
     SALES_LEADS_CACHE = (SALES_LEADS_CACHE || []).filter(x => String(x.id) !== String(lead.id)); if (!supa && typeof salesLeadsSaveLocal === 'function') salesLeadsSaveLocal();
     k.lead = null; lead = null; _crmLijstCacheWeg();
   } else if (W.rldv_aan === 'Ja' && !lead) {
-    const rij = { naam: k.naam, vakgebied: tx(W.rldv_vak), regio: tx(W.rldv_regio), status: tx(W.rldv_status), contactpersoon: tx(W.rldv_cp), voorwaarden_bekend: null, updated_at: nuIso };
+    const rij = { naam: k.naam, vakgebied: tx(W.rldv_vak), regio: tx(W.rldv_regio), status: tx(W.rldv_status), contactpersoon: _rldvCpVoorOpslaan(W), voorwaarden_bekend: null, updated_at: nuIso };
     SL_BOOL_FIELDS.forEach(([f]) => { const el = byId('kk-rldv-' + f); rij[f] = !!(el && el.checked); });
     if (supa) { _echoVanZelf('sales_leads'); const { data, error } = await supa.from('sales_leads').insert(rij).select().single(); if (error) { meldFout('in RLDV-lijst zetten mislukt: ' + error.message, 'accountKaartBewerkOpslaan'); alert('Niet in de RLDV-lijst gezet: ' + _accFoutTekst(error)); return false; } lead = data; }
     else lead = { id: 'local-' + Date.now(), ...rij };
@@ -39320,7 +39334,7 @@ async function _accountKaartKamOpslaan(k) {
       if ((lead.status || null) !== tx(W.rldv_status)) rl.status = tx(W.rldv_status);
       if ((lead.vakgebied || null) !== tx(W.rldv_vak)) rl.vakgebied = tx(W.rldv_vak);
       if ((lead.regio || null) !== tx(W.rldv_regio)) rl.regio = tx(W.rldv_regio);
-      if ((lead.contactpersoon || null) !== tx(W.rldv_cp)) rl.contactpersoon = tx(W.rldv_cp);
+      if ((lead.contactpersoon || null) !== _rldvCpVoorOpslaan(W)) rl.contactpersoon = _rldvCpVoorOpslaan(W);   // 13-11: collega-initialen; KAM-klant volgt het team
     }
     SL_BOOL_FIELDS.forEach(([f]) => { const el = byId('kk-rldv-' + f); if (el && !!lead[f] !== !!el.checked) rl[f] = !!el.checked; });
     if (Object.keys(rl).length) {
@@ -39505,7 +39519,8 @@ function crmNaarRldvVenster(sleutel) {
   const r = k.crm || {}, sE = escApos(k.sleutel), lijkt = _crmRldvLijktOp(k);
   const lijst = typeof SALES_LEADS_CACHE !== 'undefined' && Array.isArray(SALES_LEADS_CACHE) ? SALES_LEADS_CACHE : [];
   const opties = (veld) => Array.from(new Set(lijst.map(x => String(x[veld] || '').trim()).filter(Boolean))).sort().map(v => '<option value="' + escHtml(v) + '">' + escHtml(v) + '</option>').join('');   // 12-11: keuzelijst
-  const cp = (k.contacten && k.contacten[0] && k.contacten[0].naam) || r.contactpersoon || '';
+  const mijnIni = _oneInitialen(String((CURRENT_USER && (CURRENT_USER.bm_naam || CURRENT_USER.naam)) || ''));   // 13-11: CP = collega, niet de contactpersoon van de klant
+  const cpStd = k.account && k.account.op_cp ? String(k.account.op_cp).toUpperCase() : (_teamKeuzes().some(x => x.ini === mijnIni) ? mijnIni : '');
   const veld = (label, inhoud) => '<div class="nr-veld"><span>' + label + '</span>' + inhoud + '</div>';
   crmKaartToon('<h4 class="wit">' + escHtml(k.naam) + ' in de RLDV-lijst zetten</h4>' +
     '<div class="crm-sub">Naam en plaats komen uit CRM. Vul in wat je weet; de rest kan later op de kaart.</div>' +
@@ -39515,7 +39530,7 @@ function crmNaarRldvVenster(sleutel) {
     veld('Regio', '<select id="nr-regio"><option value="">kies de regio</option>' + opties('regio') + '</select>' + (r.plaats || r.locatie ? '<small style="color:rgba(255,255,255,.55);margin-left:8px;">plaats: ' + escHtml(r.plaats || r.locatie) + '</small>' : '')) +
     veld('Functies', '<div class="nr-schuifjes">' + SL_BOOL_FIELDS.map(([f, label]) => '<label><input type="checkbox" id="nr-' + f + '">' + escHtml(label) + '</label>').join('') + '</div>') +
     veld('Status', '<select id="nr-status"><option value="">—</option><option value="Prospect">Prospect</option><option value="Lead">Lead</option><option value="CP-bekend">CP-bekend</option><option value="Klant"' + (k.klant ? ' selected' : '') + '>Klant</option></select>') +
-    veld('Contactpersoon', '<input id="nr-cp" value="' + escHtml(cp) + '" autocomplete="off">') +
+    veld('Collega (CP)', '<select id="nr-cp"><option value="">kies collega</option>' + _teamKeuzes().map(x => '<option value="' + escHtml(x.ini) + '"' + (x.ini === cpStd ? ' selected' : '') + '>' + escHtml(x.ini + ' · ' + x.naam) + '</option>').join('') + '</select>') +
     '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop goed crm-knop-vast" id="nr-knop" onclick="crmNaarRldvOpslaan(\'' + sE + '\')">In RLDV-lijst zetten</button><button type="button" class="crm-knop" onclick="accountKaartOpen(\'' + sE + '\')">Annuleren</button></div>', 'crm-samenvoeg');
   setTimeout(() => { const el = document.getElementById('nr-vakgebied'); if (el) el.focus(); }, 50);
 }
