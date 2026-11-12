@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261112-1123 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261112-1248 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4704,6 +4704,12 @@
   .kb-knop.go { margin-left:auto; border-color:#F4CB3C; color:#F4CB3C; }
   .kb-knop.taak { margin-left:auto; } .kb-knop.taak + .kb-knop.go { margin-left:0; } .kb-knop.taak:hover { border-color:#F4CB3C; color:#F4CB3C; }   /* 10-11: taak voor een collega */
   .kb-taak { display:inline-flex; align-items:center; gap:5px; max-width:100%; background:rgba(244,203,60,.16); color:#F4CB3C; border-radius:99px; padding:1px 8px; font-size:.66rem; margin-top:5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .kb-taak.laat { background:rgba(232,116,0,.25); color:#ffb37a; }
+  /* 12-11: losse acties bij een bedrijf */
+  .bd-actie { display:grid; grid-template-columns:20px minmax(0,1fr) auto auto; gap:9px; align-items:center; padding:7px 0; border-top:1px solid rgba(255,255,255,.08); font-size:.82rem; color:#fff; }
+  .bd-actie .vk { width:18px; height:18px; border-radius:5px; border:1.5px solid rgba(255,255,255,.4); background:transparent; display:inline-flex; align-items:center; justify-content:center; font-size:.68rem; padding:0; color:#16142e; } .bd-actie button.vk { cursor:pointer; } .bd-actie button.vk:hover { border-color:#F4CB3C; } .bd-actie .vk.af { background:#25D366; border-color:#25D366; }
+  .bd-actie .t { min-width:0; } .bd-actie .t small { color:rgba(255,255,255,.55); } .bd-actie.af .t { text-decoration:line-through; color:rgba(255,255,255,.45); }
+  .bd-actie-pil { border-radius:99px; padding:1px 9px; font-size:.68rem; background:rgba(244,203,60,.16); color:#F4CB3C; white-space:nowrap; } .bd-actie-pil.laat { background:rgba(232,116,0,.25); color:#ffb37a; } .bd-actie-pil.klaar { background:rgba(255,255,255,.08); color:rgba(255,255,255,.5); }
+  .crm-kop.met-knop .bd-actie-plus { margin-left:auto; }
   /* 12-11: koppeling van een record wijzigen */
   .rec-dkop-koppel { margin-left:auto; border:1px solid #d7dfee; background:#fff; color:#253151; border-radius:8px; padding:3px 10px; font-size:.72rem; cursor:pointer; font-family:inherit; white-space:nowrap; } .rec-dkop-koppel:hover { border-color:#F4CB3C; background:#fdf6e0; }
   .rec-dkop-koppel + .rec-dkop-weg { margin-left:8px; } .rec-kop-noot { color:#8a6410; }
@@ -12185,7 +12191,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261112-1123';
+const APP_VERSIE = '20261112-1248';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -31709,14 +31715,96 @@ function crmActiesKlap(sleutel) { const sl = String(sleutel || ''); if (CRM_ACTI
 function _crmActiesBlokHtml(k) {
   const sE = escApos(String(k.sleutel)), mag = magWijzigen('accounts');
   const plan = _apPlanVoor(k.sleutel);
-  if (!plan) return '<div class="crm-kop">Acties</div><div class="kk-tekst stil">Nog geen accountplan voor dit bedrijf — acties horen bij het plan.' + (mag ? ' <button type="button" class="kk-knop" onclick="apMaakVoor(\'' + sE + '\')">+ Accountplan maken</button>' : '') + '</div>';
+  // 12-11: zonder plan geen dood blok meer — losse acties (taken in het gesprekslog van het bedrijf) kunnen altijd.
+  if (!plan) return _crmLosseActiesHtml(k, mag) + (mag ? '<div class="kk-tekst stil" style="margin-top:6px;">Sturen op doelen en onboarding? <button type="button" class="kk-knop" onclick="apMaakVoor(\'' + sE + '\')">+ Accountplan maken</button> — de acties hierboven blijven staan.</div>' : '');
   const pE = escApos(String(plan.id)), acties = _apActies(plan).map((a, i) => ({ ...a, i }));
   const open = _apTaakOpen(plan), af = acties.filter(a => a.af), uit = CRM_ACTIES_AF.has(String(k.sleutel));
   const rij = (a) => _apTaakRijHtml(pE, a, mag);
   return '<div class="crm-kop met-knop">Acties<small class="crm-kop-klein">' + open.length + ' open</small><button type="button" class="crm-acties-alle" onclick="AP_BLAD=\'doelen\';apOpenVoor(\'' + sE + '\')">alle acties →</button></div>' +
     (open.length ? open.map(rij).join('') : '<div class="kk-tekst stil">geen open acties</div>') +
     (af.length ? '<button type="button" class="crm-acties-klap" onclick="crmActiesKlap(\'' + sE + '\')">' + (uit ? '▾' : '▸') + ' afgerond · ' + af.length + '</button>' + (uit ? af.map(rij).join('') : '') : '') +
-    (mag ? '<div><button type="button" class="kk-knop" style="margin-top:6px;" onclick="apActieToevoegen(\'' + pE + '\')">+ actie</button></div>' : '');
+    (mag ? '<div><button type="button" class="kk-knop" style="margin-top:6px;" onclick="apActieToevoegen(\'' + pE + '\')">+ actie in het plan</button></div>' : '') +
+    '<div style="margin-top:12px;">' + _crmLosseActiesHtml(k, mag, 'Losse acties') + '</div>';   // 12-11: losse acties eronder
+}
+// ── Losse acties bij een bedrijf (12-11, ontwerp_acties_zonder_plan.html) ────────────────────────────────────
+// Een losse actie = een notitie met een taak in het gesprekslog van het bedrijf. Open: te laat bovenaan, dan op datum.
+let BD_ACTIE = null;   // { sleutel, voor, datum }
+function _crmLosseActies(k) {
+  const nid = _crmBedrijfNotitieId(k), l = (nid && typeof ACC_NOTITIES !== 'undefined' && ACC_NOTITIES && ACC_NOTITIES[String(nid)]) || [];
+  const met = l.filter(n => n && n.taak && typeof n.taak === 'object');
+  return { open: met.filter(n => !n.taak.gedaan_op).sort((a, b) => _taakDeadlineMs(a.taak) - _taakDeadlineMs(b.taak)),
+           af: met.filter(n => n.taak.gedaan_op).sort((a, b) => String(b.taak.gedaan_op).localeCompare(String(a.taak.gedaan_op))).slice(0, 5) };
+}
+function _crmLosseActiesHtml(k, mag, titel) {
+  const sE = escApos(String(k.sleutel)), { open, af } = _crmLosseActies(k);
+  const rij = (n) => {
+    const t = n.taak, klaar = !!t.gedaan_op, ms = _taakDeadlineMs(t), laat = !klaar && ms && ms < Date.now() - 864e5 * 0.5, dagen = laat ? Math.max(1, Math.round((Date.now() - ms) / 864e5)) : 0;
+    const vink = klaar ? '<span class="vk af">✓</span>' : mag ? '<button type="button" class="vk" title="Afvinken" onclick="taakAfvinken(\'acc\',\'' + escApos(String(n.id)) + '\')"></button>' : '<span class="vk"></span>';
+    return '<div class="bd-actie' + (klaar ? ' af' : '') + '">' + vink + '<span class="t">' + escHtml(n.tekst || '') + (n.auteur && !klaar ? ' <small>· door ' + escHtml(String(n.auteur).split(' ')[0]) + '</small>' : '') + '</span>' +
+      '<span class="one-ber-av klein" style="background:' + _oneAvatarKleur(t.voor || '') + ';" title="voor ' + escHtml(t.voor || '') + '">' + escHtml(_oneInitialen(t.voor || '?')) + '</span>' +
+      '<span class="bd-actie-pil' + (laat ? ' laat' : klaar ? ' klaar' : '') + '">' + escHtml(klaar ? 'afgevinkt' : laat ? dagen + (dagen === 1 ? ' dag' : ' dagen') + ' te laat' : _taakWanneer(t)) + '</span></div>';
+  };
+  return '<div class="crm-kop met-knop">' + escHtml(titel || 'Acties') + '<small class="crm-kop-klein">' + open.length + ' open</small>' + (mag ? '<button type="button" class="kk-knop geel bd-actie-plus" onclick="bdActieVenster(\'' + sE + '\')">+ Actie</button>' : '') + '</div>' +
+    (open.length || af.length ? open.map(rij).join('') + af.map(rij).join('') : '<div class="kk-tekst stil">Nog geen acties. Een actie komt bij de collega in de To Do\'s en in het gesprekslog van dit bedrijf.</div>');
+}
+// Voor wie standaard: de collega op het account (operationeel, anders strategisch — naam of initialen), anders jezelf.
+function _bdActieVoorStandaard(k) {
+  const mij = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || ''), col = _taakCollegas(), a = (k && k.account) || {};
+  for (const v of [a.op_cp, a.strat_cp]) {
+    const z = String(v || '').trim(); if (!z) continue;
+    const c = col.find(x => _itkSleutel(x.naam) === _itkSleutel(z) || _oneInitialen(x.naam).toLowerCase() === z.toLowerCase());
+    if (c) return c.naam;
+  }
+  return mij;
+}
+function bdActieVenster(sleutel, behoud) {
+  if (!magWijzigen('accounts')) return;
+  const k = crmBedrijfLijst().find(x => String(x.sleutel) === String(sleutel)); if (!k) return;
+  const mij = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
+  const tekstNu = behoud && document.getElementById('bd-actie-tekst') ? document.getElementById('bd-actie-tekst').value : '';
+  if (!BD_ACTIE || BD_ACTIE.sleutel !== String(sleutel)) BD_ACTIE = { sleutel: String(sleutel), voor: _bdActieVoorStandaard(k), datum: _taakVandaagPlus(1) };
+  const A = BD_ACTIE, sE = escApos(String(sleutel)), col = _taakCollegas();
+  const snel = [A.voor, mij].filter((n, i, l) => n && l.findIndex(x => _itkSleutel(x) === _itkSleutel(n)) === i);
+  const chip = (naam) => '<button type="button" class="kb-stap' + (_itkSleutel(A.voor) === _itkSleutel(naam) ? ' aan' : '') + '" onclick="bdActieZet(\'voor\',\'' + escApos(naam) + '\')"><span class="one-ber-av klein" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(_oneInitialen(naam)) + '</span> ' + escHtml(String(naam).split(' ')[0]) + (_itkSleutel(naam) === _itkSleutel(mij) ? ' (ik)' : '') + '</button>';
+  const dag = (n, label) => '<button type="button" class="kb-stap' + (A.datum === _taakVandaagPlus(n) ? ' aan' : '') + '" onclick="bdActieZet(\'datum\',\'' + _taakVandaagPlus(n) + '\')">' + label + '</button>';
+  crmKaartToon('<h4 class="wit">Actie bij ' + escHtml(k.naam) + '</h4>' +
+    '<div class="crm-sub">' + escHtml([k.crm && k.crm.plaats, k.klant ? 'klant' : k.account ? 'account' : ''].filter(Boolean).join(' · ')) + '</div>' +
+    '<div class="crm-kop">Voor wie</div><div class="kb-stappen">' + snel.map(chip).join('') +
+      '<select class="crm-select" onchange="if(this.value)bdActieZet(\'voor\',this.value)"><option value="">andere collega…</option>' + col.filter(x => !snel.some(n => _itkSleutel(n) === _itkSleutel(x.naam))).map(x => '<option value="' + escHtml(x.naam) + '">' + escHtml(x.naam) + '</option>').join('') + '</select></div>' +
+    '<div class="crm-kop">Wat moet er gebeuren</div><textarea id="bd-actie-tekst" class="kand-vervolg-veld kb-taak-tekst" maxlength="600" placeholder="bijv. vacature navragen bij de contactpersoon">' + escHtml(tekstNu) + '</textarea>' +
+    '<div class="crm-kop">Wanneer klaar</div><div class="kb-stappen">' + dag(0, 'vandaag') + dag(1, 'morgen') + dag(7, 'over een week') +
+      '<input type="date" class="kand-vervolg-veld" style="width:auto" value="' + escHtml(A.datum || '') + '" onchange="bdActieZet(\'datum\',this.value)"></div>' +
+    '<div class="vv-tegel klaar" style="margin-top:10px;">Komt bij ' + escHtml(String(A.voor || '…').split(' ')[0]) + ' in de To Do\'s en als melding, en als regel in het gesprekslog van ' + escHtml(k.naam) + '.</div>' +
+    '<div id="kb-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
+    '<div class="crm-knoppen"><button class="crm-knop goed" id="bd-actie-knop" onclick="bdActieOpslaan(\'' + sE + '\')">Actie aanmaken</button><button class="crm-knop" onclick="BD_ACTIE=null;crmBedrijfOpen(\'' + sE + '\')">Annuleren</button></div>', 'kand-kaart');
+  setTimeout(() => { const el = document.getElementById('bd-actie-tekst'); if (el && el.focus) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }, 30);
+}
+function bdActieZet(veld, waarde) { if (!BD_ACTIE) return; BD_ACTIE[veld] = String(waarde || ''); bdActieVenster(BD_ACTIE.sleutel, true); }
+async function bdActieOpslaan(sleutel) {
+  if (!eisWijzig('accounts') || !supa || !CURRENT_USER || !BD_ACTIE) return;
+  const k = crmBedrijfLijst().find(x => String(x.sleutel) === String(sleutel)); if (!k) return;
+  const A = BD_ACTIE, nid = _crmBedrijfNotitieId(k);
+  const status = (t) => { const el = document.getElementById('kb-status'); if (el) el.textContent = t; };
+  const veld = document.getElementById('bd-actie-tekst'), tekst = String((veld && veld.value) || '').trim();
+  if (!nid) { status('Dit bedrijf heeft nog geen kaart in het CRM; sla het bedrijf eerst op.'); return; }
+  if (!tekst) { status('Schrijf wat er moet gebeuren.'); if (veld) veld.focus(); return; }
+  if (!A.voor) { status('Kies voor wie de actie is.'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(A.datum || '')) { status('Kies een datum voor de actie.'); return; }
+  const mij = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), mijnId = ONE_MIJN_ID || CURRENT_USER.id || null;
+  const voorMij = _itkSleutel(A.voor) === _itkSleutel(mij), col = _taakCollegas().find(x => _itkSleutel(x.naam) === _itkSleutel(A.voor));
+  const rij = { account_id: String(nid), tekst, auteur: mij, created_by: mijnId,
+    taak: { voor: voorMij ? mij : A.voor, voor_id: voorMij ? (mijnId || '') : ((col && col.id) || ''), datum: A.datum, tijd: '', door: mij, gezet_op: new Date().toISOString(), gedaan_op: null, gedaan_door: null } };
+  const knop = document.getElementById('bd-actie-knop'); if (knop) knop.disabled = true;
+  _echoVanZelf('account_notities');
+  const { data, error } = await supa.from('account_notities').insert(rij).select().single();
+  if (knop) knop.disabled = false;
+  if (error) { meldFout('actie bij bedrijf mislukt: ' + error.message, 'bdActieOpslaan'); status('Niet opgeslagen: ' + error.message); return; }
+  ACC_NOTITIES = ACC_NOTITIES || {}; ACC_NOTITIES[String(nid)] = [data].concat(ACC_NOTITIES[String(nid)] || []);
+  _TODO_CACHE = null;
+  const t = rij.taak;
+  if (t.voor_id && t.voor_id !== mijnId) { try { await _oneMeldCollegas([{ soort: 'collega', id: t.voor_id, naam: t.voor }], k.naam, '📋 Taak voor jou op ' + _taakWanneer(t) + ': ' + tekst, k.account ? { soort: 'bedrijf', id: String(k.account.id), naam: k.naam, label: k.naam } : null); } catch (e) { _meldStil('actie melden', e); } }
+  BD_ACTIE = null; crmBedrijfOpen(String(sleutel));
+  btMeld('Actie voor ' + String(t.voor).split(' ')[0] + ' aangemaakt · ' + _taakWanneer(t) + '.', 'groen');
 }
 function _apVeld(id, veld, waarde, ph, o) {
   o = o || {};
@@ -48655,7 +48743,8 @@ function _taakOpen() {
   } }));
   Object.entries(ACC_NOTITIES || {}).forEach(([accId, l]) => (l || []).forEach(n => { if (n && n.taak && !n.taak.gedaan_op) {
     const a = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).find(x => String(x.id) === String(accId));
-    const naam = (a && a.naam) || 'bedrijf', sl = _itkSleutel(naam);
+    const crmB = !a && /^crm:/.test(String(accId)) && typeof crmBedrijfLijst === 'function' ? crmBedrijfLijst().find(x => x.crm && 'crm:' + x.crm.id === String(accId)) : null;   // 12-11
+    const naam = (a && a.naam) || (crmB && crmB.naam) || 'bedrijf', sl = _itkSleutel(naam);
     const inCrm = typeof crmBedrijfLijst === 'function' && crmBedrijfLijst().some(x => x.sleutel === sl);
     uit.push({ soort: 'acc', n, t: n.taak, deadlineMs: _taakDeadlineMs(n.taak), cat: 'klant', groep: sl, groepSoort: 'bedrijf', groepNaam: naam, groepDetail: 'bedrijf' + (a && a.plaats ? ' · ' + a.plaats : ''), klik: inCrm ? "crmBedrijfOpen('" + escApos(sl) + "')" : "klantKaartOpen('" + escApos(String(accId)) + "')" });
   } }));
