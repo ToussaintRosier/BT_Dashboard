@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261116-0927 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261116-0950 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4725,7 +4725,7 @@
   .bn-strook table { width:100%; border-collapse:collapse; font-size:.8rem; } .bn-strook td { padding:3px 0; border:0; text-align:left; color:#16142e; background:transparent; } .bn-strook td:last-child { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .bn-strook tr.bn-k td { color:#5b6478; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; padding-top:9px; } .bn-strook tr.bn-som td { border-top:1px solid #dde1e8; font-weight:var(--w-nadruk); } .bn-strook tr.bn-tot td { border-top:2px solid #16142e; font-weight:700; font-size:.92rem; padding-top:6px; }
   .bn-strook tbody tr:hover { background:transparent; } .bn-voet { margin-top:10px; font-size:.66rem; color:#5b6478; border-top:1px solid #dde1e8; padding-top:7px; }
-  .bn-uitleg { margin-top:10px; font-size:.76rem; color:rgba(255,255,255,.8); } .bn-uitleg summary { cursor:pointer; color:#F4CB3C; font-size:.74rem; } .bn-uitleg ul { margin:8px 0; padding-left:18px; } .bn-uitleg li { margin-bottom:3px; }
+  @media (min-width:901px) { .crm-kaart.bn-venster { align-self:flex-start; margin-top:3vh; } }   /* 16-11: vast bovenaan — verspringt niet als de strook groeit */
   .bn-regels { width:100%; border-collapse:collapse; font-size:.72rem; } .bn-regels td { padding:4px 6px; border-top:1px solid rgba(255,255,255,.08); text-align:left; color:rgba(255,255,255,.85); background:transparent; vertical-align:top; } .bn-regels td:nth-child(2) { white-space:nowrap; color:#fff; } .bn-regels td:nth-child(3) { color:rgba(255,255,255,.5); } .bn-regels i { color:#F4CB3C; font-style:normal; }
   .bn-regels.bewerk td small { display:block; color:rgba(255,255,255,.45); font-size:.64rem; } .bn-regels.bewerk input { width:100px; background:var(--l0); color:#fff; border:1px solid rgba(255,255,255,.22); border-radius:7px; padding:4px 8px; font-family:inherit; font-size:.78rem; text-align:right; }
   /* 12-11: losse acties bij een bedrijf */
@@ -12214,7 +12214,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261116-0927';
+const APP_VERSIE = '20261116-0950';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -23476,7 +23476,11 @@ function crmKaartToon(html, klasse, bijSluiten) {
   // Een extra klasse voor vensters die breder moeten (het RLDV-checkvenster).
   laag.innerHTML = `<div class="crm-kaart${klasse ? ' ' + klasse : ''}" role="dialog" aria-modal="true">
     <button class="crm-x" onclick="crmKaartSluit()" aria-label="Sluiten">&times;</button>${html}</div>`;
-  laag.addEventListener('click', (e) => { if (e.target === laag) crmKaartSluit(); });
+  // 16-11: alleen sluiten als de klik óók naast het venster begon — tekst selecteren en buiten loslaten sloot het venster.
+  // Het bruto-netto-venster (invulwerk) sluit niet op een klik ernaast: alleen ✕, Sluiten of Esc.
+  let opLaag = false;
+  laag.addEventListener('mousedown', (e) => { opLaag = e.target === laag; });
+  laag.addEventListener('click', (e) => { const dicht = e.target === laag && opLaag && !/(^| )bn-venster( |$)/.test(klasse || ''); opLaag = false; if (dicht) crmKaartSluit(); });
   document.body.appendChild(laag);
   _crmKaartScrollTerug(laag, scroll);
   _crmKaartFocusTerug(focus);
@@ -32982,7 +32986,7 @@ function _kiezerKies(el, waarde) {
 function _kiezerToets(ev, inp) {
   const k = _kiezerVan(inp); if (!k) return true;
   const open = !!(KIEZER_OPEN && KIEZER_OPEN.id === k.id && !k.lijst.hidden);
-  if (ev.key === 'Escape') { if (open) _kiezerSluit(k); return true; }
+  if (ev.key === 'Escape') { if (open) { _kiezerSluit(k); if (ev.stopPropagation) ev.stopPropagation(); } return true; }   // 16-11: Esc sluit eerst de lijst, niet meteen het venster
   if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
     if (!open) { _kiezerTyp(inp); return false; }
     const n = KIEZER_OPEN.items.length; if (!n) return false;
@@ -35504,9 +35508,47 @@ function renderCrmKandidatenHtml() {
       _crmVoet(gevonden.length, lijst.length, beperkt, 'crmKandAlles()', 'kandidaten') +
     '</div></div>';
 }
+// 16-11 (Yoël): hertekenen rónd het veld waarin getypt wordt. Het veld zelf blijft hetzelfde element — focus, cursor
+// en een half getypte letter (ë, é) blijven dus staan, ook als een collega intussen iets opslaat.
+// De boom-bewerking los (testbaar): van het veld omhoog tot de houder worden op elk niveau de broers vervangen.
+function _hertekenBoomRond(houder, tmp, oud, nieuw) {
+  if (!houder || !tmp || !oud || !nieuw) return false;
+  let da = 0, db = 0;
+  for (let x = oud; x && x !== houder; x = x.parentNode) da++;
+  for (let x = nieuw; x && x !== tmp; x = x.parentNode) db++;
+  if (da !== db || !da) return false;
+  let a = oud, b = nieuw;
+  while (a !== houder) {
+    const pa = a.parentNode, pb = b.parentNode;
+    while (a.previousSibling) pa.removeChild(a.previousSibling);
+    while (a.nextSibling) pa.removeChild(a.nextSibling);
+    while (b.previousSibling) pa.insertBefore(b.previousSibling, pa.firstChild);
+    while (b.nextSibling) pa.appendChild(b.nextSibling);
+    if (pa !== houder && pa.attributes && pb.attributes) {
+      Array.from(pa.attributes).forEach(at => { if (!pb.hasAttribute(at.name)) pa.removeAttribute(at.name); });
+      Array.from(pb.attributes).forEach(at => { if (pa.getAttribute(at.name) !== at.value) pa.setAttribute(at.name, at.value); });
+    }
+    a = pa; b = pb;
+  }
+  return true;
+}
+function _hertekenRondVeld(houder, html, id) {
+  if (!houder) return;
+  const oud = id ? document.getElementById(id) : null;
+  if (!oud || document.activeElement !== oud || !houder.contains(oud)) { houder.innerHTML = html; return; }
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  let nieuw = null; tmp.querySelectorAll('input').forEach(el => { if (!nieuw && el.id === id) nieuw = el; });
+  if (_hertekenBoomRond(houder, tmp, oud, nieuw)) return;
+  // Past het niet (andere opbouw): alles hertekenen en tekst, focus en cursor terugzetten.
+  const waarde = oud.value; let van = null, tot = null; try { van = oud.selectionStart; tot = oud.selectionEnd; } catch (e) { van = tot = null; }
+  houder.innerHTML = html;
+  const el = document.getElementById(id); if (!el) return;
+  el.value = waarde; el.focus();
+  if (van != null) { try { el.setSelectionRange(van, tot); } catch (e) { _meldStil('cursor terug na hertekenen', e); } }
+}
 function renderCrmKandidaten() {
   if (currentTab !== 'crmkand') return;
-  document.getElementById('main').innerHTML = renderCrmKandidatenHtml();
+  _hertekenRondVeld(document.getElementById('main'), renderCrmKandidatenHtml(), 'crm-kand-q');
 }
 function crmKandAlles() { CRM_KAND_TAB.alles = true; renderCrmKandidaten(); }
 function crmKandFilter(v) { CRM_KAND_TAB.filter = v || ''; renderCrmKandidaten(); }
@@ -35518,9 +35560,7 @@ function _crmZoekLater(fn) { clearTimeout(_CRM_ZOEK_TIMER); _CRM_ZOEK_TIMER = se
 function crmKandZoek(v) {
   CRM_KAND_TAB.zoek = v;
   _crmZoekLater(() => {
-    renderCrmKandidaten();
-    const inp = document.getElementById('crm-kand-q');
-    if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
+    renderCrmKandidaten();   // 16-11: het veld blijft staan (_hertekenRondVeld) — geen focus of cursor meer verzetten
   });
 }
 
@@ -35639,29 +35679,32 @@ function crmWizCvDrop(ev) { ev.preventDefault(); ev.currentTarget.classList.remo
 async function crmWizCvLezen(file) {
   const W = CRM_WIZ; if (!W || W.id) return;
   if (file.size > DOC_MAX_MB * 1024 * 1024) { btMeld(file.name + ' is groter dan ' + DOC_MAX_MB + ' MB.', 'rood'); return; }
-  _crmWizLees();
+  // 16-11 (Yoël: "de naam stript weg"): het lezen duurt seconden; wat je intussen typt moet blijven staan.
+  // Dus vóór elke hertekening eerst de velden lezen — en niets tekenen als de wizard intussen dicht is.
+  const toon = () => { if (CRM_WIZ !== W) return false; _crmWizLees(); _crmWizToon(); return true; };
   W.docs = W.docs || [];
-  W.cvBezig = 'CV lezen: ' + file.name + '…'; _crmWizToon();
-  if (!(await _impHeeftInhoud(file))) { W.cvBezig = ''; W.fout = file.name + ': ' + BESTAND_CLOUD_TEKST; _crmWizToon(); return; }   // 08-10 avond: alleen in de cloud
+  W.cvBezig = 'CV lezen: ' + file.name + '…'; toon();
+  if (!(await _impHeeftInhoud(file))) { W.cvBezig = ''; W.fout = file.name + ': ' + BESTAND_CLOUD_TEKST; toon(); return; }   // 08-10 avond: alleen in de cloud
   const tekst = await _docTekst(file);
   let gevuld = 0, fout = '';
   if (!tekst) {
     fout = 'Geen tekst in dit bestand (scan of oud .doc) — vul de velden zelf in; het CV gaat wel mee.';
   } else if (supa) {
     try {
-      W.cvBezig = 'Velden uit het CV halen…'; _crmWizToon();
+      W.cvBezig = 'Velden uit het CV halen…'; toon();
       const sessie = (await supa.auth.getSession())?.data?.session;
       const res = await fetch(SUPABASE_URL + '/functions/v1/cv-lezen', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessie?.access_token || '') }, body: JSON.stringify({ tekst: tekst.slice(0, 15000) }) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.error) fout = 'Lezen mislukt: ' + (d.error || ('HTTP ' + res.status)) + ' — vul de velden zelf in.';
       else {
         W.auto = W.auto || {};
+        if (CRM_WIZ === W) _crmWizLees();
         Object.keys(d.velden || {}).forEach(k => { const v = String(d.velden[k] || '').trim(); if (!String(W.w[k] || '').trim() && v) { W.w[k] = v; W.auto[k] = true; gevuld++; } });
       }
     } catch (e) { fout = 'Lezen mislukt: ' + String(e && e.message || e); _meldStil('cv-lezen', e); }
   }
   W.docs.push({ file, soort: 'cv', gevuld: fout ? null : gevuld, tekst: tekst || '' });
-  W.cvBezig = ''; W.fout = fout; _crmWizToon();
+  W.cvBezig = ''; W.fout = fout; if (!toon()) return;
   if (!fout) btMeld(gevuld ? gevuld + ' veld' + (gevuld === 1 ? '' : 'en') + ' uit het CV ingevuld — controleer ze.' : 'CV ingelezen; er waren geen velden om in te vullen.', 'groen');
 }
 // Stap 3: de documenten die bij Opslaan meegaan (CV uit stap 1, en wat je hier nog toevoegt).
@@ -37768,16 +37811,14 @@ async function crmMedewerkersOmzettenDoe() {
 }
 function renderCrmBedrijven() {
   if (currentTab !== 'crmbedrijf') return;
-  document.getElementById('main').innerHTML = renderCrmBedrijvenHtml();
+  _hertekenRondVeld(document.getElementById('main'), renderCrmBedrijvenHtml(), 'crm-bedr-q');   // 16-11
 }
 function crmBedrijfAlles() { CRM_BEDR_TAB.alles = true; renderCrmBedrijven(); }
 function crmBedrijfFilter(v) { CRM_BEDR_TAB.filter = v || ''; renderCrmBedrijven(); }
 function crmBedrijfSort(col) { _crmSortZet(CRM_BEDR_TAB, col); renderCrmBedrijven(); }
 function crmBedrijfZoek(v) {
   CRM_BEDR_TAB.zoek = v;
-  renderCrmBedrijven();
-  const inp = document.getElementById('crm-bedr-q');
-  if (inp) { inp.focus(); try { inp.setSelectionRange(v.length, v.length); } catch (_) {} }
+  renderCrmBedrijven();   // 16-11: het veld blijft staan (_hertekenRondVeld)
 }
 function crmBedrijfWizard(sleutel) {
   if (!magWijzigen('crm')) { alert('Je hebt geen recht om bedrijven te wijzigen.'); return; }
@@ -44082,8 +44123,6 @@ function _bnStrookRegels(wie, v, b) {
   uit.push({ l: 'Vakantiebijslag per jaar: bruto ' + e(b.vakantiegeld * 12) + ' · netto circa', r: e(b.vakantiegeldNetto * 12) });
   uit.push({ l: 'Dit is een proforma berekening. Hieraan kunnen geen rechten worden ontleend; de salarisadministratie is leidend.', r: '', s: 'klein' });
   if (b.reis) uit.push({ l: 'Reiskosten zijn berekend over het gemiddelde aantal gewerkte dagen per maand; de werkelijke vergoeding volgt de gewerkte dagen.', r: '', s: 'klein' });
-  uit.push({ l: 'Hoe gerekend', r: '', s: 'kop' });
-  b.uitleg.forEach(u => uit.push({ l: u, r: '', s: 'klein' }));
   return uit;
 }
 // Een kleine PDF-schrijver (één of meer pagina's A4, Helvetica + Courier voor de bedragen). Geeft een Uint8Array.
@@ -44149,7 +44188,7 @@ function bnOpen(sleutel) {
   }
   const toon = () => { crmKaartToon(_bnVensterHtml(), 'crm-kaart-breed bn-venster', () => { BN = null; }); };
   toon();
-  if (!BN_REGELS_GELADEN) bnRegelsLaad().then(() => { if (BN && document.getElementById('bn-uit')) toon(); });
+  if (!BN_REGELS_GELADEN) bnRegelsLaad().then(() => { if (BN && document.getElementById('bn-uit')) _bnBijwerken(); });   // 16-11: niet het venster opnieuw opbouwen
 }
 function _bnKnopHtml(k) {
   if (!k || typeof magWijzigen !== 'function' || !magWijzigen('crm')) return '';
@@ -44167,13 +44206,10 @@ function _bnUitHtml() {
   }
   const b = bnBereken(v, R), regels = _bnStrookRegels(BN, v, b);
   const tegel = (l, w, aan) => '<div class="bn-tegel' + (aan ? ' aan' : '') + '"><small>' + l + '</small><b>€ ' + _bnEuro(w) + '</b></div>';
-  const rijen = regels.filter(r => r.s !== 'klein' && r.s !== 'naam' && r.l !== 'Hoe gerekend').map(r => r.s === 'kop' ? '<tr class="bn-k"><td colspan="2">' + escHtml(r.l) + '</td></tr>' : '<tr class="' + (r.s ? 'bn-' + r.s : '') + '"><td>' + escHtml(r.l) + '</td><td>' + escHtml(r.r) + '</td></tr>').join('');
+  const rijen = regels.filter(r => r.s !== 'klein' && r.s !== 'naam').map(r => r.s === 'kop' ? '<tr class="bn-k"><td colspan="2">' + escHtml(r.l) + '</td></tr>' : '<tr class="' + (r.s ? 'bn-' + r.s : '') + '"><td>' + escHtml(r.l) + '</td><td>' + escHtml(r.r) + '</td></tr>').join('');
   return '<div class="bn-tegels">' + tegel('Netto loon per maand', b.netto, true) + tegel('Uit te betalen (met vergoedingen)', b.uitTeBetalen) + tegel('Vakantiebijslag netto per jaar (circa)', b.vakantiegeldNetto * 12) + '</div>' +
     '<div class="bn-strook"><div class="bn-strook-kop"><div><b>Proforma loonstrook</b><small>' + escHtml([BN.naam, BN.functie, BN.klant].filter(Boolean).join(' · ') || 'nog geen kandidaat') + '</small></div><div class="r"><b>BRIGHTECH</b><small>regels ' + R.jaar + '</small></div></div>' +
-    '<table>' + rijen + '</table><div class="bn-voet">Dit is een proforma berekening. Hieraan kunnen geen rechten worden ontleend; de salarisadministratie is leidend.' + (b.reis ? ' Reiskosten zijn berekend over het gemiddelde aantal gewerkte dagen per maand.' : '') + '</div></div>' +
-    '<details class="bn-uitleg"><summary>Waar ik rekening mee houd · hoe gerekend</summary><ul>' + b.uitleg.map(u => '<li>' + escHtml(u) + '</li>').join('') + '</ul>' +
-    '<table class="bn-regels">' + BN_VELDEN.map(([key, label, eenh, bron]) => '<tr><td>' + escHtml(label) + '</td><td>' + (eenh === '€' ? '€ ' + _bnEuro(R[key]) : _bnEuro(R[key]) + (eenh === '%' ? '%' : ' ' + eenh)) + (BN_REGELS_DB[R.jaar] && BN_REGELS_DB[R.jaar].regels && BN_REGELS_DB[R.jaar].regels[key] != null && +BN_REGELS_DB[R.jaar].regels[key] !== BN_STANDAARD[R.jaar][key] ? ' <i>aangepast</i>' : '') + '</td><td>' + escHtml(bron) + '</td></tr>').join('') + '</table>' +
-    (BN_REGELS_DB[R.jaar] && BN_REGELS_DB[R.jaar].door ? '<div class="stil" style="font-size:.72rem;margin-top:6px;">Regels laatst aangepast door ' + escHtml(BN_REGELS_DB[R.jaar].door) + (BN_REGELS_DB[R.jaar].op ? ' · ' + escHtml(_crmDatum(Date.parse(BN_REGELS_DB[R.jaar].op))) : '') + '</div>' : '') + '</details>';
+    '<table>' + rijen + '</table><div class="bn-voet">Dit is een proforma berekening. Hieraan kunnen geen rechten worden ontleend; de salarisadministratie is leidend.' + (b.reis ? ' Reiskosten zijn berekend over het gemiddelde aantal gewerkte dagen per maand.' : '') + '</div></div>';
 }
 // De hulpregel onder elk veld: eerst uitleg, na invullen het berekende bedrag (16-11, ontwerp_bruto_netto_layout).
 function _bnHints() {
@@ -44202,7 +44238,6 @@ function _bnVeldHtml(key, label, o) {
 function _bnVensterHtml() {
   const v = BN.v, R = _bnRegelsVoor(v.jaar), H = _bnHints(), veld = (key, label, o) => _bnVeldHtml(key, label, Object.assign({ hint: H[key] || '' }, o || {}));
   const tekst = (key, label, ph) => '<div class="bn-veld"><label>' + label + '</label><div class="bn-inp"><input type="text" value="' + escHtml(BN[key] || '') + '" placeholder="' + escHtml(ph) + '" oninput="bnWie(\'' + key + '\', this.value)"></div></div>';
-  const aangepast = BN_REGELS_DB[R.jaar] && BN_REGELS_DB[R.jaar].regels && Object.keys(BN_REGELS_DB[R.jaar].regels).length;
   return '<div class="bn-kop"><div><h4 class="wit">Bruto-netto · proforma loonstrook</h4><div class="crm-sub">Vul links in; rechts rekent de strook mee.</div></div>' +
       (isBeheerder() ? '<button type="button" class="kk-knop" onclick="bnRegelsVenster()">Regels aanpassen</button>' : '') + '</div>' +
     '<div class="bn-twee"><div class="bn-links">' +
@@ -44215,7 +44250,7 @@ function _bnVensterHtml() {
         '<div class="bn-rij3">' + veld('advDagen', 'ADV-dagen per jaar', { s: 'dagen', ph: '13' }) + veld('ploegPct', 'Ploegentoeslag', { s: '%', ph: '15' }) + veld('reisPerDag', 'Reiskosten per gewerkte dag', { e: '€', ph: '12,00' }) + '</div>' +
         '<div class="bn-rij3">' + veld('overigBruto', 'Overige vergoedingen bruto', { e: '€', s: 'per maand' }) + veld('overigNetto', 'Overige vergoedingen netto', { e: '€', s: 'per maand' }) + veld('bonus', 'Overige bonussen', { e: '€', s: 'eenmalig' }) + '</div></div>' +
       '<div class="bn-acties"><button class="crm-knop goed" onclick="bnOpslaanOpKaart()" title="PDF bij Documenten op de kandidaatkaart + regel in het gesprekslog">Opslaan op de kaart</button><button class="crm-knop" onclick="bnExport()">Exporteren (PDF)</button><button class="crm-knop" onclick="crmKaartSluit()">Sluiten</button>' +
-        '<span class="bn-regelstand">regels ' + R.jaar + ' · ' + (aangepast ? 'aangepast' : 'standaard') + '</span></div>' +
+        '<span class="bn-regelstand" id="bn-regelstand">' + _bnRegelstand() + '</span></div>' +
       '<div id="kb-status" style="margin-top:8px;font-size:.78rem;color:#ffb3b3;"></div>' +
       (BN_REGELS_ONTBREEKT && isBeheerder() ? '<div class="kk-tekst stil" style="margin-top:8px;">Regels aanpassen kan pas na supabase/bruto_netto_regels.sql; rekenen werkt al met de standaardregels.</div>' : '') +
     '</div><div class="bn-rechts" id="bn-uit">' + _bnUitHtml() + '</div></div>';
@@ -44223,9 +44258,20 @@ function _bnVensterHtml() {
 function bnZet(key, waarde, herteken) {
   if (!BN) return;
   BN.v[key] = waarde;
-  if (herteken) { crmKaartToon(_bnVensterHtml(), 'crm-kaart-breed bn-venster', () => { BN = null; }); return; }
+  // 16-11: nooit het venster opnieuw opbouwen (dan springt het weg) — ook de schakelaar werkt op zijn plek bij.
+  if (key === 'lhk') document.querySelectorAll('.bn-schakel button').forEach((b, i) => b.classList.toggle('aan', i === (waarde === false ? 1 : 0)));
+  _bnBijwerken();
+}
+// De strook, de hulpregels onder de velden en de regelstand bijwerken; de velden zelf blijven staan.
+function _bnRegelstand() {
+  const R = _bnRegelsVoor(BN.v.jaar), aangepast = BN_REGELS_DB[R.jaar] && BN_REGELS_DB[R.jaar].regels && Object.keys(BN_REGELS_DB[R.jaar].regels).length;
+  return 'regels ' + R.jaar + ' · ' + (aangepast ? 'aangepast' : 'standaard');
+}
+function _bnBijwerken() {
+  if (!BN) return;
   const el = document.getElementById('bn-uit'); if (el) el.innerHTML = _bnUitHtml();
-  const H = _bnHints(); Object.keys(H).forEach(k => { const h = document.getElementById('bn-h-' + k); if (h) h.innerHTML = H[k]; });   // 16-11: hulpregels lopen mee, het veld zelf blijft staan
+  const H = _bnHints(); Object.keys(H).forEach(k => { const h = document.getElementById('bn-h-' + k); if (h) h.innerHTML = H[k]; });
+  const rs = document.getElementById('bn-regelstand'); if (rs) rs.textContent = _bnRegelstand();
 }
 function bnWie(key, waarde) {
   if (!BN) return;
