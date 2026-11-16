@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261116-0854 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261116-0915 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4732,7 +4732,6 @@
   .cr-herkomst { background:#e8effc; color:#1a3f8f; border-radius:10px; padding:9px 14px; margin-bottom:12px; font-size:.82rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .cr-herkomst a { margin-left:auto; color:#1a3f8f; text-decoration:underline; }
   .cr-bron { background:#e8f6ee; color:#0e7a4a; border-radius:99px; padding:2px 10px; font-size:.74rem; } .cr-bron.geel { background:#fdf6e0; color:#8a6410; }
   .kb-taak-tekst { width:100%; min-height:64px; box-sizing:border-box; resize:vertical; }
-  .kb-knop.tekst { width:auto; padding:0 7px; gap:4px; font-size:.66rem; font-family:inherit; white-space:nowrap; }   /* 10-11: "Datum prikken →" */
   .kb-knop.go:hover { background:rgba(244,203,60,.15); }
   .kb-knop.af { border-color:rgba(127,220,180,.5); color:#7fdcb4; }
   .kb-collega { margin-left:8px; background:var(--l1); color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:.78rem; }
@@ -12204,7 +12203,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261116-0854';
+const APP_VERSIE = '20261116-0915';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -38528,7 +38527,7 @@ function kanbanDatumTekst(c) {
   const dt = new Date(d); if (isNaN(dt)) return '';
   const dag = _accDagKort(dt.getTime());
   if (c.stage === 'Starter') return 'start ' + dag;
-  if (c.stage === 'Gesprek plannen') return 'uitgenodigd ' + dag;   // 10-11
+  if (c.stage === 'Gesprek plannen') return 'uitn. ' + dag;   // 10-11 · 16-11: kort, past in de pil
   const tijd = dt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
   return (c.stage === 'Contractvoorstel' ? 'voorstel ' : '') + dag + ' ' + tijd;
 }
@@ -38546,7 +38545,7 @@ function kanbanKaartHtml(c) {
   const mag = _kanbanMag(c.bmNaam);
   // Compact (16-09): de datumpil is meteen de wijzigknop (klant, functie, datum).
   const pilKlik = mag && fase !== 'starboy' ? ' role="button" tabindex="0" onclick="kanbanBewerkVenster(\'' + bmE + '\',\'' + idE + '\')"' : '';
-  const kort = kleur.klasse && kleur.klasse !== 'groen' ? ' · ' + escHtml(kleur.reden.split(' — ')[0].replace(' geleden', '')) : '';
+  const kort = kleur.klasse && kleur.klasse !== 'groen' ? ' · ' + escHtml(kleur.reden.split(' — ')[0].replace(' geleden', '').replace(/werkdag(en)?/, 'wd')) : '';   // 16-11: "4 wd" in Gesprek plannen
   const pil = fase === 'starboy' ? ''
     : datum ? '<span class="kb-pil' + (kleur.klasse ? ' ' + kleur.klasse : '') + (pilKlik ? ' klik' : '') + '" title="' + escHtml(kleur.reden + (pilKlik ? ' · klik: klant, functie of datum wijzigen' : '')) + '"' + pilKlik + '>' + escHtml(datum) + kort + '</span>'
     : '<span class="kb-pil let' + (pilKlik ? ' klik' : '') + '" title="Datum invullen"' + pilKlik + '>datum invullen</span>';
@@ -38556,7 +38555,7 @@ function kanbanKaartHtml(c) {
                 : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
   const taakKnop = magWijzigen('medewerkers') ? '<button class="kb-knop taak" type="button" title="Taak voor een collega — komt in zijn To Do\'s en in het gesprekslog van de kandidaat" onclick="kanbanTaakVenster(\'' + bmE + '\',\'' + idE + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/></svg></button>' : '';   // 10-11
   const knoppen = taakKnop + (mag
-    ? (volgende ? '<button class="kb-knop go' + (fase === 'gp' ? ' tekst' : '') + '" type="button" title="' + doorTitel + '" onclick="kanbanDoorVenster(\'' + bmE + '\',\'' + idE + '\')">' + (fase === 'gp' ? 'Datum prikken' : '') + doorIco + '</button>' : '') +
+    ? (volgende ? '<button class="kb-knop go" type="button" title="' + doorTitel + '" onclick="kanbanDoorVenster(\'' + bmE + '\',\'' + idE + '\')">' + doorIco + '</button>' : '') +
       '<button class="kb-knop af" type="button" title="Van het bord halen (het tegeltje blijft in de pipeline)" onclick="kanbanAfVenster(\'' + bmE + '\',\'' + idE + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4 10-10"/></svg></button>'
     : '');
   const bms = Array.isArray(c.bms) && c.bms.length ? c.bms : [c.bmNaam];
