@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261119-1205 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261119-1446 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2646,6 +2646,9 @@
   .ko-tr .st.breuk { position:relative; } .ko-tr .st.breuk::after { content:''; position:absolute; right:30px; top:-3px; bottom:-3px; width:12px; background:var(--l1); transform:skewX(-18deg); border-left:2px solid rgba(125,180,255,.7); border-right:2px solid rgba(125,180,255,.7); }
   .ko-telt-wrap { overflow:auto; max-height:46vh; margin-top:8px; } .ko-telt { width:100%; border-collapse:collapse; font-size:.8rem; } .ko-telt th { font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.55); font-weight:var(--w-nadruk); padding:5px 6px; text-align:center; background:transparent; } .ko-telt td { padding:6px; border-top:1px solid rgba(255,255,255,.09); text-align:center; color:#fff; background:transparent; } .ko-telt th:first-child, .ko-telt td:first-child { text-align:left; } .ko-telt td small { color:rgba(255,255,255,.5); margin-left:6px; font-size:.68rem; } .ko-telt input { width:16px; height:16px; accent-color:#25D366; cursor:pointer; } .ko-telt tr.tel td { border-top:2px solid rgba(255,255,255,.2); color:#F4CB3C; font-weight:var(--w-nadruk); font-size:.74rem; }
   .kand-av.samen { margin-left:-5px; box-shadow:0 0 0 2px var(--l1); } .kand-gedeeld { font-size:.6rem; border-radius:99px; padding:0 7px; background:rgba(255,255,255,.14); color:#fff; margin:0 6px 0 4px; }
+  .medew-weken-oud { margin:8px 0 4px; text-align:center; }
+  .naslag-knop { margin-left:auto; display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid rgba(244,203,60,.55); color:#F4CB3C; border-radius:8px; padding:3px 10px; font-family:inherit; font-size:.74rem; font-weight:400; letter-spacing:0; text-transform:none; cursor:pointer; } .naslag-knop:hover { background:rgba(244,203,60,.12); } .naslag-knop svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .crm-kaart.naslag-venster { max-width:900px; } .naslag-tabel { overflow:auto; }
   /* ── Koers · bijstelling 19-11 ── */
   .ko-q { position:relative; display:inline-flex; width:15px; height:15px; border-radius:50%; border:1px solid rgba(255,255,255,.45); color:rgba(255,255,255,.85); font-size:.6rem; align-items:center; justify-content:center; cursor:help; margin-left:5px; vertical-align:middle; font-weight:400; text-transform:none; letter-spacing:0; font-style:normal; flex:none; }
   .ko-q .ko-q-tekst { display:none; position:absolute; left:50%; top:20px; transform:translateX(-50%); width:280px; background:var(--l0); border:1px solid rgba(244,203,60,.55); border-radius:10px; padding:9px 11px; font-size:.76rem; line-height:1.45; color:#fff; z-index:30; text-align:left; white-space:normal; box-shadow:0 12px 30px rgba(0,0,0,.45); } .ko-q:hover .ko-q-tekst, .ko-q:focus .ko-q-tekst { display:block; } .ko-q .ko-q-tekst b { color:#F4CB3C; display:block; margin-bottom:2px; font-size:.76rem; }
@@ -7072,6 +7075,7 @@ refreshWeekConstants();
 const PVA_LOG_WEEKS = 10; // aantal historische weken dat in het logboek getoond wordt
 let PVA_LOG_OPEN = new Set(); // keys "bmNaam|jaar|week" voor open logboekbalken
 let MEDEW_SUBTAB = 'overzicht';   // 29-09: 'overzicht' | 'todo' — To Do's Team
+let MEDEW_WEKEN_OUD = false;   // 19-11: oudere weken (verder dan vier terug) staan standaard dicht
 let MEDEW_WEEK_OPEN = null; // null = nog niet geïnitialiseerd; Set zodra renderMedewerkersOverzicht eerste keer draait
 let PVA_AUTOSAVE_TIMERS = {}; // debounce-timers per bmNaam zodat getypte tekst nooit verloren gaat
 function getRecentWeeks(n) {
@@ -12332,7 +12336,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261119-1205';
+const APP_VERSIE = '20261119-1446';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13024,32 +13028,46 @@ async function laadRechten() {
 // ook niet geschakeld worden — dat is opzet: dan zie je in dit lijstje precies
 // waar de schakelaars over gaan.
 const ONDERDELEN = [
-  { sleutel:'one',         label:'Brightech ONE',           groep:'Hoofdmenu' },
+  // 19-11: namen en uitleg bijgewerkt naar wat er nu onder elk recht valt. De sleutels zijn ongewijzigd — niemand
+  // krijgt of verliest hiermee toegang.
+  { sleutel:'one',         label:'Brightech ONE',           groep:'Hoofdmenu',
+    uitleg:'De startpagina: berichten, gesprekken, challenge en mededelingen.' },
   { sleutel:'medewerkers', label:'Medewerkers',             groep:'Hoofdmenu',
-    uitleg:'De hele categorie, inclusief de kaarten van individuele collega’s.' },
-  { sleutel:'accounts',    label:'Accountmanagement',       groep:'Hoofdmenu' },
-  { sleutel:'kandidaten',  label:'Overzicht kandidaten',    groep:'Kanban',
-    uitleg:'Het weekoverzicht van intakes en kandidaten per collega (stond tot 08-10 als "Overzicht" onder Kandidaten).' },
-  { sleutel:'crm',         label:'CRM',                     groep:'Hoofdmenu',
-    uitleg:'Kandidaten en Bedrijven: dossiers, contactgegevens, documenten en gesprekslogs. Een intake in de pipeline komt uit dit CRM.' },
-  { sleutel:'team',        label:'Team Resultaten',         groep:'Medewerkers' },
-  { sleutel:'projecten',   label:'Projecten',               groep:'Management' },
-  { sleutel:'financieel',  label:'Financieel',              groep:'Management' },
-  { sleutel:'comrap',      label:'Commerciële Rapportage',  groep:'Management' },
-  { sleutel:'records',     label:'Records',                 groep:'Management' },
+    uitleg:'Het overzicht (Openstaand, Starters dit jaar, To Do’s Team, Koers team) en de kaarten van collega’s met KPI’s, To Do’s en Koers.' },
+  { sleutel:'accounts',    label:'Accountmanagement',       groep:'Hoofdmenu',
+    uitleg:'Accountplannen, Overzicht bezoeken, KAM-scores en RLDV-lijst.' },
+  { sleutel:'kandidaten',  label:'Overzicht kandidaten & Kanban', groep:'Kandidaten',
+    uitleg:'Het weekoverzicht van intakes en kandidaten per collega, en het Kanban-bord (gesprek plannen tot starter).' },
+  { sleutel:'crm',         label:'CRM & Vacatures',         groep:'Hoofdmenu',
+    uitleg:'Kandidaten, Bedrijven, Zoeken en Vacatures: dossiers, contactgegevens, documenten en gesprekslogs. Een intake in de pipeline komt uit dit CRM.' },
+  { sleutel:'team',        label:'Team Resultaten',         groep:'Medewerkers',
+    uitleg:'De grafieken, verhoudingen, normentabel en historie onderaan Medewerkers › Overzicht.' },
+  { sleutel:'projecten',   label:'Projecten',               groep:'Management',
+    uitleg:'De projectenlijn, lopende projecten, stoppers en de correcties op de lijn.' },
+  { sleutel:'financieel',  label:'Financieel',              groep:'Management',
+    uitleg:'Omzet en marge, begroting en het tabblad Ziekte.' },
+  { sleutel:'comrap',      label:'Commerciële Rapportage',  groep:'Management',
+    uitleg:'De wekelijkse commerciële rapportage met analyse.' },
+  { sleutel:'records',     label:'Records',                 groep:'Management',
+    uitleg:'Alle opnames en verslagen van intakes, bezoeken en evaluaties, met de coaching-analyse per opname.' },
   { sleutel:'mtacties',    label:'MT-Overleg',              groep:'Management',
     uitleg:'OM-Team: de actielijst en de notulen per week. En de strategie om na te lezen.' },
-  { sleutel:'hrm',         label:'HRM/Backoffice',          groep:'Kandidaten' },   // 08-10: van Management naar Kandidaten
+  { sleutel:'hrm',         label:'HRM/Backoffice',          groep:'Kandidaten',   // 08-10: van Management naar Kandidaten
+    uitleg:'Aanmeldingen, personeelsdossier, evaluatiebeheer en ziekmeldingen.' },
   { sleutel:'rldvcheck',   label:'RLDV-Check',              groep:'Management',
     uitleg:'Dezelfde lijst als het tabblad Check in de RLDV-tool, als eigen pagina.' },
-  { sleutel:'cvgen',       label:'CV-generator',            groep:'Tools' },
-  { sleutel:'plaatsing',   label:'Matchmaker',              groep:'Tools' },
+  { sleutel:'cvgen',       label:'CV-generator & Bruto-netto', groep:'Tools',
+    uitleg:'CV’s en CR’s opmaken, en de bruto-nettoberekening met proforma loonstrook.' },
+  { sleutel:'plaatsing',   label:'Matchmaker',              groep:'Tools',
+    uitleg:'Plaatsingsadvies: welke kandidaat past bij welke vacature of klant.' },
   { sleutel:'rldvtool',    label:'RLDV-tool',               groep:'Tools',
-    uitleg:'Bedrijven uit de RLDV-lijst selecteren voor één kandidaat, met historie en check.' },
-  { sleutel:'gesprek',     label:'ITK-Recorder',            groep:'Tools' },
-  { sleutel:'bezoek',      label:'BZK-Recorder',            groep:'Tools' },
-  { sleutel:'mtcoaching',  label:'MT-coaching',             groep:'Op de medewerkerkaart',
-    uitleg:'Afspraken uit het coachingsgesprek. Alleen zichtbaar voor het managementteam, niet voor de collega zelf.' },
+    uitleg:'Bedrijven uit de RLDV-lijst selecteren voor één kandidaat, met historie, check en het venster Aanbieden.' },
+  { sleutel:'gesprek',     label:'ITK-Recorder',            groep:'Tools',
+    uitleg:'Intakegesprekken opnemen; het verslag en de coaching-analyse worden vanzelf gemaakt.' },
+  { sleutel:'bezoek',      label:'BZK-Recorder',            groep:'Tools',
+    uitleg:'Bedrijfsbezoeken opnemen; het verslag en de coaching-analyse worden vanzelf gemaakt.' },
+  { sleutel:'mtcoaching',  label:'MT-coaching (archief)',   groep:'Op de medewerkerkaart',
+    uitleg:'Sinds Koers staan de afspraken met de manager in het Koersplan. Dit recht bepaalt alleen nog wie de oude MT-coaching (afspraken en notulen) via het archief op de Koers-pagina kan openen.' },
 ];
 
 // Beheer ontbreekt hier bewust en kan dus niet uit. Kon dat wel, dan zet je
@@ -17150,7 +17168,12 @@ function renderMedewerkersOverzicht() {
     const delen = [];
     let buffer  = [];
     const flush = () => { if (buffer.length) { delen.push(weekLijst(buffer)); buffer = []; } };
-    for (const w of allWeeks) {
+    // 19-11 (Toussaint): we kijken vier weken terug en één vooruit; de rest staat achter één knop. Een oudere
+    // week die open stond blijft staan, anders ben je hem kwijt.
+    const WEKEN_VOORAAN = 6;   // volgende week + huidige + vier terug
+    const oud = Math.max(0, allWeeks.length - WEKEN_VOORAAN);
+    const zichtbaar = allWeeks.slice(0, WEKEN_VOORAAN).concat(MEDEW_WEKEN_OUD ? allWeeks.slice(WEKEN_VOORAAN) : [], MEDEW_WEKEN_OUD ? [] : allWeeks.slice(WEKEN_VOORAAN).filter(w => MEDEW_WEEK_OPEN.has(w.year + '-' + w.week)));
+    for (const w of zichtbaar) {
       if (MEDEW_WEEK_OPEN.has(w.year + '-' + w.week)) {
         flush();
         delen.push(renderOpenWeek(w.year, w.week) +
@@ -17158,6 +17181,7 @@ function renderMedewerkersOverzicht() {
       } else buffer.push(w);
     }
     flush();
+    if (oud) delen.push('<div class="medew-weken-oud"><button type="button" class="kk-knop" onclick="medewWekenOud()">' + (MEDEW_WEKEN_OUD ? 'Oudere weken verbergen' : 'Oudere weken tonen (' + oud + ')') + '</button></div>');
     return delen.join('');
   })();
 
@@ -17182,12 +17206,29 @@ function renderMedewerkersOverzicht() {
     (() => { try { return _koersStartersHtml(ranking); } catch (e) { _meldStil('starters dit jaar (verhaal)', e); return '<div class="bt-venster"><div class="st-rooster">' + rankRows + '</div></div>'; } })() +   // 19-11: kaarten met een verhaal (C); de oude tegels als vangnet
     chRacebaanHtml() +
     renderGebruikBalk(CUR.year, CUR.week) +
-    '<div class="section-title" style="margin-top:28px;">KPI\'s per week <span class="sub">· teamtotaal</span></div>' +
+    '<div class="section-title" style="margin-top:28px;display:flex;align-items:center;gap:10px;"><span>KPI\'s per week <span class="sub">· teamtotaal</span></span>' + (team ? _naslagKnop('hist', 'Historie per jaar') : '') + '</div>' +
     weekHtml +
     (team ? team.html : '') +
   '</div>');
   if (team && MEDEW_SUBTAB !== 'todo') setTimeout(team.grafieken, 50);
 }
+// ── Naslag team (19-11, B2): twee tabellen die je af en toe opzoekt, in één venster met twee tabbladen ───────────
+let NASLAG = null;   // { norm, hist, stand } — gevuld door renderTeam
+function _naslagKnop(welk, tekst) {
+  const ic = welk === 'hist' ? '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 8v4l3 2"/>' : '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>';
+  return '<button type="button" class="naslag-knop" onclick="naslagOpen(\'' + welk + '\')" title="Opent in een venster"><svg viewBox="0 0 24 24" aria-hidden="true">' + ic + '</svg>' + escHtml(tekst) + '</button>';
+}
+function naslagOpen(welk) {
+  if (!NASLAG) return;
+  NASLAG.stand = welk === 'norm' ? 'norm' : 'hist';
+  const tab = (w, t) => '<button type="button" class="' + (NASLAG.stand === w ? 'aan' : '') + '" onclick="naslagOpen(\'' + w + '\')">' + t + '</button>';
+  crmKaartToon('<h4 class="wit">Naslag team</h4>' +
+    '<div class="ko-schakel" style="margin:8px 0 10px;width:max-content;">' + tab('hist', 'Historie per jaar') + tab('norm', "Normentabel nieuwe BM's") + '</div>' +
+    '<div class="crm-sub" style="margin-bottom:8px;">' + (NASLAG.stand === 'hist' ? 'Teamtotalen per kalenderjaar. "Mensen" = collega\'s met cijfers in dat jaar.' : 'Wat er per week bij een jaardoel hoort, gerekend met de teamverhoudingen van de laatste 26 weken.') + '</div>' +
+    '<div class="bt-venster naslag-tabel">' + (NASLAG.stand === 'hist' ? NASLAG.hist : NASLAG.norm) + '</div>' +
+    '<div class="crm-knoppen"><button class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>', 'crm-kaart-breed naslag-venster');
+}
+function medewWekenOud() { MEDEW_WEKEN_OUD = !MEDEW_WEKEN_OUD; render(); }
 function medewSubTab(t) { MEDEW_SUBTAB = ['todo', 'koers'].includes(t) ? t : 'overzicht'; render(); }
 
 function renderTeam(opties) {
@@ -17296,6 +17337,7 @@ function renderTeam(opties) {
     <!-- Individuele ratio's -->
     <div class="section-title" style="display:flex;align-items:center;gap:14px;">
       <span>Individuele ratio's huidige BM's</span>
+      ${_naslagKnop('norm', "Normentabel nieuwe BM's")}
       <span class="ratio-schakel">
         <button type="button" class="${RATIO_BEREIK === 'ytd' ? '' : 'aan'}" onclick="zetRatioBereik('26')">laatste 26 weken</button>
         <button type="button" class="${RATIO_BEREIK === 'ytd' ? 'aan' : ''}" onclick="zetRatioBereik('ytd')">${'YTD ' + year}</button>
@@ -17321,27 +17363,10 @@ function renderTeam(opties) {
           <div style="font-size:var(--t-xs);color:rgba(255,255,255,.35);margin:2px 0 8px;" id="mnorm-${k}"></div>
           <div style="position:relative;height:140px;"><canvas id="chartM-${k}"></canvas></div>
         </div>`).join('')}
-    </div>
-
-    <!-- Normentabel -->
-    <div class="section-title">Normentabel nieuwe BM's – per week</div>
-    <div class="bt-venster"><table class="bt-cijfers">
-      <thead><tr>
-        <th>Jaardoel</th><th>Intakes/wk</th><th>Bezoeken/wk</th>
-        <th>Aanbied./wk</th><th>Match/wk</th><th>Contractvoorstel/wk</th><th>Starters/wk</th>
-      </tr></thead>
-      <tbody>${doelRijen}</tbody>
-    </table></div>
-
-    <!-- Historisch -->
-    <div class="section-title">Team historisch overzicht per jaar</div>
-    <div class="bt-venster"><table class="bt-cijfers">
-      <thead><tr>
-        <th>Jaar</th><th>Intakes</th><th>Bezoeken</th>
-        <th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Mensen</th>
-      </tr></thead>
-      <tbody>${histRows}</tbody>
-    </table></div>`;
+    </div>`;
+  // 19-11 (B2): de normentabel en de historie staan niet meer op de pagina; ze openen in het venster Naslag team.
+  NASLAG = { norm: `<table class="bt-cijfers"><thead><tr><th>Jaardoel</th><th>Intakes/wk</th><th>Bezoeken/wk</th><th>Aanbied./wk</th><th>Match/wk</th><th>Contractvoorstel/wk</th><th>Starters/wk</th></tr></thead><tbody>${doelRijen}</tbody></table>`,
+             hist: `<table class="bt-cijfers"><thead><tr><th>Jaar</th><th>Intakes</th><th>Bezoeken</th><th>Aanbiedingen</th><th>Match</th><th>Contractvoorstel</th><th>Starters</th><th>Mensen</th></tr></thead><tbody>${histRows}</tbody></table>`, stand: (NASLAG && NASLAG.stand) || 'hist' };
 
   const grafieken = () => {
     // 1. Activiteiten staafdiagram per maand — incl. aanbiedingen en % t.o.v. teamnorm (tooltip)
