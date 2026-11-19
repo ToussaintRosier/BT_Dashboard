@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261119-0844 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261119-0859 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2628,6 +2628,14 @@
   .kd-groot { font-size:.85rem; padding:8px 14px; margin-top:12px; border:0; cursor:pointer; font-family:inherit; }
   .kd-ok { color:var(--groen, #25D366); } .kd-wacht { color:#ffb067; }
   .kd-nw { white-space:nowrap; } .kd-st-cel { width:170px; white-space:nowrap; } .kd-st { font-size:.74rem; }
+  /* ── Starters dit jaar · kaarten met een verhaal (19-11) ── */
+  .sv-rooster { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; } @media (max-width: 1100px) { .sv-rooster { grid-template-columns:repeat(2, 1fr); } } @media (max-width: 640px) { .sv-rooster { grid-template-columns:1fr; } }
+  .sv-kaart { background:var(--l1); border-radius:14px; padding:13px 15px; display:grid; gap:9px; align-content:start; color:#fff; min-width:0; } .sv-kaart.nog-niet { opacity:.6; }
+  .sv-top { display:flex; align-items:center; gap:10px; min-width:0; } .sv-ring { width:54px; height:54px; flex:none; } .sv-ring text { font-family:inherit; }
+  .sv-naam { min-width:0; flex:1; } .sv-naam a { color:#fff; text-decoration:none; } .sv-naam a:hover b { color:#F4CB3C; } .sv-naam b { font-size:.95rem; font-weight:var(--w-nadruk); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .sv-naam small { color:rgba(255,255,255,.55); font-size:.72rem; }
+  .sv-eind { text-align:right; flex:none; } .sv-eind b { font-size:1.5rem; line-height:1; font-weight:var(--w-nadruk); display:block; } .sv-eind small { font-size:.66rem; color:rgba(255,255,255,.6); }
+  .sv-zin { font-size:.8rem; color:rgba(255,255,255,.88); line-height:1.45; min-height:3.4em; } .sv-zin b { color:#F4CB3C; font-weight:var(--w-nadruk); }
+  .sv-drie { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; } .sv-drie span { background:var(--l2); border-radius:9px; padding:6px 9px; font-size:.68rem; color:rgba(255,255,255,.65); cursor:pointer; } .sv-drie span:hover { background:rgba(255,255,255,.14); } .sv-drie b { display:block; font-size:.98rem; color:#fff; font-weight:var(--w-nadruk); } .sv-drie .nul b { color:rgba(255,255,255,.35); }
   /* ── Koers · bijstelling 19-11 ── */
   .ko-q { position:relative; display:inline-flex; width:15px; height:15px; border-radius:50%; border:1px solid rgba(255,255,255,.45); color:rgba(255,255,255,.85); font-size:.6rem; align-items:center; justify-content:center; cursor:help; margin-left:5px; vertical-align:middle; font-weight:400; text-transform:none; letter-spacing:0; font-style:normal; flex:none; }
   .ko-q .ko-q-tekst { display:none; position:absolute; left:50%; top:20px; transform:translateX(-50%); width:280px; background:var(--l0); border:1px solid rgba(244,203,60,.55); border-radius:10px; padding:9px 11px; font-size:.76rem; line-height:1.45; color:#fff; z-index:30; text-align:left; white-space:normal; box-shadow:0 12px 30px rgba(0,0,0,.45); } .ko-q:hover .ko-q-tekst, .ko-q:focus .ko-q-tekst { display:block; } .ko-q .ko-q-tekst b { color:#F4CB3C; display:block; margin-bottom:2px; font-size:.76rem; }
@@ -7182,6 +7190,9 @@ function collegaStartPilHtml(naam) {
 // Iedereen die cijfers kán maken. Uit dienst blijft hier wél in staan: hun
 // historie hoort in de overzichten thuis. Backoffice valt af — die heeft geen
 // commerciële rol en dus in geen enkel cijfer iets te zoeken.
+// 19-11 (Toussaint): een verzamelprofiel als "Recruitment Consultant (Stagiaires)" is geen collega — niet in de
+// overzichten en niet meetellen als medewerker. Krijgt bij het laden de vlag special, net als backoffice.
+const GEEN_COLLEGA = /stagiair/i;
 function bmsMetCijfers() { return BMS.filter(b => !b.special); }
 
 // Is deze medewerker in deze week nog in dienst?
@@ -12288,7 +12299,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261119-0844';
+const APP_VERSIE = '20261119-0859';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -17119,7 +17130,7 @@ function renderMedewerkersOverzicht() {
     '<div class="section-title" style="margin:6px 0 8px 2px;">Openstaand <span class="sub">· team · aanbiedingen en lopende procedures</span></div>' +
     '<div class="bt-venster" style="margin-bottom:14px;">' + _aanbTellerHtml(null) + '</div>' +
     '<div class="section-title" style="margin:6px 0 8px 2px;">Starters dit jaar</div>' +
-    '<div class="bt-venster"><div class="st-rooster">' + rankRows + '</div></div>' +
+    '<div class="bt-venster">' + (() => { try { return _koersStartersHtml(ranking); } catch (e) { _meldStil('starters dit jaar (verhaal)', e); return '<div class="st-rooster">' + rankRows + '</div>'; } })() + '</div>' +   // 19-11: kaarten met een verhaal (C); de oude tegels als vangnet
     chRacebaanHtml() +
     renderGebruikBalk(CUR.year, CUR.week) +
     '<div class="section-title" style="margin-top:28px;">KPI\'s per week <span class="sub">· teamtotaal</span></div>' +
@@ -19886,7 +19897,7 @@ async function loadBeheerData() {
 
     // Special-vlag: overnemen uit hardcoded BMS (bijv. backoffice-medewerkers die alleen in dropdowns mogen)
     const bestaandBMS = BMS.find(b => b.naam === naam);
-    if (bestaandBMS?.special) bm.special = true;
+    if (bestaandBMS?.special || GEEN_COLLEGA.test(naam)) bm.special = true;   // 19-11: verzamelprofiel stagiaires is geen collega
 
     // KAM: expliciet in DB of al aangemerkt in huidige BMS
     if (p.rol === 'kam' || bestaandBMS?.rol === 'Key Accountmanager') {
@@ -23057,6 +23068,39 @@ function koersTeamDoelroute() {
   const nodig = KOERS_STAND.periode === 'volgend' ? T.jaar.doel / 52 : Math.max(0, (T.jaar.doel - T.jaar.ytd) / T.weeks);
   w.m = b0.N; w.i = Math.max(0.1, nodig / b0.N / (w.api * w.conv));
   _koersTeamWatHerteken();
+}
+// ── Starters dit jaar als kaarten met een verhaal (19-11, ontwerp_starters_dit_jaar · C) ─────────────────────────
+// De zin komt uit vaste bouwstenen (geen AI): waar kom je uit, wat zit er op het bord, waar zit de winst.
+function _koersStartersZin(K, t, hef) {
+  const j = K.jaar, g = t.gp + t.g1 + t.g2 + t.g3, opBord = (t.contract ? '<b>' + t.contract + (t.contract === 1 ? ' contractvoorstel' : ' contractvoorstellen') + '</b>' + (g ? ' en ' : '') : '') + (g ? '<b>' + g + (g === 1 ? ' gesprek' : ' gesprekken') + '</b>' : '');
+  if (K.mix < 0.01) return 'In opbouw' + (K.n26 ? ' (week ' + K.n26 + ')' : '') + '. ' + (t.aang || g ? 'Al ' + (t.aang ? '<b>' + t.aang + (t.aang === 1 ? ' aanbieding' : ' aanbiedingen') + '</b>' : '') + (t.aang && g ? ' en ' : '') + (g ? g + (g === 1 ? ' gesprek' : ' gesprekken') : '') + ' — de eerste starter is een kwestie van doorzetten.' : 'Eerste doel: de aanbiedingen op gang.');
+  if (j.doel && j.ytd >= j.doel) return '<b>Jaardoel gehaald</b>' + (opBord ? ', en er loopt nog door: ' + opBord + ' op het bord.' : '.') + ' Alles wat nu start is winst.';
+  const p = j.doel ? j.mid / j.doel : 0;
+  const kop = !j.doel ? 'Op koers voor ' + _koersGetal(j.mid) + ' starters.' : p >= 0.95 ? 'Bijna op je jaardoel.' : p >= 0.8 ? 'Op koers voor ' + _koersGetal(j.mid) + ' van ' + _koersGetal(j.doel, j.doel % 1 ? 1 : 0) + '.' : 'Op koers voor ' + _koersGetal(j.mid) + ' van ' + _koersGetal(j.doel, j.doel % 1 ? 1 : 0) + ' — nog ' + _koersGetal(j.doel - j.mid) + ' te gaan.';
+  return kop + (opBord ? ' Met ' + opBord + ' op het bord zit er nog ±' + _koersGetal(K.onderweg.starters) + ' in' : ' Het bord is nog leeg: nieuwe gesprekken zijn de weg') + (hef ? '; de winst zit bij <b>' + escHtml(hef.label) + '</b>.' : '.');
+}
+function _koersRingSvg(gestart, koers, kleur, tekst) {
+  const O = 2 * Math.PI * 22, deel = (v) => (Math.max(0, Math.min(1, v)) * O).toFixed(1) + ' ' + O.toFixed(1);
+  return '<svg class="sv-ring" viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="22" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/>' +
+    '<circle cx="27" cy="27" r="22" fill="none" stroke="' + kleur + '" stroke-opacity=".4" stroke-width="6" stroke-dasharray="' + deel(koers) + '" transform="rotate(-90 27 27)"/>' +
+    '<circle cx="27" cy="27" r="22" fill="none" stroke="' + kleur + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + deel(gestart) + '" transform="rotate(-90 27 27)"/>' +
+    '<text x="27" y="31" fill="#fff" font-size="' + (tekst.length > 4 ? 9 : 11) + '" font-weight="600" text-anchor="middle">' + tekst + '</text></svg>';
+}
+function _koersStartersHtml(ranking) {
+  const rijen = ranking.map(r => { const K = koersVan(r.bm, 'jaar'); return { bm: r.bm, K, opbouw: K.mix < 0.01, p: K.jaar.doel ? K.jaar.mid / K.jaar.doel : 0 }; })
+    .sort((a, b) => (a.opbouw ? 1 : 0) - (b.opbouw ? 1 : 0) || b.p - a.p);
+  return '<div class="sv-rooster">' + rijen.map(x => {
+    const bm = x.bm, K = x.K, j = K.jaar, t = _aanbTellerVan(bm.naam), nE = escApos(bm.naam), nogNiet = collegaNogNietGestart(bm.naam);
+    const kleur = x.opbouw ? '#7db4ff' : j.doel && j.ytd >= j.doel ? '#25D366' : x.p >= 0.85 ? '#F4CB3C' : '#E87400';
+    const naarKanban = "KANBAN.collega='" + nE + "';selectTab('kanban')", g = t.gp + t.g1 + t.g2 + t.g3;
+    const vak = (n, label, klik, titel) => '<span class="' + (n ? '' : 'nul') + '" onclick="' + klik + '" title="' + escHtml(titel) + '"><b>' + n + '</b>' + label + '</span>';
+    return '<div class="sv-kaart' + (x.opbouw ? ' opbouw' : '') + (nogNiet ? ' nog-niet' : '') + '"><div class="sv-top">' + _koersRingSvg(j.doel ? j.ytd / j.doel : 0, x.p, kleur, x.opbouw ? 'opbouw' : Math.round(x.p * 100) + '%') +
+      '<span class="sv-naam"><a href="#" onclick="event.preventDefault();bmSubTab = \'koers\';selectTab(' + BMS.indexOf(bm) + ')" title="Naar de Koers van ' + escHtml(bm.naam) + '"><b>' + escHtml(bm.naam) + '</b></a><small>' + _koersGetal(j.ytd) + ' gestart · jaardoel ' + _koersGetal(j.doel, j.doel % 1 ? 1 : 0) + (bm.doelOnbekend ? ' (niet ingesteld)' : '') + '</small></span>' +
+      '<span class="sv-eind"><b>' + _koersGetal(j.mid) + '</b><small>op koers 31-12</small></span></div>' +
+      '<div class="sv-zin">' + (nogNiet ? collegaStartPilHtml(bm.naam) : _koersStartersZin(K, t, _koersHefboom(K))) + '</div>' +
+      '<div class="sv-drie">' + vak(t.aang, 'aangeboden', "aanbOpenVenster('" + nE + "')", 'Wachten op terugkoppeling · klik voor de lijst' + (t.tedoen ? ' · nog ' + t.tedoen + ' aan te bieden' : '')) +
+        vak(g, 'in gesprek', naarKanban, 'Gesprek plannen ' + t.gp + ' · 1ste ' + t.g1 + ' · 2de ' + t.g2 + ' · 3de ' + t.g3 + ' · in de Kanban') + vak(t.contract, 'contract', naarKanban, 'Contractvoorstellen · in de Kanban') + '</div></div>';
+  }).join('') + '</div>';
 }
 // ═══ KOERS · stap 2–4 (18-11, ontwerp_koers_keuzes: 1B+C · 2A · 3B · 4A) ════════════════════════════════════════
 // Blok 3 (gespreksvoering uit records + inzichten), blok 4 (Koersplan), automatische coaching-analyse op elke
