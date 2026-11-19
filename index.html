@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261119-1501 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261119-1726 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -1778,6 +1778,8 @@
   .ch-cor-grp { font-size:.7rem; color:#F4CB3C; letter-spacing:.08em; text-transform:uppercase; margin:12px 0 4px; }
   .ch-cor-rij { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:0.5px solid rgba(255,255,255,.07); font-size:.84rem; color:#fff; }
   .ch-cor-rij small { color:rgba(255,255,255,.5); font-size:.72rem; } .ch-cor-rij.leeg { color:rgba(255,255,255,.4); }
+  .ch-cor-rij .wie { flex:0 1 auto; min-width:0; } .ch-cor-rij > small { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ch-cor-rij.uit .wie { text-decoration:line-through; opacity:.6; } .ch-cor-w { margin-left:auto; color:#fff; }
+  .ch-cor-seg { margin-left:auto; display:inline-flex; flex:none; border:1px solid rgba(255,255,255,.25); border-radius:8px; overflow:hidden; } .ch-cor-seg button { background:transparent; border:0; color:#fff; padding:3px 10px; font-family:inherit; font-size:.76rem; cursor:pointer; } .ch-cor-seg button + button { border-left:1px solid rgba(255,255,255,.18); } .ch-cor-seg button:hover { background:rgba(255,255,255,.1); } .ch-cor-seg button.aan { background:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); } .ch-cor-seg button.aan.niet { background:#ff9b9b; } .ch-cor-seg + .ch-cor-x { margin-left:8px; }
   .ch-cor-x { margin-left:auto; background:none; border:0; color:rgba(255,255,255,.45); cursor:pointer; font-size:.85rem; } .ch-cor-x:hover { color:#ff8a8a; }
   .ch-baan .lijn { position:absolute; left:0; right:0; top:50%; height:2px; background:rgba(255,255,255,.12); }
   .ch-baan .finish { position:absolute; right:0; top:4px; bottom:4px; width:0; border-right:2px dashed #F4CB3C; }
@@ -9894,6 +9896,13 @@ const CH_MEETLATTEN = [
   { s: 'starters', l: 'Starters', stage: 'Starter', ev: 'starter', mv: 'starters' },
   { s: 'voordrachten', l: 'Voorgedragen kandidaten (handmatig)', stage: null, ev: 'voordracht', mv: 'voordrachten' },
 ];
+// Wie mag een challenge corrigeren (19-11): de uitdager, de beheerder, en wie het recht "Challenge corrigeren" heeft.
+function _chMagCorrigeren(ch) {
+  if (!ch || !CURRENT_USER) return false;
+  if (typeof magWijzigen === 'function' && !magWijzigen('one')) return false;
+  const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
+  return ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()) || (typeof rechtVoor === 'function' && rechtVoor(CURRENT_USER, 'challengecor') !== 'geen');
+}
 function _chMeetlat(ch) { return CH_MEETLATTEN.find(m => m.s === ch.meetlat) || CH_MEETLATTEN[0]; }
 async function loadChallenges() {
   if (!supa) return;
@@ -9923,13 +9932,17 @@ function _chKaartenVan(ch, naam) {
     if (bedrijf && !String(c.opdrachtgever || c.kanban_klant || '').toLowerCase().includes(bedrijf)) return;
     if (functie && !String(c.functie || c.kanban_functie || '').toLowerCase().includes(functie)) return;
     if (regio && !String(c.regio || '').toLowerCase().includes(regio)) return;
-    uit.push({ naam: String(c.naam || ''), klant: String(c.opdrachtgever || c.kanban_klant || ''), ms, gedeeld: !!c.gedeeld, waarde: ml.s === 'aanbiedingen' ? (+c.aanb || 1) : telKaarten([c], ml.stage) });   // gedeeld = 0,5 via de ene telfunctie
+    uit.push({ id: c.id, naam: String(c.naam || ''), klant: String(c.opdrachtgever || c.kanban_klant || ''), ms, gedeeld: !!c.gedeeld, waarde: ml.s === 'aanbiedingen' ? (+c.aanb || 1) : telKaarten([c], ml.stage) });   // gedeeld = 0,5 via de ene telfunctie
   });
+  // 19-11: een correctie (soort 'correctie', sleutel 'kaart:<id>') laat een tegeltje voor déze challenge anders tellen
+  // — 0 = telt niet mee. Het tegeltje blijft in de lijst, met wat het zonder correctie was (basis).
+  const cors = (CH_VOORDRACHTEN || []).filter(v => v.soort === 'correctie' && String(v.challenge_id) === String(ch.id) && v.naam === naam);
+  if (cors.length) uit.forEach(x => { const c = cors.find(v => v.kand_sleutel === 'kaart:' + x.id); if (c) { x.basis = x.waarde; x.waarde = +c.waarde || 0; x.cor = c; } });
   return uit;
 }
 function _chGetal(v) { const n = +v || 0; return n % 1 ? n.toFixed(1).replace('.', ',') : String(n); }
 function _chTelt(ch, naam) {
-  if (ch.meetlat === 'voordrachten') return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam).length;
+  if (ch.meetlat === 'voordrachten') return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam && v.soort !== 'correctie').length;
   let n = 0;
   _chKaartenVan(ch, naam).forEach(x => { n += x.waarde; });
   return n + _chPunten(ch, naam);   // 14-10: handmatige punten tellen mee
@@ -10219,7 +10232,7 @@ function _chBaanRegel(ch, nu) {
   if (status === 'lopend' && mag && mijn && mijn.status === 'accepteert') knoppen += ch.meetlat === 'voordrachten'
     ? '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chVoordragenVenster(' + ch.id + ')">+ Voordragen</button>'
     : '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chPuntVenster(' + ch.id + ')">+ Punt</button>';
-  if (mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>';
+  if (_chMagCorrigeren(ch)) knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>';
   knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chWieTeltVenster(' + ch.id + ')">Wie telt mee</button>';   // 19-11: voor iedereen
   if (ch.meetlat !== 'voordrachten') knoppen += '<span class="ch-baan-auto">telt uit de pipeline + punten</span>';
   return '<div class="ch-baan-regel" onclick="chNaarOne()">' +
@@ -10229,14 +10242,17 @@ function _chBaanRegel(ch, nu) {
     (knoppen ? '<div class="ch-baan-knoppen">' + knoppen + '</div>' : '') + '</div>' + _chLaatsteHtml(ch) + '</div>';
 }
 // ── + Punt (14-10): een handmatig punt bij een pipeline-meetlat ──────────────
-function chPuntVenster(chId) {
+function chPuntVenster(chId, voorAnder) {
   const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId)); if (!ch) return;
   crmKaartToon('<h4 class="wit">+ Punt — ' + escHtml(ch.titel) + '</h4><div class="ch-vorm"><label>Kandidaat (uit CRM)</label>' +
     _kiezerHtml({ id: 'ch-punt-kand', klasse: 'donker', lijst: _kzKandidaten, waarde: '', placeholder: 'kies of typ een naam uit CRM…', nieuw: false }) +
-    (() => { const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || ''), anderen = _chDeelnemers(ch).filter(x => x.status === 'accepteert' && x.naam !== ik);
-      return !anderen.length ? '<input type="hidden" id="ch-punt-deel" value="ik">' : '<label>Voor wie</label><input type="hidden" id="ch-punt-deel" value="ik">' +
-        '<div class="ch-punt-keuze"><button type="button" class="aan" onclick="chPuntDeel(\'ik\', this)">Alleen ik · 1 punt</button><button type="button" onclick="chPuntDeel(\'gedeeld\', this)">Gedeeld · ieder ½</button></div>' +
-        '<div id="ch-punt-met-rij" hidden><label>Gedeeld met</label><select id="ch-punt-met">' + anderen.map(x => '<option value="' + escHtml(x.naam) + '">' + escHtml(x.naam) + '</option>').join('') + '</select></div>'; })() +
+    (() => { const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || ''), deel = _chDeelnemers(ch).filter(x => x.status === 'accepteert'), cor = _chMagCorrigeren(ch), anderen = deel.filter(x => cor || x.naam !== ik);
+      const opt = (l, kies) => l.map(x => '<option value="' + escHtml(x.naam) + '"' + (x.naam === kies ? ' selected' : '') + '>' + escHtml(x.naam) + '</option>').join('');
+      // 19-11: wie mag corrigeren zet een punt ook voor een collega.
+      const voor = cor && deel.length ? '<label>Punt voor</label><select id="ch-punt-voor">' + opt(deel, ik) + '</select>' : '';
+      return voor + (!anderen.length || (cor && deel.length < 2) ? '<input type="hidden" id="ch-punt-deel" value="ik">' : '<label>' + (cor ? 'Telt als' : 'Voor wie') + '</label><input type="hidden" id="ch-punt-deel" value="ik">' +
+        '<div class="ch-punt-keuze"><button type="button" class="aan" onclick="chPuntDeel(\'ik\', this)">' + (cor ? 'Alleen deze collega' : 'Alleen ik') + ' · 1 punt</button><button type="button" onclick="chPuntDeel(\'gedeeld\', this)">Gedeeld · ieder ½</button></div>' +
+        '<div id="ch-punt-met-rij" hidden><label>Gedeeld met</label><select id="ch-punt-met">' + opt(anderen, '') + '</select></div>'); })() +
     '<label>Reden (optioneel)</label><input id="ch-punt-reden" placeholder="bijv. intake gepland, stond niet in de pipeline">' +
     '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop goed" onclick="chPuntToevoegen(' + ch.id + ')">Punt toevoegen</button><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div></div>', 'crm-kaart-smal');
   const inp = document.getElementById('ch-punt-kand'); if (inp && inp.focus) inp.focus();
@@ -10247,7 +10263,7 @@ function chPuntDeel(wat, knop) {
   if (knop && knop.parentNode) Array.from(knop.parentNode.children).forEach(b => b.classList.toggle('aan', b === knop));
 }
 // "Wie telt mee" (19-11): voor alle deelnemers zichtbaar welke kandidaten er per collega meetellen — uit de pipeline
-// en als handmatig punt, met wat ze tellen. Weghalen blijft bij Corrigeren (uitdager of beheerder).
+// en als handmatig punt, met wat ze tellen. Aanpassen gaat via Corrigeren (_chMagCorrigeren).
 function chWieTeltVenster(chId) {
   const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId)); if (!ch) return;
   const deel = _chDeelnemers(ch).filter(x => x.status === 'accepteert');
@@ -10255,10 +10271,10 @@ function chWieTeltVenster(chId) {
   const rij = (naam, soort, sub, waarde) => '<div class="ch-wt-rij"><span>' + escHtml(naam) + '</span><span class="ch-wt-pil ' + soort + '">' + (soort === 'pijp' ? 'pipeline' : soort === 'punt' ? 'punt' : 'voordracht') + '</span><small>' + escHtml(sub) + '</small><b>' + _chGetal(waarde) + '</b></div>';
   const html = '<h4 class="wit">Wie telt mee — ' + escHtml(ch.titel) + '</h4><div class="crm-sub">Per deelnemer wat er meetelt. Een gedeelde kandidaat telt voor ieder ½.</div>' +
     deel.map(d => {
-      const kaarten = ch.meetlat === 'voordrachten' ? [] : _chKaartenVan(ch, d.naam).sort((a, b) => b.ms - a.ms), eigen = vds.filter(v => v.naam === d.naam).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      const kaarten = ch.meetlat === 'voordrachten' ? [] : _chKaartenVan(ch, d.naam).sort((a, b) => b.ms - a.ms), eigen = vds.filter(v => v.naam === d.naam && v.soort !== 'correctie').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
       const totaal = ch.meetlat === 'voordrachten' ? eigen.length : _chTelt(ch, d.naam);
       return '<div class="ch-cor-grp ch-wt-grp"><span>' + escHtml(d.naam) + '</span><b>' + _chGetal(totaal) + '</b></div>' +
-        kaarten.map(k => rij(k.naam || '(zonder naam)', 'pijp', [k.gedeeld ? 'gedeeld' : '', k.klant, _crmDatum(k.ms)].filter(Boolean).join(' · '), k.waarde)).join('') +
+        kaarten.map(k => rij(k.naam || '(zonder naam)', 'pijp', [k.cor ? (k.waarde ? 'aangepast' : 'telt niet mee') + (k.cor.reden ? ': ' + k.cor.reden : '') : '', k.gedeeld ? 'gedeeld' : '', k.klant, _crmDatum(k.ms)].filter(Boolean).join(' · '), k.waarde)).join('') +
         eigen.map(v => rij(v.kand_naam || v.kand_sleutel || '?', v.soort === 'punt' ? 'punt' : 'vd', [v.gedeeld_met ? 'gedeeld met ' + String(v.gedeeld_met).split(' ')[0] : '', v.reden || '', _crmDatum(Date.parse(v.created_at))].filter(Boolean).join(' · '), v.soort === 'punt' && v.waarde != null && isFinite(+v.waarde) ? +v.waarde : 1)).join('') +
         (!kaarten.length && !eigen.length ? '<div class="ch-cor-rij leeg">nog niets</div>' : '');
     }).join('') +
@@ -10274,9 +10290,10 @@ async function chPuntToevoegen(chId) {
   const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
   // 19-11: gedeeld → in één keer een half punt bij jou en bij de collega (beide met "gedeeld met").
   const gedeeld = String((document.getElementById('ch-punt-deel') || {}).value || '') === 'gedeeld', met = gedeeld ? String((document.getElementById('ch-punt-met') || {}).value || '') : '';
-  if (gedeeld && (!met || met === ik)) { btMeld('Kies de collega met wie je deze deelt.', 'geel'); return; }
-  const basis = { challenge_id: chId, kand_sleutel: k.sleutel, kand_naam: k.naam, soort: 'punt', reden: reden || null };
-  const rijen = gedeeld ? [{ ...basis, naam: ik, waarde: 0.5, gedeeld_met: met }, { ...basis, naam: met, waarde: 0.5, gedeeld_met: ik }] : [{ ...basis, naam: ik }];
+  const voorEl = document.getElementById('ch-punt-voor'), voor = voorEl && _chMagCorrigeren((CHALLENGES || []).find(c => String(c.id) === String(chId))) ? String(voorEl.value || ik) : ik;
+  if (gedeeld && (!met || met === voor)) { btMeld('Kies een andere collega om mee te delen.', 'geel'); return; }
+  const basis = { challenge_id: chId, kand_sleutel: k.sleutel, kand_naam: k.naam, soort: 'punt', reden: [reden, voor !== ik ? 'toegevoegd door ' + ik.split(' ')[0] : ''].filter(Boolean).join(' · ') || null };
+  const rijen = gedeeld ? [{ ...basis, naam: voor, waarde: 0.5, gedeeld_met: met }, { ...basis, naam: met, waarde: 0.5, gedeeld_met: voor }] : [{ ...basis, naam: voor }];
   _echoVanZelf('challenge_voordrachten');
   const { error } = await supa.from('challenge_voordrachten').insert(rijen);
   if (error) {
@@ -10287,7 +10304,7 @@ async function chPuntToevoegen(chId) {
   }
   crmKaartSluit(); await loadChallenges(); _chPuntGezienZet();
   if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht();
-  btMeld(gedeeld ? 'Half punt toegevoegd bij jou en bij ' + met.split(' ')[0] + ': ' + k.naam + '.' : 'Punt toegevoegd: ' + k.naam + '.', 'groen');
+  btMeld(gedeeld ? 'Half punt toegevoegd bij ' + (voor === ik ? 'jou' : voor.split(' ')[0]) + ' en bij ' + met.split(' ')[0] + ': ' + k.naam + '.' : 'Punt toegevoegd' + (voor === ik ? '' : ' bij ' + voor.split(' ')[0]) + ': ' + k.naam + '.', 'groen');
 }
 // Bij iedereen live (14-10): nieuwe punten van een ander → melding en de loper licht op.
 function _chPuntLive(nieuwe) {
@@ -10301,21 +10318,73 @@ function _chPuntLive(nieuwe) {
 function chCorrigeerVenster(chId) {
   const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId));
   if (!ch) return;
-  const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
-  const mag = (typeof magWijzigen === 'function' ? magWijzigen('one') : true) && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()));
+  const mag = _chMagCorrigeren(ch), pijp = ch.meetlat !== 'voordrachten', aanb = ch.meetlat === 'aanbiedingen';
   const deel = _chDeelnemers(ch).filter(x => x.status === 'accepteert');
-  const vds = (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(chId));
-  const html = '<h4 class="wit">' + (ch.meetlat === 'voordrachten' ? 'Voordrachten' : 'Punten') + ' corrigeren — ' + escHtml(ch.titel) + '</h4>' +
+  const vds = (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(chId) && v.soort !== 'correctie');
+  const seg = (keuzes, nu, klik) => '<span class="ch-cor-seg">' + keuzes.map(([w, t]) => '<button type="button" class="' + (nu === w ? 'aan' : '') + (w === 0 ? ' niet' : '') + '" onclick="' + klik(w) + '">' + t + '</button>').join('') + '</span>';
+  const html = '<h4 class="wit">Challenge corrigeren — ' + escHtml(ch.titel) + '</h4>' +
+    '<div class="crm-sub">' + (pijp ? 'Per deelnemer wat er meetelt. Een tegeltje uit de pipeline kun je voor deze challenge anders laten tellen of uitsluiten; de weekcijfers en het Kanban-bord veranderen daar niet van. Iedereen ziet de aanpassing onder "Wie telt mee".' : 'Per deelnemer wat er is voorgedragen.') + '</div>' +
     deel.map(d => {
-      const eigen = vds.filter(v => v.naam === d.naam);
-      return '<div class="ch-cor-grp">' + escHtml(d.naam) + ' · ' + eigen.length + '</div>' +
-        (eigen.length ? eigen.map(v => '<div class="ch-cor-rij"><span>' + escHtml(v.kand_naam || v.kand_sleutel) + (v.soort === 'punt' ? ' <small>· punt' + (v.reden ? ': ' + escHtml(v.reden) : '') + '</small>' : '') + '</span><small>' + escHtml(_crmDatum(Date.parse(v.created_at))) + '</small>' +
-          (mag ? '<button type="button" class="ch-cor-x" title="Weghalen" onclick="chVoordrachtWeg(' + v.id + ')">✕</button>' : '') + '</div>').join('')
-        : '<div class="ch-cor-rij leeg">' + (ch.meetlat === 'voordrachten' ? 'nog niets voorgedragen' : 'nog geen handmatige punten') + '</div>');
+      const kaarten = pijp ? _chKaartenVan(ch, d.naam).sort((a, b) => b.ms - a.ms) : [], eigen = vds.filter(v => v.naam === d.naam).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      const n = escHtml(escApos(d.naam));
+      return '<div class="ch-cor-grp ch-wt-grp"><span>' + escHtml(d.naam) + '</span><b>' + _chGetal(pijp ? _chTelt(ch, d.naam) : eigen.length) + '</b></div>' +
+        kaarten.map(k => { const basis = k.basis != null ? k.basis : k.waarde;
+          return '<div class="ch-cor-rij' + (k.cor && !k.waarde ? ' uit' : '') + '"><span class="wie">' + escHtml(k.naam || '(zonder naam)') + '</span><span class="ch-wt-pil pijp">pipeline</span><small>' + escHtml([k.cor ? (k.waarde ? 'aangepast' : 'telt niet mee') + (k.cor.reden ? ': ' + k.cor.reden : '') : '', k.gedeeld ? 'gedeeld' : '', k.klant, _crmDatum(k.ms)].filter(Boolean).join(' · ')) + '</small>' +
+            (mag ? seg(aanb ? [[basis, 'Telt mee'], [0, 'Telt niet']] : [[1, '1'], [0.5, '½'], [0, 'Telt niet']], k.waarde, w => 'chKaartCorrigeer(' + ch.id + ',\'' + n + '\',\'' + escHtml(escApos(k.id)) + '\',' + w + ')') : '<b class="ch-cor-w">' + _chGetal(k.waarde) + '</b>') + '</div>'; }).join('') +
+        eigen.map(v => { const w = v.soort === 'punt' && v.waarde != null && isFinite(+v.waarde) ? +v.waarde : 1;
+          return '<div class="ch-cor-rij"><span class="wie">' + escHtml(v.kand_naam || v.kand_sleutel) + '</span><span class="ch-wt-pil ' + (v.soort === 'punt' ? 'punt">punt' : 'vd">voordracht') + '</span><small>' + escHtml([v.gedeeld_met ? 'gedeeld met ' + String(v.gedeeld_met).split(' ')[0] : '', v.reden || '', _crmDatum(Date.parse(v.created_at))].filter(Boolean).join(' · ')) + '</small>' +
+            (mag ? (v.soort === 'punt' ? seg([[1, '1'], [0.5, '½']], w, x => 'chPuntWaarde(' + v.id + ',' + x + ')') : '') + '<button type="button" class="ch-cor-x" title="Weghalen" onclick="chVoordrachtWeg(' + v.id + ')">✕</button>' : '<b class="ch-cor-w">' + _chGetal(w) + '</b>') + '</div>'; }).join('') +
+        (!kaarten.length && !eigen.length ? '<div class="ch-cor-rij leeg">' + (pijp ? 'nog niets' : 'nog niets voorgedragen') + '</div>' : '');
     }).join('') +
-    (mag ? '' : '<div class="ch-cor-rij leeg">Alleen de uitdager of een manager kan hier iets weghalen.</div>') +
-    '<div style="margin-top:14px;text-align:right"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>';
-  crmKaartToon(html);
+    (mag ? '' : '<div class="ch-cor-rij leeg">Alleen de uitdager, de beheerder of wie het recht "Challenge corrigeren" heeft kan hier iets aanpassen.</div>') +
+    '<div class="crm-knoppen" style="margin-top:14px">' + (mag && pijp ? '<button type="button" class="crm-knop goed" onclick="chPuntVenster(' + ch.id + ', true)">+ Punt voor een collega</button>' : '') + '<button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>';
+  crmKaartToon(html, 'crm-kaart-breed');
+}
+function _chNaCorrectie(chId) {
+  chCorrigeerVenster(chId);
+  if (currentTab === 'one') renderOne();
+  if (currentTab === 'medewerkers') renderMedewerkersOverzicht();
+}
+// Een pipeline-tegeltje voor deze challenge anders laten tellen (0 = telt niet mee). Terug naar de eigen waarde =
+// de correctie weghalen. Het tegeltje zelf en de weekcijfers blijven zoals ze zijn.
+async function chKaartCorrigeer(chId, naam, kaartId, waarde) {
+  if (!eisWijzig('one') || !supa || !CURRENT_USER) return;
+  const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId));
+  if (!_chMagCorrigeren(ch)) { btMeld('Je hebt geen recht om deze challenge te corrigeren.', 'rood'); return; }
+  const k = _chKaartenVan(ch, naam).find(x => String(x.id) === String(kaartId)); if (!k) return;
+  const basis = k.basis != null ? k.basis : k.waarde, sleutel = 'kaart:' + kaartId, anders = +waarde !== basis;
+  if (+waarde === k.waarde) return;
+  let reden = '';
+  if (anders) {
+    reden = await btVraagTekst(+waarde ? (k.naam || 'Dit tegeltje') + ' telt als ' + _chGetal(+waarde) + ' voor ' + naam.split(' ')[0] : (k.naam || 'Dit tegeltje') + ' telt niet mee voor ' + naam.split(' ')[0], { tekst: 'Alleen voor deze challenge. Iedereen ziet de reden onder "Wie telt mee".', placeholder: 'reden (mag leeg)', knop: 'Opslaan', leegMag: true });
+    if (reden === null) return;
+  }
+  _echoVanZelf('challenge_voordrachten');
+  const weg = await supa.from('challenge_voordrachten').delete().eq('challenge_id', chId).eq('naam', naam).eq('kand_sleutel', sleutel);
+  if (weg.error) { btMeld('Niet gelukt: ' + weg.error.message, 'rood'); return; }
+  if (anders) {
+    const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
+    const { error } = await supa.from('challenge_voordrachten').insert({ challenge_id: chId, naam, kand_sleutel: sleutel, kand_naam: k.naam || null, soort: 'correctie', waarde: +waarde, reden: [reden, 'door ' + ik.split(' ')[0]].filter(Boolean).join(' · ') });
+    if (error) { btMeld(/waarde|gedeeld_met/i.test(error.message) ? 'Draai eerst supabase/challenge_gedeeld.sql in de SQL-editor.' : /column|soort/i.test(error.message) ? 'Draai eerst supabase/challenge_punten.sql in de SQL-editor.' : 'Niet gelukt: ' + error.message, 'rood'); await loadChallenges(); _chNaCorrectie(chId); return; }
+  }
+  await loadChallenges(); _chNaCorrectie(chId);
+  btMeld(anders ? (+waarde ? 'Telt nu als ' + _chGetal(+waarde) + '.' : 'Telt niet meer mee in deze challenge.') : 'Correctie weggehaald; het tegeltje telt weer gewoon mee.', 'groen');
+}
+// Een handmatig punt 1 ↔ ½. Dezelfde regel gaat terug met hetzelfde nummer en dezelfde datum, zodat niemand een
+// melding "nieuw punt" krijgt. (Weghalen en terugzetten: de tabel heeft geen bijwerk-regel, en zo is er geen SQL nodig.)
+async function chPuntWaarde(vdId, waarde) {
+  if (!eisWijzig('one') || !supa || !CURRENT_USER) return;
+  const v = (CH_VOORDRACHTEN || []).find(x => String(x.id) === String(vdId)); if (!v || v.soort !== 'punt') return;
+  const ch = (CHALLENGES || []).find(c => String(c.id) === String(v.challenge_id));
+  if (!_chMagCorrigeren(ch)) { btMeld('Je hebt geen recht om deze challenge te corrigeren.', 'rood'); return; }
+  const was = v.waarde != null && isFinite(+v.waarde) ? +v.waarde : 1; if (+waarde === was) return;
+  const rij = { id: v.id, challenge_id: v.challenge_id, naam: v.naam, kand_sleutel: v.kand_sleutel, kand_naam: v.kand_naam, soort: 'punt', reden: v.reden || null, created_at: v.created_at, waarde: +waarde, gedeeld_met: +waarde === 1 ? null : (v.gedeeld_met || null) };
+  _echoVanZelf('challenge_voordrachten');
+  const weg = await supa.from('challenge_voordrachten').delete().eq('id', v.id);
+  if (weg.error) { btMeld('Niet gelukt: ' + weg.error.message, 'rood'); return; }
+  let { error } = await supa.from('challenge_voordrachten').insert(rij);
+  if (error) { const terug = await supa.from('challenge_voordrachten').insert({ ...rij, waarde: was, gedeeld_met: v.gedeeld_met || null }); btMeld((/waarde|gedeeld_met/i.test(error.message) ? 'Draai eerst supabase/challenge_gedeeld.sql in de SQL-editor.' : 'Niet gelukt: ' + error.message) + (terug.error ? ' Let op: het punt van ' + (v.kand_naam || '?') + ' bij ' + v.naam + ' is nu weg — zet het opnieuw.' : ''), 'rood'); }
+  await loadChallenges(); _chNaCorrectie(v.challenge_id);
 }
 async function chVoordrachtWeg(vdId) {
   if (!eisWijzig('one') || !supa || !CURRENT_USER) return;
@@ -10323,8 +10392,8 @@ async function chVoordrachtWeg(vdId) {
   if (!v) return;
   const ch = (CHALLENGES || []).find(c => String(c.id) === String(v.challenge_id));
   const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
-  if (!(ch && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder())))) { btMeld('Alleen de uitdager of een manager kan corrigeren.', 'rood'); return; }
-  if (!(await btBevestig('Voordracht van ' + (v.kand_naam || '?') + ' (door ' + v.naam + ') weghalen?'))) return;
+  if (!_chMagCorrigeren(ch)) { btMeld('Je hebt geen recht om deze challenge te corrigeren.', 'rood'); return; }
+  if (!(await btBevestig((v.soort === 'punt' ? 'Punt voor ' : 'Voordracht van ') + (v.kand_naam || '?') + ' (door ' + v.naam + ') weghalen?'))) return;
   _echoVanZelf('challenge_voordrachten');
   const { error } = await supa.from('challenge_voordrachten').delete().eq('id', vdId);
   if (error) { btMeld('Niet gelukt: ' + error.message, 'rood'); return; }
@@ -12385,7 +12454,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261119-1501';
+const APP_VERSIE = '20261119-1726';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -13117,6 +13186,8 @@ const ONDERDELEN = [
     uitleg:'Bedrijfsbezoeken opnemen; het verslag en de coaching-analyse worden vanzelf gemaakt.' },
   { sleutel:'mtcoaching',  label:'MT-coaching (archief)',   groep:'Op de medewerkerkaart',
     uitleg:'Sinds Koers staan de afspraken met de manager in het Koersplan. Dit recht bepaalt alleen nog wie de oude MT-coaching (afspraken en notulen) via het archief op de Koers-pagina kan openen.' },
+  { sleutel:'challengecor', label:'Challenge corrigeren',   groep:'Management',
+    uitleg:'In een challenge punten weghalen, wijzigen of voor een collega toevoegen, en pipeline-punten voor de challenge uitsluiten. De uitdager en de beheerder kunnen dit altijd; voor anderen zet je het hier aan (zien of wijzigen is allebei genoeg).' },
 ];
 
 // Beheer ontbreekt hier bewust en kan dus niet uit. Kon dat wel, dan zet je
