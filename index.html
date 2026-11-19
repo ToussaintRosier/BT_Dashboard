@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261119-1446 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261119-1456 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2649,6 +2649,10 @@
   .medew-weken-oud { margin:8px 0 4px; text-align:center; }
   .naslag-knop { margin-left:auto; display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid rgba(244,203,60,.55); color:#F4CB3C; border-radius:8px; padding:3px 10px; font-family:inherit; font-size:.74rem; font-weight:400; letter-spacing:0; text-transform:none; cursor:pointer; } .naslag-knop:hover { background:rgba(244,203,60,.12); } .naslag-knop svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .crm-kaart.naslag-venster { max-width:900px; } .naslag-tabel { overflow:auto; }
+  .ko-wie { font-size:.76rem; color:rgba(255,255,255,.65); margin:2px 0 4px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .ko-wie b { color:#fff; font-weight:var(--w-nadruk); }
+  .ch-punt-keuze { display:flex; gap:6px; } .ch-punt-keuze button { flex:1; border:1px solid rgba(255,255,255,.25); background:transparent; color:#fff; border-radius:8px; padding:6px 8px; font-family:inherit; font-size:.8rem; cursor:pointer; } .ch-punt-keuze button.aan { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); }
+  .ch-wt-grp { display:flex; justify-content:space-between; align-items:baseline; } .ch-wt-grp b { color:#F4CB3C; } .ch-wt-rij { display:grid; grid-template-columns:minmax(0,1.2fr) 74px minmax(0,1.6fr) 36px; gap:8px; align-items:center; padding:6px 0; border-top:1px solid rgba(255,255,255,.09); font-size:.82rem; color:#fff; } .ch-wt-rij small { color:rgba(255,255,255,.55); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ch-wt-rij b { text-align:right; }
+  .ch-wt-pil { border-radius:99px; padding:0 8px; font-size:.64rem; text-align:center; background:rgba(255,255,255,.14); color:#fff; } .ch-wt-pil.pijp { background:rgba(125,180,255,.2); color:#7db4ff; } .ch-wt-pil.punt { background:rgba(244,203,60,.2); color:#F4CB3C; }
   /* ── Koers · bijstelling 19-11 ── */
   .ko-q { position:relative; display:inline-flex; width:15px; height:15px; border-radius:50%; border:1px solid rgba(255,255,255,.45); color:rgba(255,255,255,.85); font-size:.6rem; align-items:center; justify-content:center; cursor:help; margin-left:5px; vertical-align:middle; font-weight:400; text-transform:none; letter-spacing:0; font-style:normal; flex:none; }
   .ko-q .ko-q-tekst { display:none; position:absolute; left:50%; top:20px; transform:translateX(-50%); width:280px; background:var(--l0); border:1px solid rgba(244,203,60,.55); border-radius:10px; padding:9px 11px; font-size:.76rem; line-height:1.45; color:#fff; z-index:30; text-align:left; white-space:normal; box-shadow:0 12px 30px rgba(0,0,0,.45); } .ko-q:hover .ko-q-tekst, .ko-q:focus .ko-q-tekst { display:block; } .ko-q .ko-q-tekst b { color:#F4CB3C; display:block; margin-bottom:2px; font-size:.76rem; }
@@ -9905,12 +9909,12 @@ function _chKaartDatum(c) {
   if (+c.week && +c.jaar) return isoWeekStartDate(+c.jaar, +c.week);
   return null;
 }
-function _chTelt(ch, naam) {
-  if (ch.meetlat === 'voordrachten') return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam).length;
-  const ml = _chMeetlat(ch);
+// De tegeltjes uit de pipeline die voor deze deelnemer meetellen (19-11: als lijst, ook voor "Wie telt mee").
+// Een gedeeld tegeltje telt ½ — net als in de weekcijfers; aanbiedingen tellen het aantal op het tegeltje.
+function _chKaartenVan(ch, naam) {
+  const ml = _chMeetlat(ch), uit = [];
   const van = Date.parse(ch.start_op), tot = Date.parse(ch.eind_op) + 24 * 3600 * 1000;
   const bedrijf = String(ch.bedrijf || '').replace(/^#/, '').trim().toLowerCase(), functie = String(ch.filter_functie || '').trim().toLowerCase(), regio = String(ch.filter_regio || '').trim().toLowerCase();
-  let n = 0;
   ((PIPE_CACHE || {})[naam] || []).forEach(c => {
     if (c.stage !== ml.stage || c.verwijderd_op || c.goedkeuring === 'niet_akkoord') return;
     const d = _chKaartDatum(c); if (!d) return;
@@ -9918,13 +9922,20 @@ function _chTelt(ch, naam) {
     if (bedrijf && !String(c.opdrachtgever || c.kanban_klant || '').toLowerCase().includes(bedrijf)) return;
     if (functie && !String(c.functie || c.kanban_functie || '').toLowerCase().includes(functie)) return;
     if (regio && !String(c.regio || '').toLowerCase().includes(regio)) return;
-    n += ml.s === 'aanbiedingen' ? (+c.aanb || 1) : 1;
+    uit.push({ naam: String(c.naam || ''), klant: String(c.opdrachtgever || c.kanban_klant || ''), ms, gedeeld: !!c.gedeeld, waarde: ml.s === 'aanbiedingen' ? (+c.aanb || 1) : telKaarten([c], ml.stage) });   // gedeeld = 0,5 via de ene telfunctie
   });
+  return uit;
+}
+function _chGetal(v) { const n = +v || 0; return n % 1 ? n.toFixed(1).replace('.', ',') : String(n); }
+function _chTelt(ch, naam) {
+  if (ch.meetlat === 'voordrachten') return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam).length;
+  let n = 0;
+  _chKaartenVan(ch, naam).forEach(x => { n += x.waarde; });
   return n + _chPunten(ch, naam);   // 14-10: handmatige punten tellen mee
 }
 // Handmatige punten (14-10): rijen in challenge_voordrachten met soort 'punt'.
 function _chPunten(ch, naam) {
-  return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam && v.soort === 'punt').length;
+  return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.naam === naam && v.soort === 'punt').reduce((t, v) => t + (v.waarde != null && isFinite(+v.waarde) ? +v.waarde : 1), 0);   // 19-11: een gedeeld punt telt ½
 }
 function _chPuntRijen(ch) {
   return (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(ch.id) && v.soort === 'punt').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
@@ -10011,7 +10022,7 @@ async function chWinnaarScan(nu) {
     try {
       const st = _chStand(ch);
       await supa.from('one_posts').insert({ onderwerp: '🏆 ' + w + ' wint de challenge "' + ch.titel + '"',
-        tekst: 'Eindstand: ' + st.map(x => x.naam.split(' ')[0] + ' ' + x.stand).join(' · ') + (ch.inzet ? '\nInzet: ' + ch.inzet : ''),
+        tekst: 'Eindstand: ' + st.map(x => x.naam.split(' ')[0] + ' ' + _chGetal(x.stand)).join(' · ') + (ch.inzet ? '\nInzet: ' + ch.inzet : ''),
         categorie: 'team', auteur: 'Challenge', created_by: ONE_MIJN_ID || CURRENT_USER.id || null }).select('id').single();
     } catch (e) { console.error('Challenge-bericht mislukt:', e); }
   }
@@ -10057,7 +10068,7 @@ function _chArenaHtml(soort, ch, nu) {
     return '<canvas></canvas><div class="arena" role="dialog" aria-label="Challenge gewonnen"><div class="kop groen">Challenge gewonnen</div>' +
       '<div class="vs">' + av(eerste, true) + '</div>' +
       '<h3>' + escHtml(w.includes(' & ') ? w : eerste.split(' ')[0]) + ' wint!</h3>' +
-      '<div class="m">"' + escHtml(ch.titel) + '" · ' + st.map(x => escHtml(x.naam.split(' ')[0]) + ' ' + x.stand).join(' · ') + (ch.inzet ? '<br>inzet: ' + escHtml(ch.inzet) : '') + '</div>' +
+      '<div class="m">"' + escHtml(ch.titel) + '" · ' + st.map(x => escHtml(x.naam.split(' ')[0]) + ' ' + _chGetal(x.stand)).join(' · ') + (ch.inzet ? '<br>inzet: ' + escHtml(ch.inzet) : '') + '</div>' +
       '<div class="knoppen"><button type="button" class="ak geel" onclick="chFeliciteer(' + ch.id + ')">🎉 Feliciteer in ONE</button><button type="button" class="ak" onclick="chOpen(' + ch.id + ');chArenaSluit()">Bekijk stand</button></div>' +
       '<button type="button" class="dicht" onclick="chArenaSluit()" aria-label="Sluiten">×</button></div>';
   }
@@ -10128,7 +10139,7 @@ function _oneChallengeKnoppen(chId) {
   k += '<button type="button" class="crm-knop" onclick="chOpen(' + ch.id + ')">🏆 Bekijk challenge →</button>';
   const st = _chStand(ch), top = st.length ? st[0] : null;
   const info = status === 'gewonnen' ? '🏆 gewonnen door ' + escHtml(ch.winnaar_naam)
-    : status === 'lopend' ? (top && top.stand ? escHtml(top.naam.split(' ')[0]) + ' leidt · ' + top.stand + ' · ' : '') + escHtml(_chDagenTekst(ch, nu))
+    : status === 'lopend' ? (top && top.stand ? escHtml(top.naam.split(' ')[0]) + ' leidt · ' + _chGetal(top.stand) + ' · ' : '') + escHtml(_chDagenTekst(ch, nu))
     : status === 'gestopt' ? 'gestopt' : 'afgelopen';
   return '<div class="one-ch-knoppen">' + k + '<span class="one-ch-info">' + info + '</span></div>';
 }
@@ -10188,14 +10199,14 @@ function _chBaanRegel(ch, nu) {
   const doelN = _chSchaal(ch, st);
   const top = st.length ? st[0].stand : 0;
   const leiders = top > 0 ? st.filter(x => x.stand === top).map(x => x.naam.split(' ')[0]) : [];
-  const lopers = _chBaanPosities(st, doelN).map(x => { const pt = _chPunten(ch, x.naam); return '<div class="ch-loper' + (top > 0 && x.stand === top ? ' leid' : '') + '" data-ch="' + ch.id + '" data-naam="' + escHtml(x.naam) + '" style="left:' + x.p.toFixed(1) + '%" title="' + escHtml(x.naam) + (pt ? ' · waarvan ' + pt + ' handmatig' : '') + '">' +
-    '<span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span class="sc">' + x.stand + (pt ? '<em>+' + pt + '</em>' : '') + '</span></div>'; }).join('');
+  const lopers = _chBaanPosities(st, doelN).map(x => { const pt = _chPunten(ch, x.naam); return '<div class="ch-loper' + (top > 0 && x.stand === top ? ' leid' : '') + '" data-ch="' + ch.id + '" data-naam="' + escHtml(x.naam) + '" style="left:' + x.p.toFixed(1) + '%" title="' + escHtml(x.naam) + (pt ? ' · waarvan ' + _chGetal(pt) + ' handmatig' : '') + '">' +
+    '<span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span class="sc">' + _chGetal(x.stand) + (pt ? '<em>+' + _chGetal(pt) + '</em>' : '') + '</span></div>'; }).join('');
   const sub = ch.winvorm === 'doel'
     ? 'Eerste bij ' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + ' · t/m ' + escHtml(_crmDatum(Date.parse(ch.eind_op)))
     : 'Meeste ' + escHtml(ml.mv) + ' op ' + escHtml(_crmDatum(Date.parse(ch.eind_op))) + (+ch.streef > 0 ? ' · streefgetal ' + escHtml(String(ch.streef)) : '');
   const rest = Math.ceil((Date.parse(ch.eind_op) - nu) / 86400000);
   const leider = !st.length ? 'nog geen deelnemers' : !top ? 'nog geen stand'
-    : '<b>' + escHtml(leiders.join(' & ')) + '</b> ' + (leiders.length > 1 ? 'gelijk' : 'leidt') + ' · ' + top + (ch.winvorm === 'doel' ? '/' + ch.doel : '');
+    : '<b>' + escHtml(leiders.join(' & ')) + '</b> ' + (leiders.length > 1 ? 'gelijk' : 'leidt') + ' · ' + _chGetal(top) + (ch.winvorm === 'doel' ? '/' + ch.doel : '');
   // 9A (23-09): invoer leveren en corrigeren vanaf deze regel. Alleen bij een
   // handmatige meetlat (voordrachten); de rest telt uit de pipeline.
   const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || '');
@@ -10208,6 +10219,7 @@ function _chBaanRegel(ch, nu) {
     ? '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chVoordragenVenster(' + ch.id + ')">+ Voordragen</button>'
     : '<button type="button" class="ch-baan-knop geel" onclick="event.stopPropagation();chPuntVenster(' + ch.id + ')">+ Punt</button>';
   if (mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>';
+  knoppen += '<button type="button" class="ch-baan-knop" onclick="event.stopPropagation();chWieTeltVenster(' + ch.id + ')">Wie telt mee</button>';   // 19-11: voor iedereen
   if (ch.meetlat !== 'voordrachten') knoppen += '<span class="ch-baan-auto">telt uit de pipeline + punten</span>';
   return '<div class="ch-baan-regel" onclick="chNaarOne()">' +
     '<div><div class="ti">' + escHtml(ch.titel) + '</div><div class="sub">' + sub + (ch.bedrijf ? ' · ' + escHtml(ch.bedrijf) : '') + '</div></div>' +
@@ -10220,9 +10232,37 @@ function chPuntVenster(chId) {
   const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId)); if (!ch) return;
   crmKaartToon('<h4 class="wit">+ Punt — ' + escHtml(ch.titel) + '</h4><div class="ch-vorm"><label>Kandidaat (uit CRM)</label>' +
     _kiezerHtml({ id: 'ch-punt-kand', klasse: 'donker', lijst: _kzKandidaten, waarde: '', placeholder: 'kies of typ een naam uit CRM…', nieuw: false }) +
+    (() => { const ik = String(CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam) || ''), anderen = _chDeelnemers(ch).filter(x => x.status === 'accepteert' && x.naam !== ik);
+      return !anderen.length ? '<input type="hidden" id="ch-punt-deel" value="ik">' : '<label>Voor wie</label><input type="hidden" id="ch-punt-deel" value="ik">' +
+        '<div class="ch-punt-keuze"><button type="button" class="aan" onclick="chPuntDeel(\'ik\', this)">Alleen ik · 1 punt</button><button type="button" onclick="chPuntDeel(\'gedeeld\', this)">Gedeeld · ieder ½</button></div>' +
+        '<div id="ch-punt-met-rij" hidden><label>Gedeeld met</label><select id="ch-punt-met">' + anderen.map(x => '<option value="' + escHtml(x.naam) + '">' + escHtml(x.naam) + '</option>').join('') + '</select></div>'; })() +
     '<label>Reden (optioneel)</label><input id="ch-punt-reden" placeholder="bijv. intake gepland, stond niet in de pipeline">' +
     '<div class="crm-knoppen" style="margin-top:14px"><button type="button" class="crm-knop goed" onclick="chPuntToevoegen(' + ch.id + ')">Punt toevoegen</button><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div></div>', 'crm-kaart-smal');
   const inp = document.getElementById('ch-punt-kand'); if (inp && inp.focus) inp.focus();
+}
+function chPuntDeel(wat, knop) {
+  const el = document.getElementById('ch-punt-deel'), rij = document.getElementById('ch-punt-met-rij'); if (!el) return;
+  el.value = wat === 'gedeeld' ? 'gedeeld' : 'ik'; if (rij) rij.hidden = el.value !== 'gedeeld';
+  if (knop && knop.parentNode) Array.from(knop.parentNode.children).forEach(b => b.classList.toggle('aan', b === knop));
+}
+// "Wie telt mee" (19-11): voor alle deelnemers zichtbaar welke kandidaten er per collega meetellen — uit de pipeline
+// en als handmatig punt, met wat ze tellen. Weghalen blijft bij Corrigeren (uitdager of beheerder).
+function chWieTeltVenster(chId) {
+  const ch = (CHALLENGES || []).find(c => String(c.id) === String(chId)); if (!ch) return;
+  const deel = _chDeelnemers(ch).filter(x => x.status === 'accepteert');
+  const vds = (CH_VOORDRACHTEN || []).filter(v => String(v.challenge_id) === String(chId));
+  const rij = (naam, soort, sub, waarde) => '<div class="ch-wt-rij"><span>' + escHtml(naam) + '</span><span class="ch-wt-pil ' + soort + '">' + (soort === 'pijp' ? 'pipeline' : soort === 'punt' ? 'punt' : 'voordracht') + '</span><small>' + escHtml(sub) + '</small><b>' + _chGetal(waarde) + '</b></div>';
+  const html = '<h4 class="wit">Wie telt mee — ' + escHtml(ch.titel) + '</h4><div class="crm-sub">Per deelnemer wat er meetelt. Een gedeelde kandidaat telt voor ieder ½.</div>' +
+    deel.map(d => {
+      const kaarten = ch.meetlat === 'voordrachten' ? [] : _chKaartenVan(ch, d.naam).sort((a, b) => b.ms - a.ms), eigen = vds.filter(v => v.naam === d.naam).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      const totaal = ch.meetlat === 'voordrachten' ? eigen.length : _chTelt(ch, d.naam);
+      return '<div class="ch-cor-grp ch-wt-grp"><span>' + escHtml(d.naam) + '</span><b>' + _chGetal(totaal) + '</b></div>' +
+        kaarten.map(k => rij(k.naam || '(zonder naam)', 'pijp', [k.gedeeld ? 'gedeeld' : '', k.klant, _crmDatum(k.ms)].filter(Boolean).join(' · '), k.waarde)).join('') +
+        eigen.map(v => rij(v.kand_naam || v.kand_sleutel || '?', v.soort === 'punt' ? 'punt' : 'vd', [v.gedeeld_met ? 'gedeeld met ' + String(v.gedeeld_met).split(' ')[0] : '', v.reden || '', _crmDatum(Date.parse(v.created_at))].filter(Boolean).join(' · '), v.soort === 'punt' && v.waarde != null && isFinite(+v.waarde) ? +v.waarde : 1)).join('') +
+        (!kaarten.length && !eigen.length ? '<div class="ch-cor-rij leeg">nog niets</div>' : '');
+    }).join('') +
+    '<div style="margin-top:14px;text-align:right"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>';
+  crmKaartToon(html);
 }
 async function chPuntToevoegen(chId) {
   if (!eisWijzig('one') || !supa || !CURRENT_USER) return;
@@ -10231,15 +10271,22 @@ async function chPuntToevoegen(chId) {
   const k = (typeof crmKandLijst === 'function' ? crmKandLijst() : []).find(x => _itkSleutel(x.naam) === _itkSleutel(naam));
   if (!k) { btMeld('Kies een kandidaat uit de lijst (CRM · Kandidaten).', 'geel'); return; }
   const ik = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || '');
+  // 19-11: gedeeld → in één keer een half punt bij jou en bij de collega (beide met "gedeeld met").
+  const gedeeld = String((document.getElementById('ch-punt-deel') || {}).value || '') === 'gedeeld', met = gedeeld ? String((document.getElementById('ch-punt-met') || {}).value || '') : '';
+  if (gedeeld && (!met || met === ik)) { btMeld('Kies de collega met wie je deze deelt.', 'geel'); return; }
+  const basis = { challenge_id: chId, kand_sleutel: k.sleutel, kand_naam: k.naam, soort: 'punt', reden: reden || null };
+  const rijen = gedeeld ? [{ ...basis, naam: ik, waarde: 0.5, gedeeld_met: met }, { ...basis, naam: met, waarde: 0.5, gedeeld_met: ik }] : [{ ...basis, naam: ik }];
   _echoVanZelf('challenge_voordrachten');
-  const { error } = await supa.from('challenge_voordrachten').insert({ challenge_id: chId, naam: ik, kand_sleutel: k.sleutel, kand_naam: k.naam, soort: 'punt', reden: reden || null });
+  const { error } = await supa.from('challenge_voordrachten').insert(rijen);
   if (error) {
-    btMeld(/duplicate|unique/i.test(error.message) ? 'Voor ' + k.naam + ' had je al een punt.' : /column|soort/i.test(error.message) ? 'Draai eerst supabase/challenge_punten.sql in de SQL-editor.' : 'Niet gelukt: ' + error.message, 'geel');
+    btMeld(/duplicate|unique/i.test(error.message) ? (gedeeld ? 'Voor ' + k.naam + ' had jij of ' + met.split(' ')[0] + ' al een punt — haal dat eerst weg (Corrigeren) of zet hem alleen voor jezelf.' : 'Voor ' + k.naam + ' had je al een punt.')
+      : /waarde|gedeeld_met/i.test(error.message) ? 'Draai eerst supabase/challenge_gedeeld.sql in de SQL-editor; daarna kan een punt gedeeld worden.'
+      : /column|soort/i.test(error.message) ? 'Draai eerst supabase/challenge_punten.sql in de SQL-editor.' : 'Niet gelukt: ' + error.message, 'geel');
     return;
   }
   crmKaartSluit(); await loadChallenges(); _chPuntGezienZet();
   if (currentTab === 'one') renderOne(); if (currentTab === 'medewerkers') renderMedewerkersOverzicht();
-  btMeld('Punt toegevoegd: ' + k.naam + '.', 'groen');
+  btMeld(gedeeld ? 'Half punt toegevoegd bij jou en bij ' + met.split(' ')[0] + ': ' + k.naam + '.' : 'Punt toegevoegd: ' + k.naam + '.', 'groen');
 }
 // Bij iedereen live (14-10): nieuwe punten van een ander → melding en de loper licht op.
 function _chPuntLive(nieuwe) {
@@ -10299,7 +10346,7 @@ function _chKaartHtml(ch, nu) {
     ? 'Wie haalt als eerste <b>' + escHtml(String(ch.doel)) + ' ' + escHtml(+ch.doel === 1 ? ml.ev : ml.mv) + '</b>' + (ch.filter_functie ? ' (functie bevat "' + escHtml(ch.filter_functie) + '")' : '') + ' vóór ' + escHtml(_crmDatum(Date.parse(ch.eind_op))) + '?'
     : 'Wie heeft op ' + escHtml(_crmDatum(Date.parse(ch.eind_op))) + ' de meeste <b>' + escHtml(ml.mv) + '</b>' + (ch.filter_functie ? ' (functie bevat "' + escHtml(ch.filter_functie) + '")' : '') + '?';
   const rijen = st.map(x => '<div class="ch-rij"><span class="n"><span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span>' + escHtml(x.naam.split(' ')[0]) + (status === 'gewonnen' && String(ch.winnaar_naam).includes(x.naam) ? ' 🏆' : '') + '</span></span>' +
-      '<span class="ch-balk"><i' + (x.stand >= doelN && ch.winvorm === 'doel' ? ' class="g"' : '') + ' style="width:' + Math.min(100, Math.round(100 * x.stand / doelN)) + '%"></i></span><span class="s">' + x.stand + (ch.winvorm === 'doel' ? '/' + ch.doel : '') + (_chPunten(ch, x.naam) ? ' <em style="font-style:normal;color:#F4CB3C">+' + _chPunten(ch, x.naam) + '</em>' : '') + '</span></div>').join('') +
+      '<span class="ch-balk"><i' + (x.stand >= doelN && ch.winvorm === 'doel' ? ' class="g"' : '') + ' style="width:' + Math.min(100, Math.round(100 * x.stand / doelN)) + '%"></i></span><span class="s">' + _chGetal(x.stand) + (ch.winvorm === 'doel' ? '/' + ch.doel : '') + (_chPunten(ch, x.naam) ? ' <em style="font-style:normal;color:#F4CB3C">+' + _chGetal(_chPunten(ch, x.naam)) + '</em>' : '') + '</span></div>').join('') +
     deel.filter(x => x.status !== 'accepteert').map(x => '<div class="ch-rij wacht"><span class="n"><span class="one-ber-av" style="background:' + _oneAvatarKleur(x.naam) + ';">' + escHtml(bmInitialen(x.naam)) + '</span><span>' + escHtml(x.naam.split(' ')[0]) + '</span></span><span style="font-size:.72rem;color:rgba(255,255,255,.5)">' + (x.status === 'slaat_over' ? 'slaat over' : 'nog geen antwoord') + '</span><span></span></div>').join('');
   const mag = typeof magWijzigen === 'function' ? magWijzigen('one') : true;
   let knoppen = '';
@@ -10307,6 +10354,7 @@ function _chKaartHtml(ch, nu) {
   if (status === 'lopend' && ch.iedereen && !mijn && mag) knoppen += '<button type="button" class="crm-knop goed" onclick="chAccepteer(' + ch.id + ')">✓ Ik doe mee</button>';
   if (status === 'lopend' && ch.meetlat === 'voordrachten' && mijn && mijn.status === 'accepteert' && mag) knoppen += '<button type="button" class="crm-knop" onclick="chVoordragenVenster(' + ch.id + ')">+ kandidaat voordragen</button>';
   if (status === 'lopend' && ch.meetlat !== 'voordrachten' && mijn && mijn.status === 'accepteert' && mag) knoppen += '<button type="button" class="crm-knop" onclick="chPuntVenster(' + ch.id + ')">+ Punt</button>';   // 14-10
+  knoppen += '<button type="button" class="crm-knop" onclick="chWieTeltVenster(' + ch.id + ')">Wie telt mee</button>';   // 19-11
   if (status === 'lopend' && mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="crm-knop" onclick="chStop(' + ch.id + ')">Stop challenge</button>';
   return '<div id="ch-' + ch.id + '" class="ch' + klasse + '">' + pil +
     '<div class="lbl">' + escHtml(ml.l) + (ch.bedrijf ? ' · ' + escHtml(ch.bedrijf) : '') + '</div><div class="ti">' + escHtml(ch.titel) + '</div>' +
@@ -12336,7 +12384,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261119-1446';
+const APP_VERSIE = '20261119-1456';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -23122,6 +23170,9 @@ function _koersTeamWatHtml(T) {
     rij('api', 'Aanbiedingen per intake', 0.5, Math.max(6, b0.api * 2).toFixed(1), 0.1, (+w.api).toFixed(1), (x) => _koersGetal(x)) +
     rij('conv', 'Aanbieding → starter', (b0.conv * 0.4).toFixed(4), (b0.conv * 2.2).toFixed(4), (b0.conv / 40).toFixed(5), (+w.conv).toFixed(5), (x) => _koersGetal(x * 100) + '%') +
     rij('m', 'Collega\'s die meedoen', 1, b0.N, 1, w.m, (x) => Math.round(x) + ' van ' + b0.N) +
+    (() => { const telt = (x) => !x.bm || (_koersTelt(x.bm.naam, 'intakes') && _koersTelt(x.bm.naam, 'aanbiedingen')), vn = (x) => escHtml(String(x.bm ? x.bm.naam : '').split(' ')[0]), mee = T.per.filter(telt), niet = T.per.filter(x => !telt(x));
+      return '<div class="ko-wie">Doen mee in deze som (' + mee.length + '): <b>' + mee.map(vn).join(', ') + '</b>' + (niet.length ? ' · niet: ' + niet.map(vn).join(', ') + ' — zij blijven op hun eigen koers' : '') +
+        (isBeheerder() ? ' <button type="button" class="kk-knop" onclick="koersInstellingenOpen()">Wie telt mee aanpassen</button>' : '') + '</div>'; })() +
     '<div class="ko-uit3"><span><small>' + (volgend ? 'Heel ' + (CUR.year + 1) : 'Eind ' + CUR.year) + '</small><b id="ko-tu-eind">' + _koersGetal(volgend ? u.s : u.eind) + '</b>' + (T.jaar.doel ? ' van ' + _koersGetal(T.jaar.doel, 0) : '') + '</span>' +
       '<span><small>Verschil met de koers</small><b id="ko-tu-v">' + ((u.s - T.sc.mid) >= 0 ? '+' : '') + _koersGetal(u.s - T.sc.mid) + '</b> starters</span><span><small>Jaartempo bij dit ritme</small><b id="ko-tu-jaar">' + _koersGetal(u.pw * 52, 0) + '</b> starters per jaar</span></div>' +
     '<div class="ko-watknoppen">' + (T.jaar.doel ? '<button type="button" class="kk-knop" onclick="koersTeamDoelroute()">Doelroute: wat is nodig voor het teamdoel?</button>' : '') + (KOERS_STAND.teamWat ? '<button type="button" class="kk-knop" onclick="koersTeamWatTerug()">Terug naar de trend</button>' : '') + '</div></div>';
