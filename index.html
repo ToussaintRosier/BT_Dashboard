@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261119-1726 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261120-0833 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -10278,7 +10278,7 @@ function chWieTeltVenster(chId) {
         eigen.map(v => rij(v.kand_naam || v.kand_sleutel || '?', v.soort === 'punt' ? 'punt' : 'vd', [v.gedeeld_met ? 'gedeeld met ' + String(v.gedeeld_met).split(' ')[0] : '', v.reden || '', _crmDatum(Date.parse(v.created_at))].filter(Boolean).join(' · '), v.soort === 'punt' && v.waarde != null && isFinite(+v.waarde) ? +v.waarde : 1)).join('') +
         (!kaarten.length && !eigen.length ? '<div class="ch-cor-rij leeg">nog niets</div>' : '');
     }).join('') +
-    '<div style="margin-top:14px;text-align:right"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>';
+    '<div class="crm-knoppen" style="margin-top:14px">' + (_chMagCorrigeren(ch) ? '<button type="button" class="crm-knop goed" onclick="chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>' : '') + '<button type="button" class="crm-knop" onclick="crmKaartSluit()">Sluiten</button></div>';
   crmKaartToon(html);
 }
 async function chPuntToevoegen(chId) {
@@ -10425,6 +10425,7 @@ function _chKaartHtml(ch, nu) {
   if (status === 'lopend' && ch.meetlat === 'voordrachten' && mijn && mijn.status === 'accepteert' && mag) knoppen += '<button type="button" class="crm-knop" onclick="chVoordragenVenster(' + ch.id + ')">+ kandidaat voordragen</button>';
   if (status === 'lopend' && ch.meetlat !== 'voordrachten' && mijn && mijn.status === 'accepteert' && mag) knoppen += '<button type="button" class="crm-knop" onclick="chPuntVenster(' + ch.id + ')">+ Punt</button>';   // 14-10
   knoppen += '<button type="button" class="crm-knop" onclick="chWieTeltVenster(' + ch.id + ')">Wie telt mee</button>';   // 19-11
+  if (_chMagCorrigeren(ch)) knoppen += '<button type="button" class="crm-knop" onclick="chCorrigeerVenster(' + ch.id + ')">✎ Corrigeren</button>';   // 20-11: ook hier, niet alleen op de racebaan
   if (status === 'lopend' && mag && (ch.uitdager_naam === ik || (typeof isBeheerder === 'function' && isBeheerder()))) knoppen += '<button type="button" class="crm-knop" onclick="chStop(' + ch.id + ')">Stop challenge</button>';
   return '<div id="ch-' + ch.id + '" class="ch' + klasse + '">' + pil +
     '<div class="lbl">' + escHtml(ml.l) + (ch.bedrijf ? ' · ' + escHtml(ch.bedrijf) : '') + '</div><div class="ti">' + escHtml(ch.titel) + '</div>' +
@@ -12454,7 +12455,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261119-1726';
+const APP_VERSIE = '20261120-0833';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
