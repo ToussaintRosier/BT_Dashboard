@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261120-0833 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261120-1531 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12455,7 +12455,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261120-0833';
+const APP_VERSIE = '20261120-1531';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -23184,11 +23184,11 @@ function _koersKaartHtml(soort, titel, s, K, regels) {
     (doel ? '<div class="j"><b>' + Math.round(eind / j.doel * 100) + '%</b> van ' + (volgend ? 'het jaardoel (doel ' + (CUR.year + 1) + ' volgt uit Beheer)' : 'je jaardoel ' + CUR.year) + '</div>' : '') + '</div>';
 }
 // De grafiek: het jaar opgeteld. Links wat er dit jaar gestart is, rechts de drie scenario's tot week 52; stippellijn = het jaardoel.
-// "Sterk" is alleen sterk bij 4 of hoger én niet onder het team; anders noemen we het eerlijk "gaat het best".
+// "Sterk" is alleen sterk bij een 8 of hoger én niet onder het team; anders noemen we het eerlijk "gaat het best".
 function _koersSterk(per, team) {
   const l = KOERS_VAARD.map(([k, label]) => ({ k, label, v: per[k] ? per[k].gem : null })).filter(o => o.v != null).sort((a, b) => b.v - a.v);
   if (!l.length) return { sterk: [], best: null, leer: null };
-  const sterk = l.filter(o => o.v >= 4 && (!team || team[o.k] == null || o.v >= team[o.k]));
+  const sterk = l.filter(o => o.v >= 8 && (!team || team[o.k] == null || o.v >= team[o.k]));
   return { sterk, best: l[0], leer: l.length > 1 ? l[l.length - 1] : null };
 }
 // Onderbouwing per vaardigheid: per opname het cijfer, de zin van de analyse en wat de collega zei.
@@ -23210,16 +23210,16 @@ function _koersVergelijkHtml(metV, team) {
   const knop = (veld, n, label, kl) => '<button type="button" class="' + kl + '" onclick="koersVergelijk(\'' + veld + '\',\'' + escApos(n) + '\')">' + escHtml(label) + '</button>';
   const rijen = KOERS_VAARD.map(([k, label]) => {
     const a = waarde(A, k), b = waarde(B, k); if (a == null) return '';
-    const pc = (v) => ((v - 1) / 4 * 100).toFixed(1), d = b == null ? null : a - b, l = b == null ? a : Math.min(a, b), r = b == null ? a : Math.max(a, b);
+    const pc = (v) => ((v - 1) / 9 * 100).toFixed(1), d = b == null ? null : a - b, l = b == null ? a : Math.min(a, b), r = b == null ? a : Math.max(a, b);
     return '<div class="ko-vg' + (k === KOERS_VGL.k ? ' aan' : '') + '" onclick="koersVergelijk(\'k\',\'' + k + '\')"><span>' + escHtml(label) + '</span><span class="ln"><s style="left:' + pc(l) + '%;width:' + (pc(r) - pc(l)).toFixed(1) + '%"></s>' + (b != null ? '<i class="b" style="left:' + pc(b) + '%"></i>' : '') + '<i class="a" style="left:' + pc(a) + '%"></i></span>' +
-      '<b class="' + (d == null ? '' : d > 0.3 ? 'op' : d < -0.3 ? 'neer' : '') + '">' + (d == null ? _koersGetal(a) : (d > 0 ? '+' : '') + _koersGetal(d)) + '</b></div>';
+      '<b class="' + (d == null ? '' : d > 0.6 ? 'op' : d < -0.6 ? 'neer' : '') + '">' + (d == null ? _koersGetal(a) : (d > 0 ? '+' : '') + _koersGetal(d)) + '</b></div>';
   }).join('');
   const k = KOERS_VGL.k, label = (KOERS_VAARD.find(x => x[0] === k) || [])[1] || '';
   const bw = (naam, kl) => { const l = _koersBewijs(naam, k); return l.length ? l.map(o => '<div class="ko-bw ' + kl + '"><small>' + escHtml(vn(naam) + ' · ' + o.titel) + ' · cijfer ' + o.score + '</small>' + escHtml(o.toelichting) + (o.voorbeeld ? '<i>“' + escHtml(o.voorbeeld) + '”</i>' : '') + '</div>').join('') : '<div class="ko-stil">' + escHtml(vn(naam)) + ': nog geen opnames met een score op dit onderdeel.</div>'; };
   return '<div class="ko-vak"><div class="ko-kop">Vergelijken met onderbouwing<small>kies twee collega\'s en klik op een vaardigheid — rechts staat waar het verschil vandaan komt</small></div>' +
     '<div class="ko-kies"><em>Collega</em>' + metV.map(x => knop('a', x.bm.naam, vn(x.bm.naam), x.bm.naam === KOERS_VGL.a ? 'a' : '')).join('') + '</div>' +
     '<div class="ko-kies"><em>Vergelijk met</em>' + knop('b', 'team', 'Team', KOERS_VGL.b === 'team' ? 'b' : '') + metV.filter(x => x.bm.naam !== KOERS_VGL.a).map(x => knop('b', x.bm.naam, vn(x.bm.naam), x.bm.naam === KOERS_VGL.b ? 'b' : '')).join('') + '</div>' +
-    '<div class="ko-g23"><div>' + rijen + '<div class="ko-stil" style="margin:6px 8px"><span style="color:#F4CB3C">●</span> ' + escHtml(vn(KOERS_VGL.a)) + ' &nbsp; <span style="color:#7db4ff">●</span> ' + escHtml(B ? vn(B.bm.naam) : 'team') + ' · schaal 1 – 5 · rechts het verschil</div></div>' +
+    '<div class="ko-g23"><div>' + rijen + '<div class="ko-stil" style="margin:6px 8px"><span style="color:#F4CB3C">●</span> ' + escHtml(vn(KOERS_VGL.a)) + ' &nbsp; <span style="color:#7db4ff">●</span> ' + escHtml(B ? vn(B.bm.naam) : 'team') + ' · schaal 1 – 10 · rechts het verschil</div></div>' +
     '<div class="ko-bewijs"><b class="h">' + escHtml(label) + _koersQ(k) + ' · ' + escHtml(vn(KOERS_VGL.a)) + ' ' + _koersGetal(waarde(A, k) || 0) + (waarde(B, k) != null ? ' tegenover ' + escHtml(B ? vn(B.bm.naam) : 'team') + ' ' + _koersGetal(waarde(B, k)) : '') + '</b>' + bw(KOERS_VGL.a, '') + (B ? bw(B.bm.naam, 'b') : '') + '</div></div></div>';
 }
 function koersVergelijk(veld, waarde) { if (!['a', 'b', 'k'].includes(veld)) return; KOERS_VGL[veld] = String(waarde); if (veld === 'a' && KOERS_VGL.b === KOERS_VGL.a) KOERS_VGL.b = 'team'; render(); }
@@ -23364,10 +23364,10 @@ function _koersWatEind(K) { const w = KOERS_STAND.wat; return w ? (KOERS_STAND.p
 function _koersOpnamesHtml(rijen) {
   const l = (rijen || []).slice(0, 5); if (!l.length) return '';
   const kop = '<div class="ko-ot kopr"><span>Opname</span>' + KOERS_VAARD.map(([k, label, kort]) => '<span title="' + escHtml(label) + '">' + escHtml(({ structuur: 'Struct.', luisteren: 'Luist.', doorvragen: 'Doorvr.', concreet: 'Concr.', commercieel: 'Comm.', afspraken: 'Afspr.' })[k] || kort) + '</span>').join('') + '<span>Ontwikkelpunt</span><span></span></div>';
-  return '<div class="ko-vak"><div class="ko-kop">Laatste opnames<small>cijfer per vaardigheid · ontwikkelpunt · klik op het pijltje voor de onderbouwing</small><button type="button" class="kk-knop ko-rechts" onclick="selectBmSubTab(\'coaching\')">Alle analyses per opname</button></div>' + kop + l.map(r => {
+  return '<div class="ko-vak"><div class="ko-kop">Laatste opnames<small>cijfer per vaardigheid (1 – 10) · ontwikkelpunt · klik op het pijltje voor de onderbouwing</small><button type="button" class="kk-knop ko-rechts" onclick="selectBmSubTab(\'coaching\')">Alle analyses per opname</button></div>' + kop + l.map(r => {
     const rec = ((r.type === 'bzk' ? (typeof BEZOEK_RECORDS !== 'undefined' ? BEZOEK_RECORDS : []) : (typeof GESPREK_RECORDS !== 'undefined' ? GESPREK_RECORDS : [])) || []).find(x => String(x.id) === String(r.verslag_id));
     const wie = rec ? (r.type === 'bzk' ? (rec.bedrijf || '') : (rec.naam || '')) : '', open = String(KOERS_STAND.opname) === String(r.verslag_id), sc = (r.resultaat && r.resultaat.scores) || {};
-    const bollen = KOERS_VAARD.map(([k, , kort]) => { const v = _koersScore(r, k); return v == null ? '<i class="ko-bol leeg" title="' + escHtml(kort + ': geen score') + '">–</i>' : '<i class="ko-bol b' + v + '" title="' + escHtml(kort + ': ' + v) + '">' + v + '</i>'; }).join('');
+    const bollen = KOERS_VAARD.map(([k, , kort]) => { const v = _koersScore(r, k); return v == null ? '<i class="ko-bol leeg" title="' + escHtml(kort + ': geen score') + '">–</i>' : '<i class="ko-bol ' + _koersBolKl(v) + '" title="' + escHtml(kort + ': ' + v) + '">' + v + '</i>'; }).join('');
     const detail = !open ? '' : '<span class="ko-ot-open"><span><b>Ontwikkelpunt</b>' + escHtml(String(r.resultaat.ontwikkelpunt || '—')) + (r.resultaat.citaat ? '<span class="ko-cit">“' + escHtml(String(r.resultaat.citaat)) + '”</span>' : '') + '</span>' +
       '<span><b>Per vaardigheid</b>' + KOERS_VAARD.map(([k, label]) => { const v = _koersScore(r, k), s = sc[k] && typeof sc[k] === 'object' ? sc[k] : {}; return v == null ? '' : '<span class="rg"><em>' + escHtml(label) + ' · ' + v + '</em>' + (s.toelichting ? ' — ' + escHtml(String(s.toelichting)) : '') + (s.voorbeeld ? ' <q>' + escHtml(String(s.voorbeeld)) + '</q>' : '') + '</span>'; }).join('') + '</span></span>';
     return '<div class="ko-ot' + (open ? ' open' : '') + '"><span class="wie"><b>' + (r.type === 'bzk' ? 'Bezoek' : 'Intake') + (wie ? ' · ' + escHtml(wie) : '') + '</b><small>' + escHtml(_crmDatum(Date.parse(r.gemaakt_op))) + '</small></span>' + bollen +
@@ -23418,7 +23418,21 @@ function _koersAnalysesVan(naam) {
   const sl = _itkSleutel(naam || '');
   return (COACH_RIJEN || []).filter(r => r && r.resultaat && _itkSleutel(r.recorder_naam || '') === sl).sort((a, b) => String(b.gemaakt_op || '').localeCompare(String(a.gemaakt_op || '')));
 }
-function _koersScore(r, key) { const s = r && r.resultaat && r.resultaat.scores && r.resultaat.scores[key]; const v = s && typeof s === 'object' ? +s.score : +s; return isFinite(v) && v >= 1 && v <= 5 ? v : null; }
+// 20-11: schaal 1–10. Een analyse van de nieuwe functie draagt scores.schaal = 10; een oudere (1–5) rekenen we om (×2).
+function _koersScore(r, key) {
+  const sc = r && r.resultaat && r.resultaat.scores, s = sc && sc[key]; let v = s && typeof s === 'object' ? +s.score : +s;
+  if (!isFinite(v)) return null;
+  if (!(sc && +sc.schaal === 10)) { if (v < 1 || v > 5) return null; v = v * 2; }
+  return v >= 1 && v <= 10 ? v : null;
+}
+// Kleur van een bolletje: 1–2 rood · 3–4 oranje · 5–6 geel · 7–8 lichtgroen · 9–10 groen.
+function _koersBolKl(v) { return 'b' + Math.max(1, Math.min(5, Math.ceil(Math.round(v) / 2))); }
+// De cijfers van één analyse op de schaal van 10, met toelichting — voor de rode draad (koers-inzicht).
+function _koersScores10(r) {
+  const sc = (r && r.resultaat && r.resultaat.scores) || {}, uit = {};
+  KOERS_VAARD.forEach(([k]) => { const v = _koersScore(r, k); if (v != null) uit[k] = { score: v, toelichting: sc[k] && typeof sc[k] === 'object' ? String(sc[k].toelichting || '') : '' }; });
+  return Object.keys(uit).length ? uit : null;
+}
 // Profiel over de laatste 10 opnames met scores: gemiddelde per vaardigheid en de richting (nieuwste helft − oudste helft).
 function _koersVaardigheden(rijen) {
   const l = (rijen || []).filter(r => _koersScore(r, 'doorvragen') != null).slice(0, 10), per = {};   // 19-11: alleen analyses met de nieuwe lat (doorvragen apart)
@@ -23433,7 +23447,8 @@ function _koersVaardigheden(rijen) {
 }
 // Opnames van deze collega die nog geen analyse (met scores) hebben — nieuwste eerst, alleen de laatste 60 dagen.
 function _koersZonderAnalyse(naam) {
-  const sl = _itkSleutel(naam || ''), heeft = new Set((COACH_RIJEN || []).filter(r => r && r.resultaat && r.resultaat.scores && r.resultaat.scores.doorvragen).map(r => String(r.verslag_id)));
+  const sl = _itkSleutel(naam || ''), nieuw = (COACH_RIJEN || []).some(r => r && r.resultaat && r.resultaat.scores && +r.resultaat.scores.schaal === 10),   // 20-11: de functie met de schaal van 10 draait
+    heeft = new Set((COACH_RIJEN || []).filter(r => r && r.resultaat && r.resultaat.scores && r.resultaat.scores.doorvragen && (!nieuw || +r.resultaat.scores.schaal === 10)).map(r => String(r.verslag_id)));
   const grens = Date.now() - 60 * 86400000, uit = [];
   const voeg = (lijst, type) => (lijst || []).forEach(r => {
     if (!r || _itkSleutel(r.recorder_naam || '') !== sl || heeft.has(String(r.id)) || !(r.transcript || r.heeftTranscript)) return;
@@ -23479,7 +23494,7 @@ async function koersInzichtVernieuw(naam, stil) {
   KOERS_AUTO.inzicht[naam] = 'bezig'; if (!stil) _koersHerteken();
   try {
     const tok = (await supa.auth.getSession())?.data?.session?.access_token;
-    const analyses = rijen.map(r => ({ type: r.type === 'bzk' ? 'bezoek' : 'intake', datum: String(r.gemaakt_op || '').slice(0, 10), goedGedaan: r.resultaat.goedGedaan, kanBeter: r.resultaat.kanBeter, ontwikkelpunt: r.resultaat.ontwikkelpunt, scores: r.resultaat.scores || null, citaat: r.resultaat.citaat || '' }));
+    const analyses = rijen.map(r => ({ type: r.type === 'bzk' ? 'bezoek' : 'intake', datum: String(r.gemaakt_op || '').slice(0, 10), goedGedaan: r.resultaat.goedGedaan, kanBeter: r.resultaat.kanBeter, ontwikkelpunt: r.resultaat.ontwikkelpunt, scores: _koersScores10(r), citaat: r.resultaat.citaat || '' }));
     const res = await fetch(SUPABASE_URL + '/functions/v1/koers-inzicht', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { 'Authorization': 'Bearer ' + tok } : {}) }, body: JSON.stringify({ naam, cijfers: _koersCijferTekst(K), analyses }) });
     const d = await res.json().catch(() => ({}));
     if (!res.ok || d.error) { KOERS_AUTO.inzicht[naam] = 'fout'; if (!stil) btMeld('Inzichten ophalen mislukt: ' + (d.error || ('HTTP ' + res.status)) + (res.status === 404 ? ' — is de functie koers-inzicht al geplakt?' : ''), 'rood'); _koersHerteken(); return; }
@@ -23509,8 +23524,8 @@ function _koersProfielHtml(V, per) {
   if (!V.n) return '<div class="ko-stil">Nog geen opnames met een analyse. Elke intake of elk bezoek dat je opneemt, wordt vanzelf geanalyseerd; na twee opnames staat hier je profiel.</div>';
   return KOERS_VAARD.map(([k, label]) => {
     const p = V.per[k]; if (p.gem == null) return '';
-    const kl = p.gem >= 3.8 ? ' g' : p.gem < 3 ? ' o' : '', tr = p.trend > 0.25 ? '<span class="ko-tr-op" title="stijgt over de laatste opnames">▲</span>' : p.trend < -0.25 ? '<span class="ko-tr-neer" title="daalt over de laatste opnames">▼</span>' : '<span class="ko-tr-gelijk">●</span>';
-    return '<div class="ko-vaard"><span>' + escHtml(label) + _koersQ(k) + '</span><span class="lat"><i class="' + kl.trim() + '" style="width:' + (p.gem / 5 * 100).toFixed(0) + '%"></i></span><b>' + _koersGetal(p.gem) + '</b>' + tr +
+    const kl = p.gem >= 7.5 ? ' g' : p.gem < 6 ? ' o' : '', tr = p.trend > 0.5 ? '<span class="ko-tr-op" title="stijgt over de laatste opnames">▲</span>' : p.trend < -0.5 ? '<span class="ko-tr-neer" title="daalt over de laatste opnames">▼</span>' : '<span class="ko-tr-gelijk">●</span>';
+    return '<div class="ko-vaard"><span>' + escHtml(label) + _koersQ(k) + '</span><span class="lat"><i class="' + kl.trim() + '" style="width:' + (p.gem / 10 * 100).toFixed(0) + '%"></i></span><b>' + _koersGetal(p.gem) + '</b>' + tr +
       (per && per[k] ? '<small>' + escHtml(String(per[k])) + '</small>' : '') + '</div>';
   }).join('');
 }
@@ -23533,8 +23548,8 @@ function _koersBlok3Html(K) {
   const wacht = _koersZonderAnalyse(naam).length;
   return '<div class="ko-blokkop"><em>Blok 3</em><b>Wat valt op?</b><small>cijfers + wat er in je intakes en bezoeken te horen is' + (stand ? ' · ' + escHtml(stand) : '') + '</small>' +
       (mag && rijen.length >= 2 ? '<button type="button" class="kk-knop ko-rechts" onclick="koersInzichtVernieuw(\'' + escApos(naam) + '\')">Rode draad verversen</button>' : '') + '</div>' +
-    '<div class="ko-g2"><div class="ko-vak"><div class="ko-kop">Jouw gespreksvoering<small>' + (V.n ? 'laatste ' + V.n + ' opnames · ' + V.itk + ' intake' + (V.itk === 1 ? '' : 's') + ', ' + V.bzk + ' bezoek' + (V.bzk === 1 ? '' : 'en') : 'uit je opnames') + '</small>' + _koersI('Elke opname wordt vanzelf geanalyseerd op zes vaardigheden, met een vaste lat per cijfer (1 = ontbreekt, 3 = voldoende, 5 = uitstekend). "Sterk" noemen we iets pas bij een 4 of hoger. Hier staat je gemiddelde over de laatste tien opnames; het pijltje is de richting. De analyse per opname staat ook op het record zelf.') + '</div>' +
-      (() => { if (!V.n) return ''; const S = _koersSterk(V.per, null); return '<div class="ko-goed">' + (S.sterk.length ? '<b>Dit gaat echt goed:</b> ' + S.sterk.map(o => escHtml(o.label) + ' (' + _koersGetal(o.v) + ')').join(' · ') : '<b>Gaat het best:</b> ' + escHtml(S.best.label) + ' (' + _koersGetal(S.best.v) + ') — nog geen onderdeel op 4 of hoger') + '</div>'; })() +
+    '<div class="ko-g2"><div class="ko-vak"><div class="ko-kop">Jouw gespreksvoering<small>' + (V.n ? 'laatste ' + V.n + ' opnames · ' + V.itk + ' intake' + (V.itk === 1 ? '' : 's') + ', ' + V.bzk + ' bezoek' + (V.bzk === 1 ? '' : 'en') : 'uit je opnames') + '</small>' + _koersI('Elke opname wordt vanzelf geanalyseerd op zes vaardigheden, met een cijfer van 1 tot 10 en een vaste lat (2 = ontbreekt, 6 = voldoende, 8 = goed, 10 = uitstekend). "Sterk" noemen we iets pas bij een 8 of hoger. Opnames van vóór 20-11 zijn omgerekend van de oude schaal (1–5) en worden vanzelf opnieuw beoordeeld. Hier staat je gemiddelde over de laatste tien opnames; het pijltje is de richting. De analyse per opname staat ook op het record zelf.') + '</div>' +
+      (() => { if (!V.n) return ''; const S = _koersSterk(V.per, null); return '<div class="ko-goed">' + (S.sterk.length ? '<b>Dit gaat echt goed:</b> ' + S.sterk.map(o => escHtml(o.label) + ' (' + _koersGetal(o.v) + ')').join(' · ') : '<b>Gaat het best:</b> ' + escHtml(S.best.label) + ' (' + _koersGetal(S.best.v) + ') — nog geen onderdeel op 8 of hoger') + '</div>'; })() +
       _koersProfielHtml(V, inz && inz.per_onderdeel) + (inz && inz.rode_draad ? '<div class="ko-zin"><b>Rode draad:</b> ' + escHtml(String(inz.rode_draad)) + '</div>' : '') +
       (wacht ? '<div class="ko-stil" style="margin-top:8px">' + wacht + (wacht === 1 ? ' opname wacht' : ' opnames wachten') + ' nog op een analyse' + (KOERS_AUTO.bezig ? ' — bezig…' : ' (start vanzelf, twee per keer).') + '</div>' : '') + '</div>' +
     '<div class="ko-inzlijst">' + kaarten.map(x => _koersInzichtKaart(x, naam, mag)).join('') + '</div></div>' +
@@ -23618,12 +23633,12 @@ function _koersArchiefHtml(bm) {
 
 // ── Team · Koers ─────────────────────────────────────────────────────────────────────────────────────────────────
 function _koersRadarSvg(per, team) {
-  const N = KOERS_VAARD.length, pt = (i, v, r) => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return (90 + Math.cos(a) * r * v / 5).toFixed(1) + ',' + (76 + Math.sin(a) * r * v / 5).toFixed(1); };
+  const N = KOERS_VAARD.length, pt = (i, v, r) => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return (90 + Math.cos(a) * r * v / 10).toFixed(1) + ',' + (76 + Math.sin(a) * r * v / 10).toFixed(1); };
   let s = '<svg class="ko-radar" viewBox="0 0 180 152" width="180" height="152">';
-  [1, 3, 5].forEach(k => { s += '<polygon fill="none" stroke="rgba(255,255,255,.1)" points="' + KOERS_VAARD.map((_, i) => pt(i, k, 54)).join(' ') + '"/>'; });
+  [2, 6, 10].forEach(k => { s += '<polygon fill="none" stroke="rgba(255,255,255,.1)" points="' + KOERS_VAARD.map((_, i) => pt(i, k, 54)).join(' ') + '"/>'; });
   if (team) s += '<polygon fill="none" stroke="rgba(255,255,255,.55)" stroke-dasharray="3 3" points="' + KOERS_VAARD.map(([k], i) => pt(i, team[k] || 0, 54)).join(' ') + '"/>';
   s += '<polygon fill="rgba(244,203,60,.3)" stroke="#F4CB3C" stroke-width="2" points="' + KOERS_VAARD.map(([k], i) => pt(i, (per[k] && per[k].gem) || 0, 54)).join(' ') + '"/>';
-  KOERS_VAARD.forEach(([, , kort], i) => { const q = pt(i, 6.3, 54).split(','); s += '<text x="' + q[0] + '" y="' + (+q[1] + 3) + '" fill="rgba(255,255,255,.6)" font-size="8" text-anchor="middle">' + kort + '</text>'; });
+  KOERS_VAARD.forEach(([, , kort], i) => { const q = pt(i, 12.6, 54).split(','); s += '<text x="' + q[0] + '" y="' + (+q[1] + 3) + '" fill="rgba(255,255,255,.6)" font-size="8" text-anchor="middle">' + kort + '</text>'; });
   return s + '</svg>';
 }
 function _koersTeamData() {
@@ -23653,22 +23668,22 @@ function _koersTeamInhoudHtml() {
     const metV = T.per.filter(x => x.V.n);
     if (metV.length) {
       // Stippenbaan: iedereen op één lijn per vaardigheid.
-      h += '<div class="ko-vak"><div class="ko-kop">Gespreksvoering · wie staat waar<small>uit de analyses van intakes en bezoeken · schaal 1 – 5 · streep = team</small></div>' +
+      h += '<div class="ko-vak"><div class="ko-kop">Gespreksvoering · wie staat waar<small>uit de analyses van intakes en bezoeken · schaal 1 – 10 · streep = team</small></div>' +
         KOERS_VAARD.map(([k, label]) => {
           const l = metV.filter(x => x.V.per[k].gem != null).sort((a, b) => a.V.per[k].gem - b.V.per[k].gem); if (!l.length) return '';
           const top = l[l.length - 1], sp = top.V.per[k].gem - l[0].V.per[k].gem, tm = T.team[k] || 0;
-          const zin = l.length < 2 ? '' : top.V.per[k].gem < 3.5 ? 'Niemand echt sterk: <b>teamthema</b>.' : sp >= 1 ? '<b>' + escHtml(top.bm.naam.split(' ')[0]) + '</b> steekt erbovenuit — ' + escHtml(l[0].bm.naam.split(' ')[0]) + ' kan hier leren.' : 'Dicht bij elkaar; <b>' + escHtml(top.bm.naam.split(' ')[0]) + '</b> loopt voorop.';
-          return '<div class="ko-stiprij"><span><b>' + escHtml(label) + '</b>' + _koersQ(k) + '<small>team ' + _koersGetal(tm) + '</small></span><span class="ko-stipbaan"><i class="lijn"></i><i class="tm" style="left:' + ((tm - 1) / 4 * 100).toFixed(1) + '%"></i>' +
-            l.map(x => '<i class="stip" style="left:' + ((x.V.per[k].gem - 1) / 4 * 100).toFixed(1) + '%;background:' + escHtml(x.bm.kleur || '#F4CB3C') + '" title="' + escHtml(x.bm.naam + ': ' + _koersGetal(x.V.per[k].gem) + ' (' + x.V.per[k].n + ' opnames)') + '">' + escHtml(ini(x.bm.naam)) + '</i>').join('') + '</span><span class="w">' + zin + '</span></div>';
+          const zin = l.length < 2 ? '' : top.V.per[k].gem < 7 ? 'Niemand echt sterk: <b>teamthema</b>.' : sp >= 2 ? '<b>' + escHtml(top.bm.naam.split(' ')[0]) + '</b> steekt erbovenuit — ' + escHtml(l[0].bm.naam.split(' ')[0]) + ' kan hier leren.' : 'Dicht bij elkaar; <b>' + escHtml(top.bm.naam.split(' ')[0]) + '</b> loopt voorop.';
+          return '<div class="ko-stiprij"><span><b>' + escHtml(label) + '</b>' + _koersQ(k) + '<small>team ' + _koersGetal(tm) + '</small></span><span class="ko-stipbaan"><i class="lijn"></i><i class="tm" style="left:' + ((tm - 1) / 9 * 100).toFixed(1) + '%"></i>' +
+            l.map(x => '<i class="stip" style="left:' + ((x.V.per[k].gem - 1) / 9 * 100).toFixed(1) + '%;background:' + escHtml(x.bm.kleur || '#F4CB3C') + '" title="' + escHtml(x.bm.naam + ': ' + _koersGetal(x.V.per[k].gem) + ' (' + x.V.per[k].n + ' opnames)') + '">' + escHtml(ini(x.bm.naam)) + '</i>').join('') + '</span><span class="w">' + zin + '</span></div>';
         }).join('') + '</div>';
       // Profielkaarten per collega.
       h += '<div class="ko-g4">' + metV.map(x => {
         const S = _koersSterk(x.V.per, T.team), sterk = S.sterk[0] || null, leer = S.leer, klik = (o) => o ? ' class="klik" onclick="koersVergelijk(\'a\',\'' + escApos(x.bm.naam) + '\');koersVergelijk(\'k\',\'' + o.k + '\')" title="Bekijk de onderbouwing"' : '';
-        const beste = leer ? metV.filter(y => y !== x && y.V.per[leer.k].gem != null && y.V.per[leer.k].gem >= leer.v + 0.7).sort((a, b) => b.V.per[leer.k].gem - a.V.per[leer.k].gem)[0] : null;
+        const beste = leer ? metV.filter(y => y !== x && y.V.per[leer.k].gem != null && y.V.per[leer.k].gem >= leer.v + 1.4).sort((a, b) => b.V.per[leer.k].gem - a.V.per[leer.k].gem)[0] : null;
         return '<div class="ko-prof"><div class="h"><i class="stip" style="background:' + escHtml(x.bm.kleur || '#F4CB3C') + '">' + escHtml(ini(x.bm.naam)) + '</i><b>' + escHtml(x.bm.naam.split(' ')[0]) + '</b><small>' + x.V.n + ' opname' + (x.V.n === 1 ? '' : 's') + (x.V.n < 3 ? ' · nog pril' : '') + '</small></div>' + _koersRadarSvg(x.V.per, T.team) +
           '<div class="s"><span class="st"' + klik(sterk || S.best) + '><i>' + (sterk ? 'Sterk' : 'Gaat het best') + '</i>' + escHtml(sterk ? S.sterk.map(o => o.label).slice(0, 2).join(' · ') : S.best ? S.best.label + ' (' + _koersGetal(S.best.v) + ')' : '—') + '</span><span class="le"' + klik(leer) + '><i>Leerpunt</i>' + escHtml(leer && leer !== (sterk || S.best) ? leer.label + ' (' + _koersGetal(leer.v) + ')' : '—') + '</span><span class="va"><i>Leert van</i>' + escHtml(beste ? beste.bm.naam.split(' ')[0] : '—') + '</span></div></div>'; }).join('') + '</div>';
       h += _koersVergelijkHtml(metV, T.team);
-      h += '<div class="ko-vak"><div class="ko-kop">Compact<small>bolletje = stand · pijltje = richting</small></div>' + _koersMatrixHtml(metV) + '</div>';
+      h += '<div class="ko-vak"><div class="ko-kop">Compact<small>bolletje = stand (1 – 10) · pijltje = richting</small></div>' + _koersMatrixHtml(metV) + '</div>';
     } else h += '<div class="ko-vak ko-stil">Nog geen opnames met scores. Zodra de functie gesprek-coaching opnieuw is geplakt, krijgt elke nieuwe opname vanzelf een score per vaardigheid.</div>';
   }
   return h + '</div>';
@@ -23682,7 +23697,7 @@ function _koersFocusPil(naam) {
 }
 function _koersMatrixHtml(metV) {
   return '<div class="ko-matrix"><div class="rij kopr"><span></span>' + KOERS_VAARD.map(([, , kort]) => '<span>' + kort + '</span>').join('') + '<span>Opnames</span></div>' +
-    metV.map(x => '<div class="rij"><span><b>' + escHtml(x.bm.naam.split(' ')[0]) + '</b></span>' + KOERS_VAARD.map(([k]) => { const p = x.V.per[k]; if (p.gem == null) return '<span>—</span>'; const b = Math.max(1, Math.min(5, Math.round(p.gem))); return '<span><i class="ko-bol b' + b + '">' + _koersGetal(p.gem) + '</i>' + (p.trend > 0.25 ? '<em class="ko-tr-op">▲</em>' : p.trend < -0.25 ? '<em class="ko-tr-neer">▼</em>' : '<em class="ko-tr-gelijk">●</em>') + '</span>'; }).join('') + '<span>' + x.V.n + '</span></div>').join('') + '</div>';
+    metV.map(x => '<div class="rij"><span><b>' + escHtml(x.bm.naam.split(' ')[0]) + '</b></span>' + KOERS_VAARD.map(([k]) => { const p = x.V.per[k]; if (p.gem == null) return '<span>—</span>'; return '<span><i class="ko-bol ' + _koersBolKl(p.gem) + '">' + _koersGetal(p.gem) + '</i>' + (p.trend > 0.5 ? '<em class="ko-tr-op">▲</em>' : p.trend < -0.5 ? '<em class="ko-tr-neer">▼</em>' : '<em class="ko-tr-gelijk">●</em>') + '</span>'; }).join('') + '<span>' + x.V.n + '</span></div>').join('') + '</div>';
 }
 // ── Wie telt mee (19-11): het blok onder de teamschuifjes op Koers team ─────────────────────────────────────────
 function _koersTeltBlokHtml() {
