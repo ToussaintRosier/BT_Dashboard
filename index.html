@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261123-0843 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261123-1017 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -2190,6 +2190,14 @@
   .vsel-pil { display:inline-block; border-radius:6px; padding:1px 7px; font-size:.68rem; font-weight:700; white-space:nowrap; }
   .vsel-pil.geselecteerd { background:var(--l2); color:#dfe5f3; } .vsel-pil.voorgesteld { background:#2f5a8a; color:#fff; } .vsel-pil.gesprek { background:#5a4a1a; color:#F4CB3C; } .vsel-pil.aangenomen { background:#1f6b3f; color:#fff; } .vsel-pil.afgewezen { background:#7a2e2e; color:#fff; } .vsel-pil.teruggetrokken { background:#4a5577; color:#cdd4e6; }
   .vsel-vink { display:inline-flex; width:20px; height:20px; border-radius:6px; border:1px solid rgba(255,255,255,.3); align-items:center; justify-content:center; font-size:.8rem; } .vsel-vink.ok { background:#25D366; border-color:#25D366; color:#1b2238; font-weight:800; }
+  /* Blok Vacatures op de kandidaatkaart (23-11) */
+  .kv-kop { display:flex; align-items:center; gap:10px; margin-bottom:10px; color:#fff; } .kv-kop b { font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; font-weight:var(--w-nadruk); } .kv-tel { background:rgba(255,255,255,.12); border-radius:99px; padding:0 8px; font-size:.7rem; } .kv-kop small { color:rgba(255,255,255,.5); font-size:.76rem; } .kv-kop .kv-plus { margin-left:auto; border-color:rgba(244,203,60,.6); color:#F4CB3C; white-space:nowrap; } .kv-kop .kv-plus:hover { background:rgba(244,203,60,.12); }
+  .kv-leeg { display:flex; align-items:center; gap:12px; border:1px dashed rgba(255,255,255,.2); border-radius:12px; padding:14px 16px; color:rgba(255,255,255,.7); font-size:.84rem; } .kv-leeg svg { width:26px; height:26px; flex:none; fill:none; stroke:rgba(255,255,255,.45); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; } .kv-leeg > span { flex:1; min-width:0; } .kv-leeg b { color:#fff; font-weight:var(--w-nadruk); display:block; } .kv-leeg .crm-knop { flex:none; white-space:nowrap; }
+  .kv-kopr, .kv-rij { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(120px,160px) minmax(100px,130px) minmax(0,1.1fr); gap:12px; align-items:center; } .kv-kopr { font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.45); padding:0 4px 4px; } .kv-kopr span:last-child { text-align:right; }
+  .kv-rij { padding:10px 4px; border-top:1px solid rgba(255,255,255,.09); font-size:.84rem; color:#fff; } .kv-v { min-width:0; } .kv-v b { display:block; font-weight:var(--w-nadruk); } .kv-v small { color:rgba(255,255,255,.55); font-size:.74rem; }
+  .kv-bron { font-size:.78rem; } .kv-bron i { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; background:#F4CB3C; } .kv-bron.bord i { background:#7db4ff; } .kv-bron.sol i { background:#c9a7ff; } .kv-bron small { display:block; color:rgba(255,255,255,.5); font-size:.7rem; margin-left:14px; }
+  .kv-act { display:flex; gap:6px; justify-content:flex-end; align-items:center; flex-wrap:wrap; } .kv-act small { color:rgba(255,255,255,.5); font-size:.7rem; } .kv-act .vsel-kn { margin-right:0; }
+  @media (max-width:760px) { .kv-kopr { display:none; } .kv-rij { grid-template-columns:1fr 1fr; } .kv-act { justify-content:flex-start; grid-column:1 / -1; } }
   .vsel-kn { border:1px solid rgba(255,255,255,.25); background:none; color:#fff; border-radius:7px; padding:3px 8px; font-size:.72rem; cursor:pointer; font-family:inherit; margin-right:3px; } .vsel-kn.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:700; } .vsel-kn:hover { background:rgba(255,255,255,.1); } .vsel-kn.geel:hover { background:#F4CB3C; }
   .vsel-todo { color:#E87400; font-size:.7rem; }
   .vkz-body { display:grid; grid-template-columns:1.3fr 1fr; gap:14px; } @media (max-width:900px) { .vkz-body { grid-template-columns:1fr; } }
@@ -12491,7 +12499,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261123-0843';
+const APP_VERSIE = '20261123-1017';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -23872,6 +23880,9 @@ function _elfSpelers() {
   return lijst;
 }
 function _elfMidden(lijst, pos) { const l = lijst.filter(s => s.pos === pos); return l.length ? { x: l.reduce((a, s) => a + s.x, 0) / l.length, y: l.reduce((a, s) => a + s.y, 0) / l.length } : null; }
+// Waar een verbinding naar een linie eindigt: het midden van de linie — behalve bij de flanken, die liggen links en
+// rechts van het veld; daar loopt de lijn naar elke speler.
+function _elfDoelen(lijst, pos) { if (pos === 'flank') return lijst.filter(s => s.pos === pos).map(s => ({ x: s.x, y: s.y })); const m = _elfMidden(lijst, pos); return m ? [m] : []; }
 function _elfIni(n) { return String(n).split(/\s+/).filter(w => /^[A-Za-zÀ-ÿ]/.test(w) && !/^(van|den|der|de|ten|ter)$/.test(w)).map(w => w[0]).join('').slice(0, 2).toUpperCase(); }
 function _elfVoornaam(n) { return String(n).split(' ')[0]; }
 // De collega in de Cockpit bij een speler: exact op naam, anders op een voornaam die maar één keer voorkomt.
@@ -23989,9 +24000,10 @@ function _elftalBinnen() {
     h += '<path class="elf-pass t-' + soort + (st ? ' ' + st : iets ? ' dim' : '') + '" d="' + _elfPad(soort, pts) + '" marker-end="' + m + '"' + (twee ? ' marker-start="' + m + '"' : '') + '/>'; });
   // verbindingen die niet op de poster staan: alleen zichtbaar bij de gekozen positie
   if (sel) Object.keys(ELFTAL_POS).forEach(pos => { if (pos === sel.pos || !mee.has(pos) || ELFTAL_LIJNEN.some(l => (l[1] === sel.pos && l[2] === pos) || (l[1] === pos && l[2] === sel.pos))) return;
-    const a = { x: sel.x, y: sel.y }, b = _elfMidden(L, pos); if (!b) return; const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-    const p1 = { x: a.x + dx / len * 30, y: a.y + dy / len * 30 }, p2 = { x: b.x - dx / len * 34, y: b.y - dy / len * 34 }, st = E.weg ? 'stuk' : 'in';
-    h += '<path class="elf-pass t-actie ' + st + '" d="' + _elfGolf(p1, p2) + '" marker-end="' + pijl(st) + '" marker-start="' + pijl(st) + '"/>'; });
+    const a = { x: sel.x, y: sel.y }, st = E.weg ? 'stuk' : 'in';
+    _elfDoelen(L, pos).forEach(b => { const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1; if (len < 70) return;
+      const p1 = { x: a.x + dx / len * 30, y: a.y + dy / len * 30 }, p2 = { x: b.x - dx / len * 34, y: b.y - dy / len * 34 };
+      h += '<path class="elf-pass t-actie ' + st + '" d="' + _elfGolf(p1, p2) + '" marker-end="' + pijl(st) + '" marker-start="' + pijl(st) + '"/>'; }); });
   // de spelers
   L.forEach((s, i) => { const d = _elfCijfers(s), inDuo = E.duo.includes(i);
     const dim = E.modus === 'samen' ? (E.duo.length > 0 && !inDuo) : (iets && !actief.has(s.pos) && !mee.has(s.pos));
@@ -49462,30 +49474,34 @@ function _vacSelStatusKnoppen(x, st) {
 function _kandVacaturesBlokHtml(sleutel, naam) {
   if (VAC_SEL_ONTBREEKT) return '';
   const lijst = vacSelVoorKand(sleutel);
-  const mag = magWijzigen('crm') && !CRM_ONTBREEKT;
+  const mag = magWijzigen('crm') && !CRM_ONTBREEKT, vn = (n) => String(n || '').split(' ')[0];
+  // Eén regel: vacature · hoe gekoppeld (bolletje + wie/wanneer) · status · actie.
+  const rij = (titel, sub, klik, bron, bronTekst, bronSub, pil, acties) => '<div class="kv-rij"><span class="kv-v"><b class="crm-klik" onclick="' + klik + '">' + escHtml(titel) + '</b>' + (sub ? '<small>' + escHtml(sub) + '</small>' : '') + '</span>' +
+    '<span class="kv-bron ' + bron + '"><i></i>' + bronTekst + (bronSub ? '<small>' + escHtml(bronSub) + '</small>' : '') + '</span><span>' + pil + '</span><span class="kv-act">' + (acties || '') + '</span></div>';
   const rijen = lijst.map(x => {
     const v = _vacVind(x.vacature_id) || { titel: 'vacature' };
     const st = _vacSelStand(x, v); const klant = _vacKlantNaam(v);
-    const voorg = x.voorgesteld_op ? '<span class="vsel-vink ok">✓</span> ' + _vacSelDatum(x.voorgesteld_op) : (mag && st === 'geselecteerd' ? '<button type="button" class="vsel-kn geel" onclick="vacSelVoorstellen(\'' + escApos(String(x.id)) + '\')">Voorgesteld ✓</button><span class="vsel-todo"> to-do · ' + VAC_SEL_TERMIJN_WD + ' wd</span>' : '<span class="vsel-vink"></span>');
-    const knoppen = x.status === 'afgewezen' || x.status === 'teruggetrokken' ? '<small class="stil">' + escHtml(x.reden || '') + '</small>' : (mag && st !== 'geselecteerd' && x.status !== 'aangenomen' ? _vacSelStatusKnoppen(x, st) : '');
-    return '<tr><td><span class="crm-klik" onclick="crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b></span>' + (klant ? '<br><small class="stil">' + escHtml(klant + (v.regio ? ' · ' + v.regio : '')) + '</small>' : '') + '</td>' +
-      '<td>' + escHtml(String(x.geselecteerd_door || '').split(' ')[0]) + ' · ' + _vacSelDatum(x.geselecteerd_op) + '</td><td>' + voorg + '</td><td><span class="vsel-pil ' + st + '">' + escHtml(VAC_SEL_LABELS[st] || st) + '</span></td><td>' + knoppen + '</td></tr>';
+    const voorg = !x.voorgesteld_op && mag && st === 'geselecteerd' ? '<small>to-do · ' + VAC_SEL_TERMIJN_WD + ' werkdagen</small><button type="button" class="vsel-kn geel" onclick="vacSelVoorstellen(\'' + escApos(String(x.id)) + '\')">Voorgesteld ✓</button>' : '';
+    const knoppen = x.status === 'afgewezen' || x.status === 'teruggetrokken' ? '<small>' + escHtml(x.reden || '') + '</small>' : (mag && st !== 'geselecteerd' && x.status !== 'aangenomen' ? _vacSelStatusKnoppen(x, st) : '');
+    return rij(v.titel || 'vacature', [klant, v.regio].filter(Boolean).join(' · '), 'crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')', 'sel', 'Geselecteerd',
+      [vn(x.geselecteerd_door), _vacSelDatum(x.geselecteerd_op), x.voorgesteld_op ? 'voorgesteld ' + _vacSelDatum(x.voorgesteld_op) : ''].filter(Boolean).join(' · '), '<span class="vsel-pil ' + st + '">' + escHtml(VAC_SEL_LABELS[st] || st) + '</span>', voorg + knoppen);
   }).join('');
   // 23-11: vacatures die op het Kanban-bord aan een tegeltje van deze kandidaat hangen en niet via de selectie liepen.
   // Eén regel per vacature, met de verste fase.
   const kb = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null, inSel = new Set(lijst.map(x => String(x.vacature_id))), viaBord = new Map();
   if (kb) ['gp', 'g1', 'g2', 'g3', 'contract', 'starter'].forEach(f => (kb[f] || []).forEach(c => { if (c.vacature_id && _itkSleutel(c.naam || '') === String(sleutel) && !inSel.has(String(c.vacature_id))) viaBord.set(String(c.vacature_id), { c, f }); }));
   const bordRijen = Array.from(viaBord.values()).map(({ c, f }) => { const v = _vacVind(c.vacature_id) || { titel: 'vacature' }, st = f === 'starter' ? 'aangenomen' : 'gesprek', klant = _vacKlantNaam(v);
-    return '<tr><td><span class="crm-klik" onclick="crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b></span><br><small class="stil">' + escHtml((klant ? klant + ' · ' : '') + 'via het Kanban-bord · ' + ((_kanbanFase(f) || {}).label || f)) + '</small></td>' +
-      '<td>' + escHtml(String(c.bmNaam || '').split(' ')[0]) + '</td><td>—</td><td><span class="vsel-pil ' + st + '">' + escHtml(f === 'contract' ? 'contractvoorstel' : VAC_SEL_LABELS[st] || st) + '</span></td><td></td></tr>'; }).join('');
-  // 14-10 (deel C): sollicitaties via de site van deze kandidaat
+    return rij(v.titel || 'vacature', [klant, v.regio].filter(Boolean).join(' · '), 'crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')', 'bord', 'Kanban-bord', [vn(c.bmNaam), (_kanbanFase(f) || {}).label || f].filter(Boolean).join(' · '),
+      '<span class="vsel-pil ' + st + '">' + escHtml(f === 'contract' ? 'contractvoorstel' : VAC_SEL_LABELS[st] || st) + '</span>', '<small>volgt het tegeltje op het bord</small>'); }).join('');
+  // 14-10 (deel C): sollicitaties via de site van deze kandidaat — sinds 23-11 in dezelfde lijst
   const kand = typeof crmKandLijst === 'function' ? crmKandLijst().find(k => k.sleutel === sleutel) : null;
   const sols = typeof _solVanKand === 'function' ? _solVanKand(kand || { sleutel, crm: null }) : [];
-  const solHtml = sols.length ? '<div class="kk-lijst" style="margin-top:6px">' + sols.map(x => '<div class="kk-rij"><span>Gesolliciteerd</span><div><span class="crm-klik" onclick="solVenster(\'' + escApos(String(x.id)) + '\')">' + escHtml(x.vacature_titel || 'vacature') + '</span> <small class="stil">· ' + escHtml(_crmDatum(Date.parse(x.ontvangen_op))) + ' · via brightech.nl</small> <span class="sol-st ' + escHtml(x.status) + '">' + escHtml(_solStatusTekst(x)) + '</span></div></div>').join('') + '</div>' : '';
-  return '<div class="bd-vak" style="margin-top:12px;"><div class="crm-kop">Vacatures <small class="crm-kop-klein">geselecteerd voor een vacature of gekoppeld op het Kanban-bord</small>' +
-    (mag ? '<button type="button" class="crm-knop goed" style="margin-left:auto;" onclick="kandVacatureToevoegen(\'' + escApos(String(sleutel)) + '\',\'' + escApos(String(naam || '')) + '\')">+ Vacature toevoegen</button>' : '') + '</div>' +
-    (lijst.length || bordRijen ? '<table class="vsel-tabel"><thead><tr><th>Vacature</th><th>Geselecteerd door</th><th>Voorgesteld</th><th>Status</th><th></th></tr></thead><tbody>' + rijen + bordRijen + '</tbody></table>'
-                  : '<div class="kk-lijst"><div class="kk-rij"><span class="stil vsel-leeg">Nog niet gekoppeld aan een vacature.' + (mag ? ' Voeg er hier een toe met "+ Vacature toevoegen", of selecteer de kandidaat op de vacature zelf.' : '') + '</span></div></div>') + solHtml + '</div>';
+  const solRijen = sols.map(x => { const open = 'solVenster(\'' + escApos(String(x.id)) + '\')';
+    return rij(x.vacature_titel || 'vacature', 'via brightech.nl', open, 'sol', 'Gesolliciteerd', _crmDatum(Date.parse(x.ontvangen_op)), '<span class="sol-st ' + escHtml(x.status) + '">' + escHtml(_solStatusTekst(x)) + '</span>', '<button type="button" class="vsel-kn" onclick="' + open + '">Bekijken</button>'); }).join('');
+  const n = lijst.length + viaBord.size + sols.length, plus = 'onclick="kandVacatureToevoegen(\'' + escApos(String(sleutel)) + '\',\'' + escApos(String(naam || '')) + '\')">+ Vacature toevoegen</button>';
+  return '<div class="bd-vak" style="margin-top:12px;"><div class="kv-kop"><b>Vacatures</b><span class="kv-tel">' + n + '</span>' + (n ? '<small>waar deze kandidaat voor in beeld is</small>' + (mag ? '<button type="button" class="kk-knop kv-plus" ' + plus : '') : '') + '</div>' +
+    (n ? '<div class="kv-kopr"><span>Vacature</span><span>Hoe gekoppeld</span><span>Status</span><span>Actie</span></div>' + rijen + bordRijen + solRijen
+       : '<div class="kv-leeg"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></svg><span><b>Nog niet gekoppeld aan een vacature</b>' + (mag ? 'Koppel er hier een, of selecteer de kandidaat op de vacature zelf. ' : '') + 'Vacatures van het Kanban-bord komen er vanzelf bij.</span>' + (mag ? '<button type="button" class="crm-knop goed" ' + plus : '') + '</div>') + '</div>';
 }
 // 23-11: een vacature toevoegen vanaf de kandidaatkaart — dezelfde kiezer als "Toevoegen aan vacature" in CRM-Search, voor één kandidaat.
 function kandVacatureToevoegen(sleutel, naam) {
