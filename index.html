@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261123-0826 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261123-0843 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12491,7 +12491,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261123-0826';
+const APP_VERSIE = '20261123-0843';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -49471,13 +49471,28 @@ function _kandVacaturesBlokHtml(sleutel, naam) {
     return '<tr><td><span class="crm-klik" onclick="crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b></span>' + (klant ? '<br><small class="stil">' + escHtml(klant + (v.regio ? ' · ' + v.regio : '')) + '</small>' : '') + '</td>' +
       '<td>' + escHtml(String(x.geselecteerd_door || '').split(' ')[0]) + ' · ' + _vacSelDatum(x.geselecteerd_op) + '</td><td>' + voorg + '</td><td><span class="vsel-pil ' + st + '">' + escHtml(VAC_SEL_LABELS[st] || st) + '</span></td><td>' + knoppen + '</td></tr>';
   }).join('');
+  // 23-11: vacatures die op het Kanban-bord aan een tegeltje van deze kandidaat hangen en niet via de selectie liepen.
+  // Eén regel per vacature, met de verste fase.
+  const kb = typeof kanbanKaarten === 'function' ? kanbanKaarten() : null, inSel = new Set(lijst.map(x => String(x.vacature_id))), viaBord = new Map();
+  if (kb) ['gp', 'g1', 'g2', 'g3', 'contract', 'starter'].forEach(f => (kb[f] || []).forEach(c => { if (c.vacature_id && _itkSleutel(c.naam || '') === String(sleutel) && !inSel.has(String(c.vacature_id))) viaBord.set(String(c.vacature_id), { c, f }); }));
+  const bordRijen = Array.from(viaBord.values()).map(({ c, f }) => { const v = _vacVind(c.vacature_id) || { titel: 'vacature' }, st = f === 'starter' ? 'aangenomen' : 'gesprek', klant = _vacKlantNaam(v);
+    return '<tr><td><span class="crm-klik" onclick="crmKaartSluit();vacOpen(\'' + escApos(String(v.id || '')) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b></span><br><small class="stil">' + escHtml((klant ? klant + ' · ' : '') + 'via het Kanban-bord · ' + ((_kanbanFase(f) || {}).label || f)) + '</small></td>' +
+      '<td>' + escHtml(String(c.bmNaam || '').split(' ')[0]) + '</td><td>—</td><td><span class="vsel-pil ' + st + '">' + escHtml(f === 'contract' ? 'contractvoorstel' : VAC_SEL_LABELS[st] || st) + '</span></td><td></td></tr>'; }).join('');
   // 14-10 (deel C): sollicitaties via de site van deze kandidaat
   const kand = typeof crmKandLijst === 'function' ? crmKandLijst().find(k => k.sleutel === sleutel) : null;
   const sols = typeof _solVanKand === 'function' ? _solVanKand(kand || { sleutel, crm: null }) : [];
   const solHtml = sols.length ? '<div class="kk-lijst" style="margin-top:6px">' + sols.map(x => '<div class="kk-rij"><span>Gesolliciteerd</span><div><span class="crm-klik" onclick="solVenster(\'' + escApos(String(x.id)) + '\')">' + escHtml(x.vacature_titel || 'vacature') + '</span> <small class="stil">· ' + escHtml(_crmDatum(Date.parse(x.ontvangen_op))) + ' · via brightech.nl</small> <span class="sol-st ' + escHtml(x.status) + '">' + escHtml(_solStatusTekst(x)) + '</span></div></div>').join('') + '</div>' : '';
-  return '<div class="bd-vak" style="margin-top:12px;"><div class="crm-kop">Vacatures <small class="crm-kop-klein">geselecteerd voor een vacature (omgekeerd RLDV)</small></div>' +
-    (lijst.length ? '<table class="vsel-tabel"><thead><tr><th>Vacature</th><th>Geselecteerd door</th><th>Voorgesteld</th><th>Status</th><th></th></tr></thead><tbody>' + rijen + '</tbody></table>'
-                  : '<div class="kk-lijst"><div class="kk-rij"><span class="stil">Niet geselecteerd voor een vacature. Selecteren doe je op de vacature zelf (Vacatures → + Kandidaten selecteren).</span></div></div>') + solHtml + '</div>';
+  return '<div class="bd-vak" style="margin-top:12px;"><div class="crm-kop">Vacatures <small class="crm-kop-klein">geselecteerd voor een vacature of gekoppeld op het Kanban-bord</small>' +
+    (mag ? '<button type="button" class="crm-knop goed" style="margin-left:auto;" onclick="kandVacatureToevoegen(\'' + escApos(String(sleutel)) + '\',\'' + escApos(String(naam || '')) + '\')">+ Vacature toevoegen</button>' : '') + '</div>' +
+    (lijst.length || bordRijen ? '<table class="vsel-tabel"><thead><tr><th>Vacature</th><th>Geselecteerd door</th><th>Voorgesteld</th><th>Status</th><th></th></tr></thead><tbody>' + rijen + bordRijen + '</tbody></table>'
+                  : '<div class="kk-lijst"><div class="kk-rij"><span class="stil vsel-leeg">Nog niet gekoppeld aan een vacature.' + (mag ? ' Voeg er hier een toe met "+ Vacature toevoegen", of selecteer de kandidaat op de vacature zelf.' : '') + '</span></div></div>') + solHtml + '</div>';
+}
+// 23-11: een vacature toevoegen vanaf de kandidaatkaart — dezelfde kiezer als "Toevoegen aan vacature" in CRM-Search, voor één kandidaat.
+function kandVacatureToevoegen(sleutel, naam) {
+  if (!eisWijzig('crm')) return;
+  if (VAC_SEL_ONTBREEKT) { btMeld('Draai eerst supabase/vacature_selecties.sql in de SQL-editor.', 'geel'); return; }
+  VAC_NAAR = { kandidaten: [{ sleutel: String(sleutel), naam: String(naam || '') }], alle: false, q: '', zoek: '', terug: String(sleutel) };
+  _vacNaarToon();
 }
 // ── Acties ──
 async function vacSelVoorstellen(id) {
@@ -49644,7 +49659,7 @@ function crmSearchNaarVacature() {
   VAC_NAAR = { kandidaten: lijst, alle: !sel.length, q: '', zoek: _crmSearchOmschrijving() };
   _vacNaarToon();
 }
-function _vacNaarToon() { if (!VAC_NAAR) return; crmKaartToon(_vacNaarHtml(), 'crm-kaart vac-naar', () => { VAC_NAAR = null; }); const el = document.getElementById('vac-naar-q'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { _meldStil('vacature kiezen cursor', e); } } }
+function _vacNaarToon() { if (!VAC_NAAR) return; crmKaartToon(_vacNaarHtml(), 'crm-kaart vac-naar', () => { const t = VAC_NAAR && VAC_NAAR.terug; VAC_NAAR = null; if (t) setTimeout(() => kandRldvKaartOpen(t), 0); }); const el = document.getElementById('vac-naar-q'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { _meldStil('vacature kiezen cursor', e); } } }
 function _vacNaarLijst() {
   const q = _crmPlat(VAC_NAAR.q);
   return VACATURES.filter(v => v.status !== 'gesloten' && (!q || _crmPlat([v.titel, _vacKlantNaam(v), v.regio].filter(Boolean).join(' ')).includes(q)))
@@ -49654,20 +49669,22 @@ function _vacNaarHtml() {
   const N = VAC_NAAR; const n = N.kandidaten.length;
   const opties = _vacNaarLijst().map(v => { const klant = _vacKlantNaam(v); const al = vacSelVoorVacature(v.id).length;
     return '<div class="vac-naar-opt" onclick="vacNaarKies(\'' + escApos(String(v.id)) + '\')"><b>' + escHtml(v.titel || 'vacature') + '</b>' + (klant ? ' — ' + escHtml(klant) : '') + (v.regio ? ' · ' + escHtml(v.regio) : '') + '<small>' + escHtml(v.status || '') + ' · ' + al + ' geselecteerd</small></div>'; }).join('');
-  return '<h4 class="wit">Toevoegen aan vacature</h4><div class="crm-sub">' + n + ' kandidat' + (n === 1 ? '' : 'en') + (N.alle ? ' (alle treffers — er was niets aangevinkt)' : ' aangevinkt in CRM-Search') + '</div>' +
+  return '<h4 class="wit">Toevoegen aan vacature</h4><div class="crm-sub">' + (N.terug ? escHtml(N.kandidaten[0].naam) + ' · vanaf de kandidaatkaart' : n + ' kandidat' + (n === 1 ? '' : 'en') + (N.alle ? ' (alle treffers — er was niets aangevinkt)' : ' aangevinkt in CRM-Search')) + '</div>' +
     '<div class="crm-body">' +
     '<div class="crm-zoek" style="margin:0 0 10px;max-width:none;"><span class="crm-zoek-ic" aria-hidden="true">&#128269;</span><input id="vac-naar-q" type="text" value="' + escHtml(N.q) + '" placeholder="vacature: titel, klant of plaats…" autocomplete="off" oninput="vacNaarTyp(this.value)"></div>' +
     '<div class="vac-naar-lijst">' + (opties || '<div class="stil">Geen open vacature gevonden (alleen concept en online tellen).</div>') + '</div>' +
-    '<small class="vs-noot" style="display:block;margin-top:10px;">Wie al in de vacature zit wordt overgeslagen; wie in een procedure zit vraagt een bevestiging. Per kandidaat komt een to-do bij zijn collega: "Voorstellen voor …" (' + VAC_SEL_TERMIJN_WD + ' werkdagen). Herkomst: via CRM-Search' + (N.zoek ? ' — ' + escHtml(N.zoek) : '') + '.</small></div>' +
+    '<small class="vs-noot" style="display:block;margin-top:10px;">Wie al in de vacature zit wordt overgeslagen; wie in een procedure zit vraagt een bevestiging. Per kandidaat komt een to-do bij zijn collega: "Voorstellen voor …" (' + VAC_SEL_TERMIJN_WD + ' werkdagen). Herkomst: ' + (N.terug ? 'kandidaatkaart' : 'via CRM-Search' + (N.zoek ? ' — ' + escHtml(N.zoek) : '')) + '.</small></div>' +
     '<div class="crm-knoppen"><button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button></div>';
 }
 function vacNaarTyp(v) { if (!VAC_NAAR) return; VAC_NAAR.q = String(v || ''); _vacNaarToon(); }
 async function vacNaarKies(vacId) {
   const N = VAC_NAAR; if (!N) return;
   const v = _vacVind(vacId); if (!v) return;
-  const n = await _vacSelOpslaan(v, N.kandidaten, 'crm-search' + (N.zoek ? ': ' + N.zoek : ''));
+  const terug = N.terug || null;
+  const n = await _vacSelOpslaan(v, N.kandidaten, terug ? 'kandidaatkaart' : 'crm-search' + (N.zoek ? ': ' + N.zoek : ''));
   if (n == null) return;
   VAC_NAAR = null; crmKaartSluit();
+  if (terug) { setTimeout(() => kandRldvKaartOpen(terug), 0); return; }   // 23-11: terug naar het RLDV-blad, waar de vacature nu staat
   if (n && typeof CRM_SEARCH !== 'undefined' && CRM_SEARCH) { CRM_SEARCH.sel = {}; if (typeof renderCrmSearch === 'function' && currentTab === 'crmsearch') renderCrmSearch(); }
 }
 // ═══ Matchscore met onderbouwing (12-10, concept_matchscore.html — stap 1) ═══════════════════════════════════
