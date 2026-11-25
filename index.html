@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261125-1235 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261125-1329 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -4824,7 +4824,7 @@
   .kk-log-r .m .x { background:none; border:none; color:rgba(255,255,255,.4); cursor:pointer; font-size:.66rem; padding:0; font-family:inherit; margin-left:auto; }
   .kk-log-r .m .x:hover { color:#ffb3b3; text-decoration:underline; }
   .kk-log-r .tekst { font-size:.84rem; color:#fff; line-height:1.5; word-break:break-word; }
-  .kk-notitie { position:relative; }
+  .kk-notitie { position:relative; } .kk-notitie + .kk-log, .kk-notitie + div { margin-top:10px; }
   /* Overzicht: bezoekkaartjes (16-09). */
   .acc-bezoek-kaart { cursor:default; }
   .acc-bezoek-kaart.geel { box-shadow:inset 3px 0 0 #F4CB3C; }
@@ -12678,7 +12678,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261125-1235';
+const APP_VERSIE = '20261125-1329';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -12996,7 +12996,7 @@ async function seinNaarTaak(sleutel) {
   if (!eisWijzig('medewerkers') || !supa || !CURRENT_USER) return;
   const x = seinLijst().find(y => y.sleutel === sleutel); if (!x || !x.bron) return;
   const mij = String(CURRENT_USER.naam || CURRENT_USER.bm_naam || ''), mijnId = ONE_MIJN_ID || CURRENT_USER.id || null;
-  const taak = { voor: mij, voor_id: mijnId || '', datum: _taakVandaagPlus(1), tijd: '', door: mij, gezet_op: new Date().toISOString(), gedaan_op: null, gedaan_door: null };
+  const taak = { voor: mij, voor_id: mijnId || '', datum: _taakVandaagPlus(0), tijd: '', door: mij, gezet_op: new Date().toISOString(), gedaan_op: null, gedaan_door: null };
   const tekst = x.tekst + ' — uit een vermelding van ' + (x.van || 'een collega');
   let fout = null;
   if (x.bron.soort === 'kandidaat') {
@@ -32326,7 +32326,7 @@ function _kandLogHtml(sleutel, naam) {
         onToets: "kandNotitieToets(event,'" + sE + "','" + nE + "')", at: true, hash: true, taak: true, knop: 'Plaatsen', knopId: 'kand-notitie-knop',
         onPlaats: "kandNotitiePlaats('" + sE + "','" + nE + "')", klasse: 'kk-notitie' })
     : '';
-  return '<div class="crm-kop">Gesprekslog</div>' + logHtml + invoer;
+  return '<div class="crm-kop">Gesprekslog</div>' + invoer + logHtml;   // 25-11: het schrijfvak boven de notities
 }
 function kandNotitieToets(e, sleutel, naam) {
   if (_ONE_HASH) {
@@ -33571,7 +33571,7 @@ function bdActieVenster(sleutel, behoud) {
   const k = crmBedrijfLijst().find(x => String(x.sleutel) === String(sleutel)); if (!k) return;
   const mij = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
   const tekstNu = behoud && document.getElementById('bd-actie-tekst') ? document.getElementById('bd-actie-tekst').value : '';
-  if (!BD_ACTIE || BD_ACTIE.sleutel !== String(sleutel)) BD_ACTIE = { sleutel: String(sleutel), voor: _bdActieVoorStandaard(k), datum: _taakVandaagPlus(1) };
+  if (!BD_ACTIE || BD_ACTIE.sleutel !== String(sleutel)) BD_ACTIE = { sleutel: String(sleutel), voor: _bdActieVoorStandaard(k), datum: _taakVandaagPlus(0) };
   const A = BD_ACTIE, sE = escApos(String(sleutel)), col = _taakCollegas();
   const snel = [A.voor, mij].filter((n, i, l) => n && l.findIndex(x => _itkSleutel(x) === _itkSleutel(n)) === i);
   const chip = (naam) => '<button type="button" class="kb-stap' + (_itkSleutel(A.voor) === _itkSleutel(naam) ? ' aan' : '') + '" onclick="bdActieZet(\'voor\',\'' + escApos(naam) + '\')"><span class="one-ber-av klein" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(_oneInitialen(naam)) + '</span> ' + escHtml(String(naam).split(' ')[0]) + (_itkSleutel(naam) === _itkSleutel(mij) ? ' (ik)' : '') + '</button>';
@@ -40752,7 +40752,7 @@ function kanbanTaakVenster(bmNaam, id, behoud) {
   const c = v.kaart, groep = _kanbanGroepVan(c.id), bms = groep && groep.bms && groep.bms.length ? groep.bms : [bmNaam];
   const mij = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
   const tekstNu = behoud && document.getElementById('kb-taak-tekst') ? document.getElementById('kb-taak-tekst').value : '';
-  if (!KB_TAAK || String(KB_TAAK.id) !== String(c.id)) KB_TAAK = { id: c.id, bm: bmNaam, voor: bms.find(n => _itkSleutel(n) !== _itkSleutel(mij)) || bms[0] || '', datum: _taakVandaagPlus(1) };
+  if (!KB_TAAK || String(KB_TAAK.id) !== String(c.id)) KB_TAAK = { id: c.id, bm: bmNaam, voor: bms.find(n => _itkSleutel(n) !== _itkSleutel(mij)) || bms[0] || '', datum: _taakVandaagPlus(0) };
   const K = KB_TAAK, idE = escApos(String(c.id)), bmE = escApos(bmNaam);
   const f = _kanbanFase(kanbanFaseVan(c)), klant = _kanbanKlantVan(c);
   const chip = (naam) => '<button type="button" class="kb-stap' + (_itkSleutel(K.voor) === _itkSleutel(naam) ? ' aan' : '') + '" onclick="kanbanTaakZet(\'voor\',\'' + escApos(naam) + '\')"><span class="one-ber-av klein" style="background:' + _oneAvatarKleur(naam) + ';">' + escHtml(_oneInitialen(naam)) + '</span> ' + escHtml(String(naam).split(' ')[0]) + (_itkSleutel(naam) === _itkSleutel(mij) ? ' (ik)' : '') + '</button>';
@@ -41496,7 +41496,7 @@ function _accLogHtml(accId) {
         onToets: "accNotitieToets(event,'" + idE + "')", at: true, hash: true, taak: true, knop: 'Plaatsen', knopId: 'acc-notitie-knop',
         onPlaats: "accNotitiePlaats('" + idE + "')", klasse: 'kk-notitie' })
     : '';
-  return logHtml + invoer;
+  return invoer + logHtml;   // 25-11: het schrijfvak boven de notities
 }
 function accNotitieToets(e, accId) {
   if (_ONE_HASH) {
@@ -44256,7 +44256,7 @@ async function rldvCheckVerbreden() {
     const prof = (typeof ONE_PROFIELEN !== 'undefined' && Array.isArray(ONE_PROFIELEN) ? ONE_PROFIELEN : []).find(x => x && _itkSleutel(x.naam || '') === _itkSleutel(voor));
     const sl = _itkSleutel(sel.kandidaat_naam || '');
     const rij = { kand_sleutel: sl, kand_naam: sel.kandidaat_naam || '', tekst, auteur: mij, created_by: ONE_MIJN_ID || (CURRENT_USER && CURRENT_USER.id) || null,
-      taak: { voor, voor_id: prof ? String(prof.id) : '', datum: _taakVandaagPlus(1), tijd: '', door: mij, gezet_op: nu, gedaan_op: null, gedaan_door: null } };
+      taak: { voor, voor_id: prof ? String(prof.id) : '', datum: _taakVandaagPlus(0), tijd: '', door: mij, gezet_op: nu, gedaan_op: null, gedaan_door: null } };
     _echoVanZelf('kandidaat_notities');
     const r = await supa.from('kandidaat_notities').insert(rij).select().single();
     if (r.error) meldFout('taak verbreden mislukt: ' + r.error.message, 'rldvCheckVerbreden');
@@ -51564,7 +51564,7 @@ function _taakStrookHtml(gid, id) {
   const opties = '<option value="">mijzelf</option>' + _taakCollegas().map(x => '<option value="' + escHtml(x.naam) + '" data-id="' + escHtml(x.id) + '"' + (c.voor === x.naam ? ' selected' : '') + '>' + escHtml(x.naam) + '</option>').join('');
   return '<span class="lab">☑ Taak</span><span>voor</span><select onchange="taakZet(\'' + gE + '\',\'voor\',this.value,this.options[this.selectedIndex].getAttribute(\'data-id\'))">' + opties + '</select>' +
     '<span>op</span><input type="date" value="' + escHtml(c.datum || '') + '" onchange="taakZet(\'' + gE + '\',\'datum\',this.value)"><input type="time" value="' + escHtml(c.tijd || '') + '" title="tijd (optioneel)" onchange="taakZet(\'' + gE + '\',\'tijd\',this.value)">' +
-    '<span class="snel">snel:<button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',1)">morgen</button><button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',2)">over 2 dagen</button><button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',7)">volgende week</button></span>' +
+    '<span class="snel">snel:<button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',0)">vandaag</button><button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',1)">morgen</button><button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',2)">over 2 dagen</button><button type="button" onclick="taakSnel(\'' + gE + '\',\'' + idE + '\',7)">volgende week</button></span>' +
     '<button type="button" class="weg" onclick="taakToggle(\'' + gE + '\',\'' + idE + '\')">✕ geen taak</button>';
 }
 function _taakStrookBij(gid, id) {
@@ -51574,7 +51574,7 @@ function _taakStrookBij(gid, id) {
   const pl = document.getElementById(id === 'kand-notitie-invoer' ? 'kand-notitie-knop' : id === 'acc-notitie-invoer' ? 'acc-notitie-knop' : id + '-knop'); if (pl) pl.textContent = aan ? 'Plaatsen als taak' : 'Plaatsen';
 }
 function taakToggle(gid, id) {
-  if (TAAK_CONCEPT[gid]) delete TAAK_CONCEPT[gid]; else TAAK_CONCEPT[gid] = { voor: '', voor_id: '', datum: _taakVandaagPlus(1), tijd: '' };
+  if (TAAK_CONCEPT[gid]) delete TAAK_CONCEPT[gid]; else TAAK_CONCEPT[gid] = { voor: '', voor_id: '', datum: _taakVandaagPlus(0), tijd: '' };
   _taakStrookBij(gid, id);
   const t = document.getElementById(id); if (t) t.focus();
 }
