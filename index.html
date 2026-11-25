@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261125-1455 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261125-1512 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3417,6 +3417,12 @@
   .rldv-wiz-voet { flex:none; display:flex; gap:10px; align-items:center; padding:10px 18px; border-top:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.12); font-size:.78rem; color:rgba(255,255,255,.6); } .rldv-wiz-voet .vul { flex:1; } .rldv-wiz-voet .crm-knop.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); } .rldv-wiz-voet .crm-knop[disabled] { opacity:.4; cursor:default; }
   .rldv-wiz-terug { margin-left:auto; }
   @media (max-width:900px) { .rldv-wiz-zij { display:none; } .rldv-wiz-st { font-size:0; } .rldv-wiz-st em { font-size:.72rem; } }
+  /* RLDV-wizard als pop-up (25-11): zelfde vaste maat als het venster van de RLDV-check */
+  .crm-kaart.crm-kaart-breed.rldv-wiz-venster { position:relative; width:1160px; max-width:96vw; height:720px; max-height:92vh; padding:0; display:flex; flex-direction:column; overflow:hidden; }
+  .crm-kaart.crm-kaart-breed.rldv-wiz-venster > .crm-x { position:absolute; top:12px; right:14px; float:none; padding:0; z-index:4; }
+  .rldv-wiz-venster .rldv-wiz { flex:1; min-height:0; height:100%; margin:0; border:0; border-radius:0; background:transparent; box-shadow:none; } .rldv-wiz-venster .rldv-wiz-wie { margin-right:30px; } .rldv-wiz-venster .rldv-wiz-stappen { padding-right:44px; }
+  .rldv-wiz-start { display:flex; gap:12px; align-items:center; padding:14px 16px; margin-bottom:14px; color:#fff; } .rldv-wiz-start .tx { flex:1; min-width:0; } .rldv-wiz-start b { display:block; font-size:1rem; font-weight:var(--w-nadruk); } .rldv-wiz-start small { color:rgba(255,255,255,.6); font-size:.8rem; } .rldv-wiz-start .crm-knop.geel { background:#F4CB3C; color:#253151; border-color:#F4CB3C; font-weight:var(--w-nadruk); }
+  @media (max-width:900px) { .crm-kaart.crm-kaart-breed.rldv-wiz-venster { width:100vw; max-width:100vw; height:100vh; max-height:100vh; border-radius:0; } }
   /* RLDV-inspiratie (25-11) */
   .rldv-br { display:inline-flex; align-items:center; gap:5px; border-radius:99px; padding:2px 10px; font-size:.68rem; white-space:nowrap; background:rgba(255,255,255,.1); color:rgba(255,255,255,.75); }
   .rldv-br.smal { background:rgba(255,179,122,.18); color:#ffb37a; font-weight:var(--w-nadruk); } .rldv-br.breed { background:rgba(37,211,102,.16); color:#8ff0b6; } .rldv-br button { border:0; background:none; color:inherit; cursor:pointer; padding:0 0 0 2px; font-size:.8rem; line-height:1; }
@@ -12738,7 +12744,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261125-1455';
+const APP_VERSIE = '20261125-1512';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -32467,6 +32473,7 @@ function recordsNaarRecord(soort, id) {
   setTimeout(() => _naarElement('rec-' + id), 80);
 }
 function rldvNaarKaart(kaartId) {
+  if (typeof RLDV_WIZ !== 'undefined' && RLDV_WIZ.aan) { RLDV_SUBTAB = 'selectie'; RLDV_WIZ.open = true; RLDV_WIZ.stap = 0; RLDV_WIZ.klaar = ''; }   // 25-11: de wizard opent met deze kandidaat
   selectTab('rldvtool');
   rldvKiesKandidaat(kaartId);
 }
@@ -42431,6 +42438,7 @@ async function rldvSelectieOpslaan() {
   if (typeof RLDV_WIZ !== 'undefined' && RLDV_WIZ.aan) {   // 25-11: de wizard begint opnieuw
     RLDV_WIZ.klaar = String(data.kandidaat_naam || kand.naam || ''); RLDV_WIZ.stap = 0; RLDV_WIZ.bron = 'vaak';
     RLDV_TOOL.kaartId = ''; RLDV_TOOL.vrijeNaam = ''; RLDV_TOOL.zoek = ''; RLDV_TOOL.gekozen = new Set(); RLDV_TOOL.opmerking = ''; RLDV_TOOL.gericht = false;
+    if (RLDV_WIZ.open) { RLDV_WIZ.open = false; crmKaartSluit(); }   // de pop-up gaat dicht; de bevestiging staat op de pagina
   }
   render();
 }
@@ -44888,7 +44896,44 @@ function _rldvZoekTerug() {
 // opslaan gaat via rldvSelectieOpslaan. "Alles op één scherm" zet het oude scherm terug (onthouden per browser).
 const RLDV_WIZ = { aan: (() => { try { return localStorage.getItem('bt_rldv_wizard') !== '0'; } catch (_e) { return true; } })(), stap: 0, bron: 'vaak', klaar: '', voorstelVoor: '', voorstel: '' };
 const RLDV_WIZ_STAPPEN = ['Kandidaat', 'Zoekrichting', 'Bedrijven', 'Controleren'];
-function rldvWizAan(aan) { RLDV_WIZ.aan = !!aan; _veiligLokaalOpslaan('bt_rldv_wizard', aan ? '1' : '0', 'rldv-wizard'); render(); }
+function rldvWizAan(aan) {
+  RLDV_WIZ.aan = !!aan; _veiligLokaalOpslaan('bt_rldv_wizard', aan ? '1' : '0', 'rldv-wizard');
+  if (!aan && RLDV_WIZ.open) { RLDV_WIZ.open = false; crmKaartSluit(); }
+  render();
+}
+// De wizard is een pop-up (25-11). Openen gaat verder waar je was; met nieuw = true begint hij leeg.
+function rldvWizOpen(nieuw) {
+  if (nieuw) {
+    RLDV_WIZ.stap = 0; RLDV_WIZ.bron = 'vaak';
+    RLDV_TOOL.kaartId = ''; RLDV_TOOL.vrijeNaam = ''; RLDV_TOOL.zoek = ''; RLDV_TOOL.gekozen = new Set(); RLDV_TOOL.opmerking = ''; RLDV_TOOL.gericht = false;
+  }
+  RLDV_WIZ.open = true; RLDV_WIZ.klaar = '';
+  render();
+}
+// Wat er op de pagina "Selectie maken" staat: de knop om de wizard te openen (de eerdere selecties staan eronder).
+function _rldvWizStartHtml(mag) {
+  const kand = rldvKandidaatVan(RLDV_TOOL.kaartId), n = RLDV_TOOL.gekozen.size, bezig = !!kand && (n > 0 || RLDV_WIZ.stap > 0);
+  return (RLDV_WIZ.klaar ? '<div class="rldv-wiz-klaar">✓ De selectie voor ' + escHtml(RLDV_WIZ.klaar) + ' is opgeslagen en staat ter check.</div>' : '') +
+    '<div class="bt-venster rldv-wiz-start"><div class="tx"><b>' + (bezig ? 'Verder met de selectie voor ' + escHtml(kand.naam) : 'Nieuwe selectie maken') + '</b>' +
+      '<small>' + (bezig ? 'Stap ' + (RLDV_WIZ.stap + 1) + ' van 4 · ' + n + (n === 1 ? ' bedrijf' : ' bedrijven') + ' gekozen. Wat je koos is bewaard.' : 'Vier stappen: kandidaat, zoekrichting, bedrijven (met de Matchmaker), controleren.') + '</small></div>' +
+      (mag ? (bezig ? '<button type="button" class="crm-knop" onclick="rldvWizOpen(true)">Opnieuw beginnen</button><button type="button" class="crm-knop geel" onclick="rldvWizOpen()">Verder →</button>'
+                    : '<button type="button" class="crm-knop geel" onclick="rldvWizOpen()">+ Nieuwe selectie</button>')
+           : '<span class="rldv-wiz-stil">Je mag de RLDV-tool bekijken, niet wijzigen.</span>') +
+      '<button type="button" class="rldv-histlink" onclick="rldvWizAan(false)">alles op één scherm</button></div>';
+}
+// Het venster zelf: zelfde vaste maat als de RLDV-check. Sluiten (× of Esc) bewaart wat je koos.
+function _rldvWizVenster(mag) {
+  if (!RLDV_WIZ.aan || !RLDV_WIZ.open) return;
+  if (typeof RLDV_CHECK !== 'undefined' && RLDV_CHECK) return;   // het checkvenster gaat voor
+  const oud = document.getElementById('rldv-wiz-links'), scroll = oud ? oud.scrollTop : 0, sleutel = String(RLDV_WIZ.stap) + RLDV_WIZ.bron, zelfde = !!oud && oud.getAttribute('data-stap') === sleutel;
+  crmKaartToon(_rldvWizHtml(mag), 'rldv-wiz-venster crm-kaart-breed', () => {
+    RLDV_WIZ.open = false;
+    const n = RLDV_TOOL.gekozen.size; if (n && rldvKandidaatVan(RLDV_TOOL.kaartId)) btMeld('Wizard gesloten. Je selectie (' + n + (n === 1 ? ' bedrijf' : ' bedrijven') + ') is bewaard: open hem opnieuw om verder te gaan.', 'geel');
+    if (typeof render === 'function') render();
+  });
+  const nieuw = document.getElementById('rldv-wiz-links');
+  if (nieuw) { nieuw.setAttribute('data-stap', sleutel); if (zelfde) nieuw.scrollTop = scroll; }   // een vinkje laat de lijst niet terugspringen
+}
 function rldvWizBron(b) { RLDV_WIZ.bron = b === 'mm' || b === 'alle' ? b : 'vaak'; render(); }
 // Zoekrichting voorstellen uit de functie van de kandidaat: één keer per kandidaat, alleen de vijf functieschuifjes.
 function _rldvWizVoorstel(kand) {
@@ -45049,14 +45094,12 @@ function renderRldvTool() {
   }
 
   // 25-11: "Selectie maken" als wizard (vier stappen); het oude scherm blijft via "alles op één scherm".
-  if (RLDV_WIZ.aan) {
-    const oudLinks = document.getElementById('rldv-wiz-links'), scroll = oudLinks ? oudLinks.scrollTop : 0, zelfdeStap = oudLinks && oudLinks.getAttribute('data-stap') === String(RLDV_WIZ.stap) + RLDV_WIZ.bron;
+  if (RLDV_WIZ.aan) {   // de wizard zelf is een pop-up; de pagina heeft de knop en de eerdere selecties
     document.getElementById('main').innerHTML = '<div>' +
       '<div class="person-header"><div class="person-name">RLDV-tool</div>' +
         '<div class="person-meta"><span class="meta-pill">' + SALES_LEADS_CACHE.length + ' bedrijven in RLDV</span></div></div>' +
-      tabbalk + _rldvWizHtml(mag) + (RLDV_WIZ.stap === 0 ? rldvHistorieHtml() : '') + '</div>';
-    const nieuwLinks = document.getElementById('rldv-wiz-links');
-    if (nieuwLinks) { nieuwLinks.setAttribute('data-stap', String(RLDV_WIZ.stap) + RLDV_WIZ.bron); if (zelfdeStap) nieuwLinks.scrollTop = scroll; }   // een vinkje laat de lijst niet terugspringen
+      tabbalk + _rldvWizStartHtml(mag) + rldvHistorieHtml() + '</div>';
+    _rldvWizVenster(mag);
     _rldvZoekTerug();
     _rldvVensterBijwerken();
     return;
