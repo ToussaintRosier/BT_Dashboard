@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261127-1011 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261127-1051 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3098,6 +3098,14 @@
   .st-bol { display:inline-flex; min-width:24px; height:22px; padding:0 4px; border-radius:99px; align-items:center; justify-content:center; font-size:.56rem; font-weight:700; color:#253151; background:#F4CB3C; margin-right:3px; } .st-pil.kies { border:1px solid rgba(232,116,0,.8); color:#ffb561; background:transparent; } @media (max-width:1150px) { .st-rij { grid-template-columns:minmax(120px,1fr) minmax(0,1fr) minmax(0,1fr) 84px 76px 100px 124px; gap:10px; } }
   .crm-kaart.crm-kaart-breed.stv-venster { position:relative; width:860px; max-width:96vw; max-height:92vh; padding:0; display:flex; flex-direction:column; overflow:hidden; text-align:left; color:#fff; } .crm-kaart.crm-kaart-breed.stv-venster > .crm-x { position:absolute; top:10px; right:14px; float:none; padding:0; z-index:2; }
   .stv-mid { flex:1; min-height:0; overflow-y:auto; padding:12px 18px 14px; } .stv-g { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px 12px; } .stv-v small { display:block; font-size:.68rem; color:rgba(255,255,255,.55); } .stv-v b { font-size:.86rem; font-weight:var(--w-nadruk); } .stv-v.leeg b { color:#ffb561; font-weight:var(--w-normaal); } .stv-v b.groen { color:#6fe0b0; }
+  /* Eén opbouw (27-11): zoekbalk links, knoppen rechts in de werkbalk, uitleg zichtbaar */
+  #crm-hub ~ * .crm-balk { display:flex; align-items:center; gap:16px; flex-wrap:wrap; } #crm-hub ~ * .crm-balk > .crm-zoek { order:-1; flex:none; width:300px; max-width:100%; margin:0; } #crm-hub ~ * .crm-balk > .hub-acties { order:9; margin-left:auto; display:inline-flex; gap:8px; align-items:center; }
+  .hub-actie { height:28px; padding:0 12px; font-size:.78rem; white-space:nowrap; } .hub-actie.hub-plus { background:#F4CB3C !important; border-color:#F4CB3C !important; color:#253151 !important; font-weight:var(--w-nadruk); }
+  #crm-hub .hub-uitlegknop { opacity:1 !important; color:rgba(255,255,255,.85) !important; border:1px solid rgba(255,255,255,.5) !important; border-radius:50%; width:20px; height:20px; padding:0; display:inline-flex; align-items:center; justify-content:center; background:transparent; }
+  /* KAM-scores (27-11): gekleurde scores, sorteerbare koppen, regel aanklikbaar */
+  .ksc-tabel { table-layout:fixed; width:100%; } .ksc-tabel td, .ksc-tabel th { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .ksc-tabel .c { text-align:center; } .ksc-th { cursor:pointer; user-select:none; } .ksc-th:hover, .ksc-th.aan { color:#F4CB3C; } .ksc-rij { cursor:pointer; } .ksc-rij:hover td { background:rgba(255,255,255,.04); }
+  .ksc { display:inline-flex; width:24px; height:20px; border-radius:5px; align-items:center; justify-content:center; font-size:.74rem; font-weight:var(--w-nadruk); } .ksc.s5 { background:rgba(37,211,102,.3); color:#9af0bd; } .ksc.s4 { background:rgba(37,211,102,.14); color:#7be3a6; } .ksc.s3 { background:rgba(255,255,255,.08); color:rgba(255,255,255,.85); } .ksc.s2 { background:rgba(232,116,0,.22); color:#ffb561; } .ksc.s1 { background:rgba(255,107,107,.25); color:#ff9b9b; }
+  .ksc-balk { display:inline-block; width:54px; height:6px; border-radius:99px; background:rgba(255,255,255,.12); vertical-align:middle; margin-right:6px; overflow:hidden; } .ksc-balk i { display:block; height:100%; background:#F4CB3C; } .ksc-oud { color:#ff9b9b; }
   /* Eén CRM (27-11): tabbalk en tweede rij boven de CRM-pagina's */
   #crm-hub { margin:0 0 14px; border-bottom:1px solid rgba(255,255,255,.12); }
   #crm-hub .hub-r1 { display:flex; gap:24px; align-items:flex-end; overflow-x:auto; } #crm-hub .hub-r1 h2 { margin:0 14px 9px 0; font-size:1.15rem; font-weight:var(--w-nadruk); color:#fff; }
@@ -12874,7 +12882,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261127-1011';
+const APP_VERSIE = '20261127-1051';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -15249,30 +15257,45 @@ async function aiKostenAdminOphalen() {
 // ── Management › KAM-scores en RLDV-lijst (29-10): alleen-lezen overzichten ──────────────────────────────────
 // Invoeren gebeurt op de bedrijfskaart (blad Account); hier kijk je, filtert, sorteert en exporteert.
 // Eigen pagina's (tabs 'kamscores' en 'rldvlijst'); het recht volgt Accountmanagement, zoals Overzicht.
-let BEHEER_KAM_FILT = '', BEHEER_RLDV_FILT = '';
+let BEHEER_KAM_FILT = '', BEHEER_RLDV_FILT = '', BEHEER_KAM_ZOEK = '', BEHEER_KAM_SORT = { col: 'tot', dir: -1 };
 function _beheerKamRijen() {
-  const lijst = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).map(a => ({ a, sl: _itkSleutel(a.naam || ''), tot: accScore(a), oud: accIsStale(a.updated_at) }))
-    .sort((p, q) => q.tot - p.tot || String(p.a.naam).localeCompare(String(q.a.naam), 'nl'));
-  return BEHEER_KAM_FILT === 'top11' ? lijst.filter(x => x.a.notitie === 'top11') : BEHEER_KAM_FILT === 'gwnst11' ? lijst.filter(x => x.a.notitie === 'gwnst11') : BEHEER_KAM_FILT === 'oud' ? lijst.filter(x => x.oud) : lijst;
+  const z = _zoekNorm(BEHEER_KAM_ZOEK), S = BEHEER_KAM_SORT;
+  let lijst = (typeof ACCOUNTS_CACHE !== 'undefined' ? ACCOUNTS_CACHE : []).map(a => ({ a, sl: _itkSleutel(a.naam || ''), tot: accScore(a), oud: accIsStale(a.updated_at) }));
+  lijst = BEHEER_KAM_FILT === 'top11' ? lijst.filter(x => x.a.notitie === 'top11') : BEHEER_KAM_FILT === 'gwnst11' ? lijst.filter(x => x.a.notitie === 'gwnst11') : BEHEER_KAM_FILT === 'oud' ? lijst.filter(x => x.oud) : lijst;
+  if (z) lijst = lijst.filter(x => _zoekNorm([x.a.naam, x.a.strat_cp, x.a.op_cp].filter(Boolean).join(' ')).includes(z));
+  // Sorteren op de gekozen kolom (27-11); bij gelijke stand op naam.
+  const w = (x) => S.col === 'naam' ? String(x.a.naam || '') : S.col === 'team' ? [x.a.strat_cp, x.a.op_cp].filter(Boolean).join(' ') : S.col === 'tot' ? x.tot : S.col === 'bij' ? String(x.a.updated_at || '') : (x.a[S.col] == null ? -1 : Number(x.a[S.col]));
+  return lijst.sort((p, q) => { const a = w(p), b = w(q); return ((typeof a === 'number' ? a - b : String(a).localeCompare(String(b), 'nl')) * S.dir) || String(p.a.naam).localeCompare(String(q.a.naam), 'nl'); });
 }
+function kamScFilter(v) { BEHEER_KAM_FILT = v || ''; renderKamScores(); }
+function kamScZoek(v) { BEHEER_KAM_ZOEK = String(v || ''); _crmZoekLater(() => renderKamScores()); }
+function kamScSort(col) { const S = BEHEER_KAM_SORT; BEHEER_KAM_SORT = { col, dir: S.col === col ? -S.dir : (col === 'naam' || col === 'team' ? 1 : -1) }; renderKamScores(); }
 function renderKamScores() {
-  const kop = `<div class="person-header"><div class="person-name">KAM-scores${btUitlegKnop('kamscores')}</div></div>`;
+  if (currentTab !== 'kamscores') return;
+  const alle = (ACCOUNTS_CACHE || []), nOud = alle.filter(a => accIsStale(a.updated_at)).length;
+  const kop = `<div class="person-header"><div class="person-name">KAM-scores${btUitlegKnop('kamscores')}</div><div class="person-meta"><span class="meta-pill">${alle.length} klanten · ${nOud} ouder dan een maand</span><button type="button" class="crm-knop" onclick="beheerKamExcel()">↓ Excel</button></div></div>`;
   const main = document.getElementById('main');
   if (!magZien('accounts')) { main.innerHTML = `<div>${kop}<div class="info-box blue" style="margin:16px 20px;">Geen recht om accountmanagement te zien.</div></div>`; return; }
-  const alle = (ACCOUNTS_CACHE || []), rijen = _beheerKamRijen();
-  const chip = (w, l, n) => '<button type="button" class="ap-chip' + (BEHEER_KAM_FILT === w ? ' aan' : '') + '" onclick="BEHEER_KAM_FILT=\'' + w + '\';renderKamScores()">' + l + '<small>' + n + '</small></button>';
-  const chips = chip('', 'Alle', alle.length) + chip('top11', 'Top 11', alle.filter(a => a.notitie === 'top11').length) + chip('gwnst11', 'Gewenst 11', alle.filter(a => a.notitie === 'gwnst11').length) + chip('oud', '! verouderd', alle.filter(a => accIsStale(a.updated_at)).length);
-  const kopjes = ACC_SCORE_FIELDS.map(([f, l]) => '<th title="' + escHtml(l) + '">' + escHtml(l.slice(0, 2)) + '</th>').join('');
-  const tr = rijen.map(x => { const a = x.a, mark = a.notitie === 'top11' ? ' <span class="ap-pil geel">Top 11</span>' : a.notitie === 'gwnst11' ? ' <span class="ap-pil blauw">Gwnst 11</span>' : '';
-    return '<tr><td><b class="crm-klik" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">' + escHtml(a.naam || '') + '</b>' + mark + '</td><td>' + escHtml([a.strat_cp, a.op_cp].filter(Boolean).join(' · ') || '—') + '</td>' +
-      ACC_SCORE_FIELDS.map(([f]) => '<td style="text-align:center">' + (a[f] == null ? '<span class="stil">·</span>' : Number(a[f])) + '</td>').join('') +
-      '<td style="text-align:center"><b>' + x.tot + '</b></td><td>' + (a.updated_at ? escHtml(_kandDatumKort(String(a.updated_at).slice(0, 10))) : '—') + (x.oud ? ' <span style="color:#ff6b6b" title="ouder dan een maand">!</span>' : '') + '</td>' +
-      '<td><button type="button" class="kk-knop" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')">kaart →</button></td></tr>'; }).join('');
-  main.innerHTML = `<div>${kop}<div style="padding:14px 20px 40px;">
-    <div class="crm-sub hub-uitleg" style="margin-bottom:10px;">De KAM-scorekaart van alle klanten — alleen-lezen. Wijzigen doe je op de bedrijfskaart (blad Account › Wijzigen); daar staat ook "in KAM-lijst" aan of uit. Klik op een naam voor de kaart.</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><div class="ap-chips">${chips}</div><button type="button" class="crm-knop" style="margin-left:auto" onclick="beheerKamExcel()">⬇ Excel</button></div>
-    ${rijen.length ? `<div class="bt-venster"><table class="bd-tabel namen-tabel"><thead><tr><th>Klant</th><th>Team</th>${kopjes}<th>Totaal</th><th>Bijgewerkt</th><th></th></tr></thead><tbody>${tr}</tbody></table></div>` : '<div class="kk-tekst stil">Geen klanten in deze selectie.</div>'}
+  const rijen = _beheerKamRijen(), S = BEHEER_KAM_SORT;
+  // 27-11: dezelfde werkbalk als de andere CRM-pagina's (zoekbalk + weergaven met tellers).
+  const balk = _zoekBalkHtml({ id: 'kam-sc-q', waarde: BEHEER_KAM_ZOEK, actief: BEHEER_KAM_FILT, zet: 'kamScFilter', hint: 'klant of collega', placeholder: 'zoek klant…', input: 'oninput="kamScZoek(this.value)"',
+    tabs: [['', 'Alle', alle.length], ['top11', 'Top 11', alle.filter(a => a.notitie === 'top11').length], ['gwnst11', 'Gewenst 11', alle.filter(a => a.notitie === 'gwnst11').length], ['oud', 'Verouderd', nOud]] });
+  const th = (col, label, titel, midden) => '<th class="ksc-th' + (midden ? ' c' : '') + (S.col === col ? ' aan' : '') + '" title="' + escHtml(titel || 'Sorteren op ' + label) + '" onclick="kamScSort(\'' + col + '\')">' + escHtml(label) + (S.col === col ? (S.dir === -1 ? ' ↓' : ' ↑') : '') + '</th>';
+  const kort = { groeimarkt: 'Groei', ambitie: 'Amb.', voorwaarden: 'Voorw.', aantrekkelijkheid: 'Aantr.', kernprofiel: 'Kern', aantal_vacatures: 'Vac.', invloed: 'Invl.', relatieniveau: 'Rel.', procedure_score: 'Proc.' };
+  const kopjes = ACC_SCORE_FIELDS.map(([f, l]) => th(f, kort[f] || l.slice(0, 5), l, true)).join('');
+  const max = ACC_SCORE_FIELDS.length * 5;
+  const tr = rijen.map(x => { const a = x.a, mark = a.notitie === 'top11' ? ' <span class="ap-pil geel">Top 11</span>' : a.notitie === 'gwnst11' ? ' <span class="ap-pil blauw">Gewenst 11</span>' : '';
+    const mnd = a.updated_at ? Math.floor((Date.now() - new Date(a.updated_at).getTime()) / (30.4 * 864e5)) : 0;
+    return '<tr class="ksc-rij" onclick="accountKaartOpen(\'' + escApos(x.sl) + '\')"><td><b>' + escHtml(a.naam || '') + '</b>' + mark + '</td><td>' + escHtml([a.strat_cp, a.op_cp].filter(Boolean).join(' · ') || '—') + '</td>' +
+      ACC_SCORE_FIELDS.map(([f]) => '<td class="c">' + (a[f] == null ? '<span class="stil">·</span>' : '<span class="ksc s' + Math.max(1, Math.min(5, Math.round(Number(a[f])))) + '">' + Number(a[f]) + '</span>') + '</td>').join('') +
+      '<td><span class="ksc-balk"><i style="width:' + Math.round(x.tot / max * 100) + '%"></i></span><b>' + x.tot + '</b></td>' +
+      '<td' + (x.oud ? ' class="ksc-oud" title="ouder dan een maand"' : '') + '>' + (a.updated_at ? escHtml(_kandDatumKort(String(a.updated_at).slice(0, 10))) + (x.oud && mnd ? ' · ' + mnd + ' mnd oud' : '') : '—') + '</td></tr>'; }).join('');
+  const html = `<div>${kop}<div style="padding:0 0 40px;">
+    <div class="crm-sub hub-uitleg" style="margin-bottom:10px;">De KAM-scorekaart van alle klanten — alleen-lezen. Wijzigen doe je op de bedrijfskaart (blad Account › Wijzigen); daar staat ook "in KAM-lijst" aan of uit. Klik op een regel voor de kaart; klik op een kolomkop om te sorteren.</div>
+    ${balk}
+    ${rijen.length ? `<div class="bt-venster"><table class="bd-tabel namen-tabel ksc-tabel"><colgroup><col style="width:24%"><col style="width:9%">${ACC_SCORE_FIELDS.map(() => '<col style="width:4.8%">').join('')}<col style="width:12%"><col></colgroup><thead><tr>${th('naam', 'Klant')}${th('team', 'Team')}${kopjes}${th('tot', 'Totaal')}${th('bij', 'Bijgewerkt')}</tr></thead><tbody>${tr}</tbody></table></div>` : '<div class="kk-tekst stil" style="padding:14px 0;">Geen klanten in deze selectie.</div>'}
   </div></div>`;
+  if (typeof _hertekenRondVeld === 'function' && document.getElementById('kam-sc-q')) _hertekenRondVeld(main, html, 'kam-sc-q'); else main.innerHTML = html;
 }
 function beheerKamExcel() {
   if (typeof XLSX === 'undefined') { btMeld('Excel-bibliotheek niet geladen.', 'rood'); return; }
@@ -18277,14 +18300,23 @@ function _crmHubKopWeg(main) {
       t = t.replace(/^\s*CRM\s*\d*\s*/, '').trim();
       const uitleg = naam ? naam.querySelector('button') : null;
       kop.style.display = 'none';
-      tel = (t && t.length < 120 ? '<span>' + escHtml(t) + '</span> ' : '') + klik.map(e => e.outerHTML).join(' ') + (uitleg ? ' ' + uitleg.outerHTML : '');
+      // 27-11 (één opbouw): knoppen horen rechts in de werkbalk; waarschuwingen (pillen), de teller en de uitleg in de tweede rij.
+      const knoppen = klik.filter(e => e.tagName === 'BUTTON'), pillen = klik.filter(e => e.tagName !== 'BUTTON');
+      kop.dataset.hubKnop = knoppen.map(e => { const k = e.cloneNode(true); k.classList.add('hub-actie'); if (/^\s*\+/.test(k.textContent)) k.classList.add('hub-plus'); return k.outerHTML; }).join('');
+      let ui = ''; if (uitleg) { const u = uitleg.cloneNode(true); u.classList.add('hub-uitlegknop'); ui = ' ' + u.outerHTML; }
+      tel = pillen.map(e => e.outerHTML).join(' ') + (t && t.length < 120 ? ' <span>' + escHtml(t) + '</span>' : '') + ui;
     }
     kop.dataset.hubTel = tel;
   }
   // Een uitlegregel boven de lijst (KAM-scores, RLDV-lijst) wordt een (i) in de tweede rij.
   const uit = main.querySelector('.hub-uitleg'); let extra = '';
   if (uit) { uit.style.display = 'none'; extra = '<span class="hub-i" title="' + escHtml(uit.innerText.replace(/\s+/g, ' ').trim()) + '">i</span> '; }
+  if (extra && kop && /hub-uitlegknop/.test(kop.dataset.hubTel || '')) extra = '';   // de pagina heeft al een uitlegknop: één (i) is genoeg
   const plek = document.getElementById('crm-hub-tel'); if (plek) { const h = extra + ((kop && kop.dataset.hubTel) || ''); if (plek.dataset.h !== h) { plek.dataset.h = h; plek.innerHTML = h; } }
+  // De knoppen: rechts in de werkbalk van de pagina (de eerste .crm-balk); heeft de pagina die niet, dan in de tweede rij.
+  const kn = (kop && kop.dataset.hubKnop) || '', balk = main.querySelector('.crm-balk');
+  if (kn && balk) { if (!balk.querySelector(':scope > .hub-acties')) { const sp = document.createElement('span'); sp.className = 'hub-acties'; sp.innerHTML = kn; balk.appendChild(sp); } }
+  else if (kn && plek && !plek.querySelector('.hub-actie')) plek.insertAdjacentHTML('beforeend', ' ' + kn);
 }
 let _CRM_HUB_OBS = null, _CRM_HUB_MENU_OBS = null;
 function crmHubZorg() {
