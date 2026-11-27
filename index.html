@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261127-1412 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261127-1425 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -5577,6 +5577,8 @@
   .ovk-veld input { width:100%; background:var(--l1); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:6px 9px; font-family:inherit; font-size:.82rem; color:#fff; } .ovk-veld.leeg input { border-color:rgba(232,116,0,.75); } .ovk-veld input::placeholder { color:rgba(255,255,255,.35); }
   .ovk-rij { display:flex; align-items:center; gap:12px; margin-top:10px; } .ovk-a { color:#F4CB3C; cursor:pointer; text-decoration:underline; }
   .ovk-doc { display:grid; grid-template-columns:28px minmax(0,1.3fr) 86px minmax(0,1.5fr) 132px; gap:12px; align-items:center; min-height:46px; border-top:1px solid rgba(255,255,255,.08); font-size:.84rem; } .ovk-doc .n small { display:block; color:rgba(255,255,255,.6); font-size:.74rem; } .ovk-doc .crm-knop { justify-self:end; }
+  .ovk-doc .crm-knop[disabled] { opacity:.35; cursor:default; }
+  .ovk-basis { display:flex; align-items:center; gap:14px; justify-content:space-between; background:rgba(232,116,0,.12); border-left:3px solid #E87400; border-radius:0 8px 8px 0; padding:8px 12px; margin-top:12px; font-size:.82rem; } .ovk-basis b { color:#ffb561; font-weight:var(--w-nadruk); }
   .ovk-ic { width:26px; height:30px; border-radius:4px; background:#2b579a; color:#fff; font-size:.62rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
   .ovk-taal { display:inline-flex; border:1px solid rgba(255,255,255,.25); border-radius:99px; overflow:hidden; width:max-content; } .ovk-taal button { border:0; background:transparent; color:rgba(255,255,255,.75); font-family:inherit; font-size:.7rem; padding:2px 10px; cursor:pointer; } .ovk-taal button.aan { background:#F4CB3C; color:#253151; font-weight:var(--w-nadruk); } .ovk-taal button[disabled] { opacity:.4; cursor:default; }
   .ovk-st { font-size:.76rem; color:rgba(255,255,255,.6); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .ovk-st.ok { color:#7be3a6; } .ovk-st.mist { color:#ffb561; }
@@ -12952,7 +12954,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261127-1412';
+const APP_VERSIE = '20261127-1425';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -41980,9 +41982,23 @@ function _ovkVul(xml, W, taal) {
     }).replace(/\{(OPTIE|OPTIONAL)\} ?/g, '');
   });
 }
+// De velden van het contractvoorstel zoals het venster Contractvoorstel ze toont: wat is opgeslagen, anders wat het
+// kaartje of het project al weet, de oude veldnamen, de cao van de bedrijfskaart en de enige contactpersoon van de klant.
+function _ovkCt(c) {
+  const oud = (c.contract && typeof c.contract === 'object') ? c.contract : {}, w = Object.assign({}, oud), leeg = k => w[k] == null || String(w[k]).trim() === '';
+  [['contractvorm', 'dienstverband'], ['verlof', 'vakantiedagen'], ['vergoeding', 'reiskosten'], ['tarief', 'uurtarief']].forEach(p => { if (leeg(p[0]) && oud[p[1]]) w[p[0]] = String(oud[p[1]]); });
+  [['salaris', c.salaris_bpm != null ? c.salaris_bpm : c.salaris], ['uren', c.uren], ['start', c.start_datum ? String(c.start_datum).slice(0, 10) : ''], ['contractvorm', c.contractvorm], ['cao', c.cao], ['verlof', c.verlof], ['adv', c.adv], ['eju', c.eju],
+   ['vergoeding', c.vergoeding], ['frequentie', c.frequentie], ['tarief', c.tarief_2026], ['allin', c.allin], ['wtta', c.wtta]].forEach(p => { if (leeg(p[0]) && p[1] != null && String(p[1]).trim() !== '') w[p[0]] = String(p[1]); });
+  const B = _kbcCrm(_kanbanKlantVan(c));
+  if (leeg('cao') && String((B.r || {}).cao || '').trim()) w.cao = String(B.r.cao).trim();
+  if (leeg('contactpersoon') && B.k) { const cps = (typeof _crmBedrijfContacten === 'function' ? _crmBedrijfContacten(B.k) : (B.k.contacten || [])).filter(x => x && x.naam); if (cps.length === 1) w.contactpersoon = cps[0].naam + (cps[0].functie ? ', ' + cps[0].functie : ''); }
+  return w;
+}
+// Wat de documenten uit het contractvoorstel nodig hebben en daar (ook na de terugval) nog niet staat.
+function _ovkBasisMist(c) { const w = _ovkCt(c); return [['start', 'startdatum'], ['uren', 'uren per week'], ['cao', 'cao'], ['contactpersoon', 'contactpersoon bij de klant'], ['tarief', 'tarief']].filter(x => w[x[0]] == null || String(w[x[0]]).trim() === '').map(x => x[1]); }
 // Alles wat een format kan vragen, uit de bronnen die er al zijn.
 function _ovkWaarden(hit, taal) {
-  const c = hit.card, ct = (c.contract && typeof c.contract === 'object') ? c.contract : {}, P = k => String(ct['p_' + k] == null ? '' : ct['p_' + k]).trim(), en = taal === 'en';
+  const c = hit.card, ct = _ovkCt(c), P = k => String(ct['p_' + k] == null ? '' : ct['p_' + k]).trim(), en = taal === 'en';
   const kand = crmKandLijst().find(k => k.sleutel === _itkSleutel(c.naam || '')), kr = (kand && kand.crm) || {};
   const klant = _kanbanKlantVan(c), B = _kbcCrm(klant), br = B.r || {};
   const v = k => String(ct[k] == null ? '' : ct[k]).trim(), geld = x => { const n = parseFloat(_pcoGetal(x)); return n ? n.toFixed(2).replace('.', ',') : ''; };
@@ -42031,15 +42047,27 @@ function _ovkVensterHtml() {
       '<span class="ovk-taal">' + ['nl', 'en'].map(t => '<button type="button" class="' + (t === taal ? 'aan' : '') + '"' + (talen.length ? ' onclick="ovkTaal(\'' + d.id + '\',\'' + t + '\')"' : ' disabled') + '>' + (t === 'en' ? 'ENG' : 'NL') + '</button>').join('') + '</span>' + stand +
       '<button type="button" class="crm-knop' + (pad && mag ? ' goud' : '') + '"' + (pad && mag && !OVK.bezig ? ' onclick="ovkMaak(\'' + d.id + '\')"' : ' disabled') + '>' + (g ? 'Opnieuw maken' : 'Maak Word') + '</button></div>'; };
   return '<h4 class="wit">Overeenkomsten · ' + escHtml(c.naam || '') + '</h4><div class="crm-sub">' + escHtml(_kanbanKlantVan(c) || 'nog geen klant') + ' · uit het contractvoorstel' + (ct.bijgewerkt_op ? ' van ' + escHtml(_crmDatum(Date.parse(ct.bijgewerkt_op))) : '') +
-      (mag ? ' · <a class="ovk-a" onclick="kanbanContractVenster(\'' + escApos(hit.bmNaam) + '\',\'' + escApos(String(c.id)) + '\')">contractvoorstel openen</a>' : '') + '</div>' +
+      (mag ? ' · <a class="ovk-a" onclick="ovkNaarContract()">contractvoorstel openen</a>' : '') + '</div>' +
+    (_ovkBasisMist(c).length ? '<div class="ovk-basis"><span>Uit het contractvoorstel ontbreekt nog: <b>' + escHtml(_ovkBasisMist(c).join(' · ')) + '</b>. Dat vul je daar in, niet hier.</span>' + (mag ? '<button type="button" class="crm-knop goud" onclick="ovkNaarContract()">Contractvoorstel aanvullen</button>' : '') + '</div>' : '') +
     '<div class="ovk-kop">Projectinformatie <small>komt in de startersbrief en de inleenovereenkomst · oranje omlijnd is nog leeg</small></div><div class="ovk-velden">' + OVK_PROJECT.map(veld).join('') + '</div>' +
-    (mag ? '<div class="ovk-rij"><button type="button" class="crm-knop" onclick="ovkOpslaan()">Projectinformatie opslaan</button><span id="ovk-status" class="crm-sub"></span></div>' : '') +
+    (mag ? '<div class="ovk-rij"><button type="button" class="crm-knop" onclick="ovkOpslaan()">Projectinformatie opslaan</button><button type="button" class="crm-knop" onclick="ovkNaarContract()">€ Naar het contractvoorstel</button><span id="ovk-status" class="crm-sub"></span></div>' : '') +
     '<div class="ovk-kop">Documenten <small>Word, in jullie eigen format · wat ontbreekt staat fel geel in het document · PDF: in Word "Opslaan als PDF"</small></div>' + OVK_DOCS.map(docRij).join('');
 }
 function ovkVenster(bmNaam, id) {
   const hit = _pipeCardById(id); if (!hit) { btMeld('Dit kaartje bestaat niet (meer).', 'geel'); return; }
   OVK = { bm: hit.bmNaam || bmNaam, id: String(id), taal: (OVK && OVK.id === String(id) && OVK.taal) || {}, bezig: false };
   crmKaartToon(_ovkVensterHtml(), 'crm-kaart-breed ovk-venster', () => { OVK = null; });
+}
+// Wisselen tussen de twee vensters; wat je net invulde wordt eerst bewaard.
+async function ovkNaarContract() {
+  if (!OVK) return; const bm = OVK.bm, id = OVK.id;
+  if (magWijzigen('medewerkers')) await ovkOpslaan(true);
+  kanbanContractVenster(bm, id);
+}
+async function kbcNaarOvk() {
+  const K = KB_CONTRACT; if (!K) return;
+  await kanbanContractOpslaan(false);
+  if (!KB_CONTRACT) ovkVenster(K.bm, K.id);   // het venster is dicht = het voorstel is opgeslagen
 }
 function _ovkLees() { const uit = {}; OVK_PROJECT.forEach(([k]) => { const el = document.getElementById('ovk-p-' + k); if (el) uit['p_' + k] = String(el.value || '').trim(); }); return uit; }
 function _ovkHerteken() { if (OVK && document.querySelector('.ovk-venster')) crmKaartToon(_ovkVensterHtml(), 'crm-kaart-breed ovk-venster', () => { OVK = null; }); }
@@ -42058,6 +42086,16 @@ async function ovkOpslaan(stil, extra) {
   }
   _ovkHerteken(); return true;
 }
+// Waarom de opslag het sjabloon niet gaf: de melding van Supabase zelf, en wat er wél in de map staat.
+async function _ovkOpslagFout(pad) {
+  if (!supa) return 'Er is geen database gekoppeld.';
+  try {
+    const map = pad.split('/').slice(0, -1).join('/'), r = await supa.storage.from('bestanden').list(map, { limit: 50 });
+    if (r.error) return 'Melding van de opslag: ' + r.error.message;
+    const namen = (r.data || []).map(x => x.name).filter(n => n && n !== '.emptyFolderPlaceholder');
+    return namen.length ? 'In die map staat nu: ' + namen.join(', ') + '.' : 'De map ' + (map || 'hoofdmap') + ' is leeg of niet leesbaar voor jouw account.';
+  } catch (e) { return 'Melding van de opslag: ' + ((e && e.message) || e); }
+}
 async function ovkMaak(docId) {
   if (!OVK || OVK.bezig || !eisWijzig('medewerkers')) return;
   const d = OVK_DOCS.find(x => x.id === docId), taal = OVK.taal[docId] || 'nl', pad = d && d.talen[taal]; if (!pad) return;
@@ -42067,8 +42105,8 @@ async function ovkMaak(docId) {
   OVK.bezig = true; _ovkHerteken();
   let klaar = false;
   try {
-    const sjabloon = await haalBestand(pad);
-    if (!sjabloon) { btMeld('Het sjabloon ' + pad + ' staat nog niet in de opslag (bucket bestanden). Upload de map sjablonen/ovk uit het project.', 'rood'); }
+    const sjabloon = (await haalBestand(pad)) || (await haalBestand(pad.split('/').pop()));   // ook zonder map: het bestand kan in de hoofdmap van de bucket staan
+    if (!sjabloon) { btMeld('Het sjabloon ' + pad + ' staat nog niet in de opslag (bucket bestanden, map ovk). ' + (await _ovkOpslagFout(pad)), 'rood'); }
     else {
       const zip = await JSZip.loadAsync(await sjabloon.arrayBuffer()), bestand = zip.file('word/document.xml');
       if (!bestand) throw new Error('geen Word-document');
@@ -42154,6 +42192,7 @@ function _kbcVoetHtml(c, K) {
   const taken = _kbcTaken(c, K, _kbcCrm(_kbcKlantNu(K))).filter(t => !t.loopt), n = taken.filter(t => t.aan).length, leeg = KBC_VELDEN.filter(x => !String(K.w[x[0]] || '').trim()).length;
   return '<span class="som">' + leeg + (leeg === 1 ? ' veld' : ' velden') + ' leeg · ' + n + (n === 1 ? ' taak' : ' taken') + ' aangevinkt</span><span class="vul"></span>' +
     '<button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button>' +
+    '<button type="button" class="crm-knop" onclick="kbcNaarOvk()" title="Slaat het voorstel op (zonder taken aan te maken) en opent de overeenkomsten van deze kandidaat">Opslaan → ▤ Overeenkomsten</button>' +   // 27-11
     (n ? '<button type="button" class="crm-knop" onclick="kanbanContractOpslaan(false)">Alleen opslaan</button>' : '') +
     '<button type="button" class="crm-knop geel" id="kbc-knop" onclick="kanbanContractOpslaan(true)">' + (n ? 'Opslaan + ' + n + (n === 1 ? ' taak' : ' taken') + ' aanmaken' : 'Opslaan') + '</button>';
 }
