@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261127-1443 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261127-1638 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -12963,7 +12963,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261127-1443';
+const APP_VERSIE = '20261127-1638';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -42193,10 +42193,10 @@ function _kbcVeldHtml(veld, K, o) {
   const kop = '<div class="kbc-v' + (w.trim() ? '' : ' leeg') + '" id="kbc-v-' + veld + '"><label for="kbc-' + veld + '">' + escHtml(d[1]) + '</label>';
   // Een keuzelijst heeft precies de opties van het project; een oudere vrije waarde blijft als extra optie staan.
   const opts = d[3] ? ((CONTRACT_FIELDS.find(f => f.key === d[3]) || {}).opts || []).filter(Boolean) : null;
-  if (opts) return kop + '<select id="kbc-' + veld + '" data-kz="uit" onchange="kbContractVeld(\'' + veld + '\', this.value)"><option value="">nog niet bekend</option>' +
+  if (opts) return kop + '<select id="kbc-' + veld + '" data-kz="uit" onchange="kbContractVeld(\'' + veld + '\', this.value);kbcAuto()"><option value="">nog niet bekend</option>' +
     (w && !opts.includes(w) ? '<option selected>' + escHtml(w) + '</option>' : '') + opts.map(x => '<option' + (x === w ? ' selected' : '') + '>' + escHtml(x) + '</option>').join('') + '</select></div>';
   return kop + '<input id="kbc-' + veld + '" type="' + (o.type || 'text') + '" value="' + escHtml(w) + '" placeholder="' + escHtml(o.placeholder || 'nog niet bekend') + '" autocomplete="off"' + (o.lijst ? ' list="' + o.lijst + '"' : '') +
-    ' oninput="kbContractVeld(\'' + veld + '\', this.value)"></div>';
+    ' oninput="kbContractVeld(\'' + veld + '\', this.value)" onchange="kbcAuto()"></div>';
 }
 function _kbcVwHtml(K) {
   const klant = _kbcKlantNu(K), crm = _kbcCrm(klant);
@@ -42227,7 +42227,7 @@ function _kbcZijHtml(c, K) {
 }
 function _kbcVoetHtml(c, K) {
   const taken = _kbcTaken(c, K, _kbcCrm(_kbcKlantNu(K))).filter(t => !t.loopt), n = taken.filter(t => t.aan).length, leeg = KBC_VELDEN.filter(x => !String(K.w[x[0]] || '').trim()).length;
-  return '<span class="som">' + leeg + (leeg === 1 ? ' veld' : ' velden') + ' leeg · ' + n + (n === 1 ? ' taak' : ' taken') + ' aangevinkt</span><span class="vul"></span>' +
+  return '<span class="som">' + leeg + (leeg === 1 ? ' veld' : ' velden') + ' leeg · ' + n + (n === 1 ? ' taak' : ' taken') + ' aangevinkt</span><span id="kbc-auto" class="som" title="Het aanbod wordt vanzelf opgeslagen zodra je een veld verlaat"></span><span class="vul"></span>' +
     '<button type="button" class="crm-knop" onclick="crmKaartSluit()">Annuleren</button>' +
     '<button type="button" class="crm-knop" onclick="kbcNaarOvk()" title="Slaat het voorstel op (zonder taken aan te maken) en opent de overeenkomsten van deze kandidaat">Opslaan → ▤ Overeenkomsten</button>' +   // 27-11
     (n ? '<button type="button" class="crm-knop" onclick="kanbanContractOpslaan(false)">Alleen opslaan</button>' : '') +
@@ -42238,6 +42238,23 @@ function _kbcBij() {
   const K = KB_CONTRACT; if (!K) return; const v = _kanbanVind(K.id); if (!v) return;
   const z = document.getElementById('kbc-zij'), vt = document.getElementById('kbc-voet'), vw = document.getElementById('kbc-vw'), rk = document.getElementById('kbc-reken');
   if (z) z.innerHTML = _kbcZijHtml(v.kaart, K); if (vt) vt.innerHTML = _kbcVoetHtml(v.kaart, K); if (vw) vw.innerHTML = _kbcVwHtml(K); if (rk) rk.innerHTML = _kbcRekenHtml(K);
+}
+// Automatisch opslaan (27-11): alleen het aanbod (de 19 velden) op het kaartje. De stap, de taken en het sluiten van
+// het venster horen bij de knop Opslaan.
+async function kbcAuto() {
+  const K = KB_CONTRACT; if (!K || !magWijzigen('medewerkers')) return;
+  const v = _kanbanVind(K.id); if (!v) return;
+  const oud = (v.kaart.contract && typeof v.kaart.contract === 'object') ? v.kaart.contract : {}, contract = {};
+  KBC_VELDEN.forEach(x => { const w = String(K.w[x[0]] || '').trim(); if (w) contract[x[0]] = w; });
+  Object.keys(oud).forEach(k => { if (/^(p_|docs$)/.test(k) && contract[k] === undefined) contract[k] = oud[k]; });
+  const kaal = o => { const r = Object.assign({}, o); delete r.bijgewerkt_op; delete r.bijgewerkt_door; return JSON.stringify(Object.keys(r).sort().map(k => [k, r[k]])); };
+  if (kaal(contract) === kaal(oud)) return;
+  contract.bijgewerkt_op = new Date().toISOString(); contract.bijgewerkt_door = String((CURRENT_USER && (CURRENT_USER.naam || CURRENT_USER.bm_naam)) || '');
+  const ok = await _kanbanUpdate(v.bmNaam, K.id, { contract }), st = document.getElementById('kbc-auto');
+  if (ok === false) { if (st) st.textContent = 'niet opgeslagen'; return; }
+  const cards = pipeLoad(v.bmNaam), i = cards.findIndex(x => String(x.id) === String(K.id)); if (i >= 0) { cards[i] = Object.assign({}, cards[i], { contract }); pipeSave(v.bmNaam, cards); }
+  v.kaart.contract = contract;
+  if (st) { st.textContent = 'opgeslagen ✓'; setTimeout(() => { if (st.textContent === 'opgeslagen ✓') st.textContent = ''; }, 2500); }
 }
 function kbContractVeld(veld, waarde) {
   if (!KB_CONTRACT) return; KB_CONTRACT.w[veld] = String(waarde || '');
