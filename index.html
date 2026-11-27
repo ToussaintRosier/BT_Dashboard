@@ -1,4 +1,4 @@
-<!-- BT-VERSIE 20261127-1433 — wordt bij elke oplevering ververst. Staat op de
+<!-- BT-VERSIE 20261127-1443 — wordt bij elke oplevering ververst. Staat op de
      allereerste regel (24-08): de versiecontrole hoeft dan alleen de eerste
      2 kB op te vragen in plaats van het hele bestand van 2 MB — dat deed hij
      elke vijf minuten, voor iedereen. Een commentaar vóór de doctype is
@@ -3548,6 +3548,10 @@
   .kbc-mid { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 350px; } .kbc-links { padding:14px 18px 12px; overflow-y:auto; min-width:0; } .kbc-venster h3 { font-size:1.05rem; font-weight:var(--w-nadruk); margin:0 0 2px; color:#fff; }
   .kbc-zij { border-left:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.1); padding:14px 14px 12px; overflow-y:auto; min-width:0; } .kbc-zij .tv-lab { margin-top:14px; }
   .kbc-r4 { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px 10px; } .kbc-r2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 10px; margin-top:8px; }
+  /* 27-11 (keuze B): samenvattingsregel boven de stap; keuzevakken donker. */
+  .kbc-som { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--l1); border-radius:10px; padding:8px 12px; margin-bottom:4px; } .kbc-som b { display:block; font-size:.9rem; font-weight:var(--w-nadruk); color:#fff; } .kbc-som span { color:rgba(255,255,255,.7); font-size:.78rem; }
+  .kbc-som i { font-style:normal; display:inline-block; margin-left:8px; border:1px solid rgba(37,211,102,.6); color:#7be3a6; border-radius:99px; padding:0 8px; font-size:.68rem; } .kbc-som a { color:#F4CB3C; font-size:.76rem; text-decoration:underline; cursor:pointer; white-space:nowrap; }
+  .kbc-stap .kiezer { background:var(--l1); border-color:rgba(255,255,255,.2); } .kbc-stap .kiezer > input.kiezer-veld { color:#fff; } .kbc-stap .kiezer > input.kiezer-veld::placeholder { color:rgba(255,255,255,.4); } .kbc-stap .kiezer > svg { stroke:rgba(255,255,255,.5); } .kbc-stap .kiezer .kiezer-wis { color:rgba(255,255,255,.6); }
   .kbc-stap { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 10px; } .kbc-stap > .kk-2k, .kbc-stap > #kb-status { grid-column:1 / -1; } .kbc-stap > .kk-2k { gap:0 10px; } .kbc-stap > .crm-kop:nth-of-type(2) { grid-column:1; grid-row:2; } .kbc-stap > #kb-vac-wrap { grid-column:1; grid-row:3; min-width:0; } .kbc-stap > .crm-kop:nth-of-type(4) { grid-column:2; grid-row:2; } .kbc-stap > #kb-op { grid-column:2; grid-row:3; }
   .kbc-stap .crm-kop { margin:8px 0 3px; font-size:.7rem; letter-spacing:0; text-transform:none; color:rgba(255,255,255,.65); font-weight:var(--w-normaal); } .kbc-stap .kk-2k .crm-kop { margin-top:0; } .kbc-stap .kand-vervolg-veld, .kbc-stap .kz-sel, .kbc-stap input[type=text] { min-height:32px; height:32px; font-size:.82rem; padding-top:0; padding-bottom:0; margin:0; width:100%; } .kbc-stap #kb-status:empty { display:none; }
   .kbc-v label { display:block; font-size:.7rem; color:rgba(255,255,255,.65); margin:0 0 3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -12959,7 +12963,7 @@ async function oneVastzetten(id, aan) {
 // onderin een balkje. Bijwerken gooit ook de opslag van de browser leeg, want
 // anders krijg je bij het herladen gewoon weer dezelfde oude versie terug.
 // ════════════════════════════════════════════════════════════════════════════
-const APP_VERSIE = '20261127-1433';
+const APP_VERSIE = '20261127-1443';
 let _versieGemeld = false;
 
 function _versieUitTekst(tekst) {
@@ -42259,7 +42263,7 @@ function kanbanContractVenster(bmNaam, id) {
   const V = (veld, o) => _kbcVeldHtml(veld, K, o);
   crmKaartToon('<div class="tv-kop"><em>€</em><b>Contractvoorstel</b><span><b>' + escHtml(c.naam || '') + '</b>' + escHtml([K.klant, c.kanban_functie || c.functie].filter(Boolean).map(x => ' · ' + x).join('')) + '</span></div>' +
     '<div class="kbc-mid"><div class="kbc-links"><h3>Wat bieden we aan?</h3><div class="tv-sub">Vul in wat je weet. Wat leeg blijft (gestippelde rand) komt rechts als taak terug; opslaan kan altijd.</div>' +
-      '<div class="tv-lab">De stap</div><div class="kbc-stap">' + _kanbanVeldenHtml({ klant: K.klant, functie: c.kanban_functie || '', op: _naarVeldTijd(_kanbanDatumVan(c)), datumLabel: f.datum, zonderCollegas: true, vacatureId: c.vacature_id || '', metVacature: true }) + '</div>' +
+      '<div class="tv-lab">De stap</div><div class="kbc-som" id="kbc-som"></div><div id="kbc-stap-wrap"' + (K.klant && _kanbanDatumVan(c) ? ' hidden' : '') + '><div class="kbc-stap">' + _kanbanVeldenHtml({ klant: K.klant, functie: c.kanban_functie || '', op: _naarVeldTijd(_kanbanDatumVan(c)), datumLabel: f.datum, zonderCollegas: true, vacatureId: c.vacature_id || '', metVacature: true }) + '</div></div>' +
       '<div class="kbc-r2">' + V('contactpersoon', { lijst: 'kbc-cps', placeholder: 'naam van de contactpersoon' }) + '</div><datalist id="kbc-cps">' + cps.map(n => '<option value="' + escHtml(n) + '">').join('') + '</datalist>' +
       '<div class="tv-lab">Het aanbod aan de kandidaat</div><div class="kbc-r4">' + V('salaris', { placeholder: '€ per maand' }) + V('uren', { placeholder: 'bijv. 40' }) + V('start', { type: 'date' }) + V('contractvorm') + V('cao') + V('verlof', { placeholder: 'dagen per jaar' }) + V('adv', { placeholder: 'dagen per jaar' }) + V('eju') + V('vergoeding', { placeholder: '€' }) + V('frequentie') + V('toeslag') + V('pensioen') + '</div>' +
       '<div class="tv-lab">Afspraak met de klant <small>voor deze plaatsing</small></div><div class="kbc-r4">' + V('tarief', { placeholder: '€ per uur' }) + V('allin') + V('wtta', { placeholder: '€' }) + V('factor') + V('inleentermijn') + V('overname') + '</div>' +
@@ -42269,8 +42273,17 @@ function kanbanContractVenster(bmNaam, id) {
     '<div class="kbc-zij" id="kbc-zij">' + _kbcZijHtml(c, K) + '</div></div>' +
     '<div class="tv-voet" id="kbc-voet">' + _kbcVoetHtml(c, K) + '</div>', 'crm-kaart-breed kbc-venster', () => { KB_CONTRACT = null; });
   // Een andere klant (getypt of uit de kiezer gekozen) geeft andere voorwaarden: bijwerken zodra het veld losgelaten wordt.
-  const st = document.querySelector('.kbc-stap'); if (st) { st.addEventListener('input', _kbcBij); st.addEventListener('focusout', () => setTimeout(_kbcBij, 150)); }
+  const st = document.querySelector('.kbc-stap'); if (st) { st.addEventListener('input', _kbcBij); st.addEventListener('focusout', () => setTimeout(_kbcBij, 150)); st.addEventListener('focusout', () => setTimeout(_kbcSomBij, 200)); }
+  _kbcSomBij();
 }
+// De stap in één regel (27-11, keuze B): wie, waar, wanneer en welke vacature. De velden zelf staan eronder, ingeklapt.
+function _kbcSomBij() {
+  const el = document.getElementById('kbc-som'), wrap = document.getElementById('kbc-stap-wrap'); if (!el) return;
+  const o = _kanbanLees(), vac = o.vacatureId ? _vacVind(o.vacatureId) : null, open = wrap && !wrap.hidden;
+  el.innerHTML = '<div><b>' + escHtml([o.klant, o.functie].filter(Boolean).join(' · ') || 'klant en functie invullen') + '</b><span>' + (o.opVeld ? 'contractvoorstel ' + escHtml(_pipeK2Tijd(o.opVeld)) : 'datum invullen') + '</span>' +
+    (vac ? '<i>vacature: ' + escHtml(vac.titel || '') + '</i>' : '') + '</div><a onclick="kbcStapWissel()">' + (open ? 'klaar' : 'wijzig') + '</a>';
+}
+function kbcStapWissel() { const wrap = document.getElementById('kbc-stap-wrap'); if (!wrap) return; wrap.hidden = !wrap.hidden; _kbcSomBij(); }
 async function kanbanContractOpslaan(metTaken) {
   if (!eisWijzig('medewerkers') || !KB_CONTRACT) return;
   const K = KB_CONTRACT, v = _kanbanVind(K.id); if (!v) return;
